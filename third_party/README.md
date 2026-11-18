@@ -88,3 +88,11 @@ native Go, under the MIT License, Copyright (c) 2025 kokonutUI. The full
 MIT notice is in `kokonutui/LICENSE`.
 
 [Kokonut UI source](https://github.com/kokonut-labs/kokonutui)
+
+## FreeMD 上游基线与依赖清单
+
+FreeMD 基于上游 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT License，提交 `27322d387268751932624ef83a7c580cb0b068d5`，标签 `v0.2.1`）持续演进，所有既有第三方声明、许可正文与署名保持完整保留。
+
+- 上游来源与提交摘要登记在 [upstreams.json](manifests/upstreams.json)；
+- Go 模块直接与传递依赖、哈希与许可登记在 [go-mod.json](manifests/go-mod.json)；
+- 当 `go.mod` 或 `go.sum` 变更时，需运行 `python -X utf8 tools/update_go_inventory.py` 重新核对依赖并同步更新清单。

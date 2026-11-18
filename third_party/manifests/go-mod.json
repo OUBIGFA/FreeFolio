@@ -1,0 +1,86 @@
+{
+  "goModSha256": "6c18f96f588f2ff10b9f8659419bb1f2c51d3ffd68be30ed5b0b457fd95aeab8",
+  "goSumSha256": "a7f878f305e743427e5340b9e5fa02824a8418533a381b722c1d98bfd9f1c26f",
+  "modules": [
+    {
+      "module": "github.com/ebitengine/purego",
+      "version": "v0.11.1",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/ebitengine/purego",
+      "archiveHash": "h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=",
+      "goModHash": "h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "github.com/egoist/mygo",
+      "version": "v0.7.4",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/egoist/mygo",
+      "archiveHash": "h1:0qkDpDRo7C9g8PM8eu4V6FVouhLiTrUdqKD6I31Lv3Q=",
+      "goModHash": "h1:dVav53PwF2xEotjf4oA5lTY2Jp2exgzyjLhbSXhbMwE=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "github.com/go-text/typesetting",
+      "version": "v0.3.5",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/go-text/typesetting",
+      "archiveHash": "h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=",
+      "goModHash": "h1:XZO1hD+nQVyvVa5IicQk7FsCa4PFQaJ2soWAP1f//68=",
+      "spdxLicenseId": "Unlicense OR BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "github.com/go-text/typesetting-utils",
+      "version": "v0.0.0-20260419141703-4ffe8874dabc",
+      "relation": "transitive",
+      "sourceUrl": "https://github.com/go-text/typesetting-utils",
+      "archiveHash": "h1:8FGo2It5K75XkavhTiCKExUfVaVDS1feBnLCru5qeoY=",
+      "goModHash": "h1:3/62I4La/HBRX9TcTpBj4eipLiwzf+vhI+7whTc9V7o=",
+      "spdxLicenseId": "Unlicense OR BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/image",
+      "version": "v0.46.0",
+      "relation": "direct",
+      "sourceUrl": "https://golang.org/x/image",
+      "archiveHash": "h1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=",
+      "goModHash": "h1:3B3W05VGVQyuXucLINLjXKrqISASfi4Xj+iCVkLMwew=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.59.0",
+      "relation": "direct",
+      "sourceUrl": "https://golang.org/x/net",
+      "archiveHash": "h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=",
+      "goModHash": "h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.48.0",
+      "relation": "indirect",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+      "goModHash": "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.43.0",
+      "relation": "indirect",
+      "sourceUrl": "https://golang.org/x/text",
+      "archiveHash": "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
+      "goModHash": "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    }
+  ]
+}

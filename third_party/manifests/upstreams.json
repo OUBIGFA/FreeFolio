@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "name": "ArcMD",
+      "purpose": "Upstream Go + MyGo native Markdown editor baseline for FreeMD",
+      "sourceUrl": "https://github.com/Ciao1019/ArcMD",
+      "tag": "v0.2.1",
+      "revision": "27322d387268751932624ef83a7c580cb0b068d5",
+      "spdxLicenseId": "MIT",
+      "licensePath": "LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "LICENSE",
+          "bytes": 1075,
+          "sha256": "8def5edf09daaac73372039bf188110e25afbfd2e66192f8b803f32cd0078b0e"
+        }
+      ],
+      "gitArchive": {
+        "command": "git -c core.autocrlf=false -c core.eol=lf -c tar.umask=0002 archive --format=tar 27322d387268751932624ef83a7c580cb0b068d5",
+        "bytes": 31016960,
+        "sha256": "657cc2bb84025e10272cfdc3e978fde47770a334b097e340a5d4f2a4fda99aec"
+      }
+    }
+  ]
+}

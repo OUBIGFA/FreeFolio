@@ -1,0 +1,252 @@
+{
+  "binaries": [
+    {
+      "path": "assets/FreeMD-logo.png",
+      "reason": "Maintainer-supplied branding logo copied from dist/FreeMD-logo.png",
+      "source": "Maintainer-supplied (OUBIGFA/FreeMD)",
+      "license": "MIT",
+      "bytes": 31106,
+      "sha256": "77603f1cf7dc46f74d4fe6f231aa0b3bc6bae45dbfb141c51641814752c85fad"
+    },
+    {
+      "path": "resources/icon.icns",
+      "reason": "macOS app bundle icon referenced by mygo.json",
+      "source": "https://github.com/Ciao1019/ArcMD/blob/27322d387268751932624ef83a7c580cb0b068d5/resources/icon.icns",
+      "license": "MIT",
+      "bytes": 2373975,
+      "sha256": "ad805c5e02ec0934bd194f237bf8ae8e55c4b6a50480348e23251d864524b734"
+    },
+    {
+      "path": "resources/icon.png",
+      "reason": "Application icon referenced by mygo.json",
+      "source": "https://github.com/Ciao1019/ArcMD/blob/27322d387268751932624ef83a7c580cb0b068d5/resources/icon.png",
+      "license": "MIT",
+      "bytes": 1411887,
+      "sha256": "7c7a1df594625d987a0e8b0c88a876b38c323c07623541bbae758fb5a53af854"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch00.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 318620,
+      "sha256": "b9076e7cdc58b38e0e67c9d1435dc668f62ec6bae42d91a5e3c9b82a2684db53"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch01.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 322286,
+      "sha256": "3f3021beb5a997a9fc0448cb636ba99b3d7a7723fd655afa2ef89894213ed19b"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch02.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 324877,
+      "sha256": "aaa3f5702a4975533a68e1a657965997d33ab0765b00f0b94ec0531ddbf983c9"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch03.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 318043,
+      "sha256": "1711c6c3458e3c3c3cc0dd92798db9ea6d365e06cbeec52abef578822049f57b"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch04.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 321275,
+      "sha256": "c7b79108f9672933b3d797737b19869ca81fece877179afcbda9a45448a8a3e7"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch05.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 322069,
+      "sha256": "f8d1a5fdb2289afb2d25b4dd0d3d116ca7003d1bd3a56bb27fb8d1bf1542278b"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch06.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 323851,
+      "sha256": "b7321d172babc5058b8a3c07ec5d05d152ad82da05887119d93ff574175793f7"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch07.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 320575,
+      "sha256": "715c75e8c646bededc8297ab145e9ad4070a3eed8ccbcd98dec00300b4458624"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch08.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 319905,
+      "sha256": "608158579d5d7c7ceeb4b01d9c172602dab9f9b75f03ead6e59be6c38e52b00c"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch09.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 317623,
+      "sha256": "d8c6997fbf7d5b31f1cd6561ece3c36605005f6f8aa93161f898df6d54ccc410"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch10.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 318441,
+      "sha256": "97e16365ea22fa4d4c0aab7f7620a68c1eb03369487f2a1f82365533893169f5"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch11.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 317172,
+      "sha256": "752fbe902054fefb95df96d0808eba79dfb45de24349dd1320eeb2273eabd8f9"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch12.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 318714,
+      "sha256": "a8a14c791299034ad489166437a442f01a4a850d0533de0d91c9c1e268cadb34"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch13.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 317270,
+      "sha256": "a89eb6df2e92656fbe720eeeba3b2b8f61b2930189d638fb355aaded55f399ba"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch14.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 315578,
+      "sha256": "239179c36a2f0f1add3d4b813c940e4b8246e77cff5b22f334736447485face4"
+    },
+    {
+      "path": "internal/app/assets/ghost/pitch15.png",
+      "reason": "Pre-rendered BotAvatar ghost fabric view sheet used by internal/app/qabotpaint.go",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 313644,
+      "sha256": "f9dbf2d57442e6dc05de4b7e71002bc10dd7706cc43105120c8cf3e692dce3fd"
+    },
+    {
+      "path": "internal/app/testdata/qabot/rest.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5421,
+      "sha256": "92164fb9f270700d6cae8f77d68a3b0b18c172563fb78ef2785349242b7d2d77"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-139.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5639,
+      "sha256": "dbdf7b61a5fe86e588a04b0a6cd819faf9b4653f85231448e3a7bb17553e1490"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-169.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5666,
+      "sha256": "8c65f040b55d786ed076743abf629981357b5bae2086452e55f7bf36a8c2b140"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-253.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5695,
+      "sha256": "60e9f770847025e8f1b9eeae10ee6ad310f65910a54264d26adeaea0a3923513"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-505.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5199,
+      "sha256": "b455a961a7e5b03aed93cb8f19711d587c90809fd6a1567656942e24202df9ef"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-793.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5764,
+      "sha256": "88592b0881d9a58144b02662dd125d3f0568469d78664eebc9aefe31bdbb6934"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-91.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5564,
+      "sha256": "f9677da314e77debfa9c34c0a5ae86a007cb9869d1216505e0212050bee3ae84"
+    },
+    {
+      "path": "internal/app/testdata/qabot/step-985.png",
+      "reason": "Reference Canvas render fixture for BotAvatar visual regression tests",
+      "source": "https://github.com/Jakubantalik/Libraries.dev/tree/387b049ca8fe97b5d72999b5bf61a19ab1ccff81/packages/bot-avatars",
+      "license": "MIT",
+      "bytes": 5504,
+      "sha256": "06f9912d18f4b61c663d22878cf1bf0df46bd72c1f14a6c8515da19f9d217867"
+    },
+    {
+      "path": "internal/editor/fonts/KaTeX_Main-Bold.ttf",
+      "reason": "Embedded KaTeX math font face used by internal/editor/mathfonts.go and vector PDF export",
+      "source": "https://github.com/KaTeX/KaTeX/tree/9b2280dee4acb4da7d866dbaccad120b00949c27/fonts",
+      "license": "OFL-1.1",
+      "bytes": 51336,
+      "sha256": "138ac28d1663b3037e9c5f52371fa5c63d8324f4a38d22cd573e6ea3a3fd0cf8"
+    },
+    {
+      "path": "internal/editor/fonts/KaTeX_Main-Regular.ttf",
+      "reason": "Embedded KaTeX math font face used by internal/editor/mathfonts.go and vector PDF export",
+      "source": "https://github.com/KaTeX/KaTeX/tree/9b2280dee4acb4da7d866dbaccad120b00949c27/fonts",
+      "license": "OFL-1.1",
+      "bytes": 53580,
+      "sha256": "d0332f52868370fd83ae7fa46470f90c8f2eab2fcf12bc4f88080b340c95a830"
+    },
+    {
+      "path": "internal/editor/fonts/KaTeX_Math-BoldItalic.ttf",
+      "reason": "Embedded KaTeX math font face used by internal/editor/mathfonts.go and vector PDF export",
+      "source": "https://github.com/KaTeX/KaTeX/tree/9b2280dee4acb4da7d866dbaccad120b00949c27/fonts",
+      "license": "OFL-1.1",
+      "bytes": 31196,
+      "sha256": "f9377ab0271cda59af24bcffbd46a4d0c8a3572ffafdbb38de2ad5ea7b0d5ee5"
+    },
+    {
+      "path": "internal/editor/fonts/KaTeX_Math-Italic.ttf",
+      "reason": "Embedded KaTeX math font face used by internal/editor/mathfonts.go and vector PDF export",
+      "source": "https://github.com/KaTeX/KaTeX/tree/9b2280dee4acb4da7d866dbaccad120b00949c27/fonts",
+      "license": "OFL-1.1",
+      "bytes": 31308,
+      "sha256": "08ce98e51b04d58945a301e639e02b6998af29fdfd61a7b8afdd07bbfc479d4a"
+    }
+  ]
+}

@@ -1,19 +1,55 @@
-# Build output
+# Build output and packaging artifacts
 /bin/
 /build/
 /dist/
 /arcmd
+/freemd
 *.exe
 
-# MyGo dev bundles
+# MyGo dev bundles and Python caches
 .mygo/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
 
-# Editors and OS
+# Reusable local inputs and generated outputs
+.local/
+**/output/
+
+# Removed upstream promo media, performance dumps, and ArcMD release automation
+/docs/images/
+/docs/performance/
+/docs/performance.md
+/docs/building.md
+/.github/workflows/build.yml
+
+# Local instructions, editor state, OS metadata, and credentials
+**/AGENTS.md
+**/CLAUDE.md
+**/.agents/
+**/.claude/
 .DS_Store
 .idea/
 .vscode/
 *.swp
-
-# Update signing keys belong outside the repository.
 mygo-update.key
 *.private-key
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+credentials*.json
+secrets*.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+
+# Must be the final active rule; no negation rules may appear after it.
+**/_temp/
