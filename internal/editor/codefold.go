@@ -9,11 +9,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A code block of more than codeFoldLines lines shows only its first
-// codeFoldLines until the reader opens it; the fold is the editing
-// session's and never changes the Markdown. Its toggle sits at the foot of
-// the block, or at the foot of the view while the block runs past it, so
-// it stays at hand for the block being read and no other.
+// A code block taller than codeFoldLines lines shows only its first
+// codeFoldLines lines of height until the reader opens it; the fold is the
+// editing session's and never changes the Markdown. Lines count as they
+// show: a prompt of a few long lines that wrap stands as tall as many
+// short ones, so the height the block lays out to decides, not its
+// newlines. Its toggle sits at the foot of the block, or at the foot of
+// the view while the block runs past it, so it stays at hand for the block
+// being read and no other.
 const codeFoldLines = 15
 
 // codeLines is how many lines the code block b holds, counting no further
@@ -29,10 +32,29 @@ func codeLines(b *document.Block, limit int) int {
 	return n
 }
 
-// codeFoldable reports whether code block b is long enough to fold.
-// Printing and Mermaid diagrams show whole.
+// codeFoldable reports whether code block b is tall enough to fold, as
+// its last layout measured it. Printing and Mermaid diagrams show whole.
 func (e *Editor) codeFoldable(b *document.Block) bool {
-	return b != nil && b.Kind == "code" && !e.printing && !isMermaidBlock(b) && codeLines(b, codeFoldLines) > codeFoldLines
+	return b != nil && b.Kind == "code" && !e.printing && !isMermaidBlock(b) && e.codeTall[b.ID]
+}
+
+// measureCodeFold records whether code block b, whose text is textH tall
+// as laid out or estimated at the current width, stands taller than the
+// fold. More newlines than the fold shows always count, so an estimate
+// that comes short of a long block still folds it.
+func (e *Editor) measureCodeFold(b *document.Block, textH float32, font ui.Font) {
+	tall := textH > foldedCodeHeight(font)+0.5 || codeLines(b, codeFoldLines) > codeFoldLines
+	if tall == e.codeTall[b.ID] {
+		return
+	}
+	if e.codeTall == nil {
+		e.codeTall = map[string]bool{}
+	}
+	if tall {
+		e.codeTall[b.ID] = true
+	} else {
+		delete(e.codeTall, b.ID)
+	}
 }
 
 // codeFolded reports whether code block b shows only its first lines.
@@ -107,11 +129,14 @@ func (e *Editor) openFoldAtCaret() {
 	}
 }
 
-// codeFoldButton is where a long code block shows its toggle.
+// codeFoldButton is where a long code block shows its toggle: at a folded
+// block's foot, over its fade; an open one's follows the foot of the view
+// while the block runs past it. A folded block entering at the view's
+// foot keeps its toggle at its own foot, off the code it would cover.
 func (e *Editor) codeFoldButton(d decoration) ui.Rect {
 	w, h := float32(96), float32(24)
 	bottom := d.rect.Y + d.rect.H - 2
-	if e.viewport > 0 {
+	if e.viewport > 0 && !d.folded {
 		bottom = min(bottom, e.Scroll.Y+e.viewport-12)
 	}
 	bottom = max(bottom, d.rect.Y+48+h)

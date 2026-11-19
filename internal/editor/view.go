@@ -192,8 +192,11 @@ type Editor struct {
 	codeLex                     map[string]*codeLexCache
 	codeNoWrap                  bool
 	codeWrapOverride            map[string]bool
-	// codeOpen are the long code blocks opened from their fold.
+	// codeOpen are the long code blocks opened from their fold; codeTall
+	// those whose text, as laid out or estimated, stands taller than the
+	// fold (codefold.go).
 	codeOpen    map[string]bool
+	codeTall    map[string]bool
 	codeScrollX map[string]float32
 	codeBarDrag string
 	codeBarGrab float32
@@ -1170,6 +1173,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		}
 		if laid == nil && deferShape {
 			estH := e.estimateBlockHeight(b, font, e.hintWidthFor(b, shapeWidth))
+			if b.Kind == "code" {
+				e.measureCodeFold(b, estH, font)
+			}
 			if e.codeFolded(b) {
 				estH = min(estH, foldedCodeHeight(font))
 			}
@@ -1213,6 +1219,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		h = max(h, font.Size*font.LineHeight)
 		fullH := h
 		var foldH float32
+		if b.Kind == "code" {
+			e.measureCodeFold(b, h, font)
+		}
 		if b.Kind == "code" && e.codeFoldable(b) {
 			if caretLeaf.Block.ID == b.ID {
 				e.openCodeAtCaret(b, laid, e.Caret-leaf.Start, font)
