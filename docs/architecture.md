@@ -78,7 +78,7 @@ icons, covers and word goals (YAML frontmatter), text colors, highlights and
 hand-drawn annotations (`<mark>` / `<span>` with CSS fallbacks and `data-*`
 attributes), callouts with custom emoji (`> [!NOTE]` alerts), disclosures
 (`<details>`), resized or aligned figures, rich tables (`<table>` with widths,
-spans and cell backgrounds) and multi-column layouts (`<div class="arcmd-columns">`)—
+spans and cell backgrounds) and multi-column layouts (`<div class="freemd-columns">`, legacy `arcmd-columns` still read)—
 round-trip losslessly through `internal/editor/markdown.go` while degrading
 cleanly in other Markdown readers. Unmodified top-level blocks retain their
 original author Markdown bytes via `ImportSource` chunk matching. Legacy

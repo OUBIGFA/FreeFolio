@@ -254,11 +254,16 @@ func TestSpaceCustomIconTextAndPicture(t *testing.T) {
 	var buf bytes.Buffer
 	png.Encode(&buf, img)
 	os.WriteFile(pic, buf.Bytes(), 0o644)
-	a.pickFiles = func(done func([]string)) { done([]string{pic}) }
+	// The system dialog answers after the frame that opened it, as the
+	// real one does on its goroutine.
+	var answer func([]string)
+	a.pickFiles = func(done func([]string)) { answer = done }
 	open()
 	if err := tt.Click("选择图片…"); err != nil {
 		t.Fatal(err)
 	}
+	settle(tt)
+	answer([]string{pic})
 	settle(tt)
 	if sp.Image == "" || sp.Icon != "" || filepath.Ext(sp.Image) != ".png" {
 		t.Fatalf("picture icon: %+v", sp)
@@ -268,5 +273,43 @@ func TestSpaceCustomIconTextAndPicture(t *testing.T) {
 	}
 	if a.spaceIconImage("../prefs.json") != nil {
 		t.Fatal("only file names in the folder")
+	}
+}
+
+// A new space's draft shows the picture chosen for it, which the space
+// keeps once made.
+func TestSpaceDraftPictureIcon(t *testing.T) {
+	a, tt := newTestApp(t)
+	settle(tt)
+	pic := filepath.Join(t.TempDir(), "draft.png")
+	var buf bytes.Buffer
+	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	os.WriteFile(pic, buf.Bytes(), 0o644)
+	var answer func([]string)
+	a.pickFiles = func(done func([]string)) { answer = done }
+	a.newSpaceForm()
+	tt.Frame()
+	a.spaceForm.openIconPicker()
+	tt.Frame()
+	if err := tt.Click("自定义"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("选择图片…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	answer([]string{pic})
+	settle(tt)
+	f := &a.spaceForm
+	if !f.open || f.image == "" {
+		t.Fatalf("draft lost the picture: %+v", f)
+	}
+	f.name = "图片空间"
+	want := f.image
+	a.submitSpace()
+	settle(tt)
+	if sp := a.state.ActiveSpace(); sp.Name != "图片空间" || sp.Image != want {
+		t.Fatalf("made space: %+v", sp)
 	}
 }

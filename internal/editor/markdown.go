@@ -1361,14 +1361,14 @@ func renderSingleMarkdownItem(blocks []*document.Block, i int, numberedSeq map[i
 			}
 			colBody := strings.TrimRight(renderMarkdownBlockList(column.Children), "\n")
 			if colBody == "" {
-				cols = append(cols, `<div class="arcmd-column" style="`+flexStyle+`">`+"\n\n</div>")
+				cols = append(cols, `<div class="freemd-column" style="`+flexStyle+`">`+"\n\n</div>")
 			} else {
-				cols = append(cols, `<div class="arcmd-column" style="`+flexStyle+`">`+"\n\n"+colBody+"\n\n</div>")
+				cols = append(cols, `<div class="freemd-column" style="`+flexStyle+`">`+"\n\n"+colBody+"\n\n</div>")
 			}
 		}
-		openTag := `<div class="arcmd-columns" style="display:flex;gap:24px">`
+		openTag := `<div class="freemd-columns" style="display:flex;gap:24px">`
 		if len(ratios) == len(b.Children) {
-			openTag = `<div class="arcmd-columns" data-widths="` + strings.Join(ratios, ",") + `" style="display:flex;gap:24px">`
+			openTag = `<div class="freemd-columns" data-widths="` + strings.Join(ratios, ",") + `" style="display:flex;gap:24px">`
 		}
 		text = openTag + "\n\n" + strings.Join(cols, "\n\n") + "\n\n</div>"
 	default:
@@ -1804,12 +1804,14 @@ func alertMetadata(children []*document.Block) (color, emoji, align string, ok b
 	return color, emoji, align, true
 }
 
+// Columns written before the rebrand use the arcmd- classes, which are
+// still read; new ones are written with freemd- classes.
 var (
 	detailsOpen      = regexp.MustCompile(`(?is)^\s*<details(\s+open)?\s*>\s*<summary>(.*?)</summary>\s*$`)
 	detailsClose     = regexp.MustCompile(`(?i)^\s*</details>\s*$`)
-	columnsOpenRe    = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\barcmd-columns\b[^"']*["'][^>]*>\s*(<div\b[^>]*>\s*)?$`)
+	columnsOpenRe    = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freemd|arcmd)-columns\b[^"']*["'][^>]*>\s*(<div\b[^>]*>\s*)?$`)
 	columnsWidthsRe  = regexp.MustCompile(`(?i)\bdata-widths\s*=\s*["']([^"']+)["']`)
-	columnOpenRe     = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\barcmd-column\b[^"']*["'][^>]*>\s*$`)
+	columnOpenRe     = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freemd|arcmd)-column\b[^"']*["'][^>]*>\s*$`)
 	divOpenGenericRe = regexp.MustCompile(`(?is)^\s*<div\s*>\s*$`)
 	divNextColumnRe  = regexp.MustCompile(`(?is)^\s*</div>\s*<div\b[^>]*>\s*$`)
 	divDoubleCloseRe = regexp.MustCompile(`(?is)^\s*</div>\s*</div>\s*$`)

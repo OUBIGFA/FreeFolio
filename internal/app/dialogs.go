@@ -125,6 +125,10 @@ func (a *App) submitSpace() {
 		a.notify("创建文件夹 %s 失败。%v", root, err)
 		return
 	}
+	// An existing folder may hold a legacy system folder.
+	if err := vault.MigrateSystemDir(root); err != nil {
+		a.notify("迁移空间 %s 的系统文件夹失败。%v", name, err)
+	}
 	s := a.state.Add(name, root)
 	s.SetIcon(icon, f.symbol, f.image)
 	s.SetTheme(f.theme)

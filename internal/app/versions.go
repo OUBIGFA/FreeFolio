@@ -279,7 +279,7 @@ func (a *App) versionsView(c *ui.Context) {
 						ui.Text(c, i18n.T("读取版本历史失败。")+v.err.Error()).TextColor(t.Danger)
 					default:
 						ui.Text(c, i18n.T("还没有历史版本")).FontSize(15)
-						ui.Text(c, i18n.T("编辑并保存后，FreeMD 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .arcmd/history 里。")).
+						ui.Text(c, i18n.T("编辑并保存后，FreeMD 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .freemd/history 里。")).
 							FontSize(12).TextColor(t.TextMuted).MaxWidth(420).TextAlign(ui.Center)
 					}
 				})

@@ -324,3 +324,42 @@ func TestSidebarResizesByDraggingItsEdge(t *testing.T) {
 		t.Fatal("standard")
 	}
 }
+
+// A double click on the sidebar's edge goes back to the standard width,
+// and from the standard width out to the widest the window allows.
+func TestSidebarEdgeDoubleClick(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1200, 800)
+	a.prefs.SidebarWidth = sidebarWidth + 80
+	settle(tt)
+	double := func() {
+		t.Helper()
+		edge, ok := tt.Find("调整侧边栏宽度")
+		if !ok {
+			t.Fatal("no edge")
+		}
+		x, y := edge.X+edge.W/2, edge.Y+edge.H/2
+		for range 2 {
+			tt.Press(x, y)
+			tt.Frame()
+			tt.Release(x, y)
+			tt.Frame()
+		}
+		settle(tt)
+	}
+	double()
+	if a.sidebarW() != sidebarWidth || a.prefs.SidebarWidth != 0 {
+		t.Fatal("standard width", a.sidebarW(), a.prefs.SidebarWidth)
+	}
+	double()
+	if a.sidebarW() != sidebarMax {
+		t.Fatal("widest", a.sidebarW())
+	}
+	if stored, err := a.prefStore.Load(); err != nil || stored.SidebarWidth != sidebarMax {
+		t.Fatal("kept", stored, err)
+	}
+	double()
+	if a.sidebarW() != sidebarWidth {
+		t.Fatal("back to standard", a.sidebarW())
+	}
+}

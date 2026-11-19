@@ -1,6 +1,6 @@
 // Package history keeps earlier versions of a space's documents, so that
 // what was written can be seen and brought back: each document's versions
-// are files in the space's hidden .arcmd/history folder, at the document's
+// are files in the space's hidden .freemd/history folder, at the document's
 // own path, named by the time they were taken. The package has no
 // dependency on the window.
 package history
@@ -21,7 +21,7 @@ import (
 )
 
 // Dir is the folder of a space holding its documents' versions.
-const Dir = ".arcmd/history"
+const Dir = vault.SystemDir + "/history"
 
 // Keep is how many versions of a document are kept; Gap how long a version
 // takes in the edits after it before another is taken: edits within Gap of

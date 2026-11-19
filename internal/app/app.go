@@ -28,7 +28,6 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/trashbin"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/resources"
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
@@ -310,6 +309,13 @@ func New(cfg Config) (*App, error) {
 		return nil, err
 	}
 	a.state = st
+	// Spaces made before the rebrand keep their versions and templates in
+	// the legacy system folder; it moves once, before anything reads it.
+	for _, sp := range st.Spaces {
+		if err := vault.MigrateSystemDir(sp.Root); err != nil {
+			a.notify("迁移空间 %s 的系统文件夹失败。%v", sp.Name, err)
+		}
+	}
 	if p := a.searchCachePath(); p != "" {
 		if ix, err := search.LoadCache(p); err == nil {
 			a.search.index = ix
@@ -322,7 +328,8 @@ func New(cfg Config) (*App, error) {
 			return nil, err
 		}
 	}
-	if len(st.Spaces) == 0 {
+	first := len(st.Spaces) == 0
+	if first {
 		if err := a.firstRun(); err != nil {
 			return nil, err
 		}
@@ -330,10 +337,14 @@ func New(cfg Config) (*App, error) {
 	a.startUpdates()
 	a.reloadPlugins()
 	a.syncTree()
-	if sp := a.state.ActiveSpace(); sp != nil && sp.LastOpen != "" {
-		a.open(sp.LastOpen)
-	}
 	a.restoreSplits()
+	// A launch starts at the active space's home page, not the document
+	// last open; the first run opens its welcome page.
+	if sp := a.state.ActiveSpace(); first && sp != nil && sp.LastOpen != "" {
+		a.open(sp.LastOpen)
+	} else {
+		a.showSpaceHome()
+	}
 	// The tour shows until it was seen once. Preferences that cannot be
 	// saved could not remember that, and would show it at every launch.
 	if !a.prefs.TourSeen && !a.prefsBroken {
@@ -363,12 +374,35 @@ func (a *App) firstRun() error {
 	return a.store.Save(a.state)
 }
 
+// showSpaceHome leaves the file browser and the open document for the
+// active space's home page, its empty state, saving first; it reports
+// false, staying put, when a document cannot be saved. The space keeps
+// its last document and split for when the user goes back to them.
+func (a *App) showSpaceHome() bool {
+	if !a.leaveFileMode() || !a.flush() {
+		return false
+	}
+	a.finishSpaceEdit()
+	a.settingsOpen = false
+	if a.library.open {
+		a.library.open, a.library.frames = false, 0
+	}
+	a.suspendSplit()
+	a.doc = nil
+	return true
+}
+
 // Run opens the window and runs the app until it quits.
 func (a *App) Run() error {
 	mygo.App.SetName("FreeMD")
 	mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
+	}
+	// An installed app shares one taskbar button with its pinned
+	// shortcuts; a development run keeps the shell's own ID, apart.
+	if mygo.App.IsPackaged() {
+		a.applyAppUserModelID()
 	}
 	var pending []string
 	if !mygo.App.IsPackaged() {
@@ -392,9 +426,10 @@ func (a *App) Run() error {
 		a.win.Update(func() { open(file) })
 	})
 	mygo.App.OnSecondInstance(func(args []string, workingDir string) {
+		files := documentArguments(args, workingDir)
 		if !mygo.App.IsPackaged() {
 			// MyGo forwards os.Args[1:], so the first argument is a file.
-			for _, file := range documentArguments(args, workingDir) {
+			for _, file := range files {
 				if a.win == nil {
 					pending = append(pending, file)
 				} else {
@@ -403,6 +438,11 @@ func (a *App) Run() error {
 			}
 		}
 		if a.win != nil {
+			// Started again without a document, as from the pinned
+			// taskbar button, the app goes to the space's home page.
+			if len(files) == 0 {
+				a.win.Update(func() { a.showSpaceHome() })
+			}
 			a.win.Show()
 			a.win.Focus()
 		}
@@ -448,7 +488,7 @@ func (a *App) Run() error {
 		// Called off the main thread, Close is posted to it: the frame that
 		// asked for it finishes before the window closes and OnClose saves.
 		a.closeMain = func() { go main.Close() }
-		if err := a.win.SetIcon(resources.Icon); err != nil {
+		if err := a.win.SetIcon(windowIcon()); err != nil {
 			a.notify("无法设置窗口图标。%v", err)
 		}
 		if len(pending) > 0 {
@@ -503,7 +543,9 @@ func (a *App) syncTray() {
 	if a.tray != nil || a.win == nil {
 		return
 	}
+	// The tray icon opens the space's home page, as a launch does.
 	show := func() {
+		a.win.Update(func() { a.showSpaceHome() })
 		if a.win.IsMinimized() {
 			a.win.Restore()
 		}
@@ -512,7 +554,7 @@ func (a *App) syncTray() {
 	}
 	tray, err := mygo.NewTray(mygo.TrayOptions{
 		ID:      "freemd",
-		Icon:    resources.Icon,
+		Icon:    trayIcon(),
 		ToolTip: "FreeMD",
 		Menu: mygo.NewMenu([]*mygo.MenuItem{
 			{Label: i18n.T("打开 FreeMD"), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},

@@ -138,8 +138,10 @@ func clipRunes(s string, n int) string {
 }
 
 // pickSpaceIcon asks for a picture and makes it the icon of the space with
-// the ID, or of the draft for "". The system dialog may close the picker;
-// an existing space then takes the picture all the same.
+// the ID, or of the draft for "". The dialog answers between frames, after
+// the picker may have closed: an existing space takes the picture at once
+// and its icon editor closes, since the picker commits only choices made
+// within its own frame; the draft keeps it in its form.
 func (a *App) pickSpaceIcon(id string) {
 	got := func(paths []string) {
 		if len(paths) == 0 {
@@ -150,14 +152,20 @@ func (a *App) pickSpaceIcon(id string) {
 			a.notify("设置空间图标失败。%v", err)
 			return
 		}
-		if f := &a.spaceForm; f.open && f.id == id {
-			f.icon, f.symbol, f.image = "", "", name
-			f.iconsOpen = false
+		f := &a.spaceForm
+		if id == "" {
+			if f.open && f.id == "" {
+				f.icon, f.symbol, f.image = "", "", name
+				f.iconsOpen = false
+			}
 			return
 		}
-		if s := a.state.Get(id); s != nil && id != "" {
+		if s := a.state.Get(id); s != nil {
 			s.SetIcon("", "", name)
 			a.saveState()
+		}
+		if f.open && f.id == id {
+			a.cancelSpaceForm()
 		}
 	}
 	if a.pickFiles != nil {

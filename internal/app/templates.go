@@ -1,7 +1,7 @@
 package app
 
 // Templates and the daily note (internal/templates): a space's templates
-// are documents in its hidden .arcmd/templates folder, which the command
+// are documents in its hidden .freemd/templates folder, which the command
 // bar and the folder menus make new documents from; the daily note is
 // today's document in the space's 日记 folder, opened or made by ⌥⌘T.
 

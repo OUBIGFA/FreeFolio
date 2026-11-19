@@ -149,7 +149,7 @@ func existingPath(name string) (string, error) {
 }
 
 // skipDir reports whether the walk leaves out a directory: hidden ones (as
-// .git and FreeMD's own .arcmd) and dependency folders.
+// .git and FreeMD's own SystemDir) and dependency folders.
 func skipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || name == "node_modules"
 }

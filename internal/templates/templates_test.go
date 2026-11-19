@@ -22,7 +22,7 @@ func TestListFindsTemplatesByName(t *testing.T) {
 		os.WriteFile(filepath.Join(dir, name), []byte("# t"), 0o644)
 	}
 	got, err := List(root)
-	if err != nil || len(got) != 3 || got[0].Name != "Legacy" || got[1].Path != ".arcmd/templates/Meeting.md" || got[2].Path != ".arcmd/templates/周报.md" {
+	if err != nil || len(got) != 3 || got[0].Name != "Legacy" || got[1].Path != ".freemd/templates/Meeting.md" || got[2].Path != ".freemd/templates/周报.md" {
 		t.Fatal(got, err)
 	}
 	if _, ok := Find(got, "meeting"); !ok {

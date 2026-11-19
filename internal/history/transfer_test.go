@@ -46,7 +46,7 @@ func TestCopyHistoryFailureKeepsSource(t *testing.T) {
 	if err := Record(src, "Note.arcmd", "original", time.Now(), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dst, ".arcmd"), []byte("occupied"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dst, ".freemd"), []byte("occupied"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := CopyTo(src, "Note.arcmd", dst, "Note.arcmd", nil); err == nil {

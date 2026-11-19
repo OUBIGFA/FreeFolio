@@ -6,6 +6,10 @@
   "icon": "resources/icon.png",
   "main": "./cmd/freemd",
   "out": "dist",
+  "i18n": {
+    "dir": "resources/locales",
+    "source": "en"
+  },
   "resources": [
     "LICENSE",
     "third_party"

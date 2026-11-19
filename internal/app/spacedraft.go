@@ -70,7 +70,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			if icon.Hovered() || f.iconsOpen {
 				icon.Background(hoverFill(t))
 			}
-			empty := f.icon == "" && f.symbol == ""
+			empty := f.icon == "" && f.symbol == "" && f.image == ""
 			if empty {
 				icon.Draw(func(p *ui.Painter, r ui.Rect) {
 					p.StrokeDashed(ui.Rect{X: r.X + 0.5, Y: r.Y + 0.5, W: r.W - 1, H: r.H - 1}, t.TextMuted.Alpha(0.7), 7, 1)

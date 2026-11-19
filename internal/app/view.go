@@ -187,8 +187,8 @@ func (a *App) sidebarW() float32 {
 }
 
 // sidebarResizer is the docked sidebar's inner edge: dragging it sets the
-// width, a double click goes back to the standard one, and the arrow keys
-// move it by 10.
+// width, a double click goes back to the standard one or, from it, to the
+// widest, and the arrow keys move it by 10.
 func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 	if a.folded() || a.library.open || docked < sidebarMin-1 {
 		a.sidebarResizing = false
@@ -197,7 +197,7 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 	t := c.Theme()
 	label := i18n.T("调整侧边栏宽度")
 	h := ui.Box(c.Key("sidebar-resizer")).Absolute().Top(0).Bottom(0).Width(8).Cursor(ui.CursorResizeEW).
-		Focusable().Role(ui.RoleSplitter).Label(label).Tooltip(i18n.T("拖动调整宽度；双击恢复默认"))
+		Focusable().Role(ui.RoleSplitter).Label(label).Tooltip(i18n.T("拖动调整宽度；双击恢复默认，默认宽度时双击展开到最宽"))
 	if a.prefs.SidebarLeft {
 		h.Right(0)
 	} else {
@@ -231,7 +231,16 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 	}
 	switch {
 	case h.DoubleClicked():
-		a.prefs.SidebarWidth = 0
+		// Away from the standard width it goes back there; at it, out to
+		// the widest the window allows. The press of the double click
+		// also starts a drag, whose width is moved along so the frames it
+		// still holds keep the new width instead of the old one.
+		if a.sidebarW() != sidebarWidth {
+			set(sidebarWidth)
+		} else {
+			set(sidebarMax)
+		}
+		a.sidebarDrag = a.sidebarW()
 		a.savePrefs()
 	case h.Shortcut(0, ui.KeyLeft):
 		set(a.sidebarW() - step)

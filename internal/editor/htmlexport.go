@@ -146,16 +146,16 @@ func ExportHTML(doc *document.Document) string {
 			case "columns":
 				ratios := columnRatioStrings(b)
 				if len(ratios) == len(b.Children) {
-					fmt.Fprintf(&out, `<div class="arcmd-columns" data-widths="%s" style="display:flex;gap:24px">`, strings.Join(ratios, ","))
+					fmt.Fprintf(&out, `<div class="freemd-columns" data-widths="%s" style="display:flex;gap:24px">`, strings.Join(ratios, ","))
 				} else {
-					out.WriteString(`<div class="arcmd-columns" style="display:flex;gap:24px">`)
+					out.WriteString(`<div class="freemd-columns" style="display:flex;gap:24px">`)
 				}
 				for ci, col := range b.Children {
 					flexStyle := "flex:1;min-width:0"
 					if len(ratios) == len(b.Children) {
 						flexStyle = "flex:" + ratios[ci] + ";min-width:0"
 					}
-					fmt.Fprintf(&out, `<div class="arcmd-column" style="%s">%s</div>`, flexStyle, blocks(col.Children))
+					fmt.Fprintf(&out, `<div class="freemd-column" style="%s">%s</div>`, flexStyle, blocks(col.Children))
 				}
 				out.WriteString(`</div>`)
 				continue

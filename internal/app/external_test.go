@@ -57,7 +57,8 @@ func TestLooseFilesStayOutOfSearchAndLibrary(t *testing.T) {
 		t.Fatal("library contains loose documents")
 	}
 	restarted, err := New(a.cfg)
-	if err != nil || restarted.files != nil || restarted.doc == nil || restarted.doc.fullPath() == first {
+	// A launch starts at the space's home page, never in the file browser.
+	if err != nil || restarted.files != nil || restarted.doc != nil {
 		t.Fatal("restart restored a loose file", err)
 	}
 }
@@ -399,5 +400,26 @@ func TestExternalSnapshot(t *testing.T) {
 			tt.Frame()
 			savePNG(t, filepath.Join(dir, size.name+".png"), tt)
 		})
+	}
+}
+
+// The pinned taskbar button and the tray icon bring the window to the
+// space's home page, out of the file browser and the open document.
+func TestShowSpaceHomeLeavesFilesAndDocument(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.open("Welcome.md")
+	if !a.openSystemFile(externalFile(t, "Loose.md", "# Loose\n")) || a.files == nil {
+		t.Fatal("open loose file")
+	}
+	tt.Frame()
+	if !a.showSpaceHome() || a.files != nil || a.doc != nil {
+		t.Fatalf("home: files=%v doc=%v", a.files, a.doc)
+	}
+	tt.Frame()
+	if !tt.HasText("新建文档") {
+		t.Fatal("no home page", tt.Texts())
+	}
+	if sp := a.state.ActiveSpace(); sp.LastOpen != "Welcome.md" {
+		t.Fatal("the space forgot its last document", sp.LastOpen)
 	}
 }

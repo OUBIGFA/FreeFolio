@@ -13,7 +13,6 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/resources"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -100,7 +99,7 @@ func (a *App) makeWindow(title string, view func(*ui.Context), close func() bool
 		TrafficLightPosition: &mygo.Point{X: 18, Y: 18},
 		Content:              ui.View(view),
 	})
-	if err := win.SetIcon(resources.Icon); err != nil {
+	if err := win.SetIcon(windowIcon()); err != nil {
 		a.notify("无法设置窗口图标。%v", err)
 	}
 	win.OnClose(func(e *mygo.CloseEvent) {

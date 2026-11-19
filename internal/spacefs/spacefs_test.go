@@ -86,7 +86,7 @@ func TestGlob(t *testing.T) {
 		"工作/计划.md":     "# 计划",
 		"生活/旅行周报.md":   "x",
 		"readme.md":    "y",
-		".arcmd/h.md":  "hidden",
+		".freemd/h.md": "hidden",
 		"notes.txt":    "not a document",
 		"工作/深/周报 9.md": "z",
 	})
@@ -180,7 +180,7 @@ func TestReadPagesAndRefusesOutside(t *testing.T) {
 	if _, err := fs.Read("long.md", 2000, 0); err == nil {
 		t.Fatal("reading past the end is not an error")
 	}
-	for _, bad := range []string{"../outside.md", "/etc/passwd", ".arcmd/history/x.md", "notes.txt", "missing.md"} {
+	for _, bad := range []string{"../outside.md", "/etc/passwd", ".freemd/history/x.md", "notes.txt", "missing.md"} {
 		if _, err := fs.Read(bad, 0, 0); err == nil {
 			t.Errorf("%s was read", bad)
 		}

@@ -147,6 +147,10 @@ func TestColumnsMiddleSeamResizeSnapAndRoundTrip(t *testing.T) {
 	if !strings.Contains(exportedMD, "data-widths=") {
 		t.Fatalf("expected data-widths in asymmetric Markdown export: %q", exportedMD)
 	}
+	// Columns read from the legacy arcmd- classes are written as FreeMD's.
+	if !strings.Contains(exportedMD, `class="freemd-columns"`) || strings.Contains(exportedMD, "arcmd-") {
+		t.Fatalf("expected freemd- column classes: %q", exportedMD)
+	}
 	reimportedMD := ImportMarkdown(exportedMD)
 	if err := reimportedMD.Validate(); err != nil {
 		t.Fatalf("reimported Markdown failed validation: %v", err)

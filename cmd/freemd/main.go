@@ -11,6 +11,10 @@ import (
 	"path/filepath"
 
 	"github.com/OUBIGFA/FreeMD/internal/app"
+	// The catalogs of mygo.json's i18n name the languages the installer and
+	// the file properties are in; imported, they also give MyGo's own
+	// controls and menus those languages.
+	_ "github.com/OUBIGFA/FreeMD/resources/locales"
 )
 
 func main() {

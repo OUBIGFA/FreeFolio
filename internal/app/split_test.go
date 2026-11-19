@@ -252,8 +252,11 @@ func TestSplitPersistsAndFollowsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reopened.split == nil || !reopened.split.vertical || reopened.doc.rel != "Left.arcmd" || reopened.split.panes[0].factor != .35 {
-		t.Fatalf("layout not restored: saved=%+v group=%+v doc=%v", a.state.ActiveSpace().Split, reopened.split, reopened.doc.rel)
+	// The launch shows the space's home page; the split waits in the
+	// space's session, as saved, for the user to go back to it.
+	saved := reopened.session(reopened.state.ActiveSpace().ID).split
+	if reopened.split != nil || reopened.doc != nil || saved == nil || !saved.vertical || saved.panes[0].factor != .35 || saved.panes[0].doc.rel != "Left.arcmd" {
+		t.Fatalf("layout not restored: saved=%+v group=%+v doc=%v", a.state.ActiveSpace().Split, saved, reopened.doc)
 	}
 	// Saving Markdown from an inactive pane updates the Markdown file in place.
 	if err := vault.Write(root(a), "Import.md", "# Imported\n\nNotes"); err != nil {

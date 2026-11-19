@@ -54,7 +54,7 @@ func (a *App) startPDF(printing bool) {
 			return
 		}
 	}
-	file, err := os.CreateTemp(dir, ".arcmd-export-*.pdf")
+	file, err := os.CreateTemp(dir, ".freemd-export-*.pdf")
 	if err != nil {
 		a.notify("导出 PDF 失败。%v", err)
 		return

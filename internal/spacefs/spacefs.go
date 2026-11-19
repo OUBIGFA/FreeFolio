@@ -444,7 +444,7 @@ func (f *FS) Page(rel string) (*Page, error) {
 }
 
 // hidden reports a path inside a hidden folder, as the space's own
-// .arcmd history, which the vault never lists.
+// .freemd history, which the vault never lists.
 func hidden(rel string) bool {
 	for _, seg := range strings.Split(rel, "/") {
 		if strings.HasPrefix(seg, ".") || seg == "node_modules" {

@@ -218,7 +218,7 @@ func (h *htmlImporter) walk(n *html.Node, style document.Style) {
 		h.block("heading", level, func() { h.children(n, style) })
 		return
 	case atom.P, atom.Div, atom.Section, atom.Article, atom.Header, atom.Footer, atom.Main, atom.Aside, atom.Nav, atom.Figure, atom.Figcaption, atom.Dt, atom.Dd, atom.Address, atom.Center:
-		if n.DataAtom == atom.Div && hasHTMLClass(n, "arcmd-columns") {
+		if n.DataAtom == atom.Div && (hasHTMLClass(n, "freemd-columns") || hasHTMLClass(n, "arcmd-columns")) {
 			h.flush()
 			if cols := columnsOfHTML(n); cols != nil {
 				h.blocks = append(h.blocks, cols)
