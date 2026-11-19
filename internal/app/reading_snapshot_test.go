@@ -81,6 +81,37 @@ func TestReadingFeaturesSnapshot(t *testing.T) {
 	}
 }
 
+// The note's properties as they edit: text, a check box, a list of chips,
+// a block scalar that only shows, and a new property being named; then a
+// table, which has no controls around its grid.
+func TestPropertiesSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the note's properties")
+	for _, name := range []string{"light", "dark", "adding"} {
+		t.Run(name, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			source := "---\ntitle: 读书笔记\ndate: 2026-11-19\npublished: false\ntags:\n  - 阅读\n  - 摘录\nsummary: |\n  多行内容\n---\n\n# 读书笔记\n\n| 书名 | 作者 |\n|---|---|\n| 瓦尔登湖 | 梭罗 |\n"
+			if err := vault.Write(root(a), "Props.md", source); err != nil {
+				t.Fatal(err)
+			}
+			a.refreshTree()
+			a.open("Props.md")
+			tt.SetSize(1120, 780)
+			tt.SetDark(name == "dark")
+			tt.Frame()
+			if name == "adding" {
+				a.doc.ed.AddProperty()
+			}
+			for range 3 {
+				tt.Frame()
+				tt.Advance(200 * time.Millisecond)
+			}
+			tt.Move(560, 560)
+			tt.Frame()
+			savePNG(t, filepath.Join(dir, "properties-"+name+".png"), tt)
+		})
+	}
+}
+
 func TestReadingImageSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render image controls")
 	for _, name := range []string{"handles", "preview", "narrow"} {

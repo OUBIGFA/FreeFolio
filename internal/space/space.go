@@ -61,8 +61,11 @@ type Space struct {
 	// PinsCollapsed folds the pinned section away, as a click on Arc's
 	// space header does: only the pin holding the open document shows.
 	PinsCollapsed bool `json:"pinsCollapsed,omitempty"`
-	// LastOpen is the document shown when the space was left.
+	// LastOpen is the document shown when the space was left; LastAt the
+	// index of its top-level block at the top of the view then, where
+	// reading picks up (version 12).
 	LastOpen string `json:"lastOpen,omitempty"`
+	LastAt   int    `json:"lastAt,omitempty"`
 	// Expanded lists the folders open in the sidebar.
 	Expanded []string `json:"expanded,omitempty"`
 	// Order is the order the sidebar shows each folder's files and
@@ -464,7 +467,9 @@ type State struct {
 // Version 11 lets a folder's Sort reach the folders it holds, with "manual"
 // for one keeping its own order, and adds Space.Image, a picture as the
 // space's icon; older states read unchanged.
-const CurrentVersion = 11
+// Version 12 adds Space.LastAt, where the last document was read to; an
+// older state reads as read from the top.
+const CurrentVersion = 12
 
 // ErrNotFound reports a space ID the state does not have.
 var ErrNotFound = errors.New("space: not found")

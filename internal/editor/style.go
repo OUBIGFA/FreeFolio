@@ -31,8 +31,8 @@ type Page struct {
 	Hover, TurnActive ui.Color
 	// Table bars: at rest, under the pointer, selected; the selected
 	// line's cells; and the red of a delete about to happen.
-	BarFill, BarHover, BarSelected, CellSelected ui.Color
-	Danger, DangerCell                           ui.Color
+	BarFill, BarHover, CellSelected ui.Color
+	Danger, DangerCell              ui.Color
 	// FindMatch marks a find match; FindCurrent the current one.
 	FindMatch, FindCurrent ui.Color
 	// OnMarker is drawn on Marker, as a pin's plus.
@@ -103,7 +103,6 @@ func pageOf(p Page, t *ui.Theme) Page {
 	set(&p.Popover, t.Background)
 	set(&p.BarFill, t.Text.Alpha(.06))
 	set(&p.BarHover, t.Text.Alpha(.14))
-	set(&p.BarSelected, t.Accent.Alpha(.35))
 	set(&p.CellSelected, t.Accent.Alpha(.1))
 	set(&p.Danger, t.Danger)
 	set(&p.DangerCell, t.Danger.Alpha(.08))
@@ -174,7 +173,6 @@ func samePage(a, b Page) bool {
 		a.TurnActive == b.TurnActive &&
 		a.BarFill == b.BarFill &&
 		a.BarHover == b.BarHover &&
-		a.BarSelected == b.BarSelected &&
 		a.CellSelected == b.CellSelected &&
 		a.Danger == b.Danger &&
 		a.DangerCell == b.DangerCell &&

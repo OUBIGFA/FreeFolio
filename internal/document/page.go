@@ -28,6 +28,13 @@ func (e *Engine) SetCoverY(y float64) {
 	e.Edit(func() { e.Doc.CoverY = y })
 }
 
+// SetFrontmatter replaces the document's own YAML frontmatter lines (those
+// FreeMD does not read into the icon, cover and goal) as one step of the
+// history, as editing the note's properties does.
+func (e *Engine) SetFrontmatter(fm string) {
+	e.Edit(func() { e.Doc.Frontmatter = strings.TrimRight(fm, "\r\n") })
+}
+
 // ReplaceDocument puts the blocks, icon and cover of doc in place of the
 // document's, as one step of the history, as restoring an earlier version
 // does; the caret goes to the start.

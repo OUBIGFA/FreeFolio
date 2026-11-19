@@ -569,43 +569,62 @@ func TestCodeCopyAndTableBars(t *testing.T) {
 	if tt.Clipboard() != "fmt.Println(1)" || e.copiedID == "" {
 		t.Fatal("copy", tt.Clipboard())
 	}
-	at := func(r ui.Rect) (float32, float32) { return bounds.X + r.X + r.W/2, bounds.Y + r.Y + r.H/2 }
-	click := func(r ui.Rect) {
-		x, y := at(r)
-		tt.Move(x, y)
-		tt.Frame()
-		tt.ClickAt(x, y)
-		tt.Frame()
-	}
-	// The pin at the table's right edge appends a column.
+	// The table has no bars or pins around its grid to paint or press:
+	// a press just left of and above it lands on no control.
 	table := find("table")
-	click(pin(table, true, 2))
-	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 3 {
-		t.Fatal("pin column", cols)
+	if e.hoverControl(table.rect.X-8, table.rect.Y-8) {
+		t.Fatal("a control around the table")
 	}
-	// The row bar selects the second row; its toolbar inserts above it.
-	table = find("table")
-	click(rowBar(table, 1))
-	if !e.tableSel.ok || !e.tableSel.rows || e.tableSel.index != 1 {
-		t.Fatal("row bar", e.tableSel)
+}
+
+// A cell's context menu inserts, moves, sorts and deletes its row and
+// column, each one step of the history.
+func TestTableCellMenu(t *testing.T) {
+	e, tt := newTester("| A | B |\n|---|---|\n| 1 | 2 |")
+	focus(e, tt)
+	bounds, _ := tt.Find("文档")
+	text := func(r, c int) string { return e.Doc.Blocks[0].Children[r].Children[c].Text() }
+	// choose right-clicks the cell holding want and picks label: the press
+	// puts the caret in that cell, which the menu then acts on.
+	choose := func(want, label string) {
+		t.Helper()
+		tt.Frame()
+		for i := range e.rows {
+			r := *e.indexedRow(i)
+			if r.leaf.Block.Kind == "cell" && r.leaf.Block.Text() == want {
+				tt.RightClickAt(bounds.X+r.x+4, bounds.Y+r.y+6-e.Scroll.Y)
+				if err := tt.ChooseMenuItem(label); err != nil {
+					t.Fatalf("%s: %v (menu %v)", label, err, tt.Menu())
+				}
+				tt.Frame()
+				return
+			}
+		}
+		t.Fatalf("no cell %q", want)
 	}
-	if err := tt.Click("在上方插入行"); err != nil {
-		t.Fatal(err)
-	}
-	if rows := len(e.Doc.Blocks[1].Children); rows != 3 || e.Doc.Blocks[1].Children[2].Children[0].Text() != "1" {
+	choose("1", "在上方插入行")
+	if rows := len(e.Doc.Blocks[0].Children); rows != 3 || text(2, 0) != "1" {
 		t.Fatal("insert row above", rows)
 	}
-	// Selecting the first column, then Backspace, deletes it.
-	focus(e, tt)
-	table = find("table")
-	click(columnBar(table, 0))
-	tt.Key(0, ui.KeyBackspace)
-	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 2 || e.Doc.Blocks[1].Children[0].Children[0].Text() != "B" {
+	choose("2", "在右侧插入列")
+	if cols := len(e.Doc.Blocks[0].Children[0].Children); cols != 3 || text(2, 1) != "2" {
+		t.Fatal("insert column right", cols)
+	}
+	choose("A", "右移列")
+	if text(0, 0) != "B" || text(0, 1) != "A" {
+		t.Fatal("move column right", text(0, 0), text(0, 1))
+	}
+	choose("1", "上移行")
+	if text(1, 1) != "1" {
+		t.Fatal("move row up", text(1, 1))
+	}
+	choose("B", "删除列")
+	if cols := len(e.Doc.Blocks[0].Children[0].Children); cols != 2 || text(0, 0) != "A" {
 		t.Fatal("delete column", cols)
 	}
 	tt.Key(ui.Cmd, ui.KeyZ)
-	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 3 {
-		t.Fatal("undo column", cols)
+	if cols := len(e.Doc.Blocks[0].Children[0].Children); cols != 3 {
+		t.Fatal("undo delete column", cols)
 	}
 }
 

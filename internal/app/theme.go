@@ -408,7 +408,6 @@ func pageStyle(dark bool) editor.Page {
 		// Table bars and the selected line, from the same theme's tokens.
 		BarFill:      ui.Hex("#EFF0F1"),
 		BarHover:     ui.Hex("#DEE0E3"),
-		BarSelected:  ui.Hex("#C5D3FB"),
 		CellSelected: ui.Hex("#1456F01A"),
 		Danger:       ui.Hex("#F54A45"),
 		DangerCell:   ui.Hex("#FEF0F0"),
@@ -499,7 +498,6 @@ func darkPageStyle() editor.Page {
 		TurnActive:   ui.Hex("#22355C"),
 		BarFill:      ui.Hex("#2E3034"),
 		BarHover:     ui.Hex("#3E4046"),
-		BarSelected:  ui.Hex("#2E4D8F"),
 		CellSelected: ui.Hex("#4C88FF2E"),
 		Danger:       ui.Hex("#F76964"),
 		DangerCell:   ui.Hex("#4A2627"),

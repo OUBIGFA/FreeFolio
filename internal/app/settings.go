@@ -271,6 +271,18 @@ func (a *App) settingsGeneral(c *ui.Context) {
 			a.savePrefs()
 			a.syncTray()
 		}
+		settingsSeparator(c)
+		at := 0
+		if a.prefs.StartAtHome {
+			at = 1
+		}
+		settingRow(c, "start-at", i18n.T("打开 FreeMD 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容。"), func() {
+			segmentedChoice(c.Key("choice"), &at, i18n.T("继续上次阅读"), i18n.T("空间主页")).Label(i18n.T("打开 FreeMD 时"))
+			if home := at == 1; a.prefs.StartAtHome != home {
+				a.prefs.StartAtHome = home
+				a.savePrefs()
+			}
+		})
 	})
 }
 
@@ -461,43 +473,62 @@ func (a *App) appearancePreview(c *ui.Context) {
 	if column == 0 {
 		column = 820
 	}
-	frame := ui.Column(c.Key("appearance-sample")).Height(300).Radius(panelRadius).Border(1, t.Border).
-		Background(t.Background).Clip().Label(i18n.T("外观预览")).Shadow(0, 2, 8, 0, black.Alpha(0.06))
+	// The preview is laid out as the window is: the sidebar runs the full
+	// height with its toggle, history arrows and search at its top; the
+	// toolbar stands over the page only, the brand at its outer start and
+	// the document's name and space centered in it.
+	frame := ui.Row(c.Key("appearance-sample")).Height(300).Radius(panelRadius).Border(1, t.Border).
+		Background(t.Background).Clip().Label(i18n.T("外观预览")).Shadow(0, 2, 8, 0, black.Alpha(0.06)).
+		Padding(0, 8, 8, 8).Gap(8).AlignItems(ui.Stretch)
+	if !a.prefs.SidebarLeft {
+		frame.Reverse()
+	}
+	icon := func(svg *ui.SVG) { ui.Icon(c, svg).FontSize(10).TextColor(t.TextMuted) }
 	frame.Children(func() {
-		ui.Row(c.Key("preview-bar")).Height(30).Shrink(0).PaddingX(12).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconFile).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, title+".md").FontSize(11).FontWeight(500).SingleLine()
-			ui.Spacer(c)
-			ui.Text(c, i18n.T("预览")).FontSize(11).TextColor(t.TextMuted)
-		})
-		body := ui.Row(c.Key("preview-body")).Grow(1).MinHeight(0).Padding(0, 8, 8, 8).Gap(8).AlignItems(ui.Stretch)
-		if !a.prefs.SidebarLeft {
-			body.Reverse()
-		}
-		body.Children(func() {
-			ui.Column(c.Key("preview-side")).Width(136).Shrink(0).Padding(2, 2).Gap(6).Children(func() {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Image(c, brandLogo).Size(16, 16)
-					ui.Text(c, "FreeMD").FontSize(11).FontWeight(600)
-				})
-				ui.Row(c).Height(22).Radius(controlRadius).Border(1, t.Border).Background(t.Surface).PaddingX(6).Gap(4).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, iconSearch).FontSize(10).TextColor(t.TextMuted)
-					ui.Text(c, i18n.T("搜索")).FontSize(10).TextColor(t.TextMuted)
-				})
-				for i, name := range []string{title, i18n.T("读书笔记"), i18n.T("旅行计划")} {
-					row := ui.Row(c.Key(fmt.Sprintf("preview-doc-%d", i))).Height(22).Radius(controlRadius).PaddingX(6).Gap(5).AlignItems(ui.Center)
-					ink := t.Text
-					if i == 0 {
-						row.Background(t.Accent.Alpha(0.12))
-						ink = t.Accent
-					}
-					row.Children(func() {
-						ui.Icon(c, iconFile).FontSize(10).TextColor(ink)
-						ui.Text(c, name).FontSize(10).TextColor(ink).SingleLine()
-					})
-				}
+		ui.Column(c.Key("preview-side")).Width(136).Shrink(0).Gap(6).Children(func() {
+			ui.Row(c).Height(26).AlignItems(ui.Center).Children(func() {
+				ui.Spacer(c)
+				icon(a.sidebarIcon())
 			})
-			sheet := ui.Themed(c.Key("preview-paper"), paper).Grow(1).MinWidth(0).Radius(8).Background(paper.Background).
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+				icon(iconBack)
+				icon(iconForward)
+				icon(iconReload)
+				ui.Row(c).Grow(1).MinWidth(0).Height(20).Radius(controlRadius).Border(1, t.Border).Background(t.Surface).PaddingX(5).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, iconSearch).FontSize(10).TextColor(t.TextMuted)
+					ui.Text(c, i18n.T("搜索")).FontSize(10).TextColor(t.TextMuted).SingleLine()
+				})
+			})
+			for i, name := range []string{title, i18n.T("读书笔记"), i18n.T("旅行计划")} {
+				row := ui.Row(c.Key(fmt.Sprintf("preview-doc-%d", i))).Height(22).Radius(controlRadius).PaddingX(6).Gap(5).AlignItems(ui.Center)
+				ink := t.Text
+				if i == 0 {
+					row.Background(t.Accent.Alpha(0.12))
+					ink = t.Accent
+				}
+				row.Children(func() {
+					ui.Icon(c, iconFile).FontSize(10).TextColor(ink)
+					ui.Text(c, name).FontSize(10).TextColor(ink).SingleLine()
+				})
+			}
+		})
+		ui.Column(c.Key("preview-main")).Grow(1).MinWidth(0).Children(func() {
+			bar := ui.Row(c.Key("preview-bar")).Height(30).Shrink(0).Gap(6).AlignItems(ui.Center)
+			bar.Children(func() {
+				ui.Row(c).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
+					ui.Image(c, brandLogo).Size(14, 14)
+					ui.Text(c, "FreeMD").FontSize(10).FontWeight(600)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, title+".md").FontSize(11).FontWeight(600).SingleLine()
+					if sp := a.state.ActiveSpace(); sp != nil {
+						ui.Text(c, sp.Name).FontSize(10).TextColor(t.TextMuted).SingleLine()
+					}
+				})
+				icon(iconAsk)
+				icon(iconEllipsis)
+			})
+			sheet := ui.Themed(c.Key("preview-paper"), paper).Grow(1).MinHeight(0).Radius(8).Background(paper.Background).
 				Border(1, paper.Border).Clip().Disabled(true).DimDisabled(false)
 			w := sheet.LayoutBounds().W
 			if w <= 0 {

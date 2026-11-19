@@ -252,11 +252,21 @@ func TestSplitPersistsAndFollowsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The launch shows the space's home page; the split waits in the
-	// space's session, as saved, for the user to go back to it.
-	saved := reopened.session(reopened.state.ActiveSpace().ID).split
-	if reopened.split != nil || reopened.doc != nil || saved == nil || !saved.vertical || saved.panes[0].factor != .35 || saved.panes[0].doc.rel != "Left.arcmd" {
-		t.Fatalf("layout not restored: saved=%+v group=%+v doc=%v", a.state.ActiveSpace().Split, saved, reopened.doc)
+	// The launch picks up where reading stopped: the split, as saved.
+	if g := reopened.split; g == nil || !g.vertical || g.panes[0].factor != .35 || g.panes[0].doc.rel != "Left.arcmd" {
+		t.Fatalf("layout not restored: saved=%+v group=%+v", a.state.ActiveSpace().Split, g)
+	}
+	// Set to start at the home page, the split waits in the space's
+	// session for the user to go back to it.
+	reopened.prefs.StartAtHome = true
+	reopened.savePrefs()
+	home, err := New(a.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := home.session(home.state.ActiveSpace().ID).split
+	if home.split != nil || home.doc != nil || saved == nil || !saved.vertical || saved.panes[0].doc.rel != "Left.arcmd" {
+		t.Fatalf("home launch: saved=%+v doc=%v", saved, home.doc)
 	}
 	// Saving Markdown from an inactive pane updates the Markdown file in place.
 	if err := vault.Write(root(a), "Import.md", "# Imported\n\nNotes"); err != nil {

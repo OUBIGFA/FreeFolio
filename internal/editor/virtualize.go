@@ -852,7 +852,15 @@ func (e *Editor) materializeRows(targets []int, theme *ui.Theme) {
 		r.layout = cached.layout
 		_, h := cached.layout.Size()
 		h = max(h, m.font.Size*m.font.LineHeight)
-		newH := m.top + h + m.bottom
+		if caret := e.Engine.LeafAt(e.Caret); caret.Block == b {
+			e.openCodeAtCaret(b, cached.layout, e.Caret-r.leaf.Start, m.font)
+		}
+		// The fold decides a code block's height here as in the full
+		// layout, so a block shaped as it scrolls in stands as its toggle says.
+		fit := e.fitCode(b, h, m.font)
+		h = fit.textH
+		r.foldH = fit.foldH
+		newH := m.top + h + m.bottom + fit.lane
 		r.y = origY + m.top
 		r.rect.H = newH
 		if b.Kind == "math" {
@@ -877,6 +885,7 @@ func (e *Editor) materializeRows(targets []int, theme *ui.Theme) {
 		if di, hasDec := e.decorationIDs[b.ID]; hasDec {
 			dc := e.indexedDecoration(di)
 			dc.rect.H = newH - m.gap
+			fit.mark(dc, b)
 			if isMermaidBlock(b) {
 				dc.mermaidHidden = r.mermaidHidden
 				dc.mermaidWellOff = wellOff

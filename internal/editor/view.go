@@ -94,7 +94,6 @@ type Editor struct {
 	menuID                           string
 	menuSub                          string
 	menuScroll                       ui.ScrollState
-	tableSel                         tableSelection
 	cellFillOpen, cellFillOpened     bool
 	foldButtons                      []foldButton
 	revealKey                        [2]uint64
@@ -109,9 +108,8 @@ type Editor struct {
 	markPop                             markPopover
 	openReveal                          openReveal
 	// refusedAt is when typing last reached the locked page.
-	refusedAt   time.Time
-	tableDanger bool
-	attach      func()
+	refusedAt time.Time
+	attach    func()
 	// pasteImage takes a picture pasted from the clipboard; dropFiles takes
 	// files dragged in from another app or pasted, to go before the top-level
 	// block at the index (-1: at the caret). fileOver is where files dragged
@@ -199,6 +197,7 @@ type Editor struct {
 	propsSource       string
 	props             []property
 	propsFolded       bool
+	propsEdit         propsEditing
 	bindings          map[string]Combo
 	openWiki, openTag func(string)
 	maths             map[string]mathShape
@@ -250,8 +249,6 @@ type Editor struct {
 	inlinePopLen    int
 	smartBack       smartRollback
 	mathFence       mathFenceRollback
-	tableDrag       tableRowDrag
-	tableColDrag    tableColDrag
 	resizeMoved     bool
 	scrollGlide     scrollGlideState
 	unfoldPending   bool
@@ -824,6 +821,10 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					menuAction(menu, i18n.T("加粗"), func() { e.Wrap("**") })
 					menuAction(menu, i18n.T("斜体"), func() { e.Wrap("*") })
 					menuAction(menu, i18n.T("插入表格"), func() { e.Engine.Insert(document.Table(3, 3)); e.RequestFocus = true })
+					if leaf := e.Engine.LeafAt(e.Caret); !e.ReadOnly && leaf.Block != nil && leaf.Block.Kind == "cell" {
+						menu.Separator()
+						e.tableLineItems(menu, leaf.Block)
+					}
 				})
 				caret := !e.ReadOnly && e.focused && (c.Now().Sub(e.lastInput) < time.Second || c.Now().UnixMilli()/530%2 == 0)
 				if e.focused {
@@ -852,6 +853,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 			})
 		})
 		e.outlineView(c, pane)
+		e.scrollEnds(c)
 		e.findBox(c)
 	})
 	if !e.ReadOnly {
@@ -1130,12 +1132,6 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		caretID, anchorID, revealID, caretOwner, anchorOwner, revealOwner = e.activeBlockOwners()
 	}
 	caretLeaf := e.Engine.LeafAt(e.Caret)
-	// codeDecoration marks a code block's decoration with its fold.
-	codeDecoration := func(d *decoration, b *document.Block) {
-		if e.codeFoldable(b) {
-			d.foldable, d.folded, d.lines = true, e.codeFolded(b), codeLines(b, 1<<30)
-		}
-	}
 	var blockLayout func(*document.Block, float32, float32, float32) float32
 	blockLayout = func(b *document.Block, x, y, w float32) float32 {
 		if b.Kind == "columns" {
@@ -1202,16 +1198,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			}
 		}
 		if laid == nil && deferShape {
-			estH := e.estimateBlockHeight(b, font, e.hintWidthFor(b, shapeWidth))
-			if b.Kind == "code" {
-				e.measureCodeFold(b, estH, font)
-			}
-			if e.codeFolded(b) {
-				estH = min(estH, foldedCodeHeight(font))
-			}
-			if e.codeFoldable(b) {
-				bottom += codeFoldLane
-			}
+			fit := e.fitCode(b, e.estimateBlockHeight(b, font, e.hintWidthFor(b, shapeWidth)), font)
+			estH := fit.textH
+			bottom += fit.lane
 			total := top + max(estH, font.Size*font.LineHeight) + bottom
 			if b.Kind == "math" || isMermaidBlock(b) {
 				total = estH
@@ -1237,7 +1226,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 						d.kind, d.label, d.id, d.mermaidHidden = "mermaid", b.Language, b.ID, true
 					} else if b.Kind == "code" {
 						d.label, d.id = b.Language, b.ID
-						codeDecoration(&d, b)
+						fit.mark(&d, b)
 					}
 					if b.Kind == "callout" {
 						d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1255,22 +1244,14 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		_, h = laid.Size()
 		h = max(h, font.Size*font.LineHeight)
 		fullH := h
-		var foldH float32
-		if b.Kind == "code" {
-			e.measureCodeFold(b, h, font)
+		if caretLeaf.Block.ID == b.ID {
+			e.openCodeAtCaret(b, laid, e.Caret-leaf.Start, font)
 		}
-		if b.Kind == "code" && e.codeFoldable(b) {
-			if caretLeaf.Block.ID == b.ID {
-				e.openCodeAtCaret(b, laid, e.Caret-leaf.Start, font)
-			}
-			if e.codeFolded(b) {
-				foldH = foldedCodeHeight(font)
-				h = min(h, foldH)
-			}
-			bottom += codeFoldLane
-		}
+		fit := e.fitCode(b, h, font)
+		h = fit.textH
+		bottom += fit.lane
 		total := top + h + bottom
-		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header, foldH: foldH}
+		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header, foldH: fit.foldH}
 		if b.Kind == "image" {
 			total = e.layoutImage(&row, o)
 		}
@@ -1309,7 +1290,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 				d.mermaidHidden, d.mermaidWellOff = row.mermaidHidden, mermaidWellOff
 			} else if b.Kind == "code" {
 				d.label, d.id = b.Language, b.ID
-				codeDecoration(&d, b)
+				fit.mark(&d, b)
 			}
 			if b.Kind == "callout" {
 				d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1421,13 +1402,7 @@ func (e *Editor) decorationOffset(d decoration) (dx, dy float32) {
 	}
 	if d.kind == "cell" && d.ownerID != "" {
 		dy += e.tableRowVisualDY(d.ownerID, d.rowIdx)
-		if e.tableDrag.active && e.tableDrag.id == d.ownerID && e.tableDrag.from == d.rowIdx {
-			dy += e.tableDrag.y - e.tableDrag.startY
-		}
 		dx += e.tableColVisualDX(d.ownerID, d.colIdx)
-		if e.tableColDrag.active && e.tableColDrag.id == d.ownerID && e.tableColDrag.from == d.colIdx {
-			dx += e.tableColDrag.x - e.tableColDrag.startX
-		}
 	}
 	return dx, dy
 }
@@ -1441,7 +1416,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	plan := e.currentDragPlan()
 	if !e.printing {
 		rowSlack := float32(40)
-		if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
+		if e.motion.moving || plan.active {
 			rowSlack = 200
 		}
 		e.ensureVisibleShaped(rowSlack, t)
@@ -1457,7 +1432,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		p.StrokeDashed(slot, t.Accent.Alpha(0.65), 8, 1.25)
 	}
 	decSlack := float32(1)
-	if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
+	if e.motion.moving || plan.active {
 		decSlack = 160
 	}
 	paintDecorationPass := func(draggedOnly bool) {
@@ -1570,7 +1545,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	e.openReveal.order = nil
 	selection := e.Selection().Range
 	rowSlack := float32(40)
-	if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
+	if e.motion.moving || plan.active {
 		rowSlack = 200
 	}
 	paintRowPass := func(draggedOnly bool) {
@@ -1885,8 +1860,6 @@ func (e *Editor) hoverControl(x, y float32) bool {
 		case d.kind == "mermaid" && d.id != "" && in(mermaidCopyButton(d)) && e.hovered(d.rect, 0):
 			e.copyBlock(d.id)
 			return true
-		case d.kind == "table" && e.tableControl(d, x, y):
-			return true
 		}
 	}
 	return false
@@ -2180,7 +2153,6 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 			return true
 		}
 		e.colorOpen, e.langOpen = false, false
-		e.tableSel = tableSelection{}
 		for ri := range e.resizers {
 			resize := *e.indexedResizer(ri)
 			if math.Abs(float64(ev.X-resize.x)) < 5 && ev.Y >= resize.y && ev.Y <= resize.y+resize.h {
@@ -2212,9 +2184,6 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 			e.dragStartY, e.dragY, e.dragActive = ev.Y, ev.Y, false
 			return true
 		}
-	}
-	if e.tableDragPointer(ev) {
-		return true
 	}
 	if e.resizing != nil {
 		if ev.Kind == ui.InputPointerMove {

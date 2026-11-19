@@ -338,10 +338,14 @@ func New(cfg Config) (*App, error) {
 	a.reloadPlugins()
 	a.syncTree()
 	a.restoreSplits()
-	// A launch starts at the active space's home page, not the document
-	// last open; the first run opens its welcome page.
-	if sp := a.state.ActiveSpace(); first && sp != nil && sp.LastOpen != "" {
-		a.open(sp.LastOpen)
+	// A launch picks up reading where it stopped: the active space's last
+	// document, scrolled to where it was read to, unless the preference
+	// starts at the space's home page. The first run opens its welcome page.
+	if sp := a.state.ActiveSpace(); sp != nil && sp.LastOpen != "" && (first || !a.prefs.StartAtHome) {
+		at := sp.LastAt
+		if a.resumeSpace(); a.split == nil && a.doc != nil && a.doc.space == sp && a.doc.rel == sp.LastOpen {
+			a.doc.ed.ScrollToReadingBlock(at)
+		}
 	} else {
 		a.showSpaceHome()
 	}
@@ -439,8 +443,9 @@ func (a *App) Run() error {
 		}
 		if a.win != nil {
 			// Started again without a document, as from the pinned
-			// taskbar button, the app goes to the space's home page.
-			if len(files) == 0 {
+			// taskbar button, the window comes back as it was left, or
+			// at the space's home page if the preference says so.
+			if len(files) == 0 && a.prefs.StartAtHome {
 				a.win.Update(func() { a.showSpaceHome() })
 			}
 			a.win.Show()
@@ -514,7 +519,7 @@ func (a *App) Run() error {
 				return
 			}
 			a.finishSpaceEdit()
-			if a.captureSplits() {
+			if a.captureSplits() || a.noteReading() {
 				a.saveState()
 			}
 			if !a.quitting && a.tray != nil {
@@ -543,9 +548,12 @@ func (a *App) syncTray() {
 	if a.tray != nil || a.win == nil {
 		return
 	}
-	// The tray icon opens the space's home page, as a launch does.
+	// The tray icon brings the window back as it was left, or at the
+	// space's home page, as a launch does.
 	show := func() {
-		a.win.Update(func() { a.showSpaceHome() })
+		if a.prefs.StartAtHome {
+			a.win.Update(func() { a.showSpaceHome() })
+		}
 		if a.win.IsMinimized() {
 			a.win.Restore()
 		}
@@ -888,9 +896,25 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		a.reveal(rel)
 	}
 	if sp.LastOpen != rel {
-		sp.LastOpen = rel
+		sp.LastOpen, sp.LastAt = rel, 0
 		a.saveState()
 	}
+	return true
+}
+
+// noteReading records where the active space's last document was read
+// to, for the next launch to pick up there, and reports whether that
+// changed.
+func (a *App) noteReading() bool {
+	sp := a.state.ActiveSpace()
+	if sp == nil || a.doc == nil || a.doc.space != sp || a.doc.rel != sp.LastOpen || a.doc.loadErr != nil {
+		return false
+	}
+	at := a.doc.ed.ReadingBlock()
+	if at == sp.LastAt {
+		return false
+	}
+	sp.LastAt = at
 	return true
 }
 
@@ -1293,7 +1317,15 @@ func (a *App) switchSpace(id string) {
 	if !a.switchSpaceOnly(id) || a.doc != nil {
 		return
 	}
+	a.resumeSpace()
+}
+
+// resumeSpace opens what the active space showed when it was left: its
+// split, a favorite of another space it had open, or else its last
+// document.
+func (a *App) resumeSpace() {
 	sp := a.state.ActiveSpace()
+	id := sp.ID
 	if session := a.session(id); session.splitShown && session.split != nil {
 		a.restoreSplit(session.split, session.split.active)
 		return

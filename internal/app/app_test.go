@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -232,4 +233,51 @@ func TestBadSpaceColorFallsBack(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.state.ActiveSpace().Color = "not a color"
 	tt.Frame() // must not panic
+}
+
+// A launch reopens the last document where it was read to, unless the
+// preference starts at the space's home page.
+func TestLaunchContinuesReading(t *testing.T) {
+	a, tt := newTestApp(t)
+	var body []string
+	for i := range 200 {
+		body = append(body, fmt.Sprintf("Paragraph %d of a long note.", i))
+	}
+	if err := vault.Write(root(a), "Long.md", "# Long\n\n"+strings.Join(body, "\n\n")); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshTree()
+	a.open("Long.md")
+	settle(tt)
+	a.doc.ed.ScrollToReadingBlock(120)
+	settle(tt)
+	at := a.doc.ed.ReadingBlock()
+	if at < 100 {
+		t.Fatalf("not scrolled down: block %d", at)
+	}
+	if !a.noteReading() {
+		t.Fatal("reading position not noted")
+	}
+	a.saveState()
+
+	b, err := New(a.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.tour = tour{}
+	tt2 := ui.NewTester(b.View, 1200, 760)
+	settle(tt2)
+	if b.doc == nil || b.doc.rel != "Long.md" {
+		t.Fatalf("relaunch shows %v", b.doc)
+	}
+	if got := b.doc.ed.ReadingBlock(); got < at-2 || got > at+2 {
+		t.Fatalf("relaunch reads at block %d, left at %d", got, at)
+	}
+
+	b.prefs.StartAtHome = true
+	b.savePrefs()
+	c, err := New(a.cfg)
+	if err != nil || c.doc != nil {
+		t.Fatalf("home launch shows %v (%v)", c.doc, err)
+	}
 }

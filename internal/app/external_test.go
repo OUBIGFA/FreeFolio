@@ -57,8 +57,8 @@ func TestLooseFilesStayOutOfSearchAndLibrary(t *testing.T) {
 		t.Fatal("library contains loose documents")
 	}
 	restarted, err := New(a.cfg)
-	// A launch starts at the space's home page, never in the file browser.
-	if err != nil || restarted.files != nil || restarted.doc != nil {
+	// A launch picks up the space's last document, never the file browser.
+	if err != nil || restarted.files != nil || restarted.doc == nil || restarted.doc.space.IsExternal() {
 		t.Fatal("restart restored a loose file", err)
 	}
 }

@@ -43,10 +43,10 @@ const writingSample = `# 留一点空白
 
 func TestSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the writing surface")
-	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "table-select", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline-rail", "outline-float@dark", "outline@dark",
+	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline-rail", "outline-float@dark", "outline@dark",
 		// The same on dark paper, as the system's dark appearance shows it.
 		"writing-empty@dark", "writing-source@dark", "rich-blocks@dark", "rich-lists@dark", "writing-selection@dark", "callouts@dark",
-		"block-menu@dark", "table-select@dark", "text-colors@dark", "find@dark", "table-merge@dark", "writing-paste", "writing-paste-narrow"} {
+		"block-menu@dark", "text-colors@dark", "find@dark", "table-merge@dark", "writing-paste", "writing-paste-narrow"} {
 		name, dark := strings.CutSuffix(name, "@dark")
 		file := name
 		if dark {
@@ -62,7 +62,7 @@ func TestSnapshot(t *testing.T) {
 				text = strings.Repeat("第一段文字会在页面中自动换行。", 4) + "\n\n" + strings.Repeat("最后一段也会换行，光标应该停在整段末尾。", 6) + "😀"
 			}
 			doc := editor.ImportMarkdown(text)
-			if name == "rich-blocks" || name == "rich-table-hover" || name == "table-select" || name == "table-merge" {
+			if name == "rich-blocks" || name == "rich-table-hover" || name == "table-merge" {
 				doc = editor.ImportMarkdown("# 把想法写成一页\n\n结构化内容，自然地编辑。选中文字可以直接加粗、倾斜和添加链接。\n\n## 留出思考的空间\n")
 				callout := model.NewBlock("callout", "从一个念头开始，把复杂的事情拆成几步。")
 				cols := model.Columns()
@@ -255,16 +255,6 @@ func TestSnapshot(t *testing.T) {
 				tt.Advance(time.Second)
 				tt.Frame()
 				ed.OpenAnnotations()
-				tt.Frame()
-			}
-			if name == "table-select" {
-				// Select the table's second column, with its toolbar.
-				ed := a.doc.ed
-				for _, b := range ed.Doc.Blocks {
-					if b.Kind == "table" {
-						ed.SelectTableLine(b.ID, false, 1)
-					}
-				}
 				tt.Frame()
 			}
 			if name == "block-menu" {

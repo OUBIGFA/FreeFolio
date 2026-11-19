@@ -74,6 +74,45 @@ func (e *Editor) codeFolded(b *document.Block) bool {
 	return e.codeFoldable(b) && !e.codeOpen[b.ID]
 }
 
+// codeFit is how block b stands under its fold, decided once by fitCode
+// for every path that sets a block's height (the full layout, an estimate
+// offscreen, a block shaped as it scrolls in) so the row's height, its
+// clip and its toggle's label never disagree.
+type codeFit struct {
+	foldable bool
+	folded   bool
+	textH    float32 // the text's height shown
+	foldH    float32 // the height the folded text keeps; 0 open
+	lane     float32 // the room added below the text for the toggle
+	lines    int
+}
+
+// fitCode measures block b, whose text lays out textH tall, against the
+// fold. Other blocks keep textH.
+func (e *Editor) fitCode(b *document.Block, textH float32, font ui.Font) codeFit {
+	f := codeFit{textH: textH}
+	if b.Kind != "code" {
+		return f
+	}
+	e.measureCodeFold(b, textH, font)
+	if !e.codeFoldable(b) {
+		return f
+	}
+	f.foldable, f.lane, f.lines = true, codeFoldLane, codeLines(b, 1<<30)
+	if e.codeFolded(b) {
+		f.folded, f.foldH = true, foldedCodeHeight(font)
+		f.textH = min(textH, f.foldH)
+	}
+	return f
+}
+
+// mark gives code block b's decoration the fit's fold.
+func (f codeFit) mark(d *decoration, b *document.Block) {
+	if b.Kind == "code" {
+		d.foldable, d.folded, d.lines = f.foldable, f.folded, f.lines
+	}
+}
+
 // foldedCodeHeight is the height a folded code block's text keeps.
 func foldedCodeHeight(font ui.Font) float32 {
 	return codeFoldLines * font.Size * font.LineHeight

@@ -109,15 +109,17 @@ func TestTabSeparatedPasteMakesTable(t *testing.T) {
 	}
 }
 
-func TestColumnToolbarSorts(t *testing.T) {
+func TestCellMenuSortsByColumn(t *testing.T) {
 	e, tt := newTester("| 名称 | 数量 |\n|---|---|\n| b | 2 |\n| a | 10 |\n| c | 1 |")
 	focus(e, tt)
-	id := e.Doc.Blocks[0].ID
-	e.SelectTableLine(id, false, 1)
-	tt.Frame()
-	if err := tt.Click("按此列降序排序"); err != nil {
-		t.Fatal(err)
+	bounds, _ := tt.Find("文档")
+	cell := e.Doc.Blocks[0].Children[1].Children[1]
+	r := *e.indexedRow(e.rowIDs[cell.ID])
+	tt.RightClickAt(bounds.X+r.x+4, bounds.Y+r.y+6-e.Scroll.Y)
+	if err := tt.ChooseMenuItem("按此列降序排序"); err != nil {
+		t.Fatal(err, tt.Menu())
 	}
+	tt.Frame()
 	rows := e.Doc.Blocks[0].Children
 	if rows[1].Children[1].Text() != "10" || rows[3].Children[1].Text() != "1" || rows[0].Children[0].Text() != "名称" {
 		t.Fatal("sorted by the column, header kept")

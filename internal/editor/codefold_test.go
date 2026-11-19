@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLongCodeFoldsAndItsToggleFollowsTheBlock(t *testing.T) {
@@ -154,5 +155,100 @@ func TestCodeFoldToggleHasItsOwnLane(t *testing.T) {
 		if foot := d.rect.Y + d.rect.H; btn.Y+btn.H > foot-codeFoldMargin+0.5 {
 			t.Errorf("open=%v: toggle %+v within %v of the foot %v", open, btn, codeFoldMargin, foot)
 		}
+	}
+}
+
+// A long document lays out offscreen blocks by estimate and shapes them
+// only as they scroll into view. A code block shaped that way must stand
+// folded as its toggle says, with the toggle's lane, as it does when laid
+// out at once.
+func TestVirtualizedCodeBlockKeepsItsFold(t *testing.T) {
+	var parts []string
+	for i := range 900 {
+		parts = append(parts, fmt.Sprintf("paragraph %d", i))
+	}
+	var lines []string
+	for i := 1; i <= 45; i++ {
+		lines = append(lines, fmt.Sprintf(`"key_%d": "%s",`, i, strings.Repeat("a long wrapped value ", 6)))
+	}
+	parts = append(parts, "```json\n"+strings.Join(lines, "\n")+"\n```", "after")
+	e, tt := newTester(strings.Join(parts, "\n\n"))
+	if !e.shouldVirtualize() {
+		t.Fatal("the document is not virtualized")
+	}
+	code := e.Doc.Blocks[900]
+	idx := e.rowIDs[code.ID]
+	if e.indexedRow(idx).layout != nil {
+		t.Fatal("the code block was shaped before it came into view")
+	}
+	e.Scroll.Y = e.indexedRow(idx).rect.Y - 100
+	tt.Frame()
+	tt.Frame()
+	r := *e.indexedRow(idx)
+	if r.layout == nil {
+		t.Fatal("the code block was not shaped in view")
+	}
+	d := *e.indexedDecoration(e.decorationIDs[code.ID])
+	if !d.foldable || !d.folded {
+		t.Fatalf("decoration %+v not folded", d)
+	}
+	// It stands as tall as the same block laid out at once.
+	eager, _ := newTester(parts[900])
+	if want := eager.rows[0].rect.H; r.foldH == 0 || r.rect.H != want {
+		t.Fatalf("toggle says folded, but the row is %v tall (fold %v), want %v", r.rect.H, r.foldH, want)
+	}
+	if btn := e.codeFoldButton(d); btn.Y < r.y+r.foldH+codeFoldMargin-0.5 {
+		t.Fatalf("toggle %+v over the folded text ending at %v", btn, r.y+r.foldH)
+	}
+	// Its toggle opens and folds it again, its label following.
+	for _, open := range []bool{true, false} {
+		e.ToggleCodeFold(code.ID)
+		tt.Frame()
+		r, d := *e.indexedRow(idx), *e.indexedDecoration(e.decorationIDs[code.ID])
+		if d.folded == open || (r.foldH == 0) != open || open && r.rect.H <= eager.rows[0].rect.H {
+			t.Fatalf("open=%v: row %v (fold %v), decoration folded=%v", open, r.rect.H, r.foldH, d.folded)
+		}
+	}
+}
+
+// A long page shows buttons to its top and end at the pane's bottom right;
+// a short one shows none.
+func TestScrollEndsOnLongPages(t *testing.T) {
+	_, short := newTester("one\n\ntwo")
+	if _, ok := short.Find("回到顶部"); ok {
+		t.Fatal("a short page has the buttons")
+	}
+	var parts []string
+	for i := range 200 {
+		parts = append(parts, fmt.Sprintf("paragraph %d", i))
+	}
+	e, tt := newTester(strings.Join(parts, "\n\n"))
+	tt.Frame()
+	top, ok := tt.Find("回到顶部")
+	if !ok {
+		t.Fatal("a long page has no buttons")
+	}
+	if top.X < 900-80 || top.Y < 650-100 {
+		t.Fatalf("buttons at %+v, not the bottom right", top)
+	}
+	if err := tt.Click("回到底部"); err != nil {
+		t.Fatal(err)
+	}
+	for range 60 {
+		tt.Advance(20 * time.Millisecond)
+		tt.Frame()
+	}
+	if end := e.outlineState.scrollMax; e.Scroll.Y < end-1 {
+		t.Fatalf("scrolled to %v of %v", e.Scroll.Y, end)
+	}
+	if err := tt.Click("回到顶部"); err != nil {
+		t.Fatal(err)
+	}
+	for range 60 {
+		tt.Advance(20 * time.Millisecond)
+		tt.Frame()
+	}
+	if e.Scroll.Y > 1 {
+		t.Fatalf("back at %v, not the top", e.Scroll.Y)
 	}
 }

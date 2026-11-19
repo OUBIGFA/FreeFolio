@@ -125,6 +125,7 @@ func (e *Editor) moreMenu(c *ui.Context, leaf document.Leaf) {
 			menuAction(sub, i18n.T("流程图"), e.InsertMermaidFlowchart)
 			menuAction(sub, i18n.T("时序图"), e.InsertMermaidSequence)
 			menuAction(sub, i18n.T("脚注"), func() { e.InsertFootnote(); e.RequestFocus, e.reveal = true, true })
+			menuAction(sub, i18n.T("笔记属性"), e.AddProperty)
 			sub.Separator()
 			menuAction(sub, i18n.T("跳转脚注 / 返回正文"), func() { e.FollowFootnote() })
 		})
@@ -168,10 +169,7 @@ func (e *Editor) moreMenu(c *ui.Context, leaf document.Leaf) {
 					}
 					sub.Separator()
 				}
-				menuAction(sub, i18n.T("增加一行"), func() { e.Engine.ResizeTable(true, 1) })
-				menuAction(sub, i18n.T("增加一列"), func() { e.Engine.ResizeTable(false, 1) })
-				menuAction(sub, i18n.T("删除末行"), func() { e.Engine.ResizeTable(true, -1) })
-				menuAction(sub, i18n.T("删除末列"), func() { e.Engine.ResizeTable(false, -1) })
+				e.tableLineItems(sub, leaf.Block)
 			})
 		}
 	})
@@ -527,6 +525,45 @@ func (e *Editor) cellTab(back bool) bool {
 		return true
 	}
 	return true
+}
+
+// tableLineItems are the items that change the row and the column of
+// cell: insert beside them, move them, sort by the column and delete them,
+// as Obsidian's cell menu offers. The table has no controls of its own
+// around its grid.
+func (e *Editor) tableLineItems(m *ui.Menu, cell *document.Block) {
+	table, row, col, ok := e.Doc.CellAt(cell.ID)
+	if !ok || len(table.Children) == 0 {
+		return
+	}
+	rows, cols := len(table.Children), len(table.Children[0].Children)
+	run := func(change func()) {
+		change()
+		e.sync()
+		e.RequestFocus, e.reveal = true, true
+	}
+	item := func(label string, disabled bool, change func()) {
+		if m.Item(label).Disabled(disabled).Chosen() {
+			run(change)
+		}
+	}
+	item(i18n.T("在上方插入行"), false, func() { e.Engine.TableInsert(table.ID, true, row) })
+	item(i18n.T("在下方插入行"), false, func() { e.Engine.TableInsert(table.ID, true, row+1) })
+	item(i18n.T("在左侧插入列"), false, func() { e.Engine.TableInsert(table.ID, false, col) })
+	item(i18n.T("在右侧插入列"), false, func() { e.Engine.TableInsert(table.ID, false, col+1) })
+	m.Separator()
+	item(i18n.T("上移行"), row == 0, func() { e.Engine.MoveTableRow(table.ID, row, row-1) })
+	item(i18n.T("下移行"), row == rows-1, func() { e.Engine.MoveTableRow(table.ID, row, row+1) })
+	item(i18n.T("左移列"), col == 0, func() { e.Engine.MoveTableColumn(table.ID, col, col-1) })
+	item(i18n.T("右移列"), col == cols-1, func() { e.Engine.MoveTableColumn(table.ID, col, col+1) })
+	if e.Doc.CanSortTable(table.ID) {
+		m.Separator()
+		item(i18n.T("按此列升序排序"), false, func() { e.Engine.SortTable(table.ID, col, false) })
+		item(i18n.T("按此列降序排序"), false, func() { e.Engine.SortTable(table.ID, col, true) })
+	}
+	m.Separator()
+	item(i18n.T("删除行"), false, func() { e.Engine.TableDelete(table.ID, true, row) })
+	item(i18n.T("删除列"), false, func() { e.Engine.TableDelete(table.ID, false, col) })
 }
 
 func menuAction(m *ui.Menu, label string, run func()) {

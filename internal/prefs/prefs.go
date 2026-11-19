@@ -15,8 +15,10 @@ import (
 
 // CurrentVersion is the version of prefs.json this FreeMD writes.
 // Version 4 adds SidebarWidth and KeepRunningOff, whose zero values are
-// the defaults, so version 3 migrates unchanged.
-const CurrentVersion = 4
+// the defaults, so version 3 migrates unchanged. Version 5 adds
+// StartAtHome, whose zero value is the default, so version 4 migrates
+// unchanged.
+const CurrentVersion = 5
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -27,11 +29,15 @@ type Prefs struct {
 	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
 	// KeepRunningOff quits FreeMD when its window closes instead of
 	// hiding it in the notification area, which the zero value keeps.
-	KeepRunningOff bool    `json:"keepRunningOff,omitempty"`
-	Version        int     `json:"version"`
-	FontSize       float32 `json:"fontSize,omitempty"`
-	LineHeight     float32 `json:"lineHeight,omitempty"`
-	NoAutoPair     bool    `json:"noAutoPair,omitempty"`
+	KeepRunningOff bool `json:"keepRunningOff,omitempty"`
+	// StartAtHome opens the space's home page when FreeMD starts or its
+	// window comes back, instead of the document last read, at the place
+	// it was read to, which the zero value keeps.
+	StartAtHome bool    `json:"startAtHome,omitempty"`
+	Version     int     `json:"version"`
+	FontSize    float32 `json:"fontSize,omitempty"`
+	LineHeight  float32 `json:"lineHeight,omitempty"`
+	NoAutoPair  bool    `json:"noAutoPair,omitempty"`
 	// AutoSpace puts a space between Chinese and Latin text as it is typed.
 	AutoSpace bool `json:"autoSpace,omitempty"`
 	// CodeNoWrap disables soft wrapping in code blocks by default so long

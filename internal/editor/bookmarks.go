@@ -130,6 +130,32 @@ func (e *Editor) RevealBlock(id string) {
 	e.RequestFocus = true
 }
 
+// ReadingBlock is the index of the top-level block at the top of the view,
+// where reading stands; 0 at the top of the page.
+func (e *Editor) ReadingBlock() int {
+	anchor := e.resizeAnchor()
+	if anchor.id == "" {
+		return 0
+	}
+	if leaf, ok := e.Engine.LeafByID(anchor.id); ok {
+		for i, b := range e.Doc.Blocks {
+			if b.ID == leaf.Owner {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+// ScrollToReadingBlock brings the top-level block at index i, as
+// ReadingBlock gave it, to the top of the view once laid out; an index the
+// document no longer has leaves the view at the top.
+func (e *Editor) ScrollToReadingBlock(i int) {
+	if i > 0 && i < len(e.Doc.Blocks) {
+		e.ScrollToBlock(e.Doc.Blocks[i].ID)
+	}
+}
+
 // ScrollToBlock places the top-level block near the top of the viewport once
 // laid out, without stealing selection or flashing it.
 func (e *Editor) ScrollToBlock(id string) {

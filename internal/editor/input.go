@@ -23,6 +23,17 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 	}
 	switch ev.Kind {
 	case ui.InputPointerDown:
+		if ev.Button == 1 {
+			// A secondary press outside the selection moves the caret
+			// there first, so the context menu acts on what was clicked,
+			// as a table cell's row and column.
+			if at, ok := e.IndexForPoint(ui.Point{X: ev.X, Y: ev.Y}); ok {
+				if r := e.Selection().Range; at < min(r.Start, r.End) || at > max(r.Start, r.End) {
+					e.SetSelection(at, at)
+				}
+			}
+			return false
+		}
 		if ev.Button != 0 {
 			return false
 		}
@@ -174,19 +185,6 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 	}
 	if key == ui.KeyEscape && e.closeHeader() {
 		return true
-	}
-	if e.tableSel.ok {
-		// A selected row or column takes Backspace and Delete; any other
-		// key puts the selection away.
-		switch key {
-		case ui.KeyBackspace, ui.KeyDelete:
-			e.deleteTableLine()
-			return true
-		case ui.KeyEscape:
-			e.tableSel = tableSelection{}
-			return true
-		}
-		e.tableSel = tableSelection{}
 	}
 	if (e.annotatePanel || e.markPop.open) && key == ui.KeyEscape {
 		e.annotatePanel, e.markPop.open = false, false
