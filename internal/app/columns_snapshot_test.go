@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -34,7 +34,7 @@ func TestColumnsCommandStartsTyping(t *testing.T) {
 }
 
 func TestColumnsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render columns")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render columns")
 	for _, name := range []string{"empty", "empty-dark", "empty-narrow", "typing", "typing-dark"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

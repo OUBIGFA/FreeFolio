@@ -1,4 +1,4 @@
-// Package app is ArcMD's interface: one native window, drawn by MyGo's
+// Package app is FreeMD's interface: one native window, drawn by MyGo's
 // package ui, in the manner of Arc and Zen — a sidebar of the active
 // space's pinned documents and folders over the window's tinted material,
 // a toolbar with the document's address, the document in a rounded card,
@@ -18,25 +18,26 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/plugin"
-	"github.com/Ciao1019/ArcMD/internal/prefs"
-	"github.com/Ciao1019/ArcMD/internal/search"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/trashbin"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/plugin"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/search"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/trashbin"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/resources"
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
 )
 
-// Version is ArcMD's version, which plugins' engines are checked against.
-const Version = "0.2.1"
+// Version is FreeMD's version, which plugins' engines are checked against.
+const Version = "0.0.1"
 
-// Config says where ArcMD keeps its files.
+// Config says where FreeMD keeps its files.
 type Config struct {
 	// ConfigDir holds spaces.json and the plugins folder.
 	ConfigDir string
@@ -45,7 +46,7 @@ type Config struct {
 }
 
 // DefaultConfig returns the user's usual places: the system's
-// configuration folder and ~/Documents/ArcMD.
+// configuration folder and ~/Documents/FreeMD.
 func DefaultConfig() (Config, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
@@ -56,8 +57,8 @@ func DefaultConfig() (Config, error) {
 		return Config{}, err
 	}
 	return Config{
-		ConfigDir:    filepath.Join(cfg, "ArcMD"),
-		DocumentsDir: filepath.Join(home, "Documents", "ArcMD"),
+		ConfigDir:    filepath.Join(cfg, "FreeMD"),
+		DocumentsDir: filepath.Join(home, "Documents", "FreeMD"),
 	}, nil
 }
 
@@ -75,17 +76,20 @@ type spaceSession struct {
 	splitShown bool
 }
 
-// App is ArcMD's state.
+// App is FreeMD's state.
 type App struct {
 	// bookmarkGen counts changes to the bookmarks, which documents resolve
 	// again (bookmarks.go).
 	bookmarkGen uint64
 
-	cfg     Config
-	win     *mygo.Window
-	store   *space.Store
-	state   *space.State
-	plugins *plugin.Manager
+	cfg Config
+	win *mygo.Window
+	// closeMain closes the main window, as the file browser does when its
+	// last tab closes; nil in tests, which leaves the empty browser.
+	closeMain func()
+	store     *space.Store
+	state     *space.State
+	plugins   *plugin.Manager
 
 	installed     []*plugin.Installed
 	brokenPlugins []plugin.Broken
@@ -97,7 +101,8 @@ type App struct {
 	treeFor string
 	treeErr error
 
-	doc *document
+	files *fileSession
+	doc   *document
 	// split owns the visible panes; doc and history follow its focused pane.
 	split           *splitGroup
 	paneNavigation  bool
@@ -175,6 +180,8 @@ type App struct {
 	// settingsOpen shows the settings window on settingsTab.
 	settingsOpen bool
 	settingsTab  string
+	sampleTitle  string
+	sampleEditor *editor.Editor
 	// look is the window's look this frame, the two spaces either side
 	// mixed while paging; docTheme the system's theme the document's card
 	// keeps. paperDark is the active space's light or dark, which the
@@ -210,7 +217,7 @@ type App struct {
 	// search is the command bar's full-text search (search.go).
 	search searchState
 	// prefs are the preferences beyond the spaces (prefs.json); prefsBroken
-	// keeps a file this ArcMD cannot read from being overwritten.
+	// keeps a file this FreeMD cannot read from being overwritten.
 	prefStore   prefs.Store
 	prefs       *prefs.Prefs
 	prefsBroken bool
@@ -258,7 +265,7 @@ func (a *App) trashItem(p string) error {
 	return mygo.Shell.TrashItem(p)
 }
 
-// New loads ArcMD's state, making the first space and its welcome
+// New loads FreeMD's state, making the first space and its welcome
 // document on the first run.
 func New(cfg Config) (*App, error) {
 	a := &App{
@@ -292,10 +299,10 @@ func New(cfg Config) (*App, error) {
 			a.search.index = ix
 		}
 	}
-	if sp := st.Get(space.ExternalID); sp != nil {
-		sp.Name = i18n.T("外部空间")
-		sp.Root = filepath.Join(cfg.ConfigDir, "external")
-		if err := os.MkdirAll(sp.Root, 0700); err != nil {
+	// Older installations kept loose paths in a built-in collection. Drop
+	// its references only; the referenced files always belong to the user.
+	if st.DetachExternal() && len(st.Spaces) > 0 {
+		if err := a.store.Save(st); err != nil {
 			return nil, err
 		}
 	}
@@ -342,6 +349,7 @@ func (a *App) firstRun() error {
 
 // Run opens the window and runs the app until it quits.
 func (a *App) Run() error {
+	mygo.App.SetName("FreeMD")
 	mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
@@ -355,7 +363,9 @@ func (a *App) Run() error {
 		if a.openSystemFile(file) {
 			a.win.Show()
 			a.win.Focus()
-			_ = mygo.App.AddRecentDocument(file)
+			if a.files == nil {
+				_ = mygo.App.AddRecentDocument(file)
+			}
 		}
 	}
 	mygo.App.OnOpenFile(func(file string) {
@@ -407,7 +417,7 @@ func (a *App) Run() error {
 		}))
 		a.watchFiles = a.watchFolder
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:                "ArcMD",
+			Title:                "FreeMD",
 			Width:                1240,
 			Height:               800,
 			MinWidth:             640,
@@ -418,6 +428,13 @@ func (a *App) Run() error {
 			Vibrancy:             mygo.VibrancySidebar,
 			Content:              a.Content(),
 		})
+		main := a.win
+		// Called off the main thread, Close is posted to it: the frame that
+		// asked for it finishes before the window closes and OnClose saves.
+		a.closeMain = func() { go main.Close() }
+		if err := a.win.SetIcon(resources.Icon); err != nil {
+			a.notify("无法设置窗口图标。%v", err)
+		}
 		if len(pending) > 0 {
 			files := pending
 			pending = nil
@@ -454,7 +471,7 @@ func (a *App) appMenu() *mygo.MenuItem {
 	if runtime.GOOS != "darwin" {
 		return &mygo.MenuItem{Role: mygo.RoleAppMenu}
 	}
-	return &mygo.MenuItem{Label: "ArcMD", Submenu: []*mygo.MenuItem{
+	return &mygo.MenuItem{Label: "FreeMD", Submenu: []*mygo.MenuItem{
 		{Role: mygo.RoleAbout},
 		{Label: i18n.T("检查更新…"), Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.win.Update(a.checkForUpdates)
@@ -492,6 +509,9 @@ func (a *App) savePrefs() {
 
 // saveState writes spaces.json, telling the user when it fails.
 func (a *App) saveState() {
+	if a.files != nil {
+		return
+	}
 	a.captureSplits()
 	if err := a.store.Save(a.state); err != nil {
 		a.notify("保存空间设置失败。%v", err)
@@ -1017,6 +1037,9 @@ func (a *App) commitRename() {
 		return
 	}
 	sp := a.state.Get(a.renameSpace)
+	if a.files != nil && a.renameSpace == space.ExternalID {
+		sp = a.files.locations
+	}
 	if sp == nil {
 		return
 	}
@@ -1064,8 +1087,21 @@ func (a *App) moveInto(rel, dir string) {
 // moved follows a file or folder of the space sp that moved from one path
 // to another.
 func (a *App) moved(sp *space.Space, from, to string) {
-	if sp.IsExternal() && from != to {
+	if a.files != nil && sp == a.files.locations {
+		if from == to {
+			return
+		}
 		delete(sp.ExternalFiles, from)
+		for i, rel := range a.files.order {
+			if rel == from {
+				a.files.order[i] = to
+			}
+		}
+		if a.doc != nil && a.doc.space == sp && a.doc.rel == from {
+			a.doc.rel = to
+		}
+		a.files.marks.Renamed(sp.ID, from, to)
+		return
 	}
 	_ = history.Move(sp.Root, from, to)
 	a.state.Renamed(sp.ID, from, to)
@@ -1112,6 +1148,9 @@ func (a *App) switchSpaceOnly(id string) bool {
 // last document. Each space keeps its own, as Arc's spaces keep their
 // tabs, so a favorite opened in one does not follow into the next.
 func (a *App) switchSpace(id string) {
+	if a.files != nil && !a.leaveFileMode() {
+		return
+	}
 	if !a.switchSpaceOnly(id) || a.doc != nil {
 		return
 	}
@@ -1265,24 +1304,24 @@ func (a *App) defaultRoot(name string) string {
 	return filepath.Join(a.cfg.DocumentsDir, name)
 }
 
-const welcome = `# Welcome to ArcMD
+const welcome = `# Welcome to FreeMD
 
-ArcMD is a calm place for writing, in the spirit of Arc and Zen. Documents save directly as standard Markdown (.md) files, so any editor, Git or sync tool works on the same folder. Use the formatting bar or type ` + "`#`" + ` and a space for a heading, ` + "`-`" + ` and a space for a list, ` + "`**bold**`" + ` for **bold**.
+Open a Markdown file directly or organize a folder as a workspace. Documents save directly as standard Markdown (.md) files, so any editor, Git or sync tool works on the same folder. Use the formatting bar or type ` + "`#`" + ` and a space for a heading, ` + "`-`" + ` and a space for a list, ` + "`**bold**`" + ` for **bold**.
 
-- **Spaces** keep separate worlds apart: each is a folder of local documents with its own color. Switch with the icons at the foot of the sidebar, or ⌘1…⌘9.
-- **The command bar** (⌘K) finds documents and runs commands; click the address above to open it.
-- **⌘N** makes a document, **⌘\\** folds the sidebar away (point at the window's left edge to peek at it), **⇧⌘M** opens the Markdown export preview.
+- **Spaces** organize local folders. Switch spaces using the icons in the sidebar.
+- **The command bar** finds documents and runs commands. Select Search in the sidebar or the document name above to open it.
+- Choose **New Document** to start writing. When the sidebar is folded, move the pointer to its edge of the window to show it again.
 - [ ] Drag a document onto a folder to move it
 - [ ] Right-click a name and choose Rename to rename it
 
 ## Plugins
 
-AI and other powers will come from the plugin marketplace. ArcMD's core stays small.
+AI and other powers will come from the plugin marketplace. FreeMD's core stays small.
 `
 
 const ideas = `# Ideas
 
-Folders open and close in the sidebar, as Arc's do.
+Click a folder in the sidebar to expand or collapse it.
 `
 
 func writeNative(root, rel, markdown string) error {
@@ -1323,10 +1362,8 @@ func (a *App) applyLanguage() {
 		tag = a.systemLanguage
 	}
 	i18n.SetLanguage(tag)
-	if a.state != nil {
-		if sp := a.state.Get(space.ExternalID); sp != nil {
-			sp.Name = i18n.T("外部空间")
-		}
+	if a.files != nil {
+		a.files.locations.Name = i18n.T("文件浏览")
 	}
 	if a.win != nil {
 		mygo.App.SetLocale(i18n.Language())

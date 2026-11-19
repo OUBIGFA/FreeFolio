@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // The footer of a long page rereads it once typing pauses, not at each

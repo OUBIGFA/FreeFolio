@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -42,7 +42,7 @@ const writingSample = `# 留一点空白
 ` + "```go\nfunc write() string {\n    return \"Keep it simple.\"\n}\n```\n"
 
 func TestSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the writing surface")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the writing surface")
 	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "table-select", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline@dark",
 		// The same on dark paper, as the system's dark appearance shows it.
 		"writing-empty@dark", "writing-source@dark", "rich-blocks@dark", "rich-lists@dark", "writing-selection@dark", "callouts@dark",
@@ -286,12 +286,12 @@ func TestSnapshot(t *testing.T) {
 	}
 }
 
-// snapshotDir returns the directory ARCMD_SNAPSHOT names, created if
+// snapshotDir returns the directory FREEMD_SNAPSHOT names, created if
 // missing, so each snapshot test can run on its own. It skips the test
 // when the variable is unset.
 func snapshotDir(t *testing.T, skip string) string {
 	t.Helper()
-	dir := os.Getenv("ARCMD_SNAPSHOT")
+	dir := os.Getenv("FREEMD_SNAPSHOT")
 	if dir == "" {
 		t.Skip(skip)
 	}

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
 )
 
 // Installed is a plugin in the plugins folder.
@@ -25,7 +25,7 @@ type Broken struct {
 	Err error
 }
 
-// Manager keeps the plugins folder, <config dir>/ArcMD/plugins, with one
+// Manager keeps the plugins folder, <config dir>/FreeMD/plugins, with one
 // folder per plugin named by its ID, and which of them are disabled.
 type Manager struct {
 	dir string
@@ -70,7 +70,7 @@ func (m *Manager) Scan() ([]*Installed, []Broken, error) {
 			continue
 		}
 		dir := filepath.Join(m.dir, e.Name())
-		b, err := os.ReadFile(filepath.Join(dir, ManifestFile))
+		b, err := readManifest(dir)
 		if err != nil {
 			broken = append(broken, Broken{dir, err})
 			continue
@@ -115,4 +115,13 @@ func (m *Manager) Uninstall(id string) error {
 		return err
 	}
 	return os.RemoveAll(filepath.Join(m.dir, id))
+}
+
+// readManifest accepts packages created before the product rename.
+func readManifest(dir string) ([]byte, error) {
+	data, err := os.ReadFile(filepath.Join(dir, ManifestFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return os.ReadFile(filepath.Join(dir, "arcmd-plugin.json"))
+	}
+	return data, err
 }

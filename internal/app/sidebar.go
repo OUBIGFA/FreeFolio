@@ -7,9 +7,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -27,10 +27,14 @@ const (
 	rowInset  = 8 // the rows' margin from the sidebar's edges
 )
 
-// sidebar is Arc's sidebar: room for the window's buttons, the favorites,
-// the strip of spaces with the active one's header and folders, and the
-// spaces at the foot. floating draws it over the content, while it is
-// folded away.
+// The toggle depicts the same edge that it opens or closes.
+func (a *App) sidebarIcon() *ui.SVG {
+	if a.prefs.SidebarLeft {
+		return iconSidebar
+	}
+	return iconSidebarRight
+}
+
 func (a *App) sidebar(c *ui.Context, floating bool) {
 	sp := a.state.ActiveSpace()
 	bar := c.TitleBar()
@@ -40,9 +44,15 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 	// A sideways swipe over the sidebar pages through the spaces.
 	col.HandleInput(a.pagerScroll)
 	col.Children(func() {
-		top := ui.Row(c).Height(max(bar.Height, 46)).PaddingX(10).AlignItems(ui.Center)
+		left, right := float32(12), float32(12)
+		if a.prefs.SidebarLeft {
+			left += bar.Left
+		} else {
+			right += bar.Right
+		}
+		top := ui.Row(c.Key("windowbar")).Height(max(bar.Height, 36)).Padding(0, right, 0, left).AlignItems(ui.Center)
 		if !floating {
-			top.PaddingStart(bar.Left).DragWindow()
+			top.DragWindow()
 		}
 		top.Children(func() {
 			ui.Spacer(c)
@@ -50,8 +60,24 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			if floating {
 				label = i18n.T("固定侧边栏")
 			}
-			if iconButton(c, "toggle-sidebar", iconSidebar, label, label+" (⌘\\)", false).Clicked() {
+			if iconButton(c, "toggle-sidebar", a.sidebarIcon(), label, label, false).Clicked() {
 				a.toggleSidebar()
+			}
+		})
+		ui.Row(c.Key("brand")).Padding(0, 16, 6, 16).AlignItems(ui.Center).Children(func() { brand(c, "", false) })
+		t := c.Theme()
+		// The command bar, shown as MyGo's button faced like a search
+		// field, with its shortcut at the end as the reference apps do.
+		ui.Column(c.Key("workspace-actions")).PaddingX(12).Children(func() {
+			label := i18n.T("搜索或打开文档")
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).Children(func() {
+				ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
+				ui.Text(c, label).FontSize(13).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+				ui.Spacer(c)
+				ui.Text(c, a.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
+			})
+			if search.Clicked() {
+				a.openPalette()
 			}
 		})
 		if sp == nil {
@@ -63,10 +89,23 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
+		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
+		ui.Box(c).Height(1).Background(separator(c.Theme()))
+		if len(a.state.Favorites) > 0 {
+			ui.Text(c, i18n.T("收藏文档")).PaddingStart(16).FontSize(13).FontWeight(600).TextColor(c.Theme().TextMuted)
+		}
 		a.favorites(c)
 		a.pagerView(c)
 		a.updateBanner(c)
-		padded("foot", func() { a.spaceBar(c) })
+		ui.Row(c.Key("sidebar-settings")).Padding(0, 12).Gap(4).AlignItems(ui.Center).Children(func() {
+			if shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).Clicked() {
+				a.openSettings(tabGeneral)
+			}
+			ui.Spacer(c)
+			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Clicked() {
+				a.chooseExternalFiles()
+			}
+		})
 	})
 }
 
@@ -281,9 +320,9 @@ func (a *App) dragSlot(c *ui.Context, depth int, parent string, index int, self 
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
 		fr := ui.Rect{X: r.X + inset + 0.5, Y: r.Y + 2.5, W: max(0, r.W-inset-1), H: max(0, r.H-5)}
 		if fill.A > 0 {
-			p.Fill(fr, fill, 10)
+			p.Fill(fr, fill, controlRadius)
 		}
-		p.StrokeDashed(fr, border, 10, 1)
+		p.StrokeDashed(fr, border, controlRadius, 1)
 	})
 }
 
@@ -326,10 +365,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 	case lit:
 		h.Background(hoverFill(t))
 	}
-	ink := t.TextMuted
-	if t.Dark {
-		ink = white.Alpha(0.45)
-	}
+	ink := t.Text
 	collapsed := sp.PinsCollapsed
 	h.Children(func() {
 		icon := ui.Box(c.Key("header-icon")).Size(26, 26).Margin(0, 0, 0, 5).Center()
@@ -363,7 +399,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 				name.Label(sp.Name)
 			}
 			name.Children(func() {
-				ui.Text(c, sp.Name).FontSize(13).FontWeight(600).TextColor(ink).SingleLine().MinWidth(0)
+				ui.Text(c, sp.Name).FontSize(17).FontWeight(600).TextColor(ink).SingleLine().MinWidth(0)
 			})
 		}
 		more := iconButton(c, "space-more", iconEllipsis, i18n.T("空间菜单"), i18n.T("空间菜单"), false).Size(24, 24)
@@ -449,27 +485,7 @@ func (a *App) folderContent(c *ui.Context, sp *space.Space, n *vault.Node, depth
 		a.folderBody(c, sp, n, depth, live, prev)
 		return
 	}
-	if !a.holdsOpen(sp, n.Path) || a.doc.rel == n.Path {
-		return
-	}
-	doc := vault.Find(n.Children, a.doc.rel)
-	if doc == nil || a.hidden(sp, doc) {
-		return
-	}
-	parent := parentDir(doc.Path)
-	index := 0
-	if pn := vault.Find(n.Children, parent); pn != nil || parent == n.Path {
-		kids := n.Children
-		if pn != nil {
-			kids = pn.Children
-		}
-		for i, k := range kids {
-			if k.Path == doc.Path {
-				index = i
-			}
-		}
-	}
-	a.nodeRow(c, sp, doc, depth, parent, index, live, prev)
+
 }
 
 // columnLook is the look a space's page is drawn in.
@@ -582,12 +598,20 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 
 	gap := float32(10)
 	if n.Dir {
-		gap = 11
+		gap = 6
 	}
 	row.Height(rowHeight).PaddingStart(float32(10 + depth*rowIndent)).PaddingEnd(8).
 		Gap(gap).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Label(n.Title())
 	if n.Dir {
 		row.Role(ui.RoleTreeItem).Expanded(open)
+		if live && !renaming {
+			// The context sees arrow keys claimed by a parent focus group before
+			// raw input. Register them on the active folder row.
+			if row.Shortcut(0, ui.KeyRight) && !open || row.Shortcut(0, ui.KeyLeft) && open {
+				a.toggleFolder(n.Path)
+			}
+
+		}
 	} else {
 		row.Role(ui.RoleTreeItem).Selected(chosen)
 	}
@@ -674,7 +698,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				}
 			}
 			if tr.W <= 0 {
-				tr = ui.Rect{X: rowInset, Y: a.dragSettle.fromY, W: sidebarWidth - 2*rowInset, H: rowHeight}
+				tr = ui.Rect{X: row.Bounds().X, Y: a.dragSettle.fromY, W: sidebarWidth - 2*rowInset, H: rowHeight}
 			}
 			a.dragSettle.toRect = ui.Rect{X: tr.X + inset, Y: tr.Y, W: tr.W - inset, H: tr.H}
 			a.dragSettle.hasTarget = true
@@ -711,7 +735,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	switch {
 	case settling:
 	case chosen:
-		fill, lifted = glass(t), !t.Dark
+		fill = t.Accent.Alpha(0.12)
 	case hovered:
 		fill = hoverFill(t)
 	}
@@ -735,7 +759,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			p.Shadow(fr, 10, 0, 1, 3, 0, black.Alpha(0.06))
 		}
 		if fill.A > 0 {
-			p.Fill(fr, fill, 10)
+			p.Fill(fr, fill, controlRadius)
 		}
 		if into {
 			p.Stroke(fr, t.Text.Alpha(0.3), 10, 1.5)
@@ -746,8 +770,13 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		row.Children(func() {
 			dim := pinned && !opened
 			if n.Dir {
-				folderGlyph(c, a.columnLook(sp), open, a.holdsOpen(sp, n.Path))
-			} else if icon := docIcon(c, n.Title(), 16); dim {
+				chevron, folder := iconChevronRight, iconFolder
+				if open {
+					chevron, folder = iconChevronDown, iconFolderOpen
+				}
+				ui.Icon(c, chevron).FontSize(14).TextColor(t.Text)
+				ui.Icon(c, folder).FontSize(17).TextColor(t.Accent)
+			} else if icon := ui.Icon(c, iconFile).FontSize(16).TextColor(t.TextMuted); dim {
 				icon.Opacity(closedIconAlpha)
 			}
 			if renaming {
@@ -797,6 +826,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	case renaming, closed:
 	case row.Clicked():
 		if n.Dir {
+			row.Focus()
 			a.toggleFolder(n.Path)
 		} else {
 			a.open(n.Path)
@@ -873,7 +903,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if sp.IsExternal() {
 			a.spacesMenu(m, sp, n.Path)
 			m.Separator()
-			if m.Item(i18n.T("在访达中显示")).Chosen() {
+			if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 				a.revealIn(sp, n.Path)
 			}
 			if m.Item(i18n.T("从外部空间移除")).Chosen() {
@@ -902,7 +932,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 	}
 	a.spacesMenu(m, sp, n.Path)
 	m.Separator()
-	if m.Item(i18n.T("在访达中显示")).Chosen() {
+	if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 		a.revealInFinder(n.Path)
 	}
 	if m.Item(i18n.T("移到废纸篓")).Chosen() {
@@ -934,7 +964,7 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 		a.newFolder("")
 	}
 	m.Separator()
-	if m.Item(i18n.T("在访达中显示")).Chosen() {
+	if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 		revealDir(sp.Root)
 	}
 	if m.Item(i18n.T("最近删除…")).Chosen() {
@@ -978,7 +1008,7 @@ func (a *App) spaceBar(c *ui.Context) {
 		width := list.Bounds().W
 		list.Children(func() {
 			// As wide as the bar at least, so a few spaces spread across it.
-			ui.Row(c.Key("space-row")).MinWidth(width).Height(34).Gap(2).Justify(ui.SpaceEvenly).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("space-row")).MinWidth(width).Height(34).Gap(4).Justify(ui.Start).AlignItems(ui.Center).Children(func() {
 				for i, s := range a.state.Spaces {
 					tip := s.Name
 					if i < 9 {
@@ -1001,15 +1031,19 @@ func (a *App) spaceBar(c *ui.Context) {
 					if b.Hovered() && !on || targeted {
 						b.Background(hoverFill(t))
 					}
+					if on {
+						b.Background(t.Surface).Border(1, t.Border)
+					}
 					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Name, on, b.Hovered()) })
+
 					b.ContextMenu(func(m *ui.Menu) {
 						a.spaceEditMenu(m, s)
 						m.Separator()
-						if m.Item(i18n.T("在访达中显示")).Disabled(s.IsExternal()).Chosen() {
+						if m.Item(i18n.T("在文件管理器中显示")).Disabled(s.IsExternal()).Chosen() {
 							revealDir(s.Root)
 						}
 						m.Separator()
-						if m.Item(i18n.T("从 ArcMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
+						if m.Item(i18n.T("从 FreeMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
 							a.removeSpace(s.ID)
 						}
 					})
@@ -1070,7 +1104,7 @@ func (a *App) spaceBarGlyph(c *ui.Context, emoji, symbol, name string, on, hover
 func (a *App) inlineNewDocRow(c *ui.Context, index int, seamY float32) {
 	t := c.Theme()
 	label := i18n.T("新建文档")
-	row := ui.Row(c.Key("inline-new-doc")).Height(rowHeight).PaddingX(10).Gap(6).Radius(10).Center().
+	row := ui.Row(c.Key("inline-new-doc")).Height(rowHeight).PaddingX(10).Gap(6).Radius(controlRadius).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("在此处新建文档")).Tooltip(label).
 		Background(ui.Transparent).
 		Transition(ui.ElementTransition{
@@ -1093,9 +1127,9 @@ func (a *App) inlineNewDocRow(c *ui.Context, index int, seamY float32) {
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
 		fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 2.5, W: max(0, r.W-1), H: max(0, r.H-5)}
 		if fill.A > 0 {
-			p.Fill(fr, fill, 10)
+			p.Fill(fr, fill, controlRadius)
 		}
-		p.StrokeDashed(fr, border, 10, 1)
+		p.StrokeDashed(fr, border, controlRadius, 1)
 	})
 	alpha := 0.58 + 0.28*lit
 	row.Children(func() {
@@ -1128,7 +1162,7 @@ func (a *App) newDocRow(c *ui.Context) {
 			a.newDocPulse = time.Time{}
 		}
 	}
-	row := ui.Row(c.Key("new-doc-row")).Height(rowHeight).PaddingX(10).Gap(6).Radius(10).Center().
+	row := ui.Row(c.Key("new-doc-row")).Height(rowHeight).PaddingX(10).Gap(6).Radius(controlRadius).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip).
 		Background(ui.Transparent)
 	if pulsing || a.listDragging {
@@ -1139,11 +1173,11 @@ func (a *App) newDocRow(c *ui.Context) {
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
 		fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 2.5, W: max(0, r.W-1), H: max(0, r.H-5)}
 		if fill.A > 0 {
-			p.Fill(fr, fill, 10)
+			p.Fill(fr, fill, controlRadius)
 		}
-		p.StrokeDashed(fr, border, 10, 1)
+		p.StrokeDashed(fr, border, controlRadius, 1)
 	})
-	alpha := 0.48 + 0.34*lit
+	alpha := 0.75 + 0.20*lit
 	row.Children(func() {
 		ui.Icon(c, iconPlus).FontSize(14).TextColor(t.Text.Alpha(alpha))
 		ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()

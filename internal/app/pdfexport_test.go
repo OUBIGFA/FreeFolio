@@ -67,7 +67,7 @@ func TestPDFTextLayer(t *testing.T) {
 	if strings.Contains(s, "/DCTDecode") {
 		t.Fatal("unexpected raster JPEG page stream in vector PDF export")
 	}
-	if dir := os.Getenv("ARCMD_PDF_REVIEW"); dir != "" {
+	if dir := os.Getenv("FREEMD_PDF_REVIEW"); dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestVectorPDFOutlinesLinksMathAndMermaid(t *testing.T) {
 }
 
 func TestPDFProgressSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render export progress")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render export progress")
 	a, tt := newTestApp(t)
 	a.exportPDF()
 	t.Cleanup(a.cancelPDF)

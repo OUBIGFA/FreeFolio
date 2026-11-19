@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
 )
 
 // CopyTo copies a file or folder's history across spaces without deleting the
@@ -165,7 +165,7 @@ func CopyTo(fromRoot, from, toRoot, to string, rewrite func(string, string) (str
 	return nil
 }
 
-// Forget removes only ArcMD's managed snapshots after a successful transfer.
+// Forget removes only FreeMD's managed snapshots after a successful transfer.
 func Forget(root, rel string) error {
 	dir, err := folder(root, rel)
 	if err != nil {

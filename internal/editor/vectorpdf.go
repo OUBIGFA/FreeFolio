@@ -8,10 +8,10 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/mermaid"
-	"github.com/Ciao1019/ArcMD/internal/pdf"
-	"github.com/Ciao1019/ArcMD/internal/tex"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/mermaid"
+	"github.com/OUBIGFA/FreeMD/internal/pdf"
+	"github.com/OUBIGFA/FreeMD/internal/tex"
 	"github.com/egoist/mygo/ui"
 )
 

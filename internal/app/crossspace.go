@@ -4,8 +4,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -109,6 +109,9 @@ func (a *App) spacesMenu(m *ui.Menu, sp *space.Space, rel string) {
 // every space.
 func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 	src, dst := a.state.Get(fromID), a.state.Get(toID)
+	if a.files != nil && fromID == space.ExternalID {
+		src = a.files.locations
+	}
 	if src == nil || dst == nil || src == dst {
 		return ""
 	}
@@ -131,6 +134,14 @@ func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 				a.notify("已复制 %s 到「%s」，但未能将原件移到废纸篓。%v", path.Base(rel), dst.Name, err)
 			}
 		}
+	}
+	if f := a.files; f != nil && src == f.locations {
+		delete(src.ExternalFiles, rel)
+		a.doc, a.split, a.files = f.previous, f.split, nil
+		if !a.openAnywhere(dst.ID, to) {
+			return ""
+		}
+		return to
 	}
 	a.state.MovedAcross(fromID, rel, toID, to)
 	if a.dragGrab.active && a.dragGrab.space == fromID && a.dragGrab.rel == rel {

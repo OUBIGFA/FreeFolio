@@ -21,7 +21,7 @@
 
 **FreeMD** 是基于 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT License，基线提交 `27322d387268751932624ef83a7c580cb0b068d5` / `v0.2.1`）开展的二开项目，面向本地优先的 Markdown 写作、多空间组织与原生桌面交互进行深度优化、定制与功能演进。
 
-当前仓库已完成初始化与公开边界规划，核心源码与架构沿用纯 Go + [MyGo](https://github.com/egoist/mygo) 原生渲染栈，直接原地读写标准 `.md` 文件，无 HTML / WebView / Electron / cgo 依赖。
+FreeMD 使用 MyGo v0.10.0 原生界面。打开已登记文件夹中的文档会进入所属空间。打开其他 Markdown 文件会进入文件浏览模式，可编辑、保存和另存为。临时打开的路径只保留在当前会话中。
 
 ## 从源码运行与验证
 
@@ -35,14 +35,14 @@ python -X utf8 -m unittest discover -s tests/repository -v
 ### 运行应用与单元测试
 
 ```sh
-CGO_ENABLED=0 go run ./cmd/arcmd
+CGO_ENABLED=0 go run ./cmd/freemd
 CGO_ENABLED=0 go test ./internal/document
 ```
 
 使用隔离开发目录启动（不写入个人日常文稿目录）：
 
 ```sh
-ARCMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/arcmd
+FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
 ```
 
 ## 文档与仓库边界

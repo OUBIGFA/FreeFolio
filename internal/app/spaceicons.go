@@ -3,9 +3,9 @@ package app
 import (
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -122,16 +122,18 @@ func (f *spaceForm) openIconPicker() {
 	}
 }
 
-// iconPicker is anchored above the space switcher, or below a new draft's icon.
+// iconPicker opens below the workspace switcher or the draft icon.
 func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
-	fill, _, rim := spaceEditorSurface(f.theme, c.Theme().Dark)
+	fill, _, rim := spaceEditorSurface(c.Theme().Dark)
 	ui.Overlay(c, func() {
 		pop := ui.PopoverBase(c.Key("space-icons"), anchor, &f.iconsOpen, func(panel ui.Element) {
-			panel.Width(pickerW).Height(310).Padding(10, 10, 8, 10).Radius(18).
-				LinearGradient(fill).Border(0.5, rim).Shadow(0, 8, 24, 0, black.Alpha(0.20)).
+			panel.Width(pickerW).Height(310).Padding(10, 10, 8, 10).Radius(panelRadius).
+				LinearGradient(fill).Border(1, rim).Shadow(0, 8, 24, 0, black.Alpha(0.14)).
 				Role(ui.RoleDialog).Label(i18n.T("选择空间图标"))
 			if f.id != "" {
-				panel.AttachTo(anchor, ui.AnchorTop, ui.AnchorBottom).Margin(0, 0, 10, 0)
+				panel.AttachTo(anchor, ui.AnchorBottom, ui.AnchorTop).Margin(8, 0, 0, 0)
+			} else if !a.prefs.SidebarLeft {
+				panel.AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight).Margin(6, 0, 0, 0)
 			}
 			panel.Children(func() {
 				a.pickerHeader(c, f)
@@ -141,15 +143,15 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 					emojiGrid(c, f)
 				}
 			})
-			// The small pointer keeps the picker visually attached to the
-			// space icon even when the window edge shifts the panel sideways.
+			// The pointer marks the switcher below the title bar. Clamp it when the
+			// window edge shifts the panel sideways.
 			if f.id != "" {
 				panel.Draw(func(p *ui.Painter, r ui.Rect) {
 					x := min(r.X+r.W-22, max(r.X+22, anchor.Bounds().X+anchor.Bounds().W/2))
 					var tail ui.Path
-					tail.MoveTo(x-9, r.Y+r.H-1)
-					tail.LineTo(x, r.Y+r.H+9)
-					tail.LineTo(x+9, r.Y+r.H-1)
+					tail.MoveTo(x-7, r.Y+1)
+					tail.LineTo(x, r.Y-6)
+					tail.LineTo(x+7, r.Y+1)
 					p.FillPath(&tail, fill.To)
 				})
 			}
@@ -169,32 +171,13 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 
 // pickerHeader is the Emoji / Icon tabs and the button removing the icon.
 func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
-	t := c.Theme()
-	ui.Row(c).Padding(0, 0, 0, 22).Gap(4).AlignItems(ui.Center).Children(func() {
-		ui.Row(c.Key("icon-tabs")).Gap(2).
-			Role(ui.RoleTabList).Label(i18n.T("图标类型")).Children(func() {
-			for _, tab := range []struct {
-				label   string
-				symbols bool
-			}{{i18n.T("表情符号"), false}, {i18n.T("图标集"), true}} {
-				on := f.picker.symbols == tab.symbols
-				b := ui.Box(c.Key("tab-" + tab.label)).Height(26).PaddingX(8).Radius(6).Center().Cursor(ui.CursorPointer).
-					Focusable().Role(ui.RoleTab).Label(tab.label).Selected(on)
-				if on {
-					b.Background(t.Text.Alpha(0.10))
-				}
-				b.Children(func() {
-					color := t.TextMuted
-					if on {
-						color = t.Text
-					}
-					ui.Text(c, tab.label).FontSize(13).FontWeight(600).TextColor(color)
-				})
-				if b.Clicked() {
-					f.picker.symbols = tab.symbols
-				}
-			}
-		})
+	ui.Row(c).Padding(0, 0, 0, 16).Gap(4).AlignItems(ui.Center).Children(func() {
+		tab := 0
+		if f.picker.symbols {
+			tab = 1
+		}
+		ui.Tabs(c.Key("icon-tabs"), &tab, i18n.T("表情符号"), i18n.T("图标集")).Label(i18n.T("图标类型"))
+		f.picker.symbols = tab == 1
 		ui.Spacer(c)
 		if iconButton(c, "remove-icon", lucideIcons["trash"], i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "").Size(28, 28).Clicked() {
 			f.icon, f.symbol = "", ""

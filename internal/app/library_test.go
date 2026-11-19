@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -124,7 +124,7 @@ func TestLibraryPages(t *testing.T) {
 }
 
 // The recently deleted page groups by day, filters by the search, and
-// forgets ArcMD's copy with the bin.
+// forgets FreeMD's copy with the bin.
 func TestLibraryTrash(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.trashFile = os.RemoveAll
@@ -176,7 +176,7 @@ func TestDayLabel(t *testing.T) {
 
 // TestLibrarySnapshot renders the library's pages, for review.
 func TestLibrarySnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the library")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the library")
 	for _, dark := range []bool{false, true} {
 		for _, page := range []libraryPage{libSpaces, libPlugins, libTrash} {
 			name := []string{"library-spaces", "library-plugins", "library-trash"}[page]
@@ -232,10 +232,10 @@ func TestLibraryEscapeFromSearch(t *testing.T) {
 	}
 }
 
-// The paper follows the space's look: a space set to dark has dark paper
-// while the system is light, and one set to light has light paper while
-// the system is dark.
-func TestPaperFollowsSpaceAppearance(t *testing.T) {
+// The paper follows the system appearance only: a space set to dark keeps
+// light paper while the system is light, and one set to light has dark
+// paper while the system is dark.
+func TestPaperIgnoresSpaceAppearance(t *testing.T) {
 	a, tt := newTestApp(t)
 	sp := a.state.ActiveSpace()
 	paper := func() (r, g, b uint8) {
@@ -253,13 +253,13 @@ func TestPaperFollowsSpaceAppearance(t *testing.T) {
 	th := space.ThemeOf(sp)
 	th.Appearance = space.AppearanceDark
 	sp.SetTheme(th)
-	if r, g, b := paper(); int(r)+int(g)+int(b) > 3*80 {
+	if r, g, b := paper(); int(r)+int(g)+int(b) < 3*200 {
 		t.Fatalf("paper %d,%d,%d under a dark space while the system is light", r, g, b)
 	}
 	th.Appearance = space.AppearanceLight
 	sp.SetTheme(th)
 	tt.SetDark(true)
-	if r, g, b := paper(); int(r)+int(g)+int(b) < 3*200 {
+	if r, g, b := paper(); int(r)+int(g)+int(b) > 3*80 {
 		t.Fatalf("paper %d,%d,%d under a light space while the system is dark", r, g, b)
 	}
 }
@@ -339,7 +339,7 @@ func TestLibraryCardDrag(t *testing.T) {
 // TestLibraryDragSnapshot renders a card dragged halfway over the next,
 // for review.
 func TestLibraryDragSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the library")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the library")
 	a, tt := libraryApp(t)
 	tt.SetSize(1240, 760)
 	a.openLibrary(libSpaces)

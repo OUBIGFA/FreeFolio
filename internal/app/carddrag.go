@@ -4,8 +4,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 

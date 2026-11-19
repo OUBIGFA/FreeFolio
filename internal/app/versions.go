@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -279,7 +279,7 @@ func (a *App) versionsView(c *ui.Context) {
 						ui.Text(c, i18n.T("读取版本历史失败。")+v.err.Error()).TextColor(t.Danger)
 					default:
 						ui.Text(c, i18n.T("还没有历史版本")).FontSize(15)
-						ui.Text(c, i18n.T("编辑并保存后，ArcMD 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .arcmd/history 里。")).
+						ui.Text(c, i18n.T("编辑并保存后，FreeMD 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .arcmd/history 里。")).
 							FontSize(12).TextColor(t.TextMuted).MaxWidth(420).TextAlign(ui.Center)
 					}
 				})

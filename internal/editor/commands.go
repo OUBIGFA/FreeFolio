@@ -1,7 +1,7 @@
 package editor
 
 import (
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 )
 
 // Commands the host offers in its command bar.

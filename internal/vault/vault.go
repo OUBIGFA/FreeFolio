@@ -1,5 +1,5 @@
 // Package vault reads and writes the document files of a space's folder.
-// Files on disk are the source of truth: ArcMD keeps no copy of their
+// Files on disk are the source of truth: FreeMD keeps no copy of their
 // content elsewhere, so any other editor, Git or a sync service can work on
 // the same folder.
 //
@@ -17,7 +17,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
 )
 
 // Extensions are the file extensions the vault lists, lowercase.
@@ -149,7 +149,7 @@ func existingPath(name string) (string, error) {
 }
 
 // skipDir reports whether the walk leaves out a directory: hidden ones (as
-// .git and ArcMD's own .arcmd) and dependency folders.
+// .git and FreeMD's own .arcmd) and dependency folders.
 func skipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || name == "node_modules"
 }

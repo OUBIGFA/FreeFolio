@@ -67,3 +67,33 @@ func TestFontAndPageWidth(t *testing.T) {
 		t.Fatal("unknown choices fall back to the defaults")
 	}
 }
+
+func TestSidebarMigration(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":1,"typewriter":true,"font":"serif"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || p.SidebarLeft || !p.Typewriter || p.Font != "serif" {
+		t.Fatalf("migrated preferences: %+v, %v", p, err)
+	}
+}
+
+func TestFilesPrefsMigrateAndRoundTrip(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":2,"sidebarLeft":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || !p.SidebarLeft || p.Files != (Files{}) {
+		t.Fatalf("version 2 migrated: %+v, %v", p, err)
+	}
+	p.Files = Files{KeepOpen: true, NoDoubleClickClose: true, HideTabClose: true, TabAfterCurrent: true, ReadOnly: true}
+	if err := store.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Load()
+	if err != nil || again.Files != p.Files {
+		t.Fatalf("file browser choices: %+v, %v", again, err)
+	}
+}

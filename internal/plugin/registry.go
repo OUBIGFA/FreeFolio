@@ -112,7 +112,7 @@ func (m *Manager) installZip(b []byte, l Listing) (*Installed, error) {
 			return nil, err
 		}
 	}
-	mb, err := os.ReadFile(filepath.Join(staging, ManifestFile))
+	mb, err := readManifest(staging)
 	if err != nil {
 		return nil, fmt.Errorf("plugin: %s: the package has no %s at its root", l.ID, ManifestFile)
 	}

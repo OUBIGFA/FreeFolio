@@ -1,12 +1,12 @@
 package app
 
 import (
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"os"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo"
 )
 
@@ -137,7 +137,7 @@ func (a *App) submitSpace() {
 	a.switchSpace(s.ID)
 }
 
-// removeSpace takes a space out of ArcMD; its folder stays on disk.
+// removeSpace takes a space out of FreeMD; its folder stays on disk.
 func (a *App) removeSpace(id string) {
 	if id == space.ExternalID || len(a.state.Spaces) < 2 {
 		return

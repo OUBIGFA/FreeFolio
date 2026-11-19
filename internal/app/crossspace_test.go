@@ -1,13 +1,13 @@
 package app
 
 import (
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 

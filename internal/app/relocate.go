@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 type movingDocument struct {
@@ -129,16 +129,18 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 			rewritten = append(rewritten, d)
 		}
 	}
-	err = history.CopyTo(src.Root, rel, dst.Root, to, func(name, text string) (string, error) {
-		for _, d := range docs {
-			if d.rel == name {
-				return relocateText(name, text, d.urls)
+	if src.Root != "" {
+		err = history.CopyTo(src.Root, rel, dst.Root, to, func(name, text string) (string, error) {
+			for _, d := range docs {
+				if d.rel == name {
+					return relocateText(name, text, d.urls)
+				}
 			}
+			return text, nil
+		})
+		if err != nil {
+			return to, copied, err
 		}
-		return text, nil
-	})
-	if err != nil {
-		return to, copied, err
 	}
 	for _, d := range docs {
 		if d.live == nil {
@@ -153,8 +155,10 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 			d.live.preview = d.live.text()
 		}
 	}
-	if cleanupErr := history.Forget(src.Root, rel); cleanupErr != nil {
-		a.notify("文档和历史已移动；原位置的历史副本未能清理。%v", cleanupErr)
+	if src.Root != "" {
+		if cleanupErr := history.Forget(src.Root, rel); cleanupErr != nil {
+			a.notify("文档和历史已移动；原位置的历史副本未能清理。%v", cleanupErr)
+		}
 	}
 	return to, copied, nil
 }
@@ -208,17 +212,19 @@ func (a *App) movingDocuments(sp *space.Space, rel string) ([]*movingDocument, e
 				d.urls[url] = url
 			}
 		}
-		versions, err := history.List(sp.Root, p.Path)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range versions {
-			text, err := history.Read(sp.Root, p.Path, v)
+		if sp.Root != "" {
+			versions, err := history.List(sp.Root, p.Path)
 			if err != nil {
 				return nil, err
 			}
-			if err := collect(text); err != nil {
-				return nil, err
+			for _, v := range versions {
+				text, err := history.Read(sp.Root, p.Path, v)
+				if err != nil {
+					return nil, err
+				}
+				if err := collect(text); err != nil {
+					return nil, err
+				}
 			}
 		}
 		docs = append(docs, d)

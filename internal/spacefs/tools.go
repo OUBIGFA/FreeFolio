@@ -10,8 +10,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
-	"github.com/Ciao1019/ArcMD/internal/wiki"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/wiki"
 )
 
 // Limits of what one tool call returns, so a single call cannot fill a

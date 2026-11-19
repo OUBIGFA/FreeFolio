@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 

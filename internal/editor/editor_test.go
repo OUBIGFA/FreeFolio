@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -79,6 +79,8 @@ func TestIMEIsOneRichTransaction(t *testing.T) {
 	}
 	tt.Compose("候选", 2)
 	tt.Key(0, ui.KeyEscape)
+	// Native IMEs consume Escape and send an empty preedit to the client.
+	tt.Compose("", 0)
 	if !reflect.DeepEqual(e.Doc, before) {
 		t.Fatal("cancel changed rich content")
 	}
@@ -265,9 +267,19 @@ func TestBlockDragAndColumnResize(t *testing.T) {
 	e, tt := newTester("First\n\nSecond\n\n| A | B |\n|---|---|\n| 1 | 2 |")
 	bounds, _ := tt.Find("文档")
 	first, second := e.handles[0], e.handles[1]
+	tt.Move(bounds.X+first.rect.X+10, bounds.Y+first.rect.Y+10)
+	if tt.Cursor() != ui.CursorGrab {
+		t.Fatalf("block grip hover cursor: %v", tt.Cursor())
+	}
 	tt.Press(bounds.X+first.rect.X+10, bounds.Y+first.rect.Y+10)
 	tt.Move(bounds.X+second.rect.X+10, bounds.Y+second.rect.Y+10)
+	if tt.Cursor() != ui.CursorGrabbing {
+		t.Fatalf("block drag cursor: %v", tt.Cursor())
+	}
 	tt.Release(bounds.X+second.rect.X+10, bounds.Y+second.rect.Y+10)
+	if tt.Cursor() == ui.CursorGrabbing {
+		t.Fatal("release kept the block drag cursor")
+	}
 	if e.Doc.Blocks[1].Text() != "First" {
 		t.Fatal("block drag failed")
 	}
@@ -410,8 +422,9 @@ func TestOutlineCollapses(t *testing.T) {
 	tt.Frame()
 	pad := e.padding
 	closeAt, ok := tt.Find("收起目录")
-	if !ok {
-		t.Fatal("no collapse button")
+	page, found := tt.Find("文档")
+	if !ok || !found || closeAt.X < page.X+page.W-pad || closeAt.X+closeAt.W > 1200 {
+		t.Fatalf("outline must dock to the right of the writing surface: %+v, %+v", closeAt, page)
 	}
 	if err := tt.Click("收起目录"); err != nil {
 		t.Fatal(err)
@@ -422,8 +435,8 @@ func TestOutlineCollapses(t *testing.T) {
 	if open || e.OutlineOpen() || tt.HasText("跳到 Gamma") {
 		t.Fatal("outline stayed open")
 	}
-	if e.padding <= pad {
-		t.Fatal("page did not take the outline's room back", pad, e.padding)
+	if e.padding != pad || e.width != page.W {
+		t.Fatal("collapsing the outline moved the writing column", pad, e.padding, e.width)
 	}
 	// Collapsing leaves the pointer on the button that opens it again.
 	if openAt, ok := tt.Find("展开目录"); !ok || openAt != closeAt {
@@ -457,6 +470,11 @@ func TestOutlineFloatsOverNarrowPage(t *testing.T) {
 	tt.Frame()
 	if !e.OutlineOpen() || !tt.HasText("Beta") {
 		t.Fatal("outline did not float open")
+	}
+	entry, found := tt.Find("跳到 Beta")
+	page, hasPage := tt.Find("文档")
+	if !found || !hasPage || entry.X < 700-outlineWidth || page.W != 700 {
+		t.Fatalf("outline should float over the right edge without narrowing the document: %+v, %+v", entry, page)
 	}
 	if err := tt.Click("收起目录"); err != nil {
 		t.Fatal(err)
@@ -1261,4 +1279,31 @@ func TestSlashAndCompletionMenusFollowArrowKeys(t *testing.T) {
 		t.Fatalf("expected complete menu to scroll down, got %v", e.complete.scroll.Y)
 	}
 	assertRowVisible(":sm8:", 34, 640, 220)
+}
+
+// The I-beam belongs to the text column; the page's margins and the blank
+// space under the last block show the ordinary arrow.
+func TestPointerShowsIBeamOnlyOverText(t *testing.T) {
+	for _, readOnly := range []bool{false, true} {
+		e := New("# T\n\nSome text")
+		e.SetReadOnly(readOnly)
+		tt := ui.NewTester(func(c *ui.Context) { w, _ := c.Size(); View(c, e, Options{Width: w, Theme: c.Theme()}) }, 1400, 800)
+		tt.Frame()
+		bounds, _ := tt.Find("文档")
+		row := e.indexedRow(len(e.rows) - 1).rect
+		at := func(x, y float32) ui.Cursor {
+			tt.Move(bounds.X+x, bounds.Y+y)
+			tt.Frame()
+			return tt.Cursor()
+		}
+		if got := at(row.X+4, row.Y+row.H/2); got != ui.CursorText {
+			t.Fatalf("readOnly=%v over text: %v", readOnly, got)
+		}
+		if got := at(e.width-e.padding/2, row.Y+row.H/2); got != ui.CursorDefault {
+			t.Fatalf("readOnly=%v right margin: %v", readOnly, got)
+		}
+		if got := at(row.X+4, e.contentEnd+120); got != ui.CursorDefault {
+			t.Fatalf("readOnly=%v below the content: %v", readOnly, got)
+		}
+	}
 }

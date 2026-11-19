@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -87,7 +87,7 @@ func TestPagerSpring(t *testing.T) {
 // list's.
 func TestPagerSwipe(t *testing.T) {
 	a, tt := switchApp(t)
-	x, y := float32(100), float32(300)
+	x, y := float32(1100), float32(300)
 	lift := func() {
 		tt.Advance(swipeLift + time.Millisecond)
 		tt.Frame()
@@ -164,14 +164,14 @@ func TestPagerFlick(t *testing.T) {
 	}
 }
 
-// Paging, the window's tint mixes the two spaces either side.
+// Paging, the window's accent mixes the two spaces either side.
 func TestPagerTint(t *testing.T) {
 	a, tt := switchApp(t)
 	a.pager.swipe = 0.5
 	tt.Frame()
-	x := lookOf(space.ThemeOf(a.state.Spaces[0]), false).stops[0]
-	y := lookOf(space.ThemeOf(a.state.Spaces[1]), false).stops[0]
-	if got := a.look.stops[0]; got == x || got == y {
+	x := lookOf(space.ThemeOf(a.state.Spaces[0]), false).accent
+	y := lookOf(space.ThemeOf(a.state.Spaces[1]), false).accent
+	if got := a.look.accent; x == y || got == x || got == y {
 		t.Fatalf("tint %v is one space's (%v, %v)", got, x, y)
 	}
 }
@@ -201,7 +201,7 @@ func TestSpaceFolderGone(t *testing.T) {
 // TestSpaceSlideSnapshot renders the strip a third and two thirds of the
 // way to the next space, for review.
 func TestSpaceSlideSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the space switch")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the space switch")
 	a, tt := libraryApp(t)
 	tt.SetSize(1240, 700)
 	for _, f := range []float32{0.33, 0.66} {
@@ -240,9 +240,6 @@ func TestPagerLookContinuous(t *testing.T) {
 	}
 	face := func(l spaceLook) [3]float32 {
 		c := l.stops[0]
-		if l.Solid {
-			c = c.Over(materialGrey(false))
-		}
 		return [3]float32{float32(c.R), float32(c.G), float32(c.B)}
 	}
 	gap := func(p, q [3]float32) float32 {
@@ -272,41 +269,5 @@ func TestPagerLookContinuous(t *testing.T) {
 	}
 	if c := mixColor(white.Alpha(0.5), black, 0.5); c.A < 190 || c.A > 192 {
 		t.Errorf("opacity halfway from 0.5 to 1 is %d/255", c.A)
-	}
-}
-
-// The grain of a light space and a dark one stays while paging between
-// them, rather than fading away halfway, where the two would cancel out.
-func TestGrainKeepsStrengthWhilePaging(t *testing.T) {
-	a, tt := libraryApp(t)
-	tt.SetSize(1200, 700)
-	for i, appearance := range []string{space.AppearanceLight, space.AppearanceDark} {
-		th := space.ThemeOf(a.state.Spaces[i])
-		th.Appearance, th.Noise = appearance, 1
-		a.state.Spaces[i].SetTheme(th)
-	}
-	strength := func(f float32) float64 {
-		a.pager.swipe = f
-		tt.Frame()
-		tt.Frame()
-		img := tt.Image()
-		s := img.Bounds().Dx() / 1200
-		var sum, sq float64
-		n := 0
-		for y := 440 * s; y < 560*s; y++ {
-			for x := 0; x < 200*s; x++ {
-				o := img.PixOffset(x, y)
-				l := float64(int(img.Pix[o])+int(img.Pix[o+1])+int(img.Pix[o+2])) / 3
-				sum, sq, n = sum+l, sq+l*l, n+1
-			}
-		}
-		m := sum / float64(n)
-		return sq/float64(n) - m*m
-	}
-	light := strength(0)
-	for _, f := range []float32{0.25, 0.5, 0.75} {
-		if v := strength(f); v < 0.4*light {
-			t.Errorf("grain at %.2f of the way is %.1f, against %.1f in the light space", f, v, light)
-		}
 	}
 }

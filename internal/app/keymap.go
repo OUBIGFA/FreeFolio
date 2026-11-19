@@ -3,8 +3,8 @@ package app
 import (
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -289,41 +289,46 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 			a.recording = ""
 		}
 	})
-	settingsGroup(c, "shortcut-list", func() {
-		for i, b := range bindings {
-			id := b.id
-			row := ui.Row(c.Key("key-row:" + id)).Height(36).PaddingX(12).Gap(8).AlignItems(ui.Center)
-			if i%2 == 1 {
-				row.Background(t.Text.Alpha(0.025))
-			}
-			row.Children(func() {
-				ui.Text(c, i18n.T(b.label)).Grow(1).MinWidth(0)
-				_, custom := a.prefs.Keys[id]
-				if custom && a.recording != id {
-					reset := ui.ButtonBase(c.Key("key-reset:" + id)).Height(24).PaddingX(6).Radius(5).Label(i18n.T("恢复默认：") + i18n.T(b.label)).Cursor(ui.CursorPointer)
-					if reset.Hovered() {
-						reset.Background(hoverFill(t))
-					}
-					reset.Children(func() { ui.Text(c, i18n.T("恢复默认")).FontSize(12).TextColor(t.TextMuted) })
-					if reset.Clicked() {
-						a.resetKeys(id)
-					}
+	ui.Scroll(c.Key("shortcut-table")).Grow(1).MinHeight(0).Children(func() {
+		settingsGroup(c, "shortcut-list", func() {
+			for i, b := range bindings {
+				id := b.id
+				if i > 0 {
+					settingsSeparator(c)
 				}
-				a.keyField(c, b)
-			})
-		}
-	})
-	settingsGroup(c, "shortcut-fixed", func() {
-		for i, s := range fixedShortcuts {
-			row := ui.Row(c.Key(s.keys)).Height(34).PaddingX(12).AlignItems(ui.Center)
-			if i%2 == 1 {
-				row.Background(t.Text.Alpha(0.025))
+				row := ui.Row(c.Key("key-row:" + id)).Height(40).PaddingX(16).Gap(8).AlignItems(ui.Center)
+				row.Children(func() {
+					ui.Text(c, i18n.T(b.label)).FontSize(13).Grow(1).MinWidth(0)
+					_, custom := a.prefs.Keys[id]
+					if custom && a.recording != id {
+						reset := quietButton(c, "key-reset:"+id, func(btn ui.Element) ui.Element {
+							return btn.Label(i18n.T("恢复默认：") + i18n.T(b.label)).Children(func() {
+								ui.Text(c, i18n.T("恢复默认")).FontSize(12).TextColor(t.TextMuted)
+							})
+						})
+						if reset.Clicked() {
+							a.resetKeys(id)
+						}
+					}
+					a.keyField(c, b)
+				})
 			}
-			row.Children(func() {
-				ui.Text(c, i18n.T(s.label)).Grow(1).MinWidth(0)
-				ui.Text(c, i18n.T(s.keys)).FontSize(12).TextColor(t.TextMuted).NoWrap()
-			})
-		}
+		})
+		ui.Box(c).Height(16)
+		settingsSection(c, i18n.T("固定快捷键"))
+		ui.Box(c).Height(8)
+		settingsGroup(c, "shortcut-fixed", func() {
+			for i, s := range fixedShortcuts {
+				if i > 0 {
+					settingsSeparator(c)
+				}
+				row := ui.Row(c.Key(s.keys)).Height(36).PaddingX(16).AlignItems(ui.Center)
+				row.Children(func() {
+					ui.Text(c, i18n.T(s.label)).FontSize(13).Grow(1).MinWidth(0)
+					ui.Text(c, i18n.T(s.keys)).FontSize(12).TextColor(t.TextMuted).NoWrap()
+				})
+			}
+		})
 	})
 }
 
@@ -331,7 +336,7 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 func (a *App) keyField(c *ui.Context, b binding) {
 	t := c.Theme()
 	recording := a.recording == b.id
-	f := ui.Box(c.Key("key-field:" + b.id)).Height(26).MinWidth(96).PaddingX(10).Radius(6).Center().Focusable().
+	f := ui.Box(c.Key("key-field:" + b.id)).Height(26).MinWidth(96).PaddingX(10).Radius(controlRadius).Center().Focusable().
 		Role(ui.RoleButton).Label(i18n.T("更改快捷键：") + i18n.T(b.label)).Cursor(ui.CursorPointer).Background(t.Text.Alpha(0.06))
 	if recording {
 		f.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.1))

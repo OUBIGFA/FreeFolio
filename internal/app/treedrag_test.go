@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -350,7 +350,7 @@ func TestListDragLiveSlotAndEscapeCancel(t *testing.T) {
 // over a folder, over the favorites, the inline seam new-doc button, and the
 // empty favorites card, for review.
 func TestDragSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the drags")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the drags")
 	hold := func(name string, setup func(a *App), from, to string, f float32) {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

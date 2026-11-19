@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 func TestMovedImportKeepsParentImages(t *testing.T) {
@@ -18,7 +18,9 @@ func TestMovedImportKeepsParentImages(t *testing.T) {
 				// Folder operations require explicitly adding a folder space;
 				// opening one external article no longer imports its parent.
 				a.state.Add("Articles", filepath.Dir(source))
-				if !a.openSystemFile(source) {
+				// The browser keeps files of spaces too; the space opens
+				// the file once the user has gone back to it.
+				if !a.leaveFileMode() || !a.openSystemFile(source) {
 					t.Fatal("open folder space")
 				}
 			}

@@ -4,7 +4,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 )
 
 // spaced puts a space before text typed at a collapsed caret where it

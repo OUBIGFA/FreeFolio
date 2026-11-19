@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/tex"
+	"github.com/OUBIGFA/FreeMD/internal/tex"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"

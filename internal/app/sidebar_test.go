@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -47,19 +47,19 @@ func TestSidebarDoubleClickDoesNotRename(t *testing.T) {
 
 func TestSidebarWidthAndPinning(t *testing.T) {
 	a, tt := newTestApp(t)
-	back, ok := tt.Find("后退")
-	if !ok || back.X != 230 || a.sidebarHidden {
+	back, ok := tt.Find("新建空间")
+	if !ok || back.X < 1200-sidebarWidth || a.sidebarHidden {
 		t.Fatalf("default sidebar: back %+v, hidden %v", back, a.sidebarHidden)
 	}
 	tt.Click("收起侧边栏")
 	tt.Advance(time.Second)
 	folded, _ := tt.Find("文档路径")
-	tt.Move(3, 400)
+	tt.Move(1197, 400)
 	if !a.peek {
 		t.Fatal("edge hover did not start opening without another input")
 	}
 	// Cross into the panel before its opening animation has finished.
-	tt.Move(180, 400)
+	tt.Move(1020, 400)
 	tt.Advance(time.Second)
 	if !a.peek || !tt.HasText("Journal") {
 		t.Fatal("moving ahead of the animation closed the panel")
@@ -70,7 +70,7 @@ func TestSidebarWidthAndPinning(t *testing.T) {
 	}
 	tt.Move(500, 400)
 	tt.Advance(peekDelay / 2)
-	tt.Move(180, 400)
+	tt.Move(1020, 400)
 	tt.Advance(peekDelay)
 	if !a.peek {
 		t.Fatal("briefly leaving the floating panel made it disappear")
@@ -90,7 +90,7 @@ func TestSidebarPeekRenameAndModal(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
 	tt.Key(ui.Cmd, ui.KeyBackslash)
-	tt.Move(3, 400)
+	tt.Move(1197, 400)
 	if !a.peek || !tt.HasText("Journal") {
 		t.Fatal("reduced-motion peek did not open immediately")
 	}
@@ -112,7 +112,7 @@ func TestSidebarPeekRenameAndModal(t *testing.T) {
 		t.Fatal("canceling rename did not release the sidebar")
 	}
 	tt.Key(ui.Cmd, ui.KeyP)
-	tt.Move(3, 400)
+	tt.Move(1197, 400)
 	if a.peek || !a.palette.open {
 		t.Fatal("edge hover opened a sidebar behind the command bar")
 	}
@@ -126,7 +126,7 @@ func TestSpaceSwitchWhilePeeking(t *testing.T) {
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyBackslash)
 	tt.Advance(time.Second)
-	tt.Move(3, 400)
+	tt.Move(1197, 400)
 	tt.Advance(time.Second)
 	if err := tt.Click("切换到 Work"); err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestSpaceBarOverflowAndKeyboard(t *testing.T) {
 	tt.SetSize(640, 420)
 	for _, label := range []string{"新建空间", "资料库"} {
 		r, ok := tt.Find(label)
-		if !ok || r.X < 0 || r.X+r.W > sidebarWidth {
+		if !ok || r.X < 640-sidebarWidth || r.X+r.W > 640 {
 			t.Fatalf("%s overflowed the sidebar: %+v", label, r)
 		}
 	}
@@ -188,7 +188,7 @@ func TestSpaceRestoresEditorAndTreeScroll(t *testing.T) {
 	}
 	a.refreshTree()
 	tt.Frame()
-	tt.Scroll(120, 400, 0, 350)
+	tt.Scroll(1080, 400, 0, 350)
 	tt.Advance(time.Second)
 	scrolled := a.session(first.ID).tree.Y
 	if scrolled == 0 {
@@ -218,7 +218,7 @@ func TestSpaceRestoresEditorAndTreeScroll(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.KeyBackslash)
 	tt.Advance(time.Second)
-	tt.Move(3, 400)
+	tt.Move(1197, 400)
 	tt.Advance(time.Second)
 	if a.session(first.ID).tree.Y != scrolled {
 		t.Fatal("floating sidebar discarded the file tree's scroll position")

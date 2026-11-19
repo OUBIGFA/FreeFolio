@@ -11,32 +11,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/app"
-	"github.com/Ciao1019/ArcMD/internal/prefs"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/spacefs"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/app"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/spacefs"
 )
 
-const askUsage = `usage: arcmd ask [flags] "question"
+const askUsage = `usage: freemd ask [flags] "question"
 
 Asks a question about a space's documents in the terminal, printing each
 search and read the agent makes, the answer, and whether its citations
 point at real lines: for trying out and evaluating the agent.
 
 The model is the one set in Settings › AI, or given by flags; the API key
-comes from ARCMD_AI_KEY (the app's own key stays in its local config folder).
+comes from FREEMD_AI_KEY (the app's own key stays in its local config folder).
 
 `
 
-// ask runs "arcmd ask"; it returns the process's exit code.
+// ask runs "freemd ask"; it returns the process's exit code.
 func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ask", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, askUsage); fs.PrintDefaults() }
 	spaceArg := fs.String("space", "", "space name, ID or folder (default: the active space)")
-	base := fs.String("base-url", os.Getenv("ARCMD_AI_BASE_URL"), "Chat Completions API root (default: settings)")
-	model := fs.String("model", os.Getenv("ARCMD_AI_MODEL"), "model name (default: settings)")
+	base := fs.String("base-url", os.Getenv("FREEMD_AI_BASE_URL"), "Chat Completions API root (default: settings)")
+	model := fs.String("model", os.Getenv("FREEMD_AI_MODEL"), "model name (default: settings)")
 	steps := fs.Int("max-steps", agent.DefaultMaxSteps, "most model steps for the question")
 	verbose := fs.Bool("v", false, "print each tool's whole result")
 	if err := fs.Parse(args); err != nil {
@@ -49,10 +49,10 @@ func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 	}
 	p, err := prefs.Store{Path: filepath.Join(cfg.ConfigDir, "prefs.json")}.Load()
 	if err != nil {
-		fmt.Fprintln(stderr, "arcmd:", err)
+		fmt.Fprintln(stderr, "freemd:", err)
 		return 1
 	}
-	settings := agent.Settings{BaseURL: *base, Model: *model, APIKey: os.Getenv("ARCMD_AI_KEY")}
+	settings := agent.Settings{BaseURL: *base, Model: *model, APIKey: os.Getenv("FREEMD_AI_KEY")}
 	if settings.BaseURL == "" {
 		settings.BaseURL = p.AI.BaseURL
 		if settings.BaseURL == "" {
@@ -63,12 +63,12 @@ func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 		settings.Model = p.AI.Model
 	}
 	if err := settings.Check(); err != nil {
-		fmt.Fprintln(stderr, "arcmd: cannot ask:", err, "(set them in Settings › AI, or with -base-url, -model and ARCMD_AI_KEY)")
+		fmt.Fprintln(stderr, "freemd: cannot ask:", err, "(set them in Settings › AI, or with -base-url, -model and FREEMD_AI_KEY)")
 		return 1
 	}
 	sp, err := findSpace(cfg, *spaceArg)
 	if err != nil {
-		fmt.Fprintln(stderr, "arcmd:", err)
+		fmt.Fprintln(stderr, "freemd:", err)
 		return 1
 	}
 	view := spacefs.New(sp.Root, app.QAPage)
@@ -81,7 +81,7 @@ func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 	}
 	overview, err := view.Overview(6000)
 	if err != nil {
-		fmt.Fprintln(stderr, "arcmd: cannot read the space:", err)
+		fmt.Fprintln(stderr, "freemd: cannot read the space:", err)
 		return 1
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -123,7 +123,7 @@ func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 	})
 	fmt.Fprintln(stdout)
 	if err != nil {
-		fmt.Fprintln(stderr, "arcmd:", err)
+		fmt.Fprintln(stderr, "freemd:", err)
 		return 1
 	}
 	final := ""

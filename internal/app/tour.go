@@ -2,17 +2,16 @@ package app
 
 import (
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
-// The tour introduces the window the first time ArcMD runs with it, on a
+// The tour introduces the window the first time FreeMD runs with it, on a
 // new installation or after an update: a scrim over the
 // window with a hole round what a step is about, and a card beside it
 // with a small moving picture, a few lines and the way on. The hole and
@@ -55,9 +54,9 @@ type tourStep struct {
 }
 
 var tourSteps = []tourStep{
-	{id: "welcome", label: "新手教程", title: "欢迎来到 ArcMD",
+	{id: "welcome", label: "新手教程", title: "欢迎来到 FreeMD",
 		body: func(*App) string {
-			return i18n.T("用一分钟认识 ArcMD：空间、主题配色、左右滑动、书签、置顶和收藏。看完就可以开始写作。")
+			return i18n.T("用一分钟认识 FreeMD：空间、主题配色、左右滑动、书签、置顶和收藏。看完就可以开始写作。")
 		},
 		keys: func(*App) []string { return []string{i18n.T("→ 下一步"), i18n.T("Esc 跳过")} }},
 	{id: "spaces", label: "空间", title: "用空间分开不同的事",
@@ -67,7 +66,7 @@ var tourSteps = []tourStep{
 		keys: func(a *App) []string { return []string{a.tourKey("palette") + i18n.T(" 新建空间…")} }},
 	{id: "theme", label: "主题配色", title: "给每个空间一身颜色",
 		body: func(*App) string {
-			return i18n.T("这就是主题画板：把指针移到空间名称上，点右侧的「•••」选择「编辑主题颜色…」打开它。拖动圆点选 1–3 种颜色，再调强度和颗粒，整个窗口像现在这样实时预览。")
+			return i18n.T("这就是空间颜色：把指针移到空间名称上，点右侧的「•••」选择「编辑主题颜色…」打开它。空间图标和侧边栏中选中的项目会使用这种颜色。")
 		},
 		keys: func(*App) []string {
 			return []string{i18n.T("跟随系统"), i18n.T("浅色"), i18n.T("深色"), i18n.T("− / + 颜色数")}
@@ -203,14 +202,6 @@ func (a *App) tourTheme() {
 		t.themeHeld, t.themeBase = true, slices.Clone(th.Colors)
 	}
 	f.cardOpen = true
-	if a.reduceMotion || len(t.themeBase) == 0 || len(f.theme.Colors) == 0 {
-		return
-	}
-	// Out 50 degrees one way and the other, 7 s a turn, from where it was.
-	turn := 50 * math.Sin(a.now.Sub(t.since).Seconds()/7*2*math.Pi) * math.Pi / 180
-	x, y := knobAt(t.themeBase[0])
-	sin, cos := float32(math.Sin(turn)), float32(math.Cos(turn))
-	placeKnob(&f.theme, 0, x*cos-y*sin, x*sin+y*cos)
 }
 
 // tourMark notes where e, the part of the window called id, shows, for
@@ -440,7 +431,7 @@ func (a *App) tourCard(c *ui.Context, step tourStep, target ui.Rect, has bool, t
 			pic := ui.Box(c.Key("art-" + step.id)).Absolute().Left(0).Top(0).Right(0).Bottom(0)
 			enter(pic, 10)
 			id := step.id
-			pic.Draw(func(p *ui.Painter, r ui.Rect) { paintTourArt(p, r, id, tl, since, still) })
+			pic.Draw(func(p *ui.Painter, r ui.Rect) { paintTourArt(p, r, id, tl, since, still, a.prefs.SidebarLeft) })
 			if t.step < last {
 				x := ui.Box(c.Key("tour-skip")).Absolute().Right(10).Top(10).Size(26, 26).Radius(13).Center().
 					Focusable().Role(ui.RoleButton).Label(i18n.T("跳过教程")).Tooltip(i18n.T("跳过教程 (Esc)")).Cursor(ui.CursorPointer)

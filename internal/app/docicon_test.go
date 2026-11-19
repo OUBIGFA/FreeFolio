@@ -61,7 +61,7 @@ func TestDocColor(t *testing.T) {
 // TestDocIconSnapshot renders favorites and a tree of varied names, for
 // review.
 func TestDocIconSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the document icons")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the document icons")
 	for _, dark := range []bool{false, true} {
 		name := "doc-icons"
 		if dark {

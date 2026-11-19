@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -204,7 +204,7 @@ func TestSplitInactiveRenameAndDelete(t *testing.T) {
 }
 
 func TestSplitSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT for split views")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT for split views")
 	for _, name := range []string{"split-light", "split-dark", "split-vertical", "split-narrow", "split-empty", "split-picker"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := splitTestApp(t)
@@ -316,9 +316,9 @@ func TestSplitSidebarDrag(t *testing.T) {
 	tt.Press(x, y)
 	tt.Move(x+7, y)
 	tt.Frame()
-	tt.Move(1160, 390)
+	tt.Move(1200-sidebarWidth-40, 390)
 	tt.Frame()
-	tt.Release(1160, 390)
+	tt.Release(1200-sidebarWidth-40, 390)
 	settle(tt)
 	if a.split == nil || len(a.split.panes) != 2 || a.doc.rel != "Reference.arcmd" {
 		t.Fatal("drop did not split")

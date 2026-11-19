@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/pinyin"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/pinyin"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -361,10 +361,14 @@ func (a *App) previewHeight() float32 {
 // row, kept 18 DIPs inside the window.
 func (a *App) previewRect(c *ui.Context) ui.Rect {
 	p := &a.preview
-	_, wh := c.Size()
+	ww, wh := c.Size()
 	h := a.previewHeight()
 	r := p.shown.anchor
 	x := r.X + r.W + rowInset + previewGap
+	if !a.prefs.SidebarLeft {
+		x = r.X - rowInset - previewGap - previewW
+	}
+	x = max(previewWindowGap, min(x, ww-previewWindowGap-previewW))
 	y := r.Y + r.H/2 - h/2
 	y = max(min(y, wh-previewWindowGap-h), previewWindowGap)
 	return ui.Rect{X: x, Y: y, W: previewW, H: h}
@@ -438,9 +442,7 @@ func (a *App) folderPreview(c *ui.Context) {
 		in := ui.TextInput(c.Key("preview-query"), &p.query).Grow(1).MinWidth(0).Height(24).Padding(0).
 			Placeholder(i18n.T("搜索 ")+path.Base(t.rel)+"…").Label(i18n.T("搜索文件夹")).TextColor(p.col.title).
 			Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13)
-		if !p.closing {
-			in.AutoFocus()
-		}
+		// A hover preview must leave keyboard focus on the file tree.
 		if in.Changed() {
 			p.extended, p.selected = true, 0
 		}
@@ -493,7 +495,7 @@ func (a *App) folderPreview(c *ui.Context) {
 				if m.Item(i18n.T("打开")).Chosen() {
 					a.pickPreview(c, it.rel)
 				}
-				if m.Item(i18n.T("在访达中显示")).Chosen() {
+				if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 					a.revealIn(t.space, it.rel)
 				}
 			})

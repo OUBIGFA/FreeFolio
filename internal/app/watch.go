@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -220,7 +220,7 @@ func within(rel, p string) bool {
 	return rel == p || strings.HasPrefix(rel, p+"/")
 }
 
-// checkDisk compares the open document's file with what ArcMD last read
+// checkDisk compares the open document's file with what FreeMD last read
 // or wrote. A change replaces a document without unsaved edits; with
 // edits, it waits for the user (conflictBar). A file gone closes a
 // document without edits, and keeps one with edits open, unsaved.

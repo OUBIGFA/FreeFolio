@@ -5,24 +5,20 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
-// The outline lists the page title and the headings left of the page, as
-// Feishu's documents do. Collapsed, a button at the page's top left opens
-// it; open, it takes room beside the page, which slides over to make it,
-// and its « button collapses it again. The reader's choice is the host's
-// to keep (Options.Outline / SetOutline). A pane too narrow to give up the
-// room opens the outline over the page instead, until a press elsewhere.
+// The outline docks to the right of the writing surface. Narrow panes open
+// it over the page without changing the user's saved docking preference.
 
 const (
 	// outlineWidth is the room the open outline takes.
 	outlineWidth = 248
-	// outlineMinPage is the narrowest page the outline makes room beside;
-	// narrower panes float it over the page.
-	outlineMinPage = 600
+	// Leave space for the document's right-margin controls beside a docked outline.
+	outlineMinWidth = 136
+	outlineGutter   = 40
 	// outlineRow is the height of an entry.
 	outlineRow = 28
 	// outlineAll is how many headings the outline builds every row for;
@@ -50,9 +46,7 @@ type outlineState struct {
 	set      func(bool)
 	mode     outlineMode
 	floating bool    // the floating outline is showing
-	target   float32 // the room the outline is to take
-	slide    outlineSlideState
-	toggled  bool // the reader opened or collapsed it since the last frame
+	width    float32 // panel width available inside this editor pane
 	// buttonTop is where both the « and the ≡ buttons sit, so collapsing
 	// and opening keep the pointer on the button.
 	buttonTop float32
@@ -68,12 +62,6 @@ type outlineState struct {
 	headingsRev   uint64
 	headingsKnown bool
 	headingsHas   bool
-}
-
-// outlineSlideState moves the outline's room from one width to another.
-type outlineSlideState struct {
-	from, to float32
-	start    time.Time
 }
 
 // outlineJump scrolls the page to a heading picked in the outline.
@@ -123,68 +111,29 @@ func (e *Editor) hasBookmarks() bool {
 	return false
 }
 
-// outlineReserve settles the outline's mode for the pane width and returns
-// the room it takes beside the page now, moving to it.
-func (e *Editor) outlineReserve(c *ui.Context, o Options) float32 {
+// fitOutline uses only the writing column's existing right margin. When
+// that margin is too narrow the reader can open a temporary overlay.
+func (e *Editor) fitOutline(o Options) {
 	s := &e.outlineState
 	s.open, s.set = o.Outline, o.SetOutline
-	was := s.mode
 	s.mode = outlineOff
-	if s.set != nil && (e.hasHeadings() || e.hasBookmarks()) {
-		s.mode = outlineFloating
-		if o.Width-outlineWidth >= outlineMinPage {
-			s.mode = outlineBeside
-		}
+	if s.set == nil || !(e.hasHeadings() || e.hasBookmarks()) {
+		s.floating = false
+		return
 	}
-	if s.mode != outlineFloating {
+	margin := (o.Width - columnWidth(o.Column)) / 2
+	available := margin - outlineGutter
+	s.mode = outlineFloating
+	s.width = min(outlineWidth, o.Width)
+	if available >= outlineMinWidth {
+		s.mode = outlineBeside
+		s.width = min(outlineWidth, available)
 		s.floating = false
 	}
-	if e.ready && was == outlineOff && s.mode == outlineBeside && s.open {
-		// The first bookmark of a page without headings brings the outline
-		// in under the reader's pointer: it slides, as when opened by hand.
-		s.toggled = true
-	}
-	// Beside the title, unless the page's margin without the outline is
-	// too narrow for the button and the title's handle: then above it.
 	s.buttonTop = pageTop + 12
-	if (o.Width-columnWidth(o.Column))/2 < 96 {
+	if margin < 96 {
 		s.buttonTop = 12
 	}
-	s.target = 0
-	if s.mode == outlineBeside && s.open {
-		s.target = outlineWidth
-	}
-	return e.outlineRoom(c)
-}
-
-// outlineRoom is the room the outline takes now. Only the reader opening
-// or collapsing it slides the page; a pane growing or shrinking past where
-// the outline fits beside the page, or another document, settles at once,
-// rather than squeezing the page while it moves.
-func (e *Editor) outlineRoom(c *ui.Context) float32 {
-	s := &e.outlineState
-	now := c.Now()
-	at := func() float32 {
-		t := float32(now.Sub(s.slide.start)) / float32(outlineSlide)
-		if t >= 1 {
-			return s.slide.to
-		}
-		t = 1 - (1-t)*(1-t)*(1-t)
-		return s.slide.from + (s.slide.to-s.slide.from)*t
-	}
-	if s.target != s.slide.to {
-		if s.toggled && !c.Preferences().ReduceMotion {
-			s.slide = outlineSlideState{from: at(), to: s.target, start: now}
-		} else {
-			s.slide = outlineSlideState{from: s.target, to: s.target}
-		}
-	}
-	s.toggled = false
-	room := at()
-	if room != s.slide.to {
-		c.After(0)
-	}
-	return room
 }
 
 // OutlineOpen reports whether the outline shows.
@@ -202,7 +151,6 @@ func (e *Editor) ToggleOutline() {
 		if s.set != nil {
 			s.set(!s.open)
 			s.open = !s.open
-			s.toggled = true
 		}
 	case outlineFloating:
 		s.floating = !s.floating
@@ -243,25 +191,20 @@ func (e *Editor) stepJump(c *ui.Context) {
 	c.After(0)
 }
 
-// outlineView draws the collapsed outline's button or the outline; reserve
-// is the room it has beside the page now.
-func (e *Editor) outlineView(c *ui.Context, pane ui.Element, reserve float32) {
+// The outline is anchored to the pane, independently of document scrolling.
+func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 	s := &e.outlineState
 	if s.mode == outlineOff {
 		return
 	}
 	t := c.Theme()
-	// shown is how far the outline has come in, 0 to 1.
-	shown := reserve / outlineWidth
-	if s.mode == outlineFloating {
-		target := float32(0)
-		if s.floating {
-			target = 1
-		}
-		shown = pane.Animate("outline-float", target, 160*time.Millisecond)
+	target := float32(0)
+	if e.OutlineOpen() {
+		target = 1
 	}
+	shown := pane.Animate("outline-open", target, outlineSlide)
 	if shown < 1 {
-		open := ui.ButtonBase(c.Key("outline-open")).Absolute().Left(16).Top(s.buttonTop).Size(28, 28).Radius(6).Center().
+		open := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(16).Top(s.buttonTop).Size(28, 28).Radius(6).Center().
 			Label(i18n.T("展开目录")).Tooltip(i18n.T("展开目录")).KeepFocus().Cursor(ui.CursorPointer).Opacity(1 - shown)
 		color := t.Text.Alpha(.55)
 		if open.Hovered() {
@@ -276,20 +219,20 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element, reserve float32) {
 	if shown <= 0 {
 		return
 	}
-	panel := ui.Column(c.Key("outline")).Absolute().Left(0).Top(0).Width(outlineWidth).Height(e.viewport).
-		Padding(s.buttonTop, 12, 16, 16).Gap(8).Opacity(shown).Translate((shown-1)*24, 0)
+	panel := ui.Column(c.Key("outline")).Absolute().Right(0).Top(0).Width(s.width).Height(e.viewport).
+		Padding(s.buttonTop, 16, 16, 12).Gap(8).Opacity(shown).Translate((1-shown)*24, 0)
 	if s.mode == outlineFloating {
-		panel.Background(e.page.Popover).Shadow(4, 0, 24, 0, t.Text.Alpha(.12)).KeepFocus()
+		panel.Background(e.page.Popover).Shadow(-4, 0, 24, 0, t.Text.Alpha(.12)).KeepFocus()
 	}
 	panel.Children(func() {
-		close := ui.ButtonBase(c.Key("outline-close")).Size(28, 28).Radius(6).Center().AlignSelf(ui.Start).
+		close := ui.ButtonBase(c.Key("outline-close")).Size(28, 28).Radius(6).Center().AlignSelf(ui.End).
 			Label(i18n.T("收起目录")).Tooltip(i18n.T("收起目录")).KeepFocus().Cursor(ui.CursorPointer)
 		color := t.Text.Alpha(.55)
 		if close.Hovered() {
 			close.Background(t.Text.Alpha(.06))
 			color = t.Accent
 		}
-		close.Children(func() { ui.Icon(c, iconChevronsLeft).FontSize(18).TextColor(color) })
+		close.Children(func() { ui.Icon(c, iconChevronsRight).FontSize(18).TextColor(color) })
 		if close.Clicked() {
 			e.ToggleOutline()
 		}

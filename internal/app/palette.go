@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/fuzzy"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/update"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/fuzzy"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/update"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -268,7 +268,7 @@ func (a *App) actions() []action {
 	cmd(i18n.T("插件…"), "", a.openPlugins)
 	cmd(i18n.T("设置…"), a.keyLabel("settings"), func() { a.openSettings(tabGeneral) })
 	cmd(i18n.T("键盘快捷键"), "", func() { a.openSettings(tabShortcuts) })
-	cmd(i18n.T("关于 ArcMD"), "", func() { a.openSettings(tabAbout) })
+	cmd(i18n.T("关于 FreeMD"), "", func() { a.openSettings(tabAbout) })
 	cmd(i18n.T("新手教程"), "", a.startTour)
 	cmd(i18n.T("检查更新…"), "", a.checkForUpdates)
 	if n := a.updateNotice(); n != nil && n.Kind == update.Ready {
@@ -338,7 +338,7 @@ func (a *App) actions() []action {
 		cmd(i18n.T("将当前文档存为模板"), "", a.saveAsTemplate)
 		cmd(i18n.T("导出 HTML 网页"), "", a.exportHTML)
 		cmd(i18n.T("在新窗口中打开当前文档"), "", func() { a.openInWindow(sp, rel) })
-		cmd(i18n.T("在访达中显示文档"), "", func() { a.revealIn(sp, rel) })
+		cmd(i18n.T("在文件管理器中显示文档"), "", func() { a.revealIn(sp, rel) })
 	}
 	for _, p := range a.installed {
 		if !p.Enabled {
@@ -532,7 +532,7 @@ func (a *App) paletteView(c *ui.Context) {
 			}
 			ui.Scroll(c.Key("palette-results")).MaxHeight(max(80, winH-190)).MinHeight(0).Children(func() {
 				for i, act := range res {
-					row := ui.Row(c.Key(i)).Gap(10).Padding(7, 12).Radius(7).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(act.title)
+					row := ui.Row(c.Key(i)).Gap(10).Padding(7, 12).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(act.title)
 					confirming := act.danger && p.confirm == act.title
 					renamingMark := act.bookmark != nil && p.renameOn && sameBookmark(p.renaming, *act.bookmark)
 					if confirming {
@@ -553,11 +553,11 @@ func (a *App) paletteView(c *ui.Context) {
 					}
 					row.Children(func() {
 						if i == p.index && !confirming {
-							ui.Box(c.Key("sel")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(7).
+							ui.Box(c.Key("sel")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(controlRadius).
 								Background(t.Accent.Alpha(0.16)).PassThrough().
 								Transition(ui.ElementTransition{Duration: 90 * time.Millisecond, Ease: ui.EaseOut, Match: palettePillMatch{}})
 						}
-						ui.Text(c, act.kind).FontSize(11).TextColor(t.TextMuted).Width(64).NoWrap()
+						ui.Text(c, act.kind).FontSize(12).TextColor(t.TextMuted).Width(64).SingleLine()
 						if act.snippet == "" {
 							title := ui.Text(c, act.title).Grow(1).SingleLine().MinWidth(0)
 							if act.danger {

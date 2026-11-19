@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
 func TestReadingFeaturesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render reading features")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render reading features")
 	source := "# 让想法自然流动\n\n句子里的公式 $x^2 + y^2 = r^2$ 和文字共享基线，水写作 H<sub>2</sub>O，面积写作 m<sup>2</sup>。\n\n$$\n\\int_0^\\infty x^2 e^{-x} dx = 2\n$$\n\n结论来自这条脚注[^proof]，也可以打开 [参考资料](https://example.com)。\n\n中文输入支持「包裹选区」，配对与撤销保持自然。\n\n[^proof]: 这是可以编辑的脚注正文。点击编号跳转，再点击返回箭头回到引用处。"
 	for _, name := range []string{"light", "dark", "narrow", "link", "inline-source", "read-only", "reading-settings"} {
 		t.Run(name, func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestReadingFeaturesSnapshot(t *testing.T) {
 }
 
 func TestReadingImageSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render image controls")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render image controls")
 	for _, name := range []string{"handles", "preview", "narrow"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

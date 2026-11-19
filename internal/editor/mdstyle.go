@@ -8,14 +8,14 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
 
 // Palette hex values mirror internal/app/theme.go's light document theme so
 // Markdown files opened in Typora, Obsidian, VS Code or browsers show the
-// same colors ArcMD draws natively.
+// same colors FreeMD draws natively.
 var (
 	textColorHex = map[string]string{
 		"gray":   "#8F959E",
@@ -75,7 +75,7 @@ func validStyleName(name string, allowed []string) bool {
 
 // spanTagAndAttrs formats a Style's color, highlight and hand-drawn annotation
 // as either a standard <mark> element or a <span> with both inline CSS (for
-// external Markdown viewers) and lossless data-* attributes (for ArcMD).
+// external Markdown viewers) and lossless data-* attributes (for FreeMD).
 func spanTagAndAttrs(s document.Style) (tag, attrs string) {
 	if s.Color == "" && s.Highlight == "light-yellow" && s.Annotation == "" {
 		return "mark", ""

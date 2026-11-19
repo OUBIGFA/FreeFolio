@@ -9,10 +9,11 @@ package app
 // do, follows renames and moves, and closing the window saves it.
 
 import (
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/resources"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -99,6 +100,9 @@ func (a *App) makeWindow(title string, view func(*ui.Context), close func() bool
 		TrafficLightPosition: &mygo.Point{X: 18, Y: 18},
 		Content:              ui.View(view),
 	})
+	if err := win.SetIcon(resources.Icon); err != nil {
+		a.notify("无法设置窗口图标。%v", err)
+	}
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !close() {
 			e.PreventDefault()

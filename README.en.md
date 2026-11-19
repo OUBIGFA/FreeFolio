@@ -35,14 +35,14 @@ python -X utf8 -m unittest discover -s tests/repository -v
 ### Build and Test
 
 ```sh
-CGO_ENABLED=0 go run ./cmd/arcmd
+CGO_ENABLED=0 go run ./cmd/freemd
 CGO_ENABLED=0 go test ./internal/document
 ```
 
 Use an isolated development home directory so personal spaces are untouched:
 
 ```sh
-ARCMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/arcmd
+FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
 ```
 
 ## Documentation and Boundaries
@@ -55,3 +55,5 @@ ARCMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/arcmd
 ## License
 
 FreeMD follows the upstream [MIT License](LICENSE). Third-party attributions, upstream source records, and Go dependency inventories live in [third_party](third_party/README.md) and [go-mod.json](third_party/manifests/go-mod.json).
+
+Loose Markdown files open in the same window, with in-place editing and Save As. Their paths stay in memory until the file session ends.

@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // TestOpenPinnedSnapshot renders the pinned section with an open document
 // behind the shown one, its minus under the pointer, and a closed one
 // dimmed, in light and dark.
 func TestOpenPinnedSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render open pinned documents")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render open pinned documents")
 	for _, dark := range []bool{false, true} {
 		name := "open-pinned"
 		if dark {

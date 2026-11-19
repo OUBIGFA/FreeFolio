@@ -11,18 +11,26 @@
     {
       "path": "resources/icon.icns",
       "reason": "macOS app bundle icon referenced by mygo.json",
-      "source": "https://github.com/Ciao1019/ArcMD/blob/27322d387268751932624ef83a7c580cb0b068d5/resources/icon.icns",
+      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
       "license": "MIT",
-      "bytes": 2373975,
-      "sha256": "ad805c5e02ec0934bd194f237bf8ae8e55c4b6a50480348e23251d864524b734"
+      "bytes": 154268,
+      "sha256": "7bbdc6ece5611e085941ccf7ba86c73bc25053bb86263409672ac7329d697126"
     },
     {
       "path": "resources/icon.png",
       "reason": "Application icon referenced by mygo.json",
-      "source": "https://github.com/Ciao1019/ArcMD/blob/27322d387268751932624ef83a7c580cb0b068d5/resources/icon.png",
+      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
       "license": "MIT",
-      "bytes": 1411887,
-      "sha256": "7c7a1df594625d987a0e8b0c88a876b38c323c07623541bbae758fb5a53af854"
+      "bytes": 78659,
+      "sha256": "757195df93b765dd62794c3a0b91ae341330ffb73eaa85faa3ff100747fad474"
+    },
+    {
+      "path": "resources/icon.ico",
+      "reason": "Multi-resolution Windows application icon",
+      "license": "MIT",
+      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
+      "bytes": 32574,
+      "sha256": "4514f52f3f8bbdd1d4f2f3a8df46113b159f2f338ba3368c3d6c8818e3bfad34"
     },
     {
       "path": "internal/app/assets/ghost/pitch00.png",

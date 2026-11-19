@@ -92,7 +92,7 @@ func TestWheelRoundTrip(t *testing.T) {
 			t.Errorf("WheelColor(%v) = %s → %v %v %v", hue, c, h, s, v)
 		}
 	}
-	if PageOf([]string{"#f8d558", "#A4F454"}) != 1 || PageOf([]string{"#123456"}) != -1 {
+	if PageOf([]string{Brand[5], BrandPairs[5]}) != 1 || PageOf([]string{"#123456"}) != -1 {
 		t.Error("PageOf")
 	}
 }

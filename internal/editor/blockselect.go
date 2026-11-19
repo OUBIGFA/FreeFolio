@@ -9,8 +9,8 @@ package editor
 import (
 	"fmt"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -327,7 +327,7 @@ func (e *Editor) paintBlockSelection(p *ui.Painter, bounds ui.Rect, t *ui.Theme)
 	p.Fill(ui.Rect{X: bounds.X + e.padding - 8, Y: bounds.Y + top - 4, W: e.width - 2*e.padding + 16, H: bottom - top}, t.Selection, 6)
 }
 
-// writeFragment puts a fragment on the clipboard as ArcMD's structure,
+// writeFragment puts a fragment on the clipboard as FreeMD's structure,
 // Markdown, HTML and text; text "" is the fragment's Markdown.
 func (e *Editor) writeFragment(fragment *document.Document, text string, write func(string)) {
 	fragment.ImportSource = ""

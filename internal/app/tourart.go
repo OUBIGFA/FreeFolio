@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -34,14 +34,15 @@ var tourArts = map[string]tourArt{
 
 // tourDraw draws a picture in r at t seconds into its loop.
 type tourDraw struct {
-	p  *ui.Painter
-	r  ui.Rect
-	t  float32
-	tl tourLook
+	p           *ui.Painter
+	r           ui.Rect
+	t           float32
+	tl          tourLook
+	sidebarLeft bool
 }
 
 // paintTourArt draws the picture called id, its loop running from since.
-func paintTourArt(p *ui.Painter, r ui.Rect, id string, tl tourLook, since time.Time, still bool) {
+func paintTourArt(p *ui.Painter, r ui.Rect, id string, tl tourLook, since time.Time, still, sidebarLeft bool) {
 	art, ok := tourArts[id]
 	if !ok {
 		return
@@ -54,7 +55,7 @@ func paintTourArt(p *ui.Painter, r ui.Rect, id string, tl tourLook, since time.T
 		}
 		p.AnimationFrame()
 	}
-	art.paint(&tourDraw{p: p, r: r, t: t, tl: tl})
+	art.paint(&tourDraw{p: p, r: r, t: t, tl: tl, sidebarLeft: sidebarLeft})
 }
 
 // seg is how far t is from a to b, from 0 to 1.
@@ -148,6 +149,12 @@ func (d *tourDraw) welcome() {
 	}
 	lit := func(k float32, base float32) ui.Color { return tl.ink.Alpha(base).Mix(tl.accent, k) }
 	side := ui.Rect{X: win.X + 8, Y: win.Y + 22, W: 66, H: win.H - 30}
+	page := ui.Rect{X: win.X + 8, Y: win.Y + 8, W: win.W - 90, H: win.H - 16}
+	if d.sidebarLeft {
+		page.X = win.X + 82
+	} else {
+		side.X = win.X + win.W - side.W - 8
+	}
 	// The favorites' tiles.
 	k := glow(1)
 	for i := range 2 {
@@ -171,7 +178,6 @@ func (d *tourDraw) welcome() {
 		}
 		d.dot(side.X+side.W/2+float32(i-1)*14, side.Y+side.H-6, 3.2+0.8*k, c.Mix(tl.accent, k))
 	}
-	page := ui.Rect{X: win.X + 82, Y: win.Y + 8, W: win.W - 90, H: win.H - 16}
 	d.sheet(page, 7, 6)
 	// A tag in the page's writing.
 	k = glow(3)

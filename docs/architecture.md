@@ -1,10 +1,10 @@
 # Architecture
 
-ArcMD is one Go binary with no web stack: [MyGo](https://github.com/egoist/mygo)
-opens the window and draws the interface on the GPU from Go (`package ui`).
+FreeMD is one Go binary with no web stack: [MyGo](https://github.com/egoist/mygo)
+v0.10.0 opens the window and draws the interface on the GPU from Go (`package ui`).
 
 ```
-cmd/arcmd ──▶ internal/app ──▶ internal/space    spaces and spaces.json
+cmd/freemd ──▶ internal/app ──▶ internal/space    spaces and spaces.json
                    │      ├──▶ internal/vault    documents and import files in a space folder
                    │      ├──▶ internal/plugin   manifests, registry, install, Host contract
                    │      ├──▶ internal/document rich document model, codec and transactions
@@ -31,7 +31,7 @@ serve a future CLI or plugin host.
 | `palette.go` | Command bar: actions, fuzzy ranking, keyboard navigation |
 | `dialogs.go`, `spacedraft.go`, `spaceeditor.go`, `spaceicons.go` | Space drafts and anchored property editors |
 | `favorites.go`, `library.go` | Global favorite tiles and the library |
-| `openfile.go` | System file-open routing and external-folder spaces |
+| `openfile.go` | System file-open routing into the deepest registered folder or an in-memory file session |
 | `relocate.go` | Document moves with attachments, undo states and snapshots |
 | `pdfexport.go` | Cancellable, page-by-page PDF export and printing |
 | `document.go` | The open rich document and read-only export preview: dirty tracking, autosave, images, links |
@@ -73,7 +73,7 @@ panes. Editor undo history remains in memory only.
 ### Editing
 
 The primary file is a standard `.md` Markdown document, edited and autosaved
-directly in place. Rich ArcMD attributes that exceed basic CommonMark—page
+directly in place. Rich FreeMD attributes that exceed basic CommonMark—page
 icons, covers and word goals (YAML frontmatter), text colors, highlights and
 hand-drawn annotations (`<mark>` / `<span>` with CSS fallbacks and `data-*`
 attributes), callouts with custom emoji (`> [!NOTE]` alerts), disclosures
@@ -174,7 +174,7 @@ Switching documents, switching Spaces and closing the window flush first.
 ### Spaces
 
 A space is a folder plus a name, glyph and color, kept in
-`<config>/ArcMD/spaces.json` with the order, the active space, pins and the
+`<config>/FreeMD/spaces.json` with the order, the active space, pins and the
 last open document of each. The same file keeps bookmarks: places marked in
 documents by top-level block ID, with an excerpt that finds the block again
 in a Markdown file read afresh. They live outside the document so marking a
@@ -218,16 +218,13 @@ keeps its links. Unopened native documents receive conflict-checked saves.
 MyGo's `OnOpenFile` handles installed file associations and Dock drops. A single
 instance forwards later opens to the existing window. Development command-line
 runs also accept document paths. The deepest matching Space owns an opened file;
-external files belong to a single built-in External space, created on first use
-and retained even when empty. State version 9 stores an explicit local-name to
-absolute-file map. This collection never scans parent directories: sidebar,
-library, search and agent tools see only registered files. Duplicate basenames
-receive distinct list names. A single-file watcher follows each entry; file
-reads, in-place saves, images and exports use the original location.
-Private version history lives under the configuration directory. Removing an
-entry closes it after saving and drops only the reference; the built-in space
-cannot be removed. Opening alone never modifies or copies the file,
-and save conflicts block navigation.
+files outside all registered folders open in file mode in the same window.
+Only selected paths are held in memory. Search, the library and the space
+registry exclude them. The shared editor reads and saves at the original path.
+Save As writes the committed model to the chosen destination and routes it
+by folder ownership. Returning to the workspace restores the previous panes.
+Loading an old configuration detaches its external collection without touching
+the referenced files.
 
 ### PDF export and printing
 

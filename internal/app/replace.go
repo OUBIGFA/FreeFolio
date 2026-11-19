@@ -15,10 +15,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/search"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/search"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -234,7 +234,7 @@ func (a *App) replaceView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("范围")).Width(36).TextColor(t.TextMuted)
-				ui.Segmented(c.Key("replace-scope"), &scope, i18n.T("当前空间"), i18n.T("所有空间")).Label(i18n.T("范围"))
+				segmentedChoice(c.Key("replace-scope"), &scope, i18n.T("当前空间"), i18n.T("所有空间")).Label(i18n.T("范围"))
 			})
 			r.everywhere = scope == 1
 			hits := a.replaceHits()

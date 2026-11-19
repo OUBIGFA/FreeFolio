@@ -6,8 +6,8 @@ project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_dir"
 
 # Keep development settings and documents separate from the installed app.
-export ARCMD_HOME="${ARCMD_HOME:-$project_dir/.mygo/data}"
+export FREEMD_HOME="${FREEMD_HOME:-$project_dir/.mygo/data}"
 export CGO_ENABLED=0
 
-printf 'Development data: %s\n' "$ARCMD_HOME"
-exec go run github.com/egoist/mygo/cmd/mygo@v0.7.4 dev "$@"
+printf 'Development data: %s\n' "$FREEMD_HOME"
+exec go run github.com/egoist/mygo/cmd/mygo@v0.10.0 dev "$@"

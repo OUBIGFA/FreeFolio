@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -18,7 +18,7 @@ const linksSample = "# 旅行计划\n\n这次去 [[Ideas]] 里提到的海边，
 
 // TestFeaturesSnapshot renders the new features for review.
 func TestFeaturesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the features")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the features")
 	for _, name := range []string{"links-math", "links-math-dark", "wiki-complete", "focus", "versions", "trash", "shortcuts", "backlinks", "pdf-page"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
@@ -102,7 +102,7 @@ const v03CodeMermaidSample = `# v0.3 技术写作预览
 // TestV03FeaturesSnapshot renders syntax highlighting, unfolded code scroll,
 // native Mermaid diagrams (light & dark), and version grapheme milestones.
 func TestV03FeaturesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the v0.3 features")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the v0.3 features")
 	for _, name := range []string{"code-mermaid-light", "code-mermaid-dark"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

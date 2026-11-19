@@ -3,8 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
 )
 
 func TestEnglishInterface(t *testing.T) {

@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -87,7 +87,7 @@ func (a *App) pickCover(done func(url string)) {
 	}()
 }
 
-// isImage reports whether a file's name says it is a picture ArcMD shows.
+// isImage reports whether a file's name says it is a picture FreeMD shows.
 func isImage(name string) bool {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 	return slices.Contains(imageExtensions, ext)

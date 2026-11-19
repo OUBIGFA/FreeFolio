@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -309,6 +309,9 @@ func (a *App) residentDocuments() []*document {
 		}
 	}
 	add(a.doc)
+	if a.files != nil {
+		add(a.files.previous)
+	}
 	for _, s := range a.sessions {
 		add(s.doc)
 		if s.split != nil {
@@ -482,6 +485,9 @@ func (a *App) runPaletteAction(act action) {
 }
 
 func (a *App) replaceReferences(old, replacement *document) {
+	if a.files != nil && old != nil && a.files.previous == old {
+		a.files.previous = replacement
+	}
 	if a.doc == old {
 		a.doc = replacement
 	}

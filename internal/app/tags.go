@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
-	"github.com/Ciao1019/ArcMD/internal/wiki"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/wiki"
 	"github.com/egoist/mygo/ui"
 )
 

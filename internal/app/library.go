@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/pinyin"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/trashbin"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/pinyin"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/trashbin"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -61,8 +61,8 @@ const (
 	libraryPlus     = 29
 	libraryPlusGap  = 34
 	libraryTrail    = 37.5
-	libraryPageRoom = 56 // what the Spaces page leaves the document
-	librarySlide    = 14 // how far the library slides in from the left
+	libraryPageRoom = 420 // what the Spaces page leaves the document
+	librarySlide    = 14  // how far the library slides in from the left
 	librarySlideIn  = 120 * time.Millisecond
 	libraryCardRow  = 30
 )
@@ -183,7 +183,10 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 	// It slides in from a little to the left, as Arc's.
 	pose := ui.Pose{}
 	if l.frames == 0 {
-		pose = ui.Pose{X: -librarySlide, Fade: 1}
+		pose = ui.Pose{X: librarySlide, Fade: 1}
+		if a.prefs.SidebarLeft {
+			pose.X = -librarySlide
+		}
 	}
 	row.AnimatePose(pose, ui.Animation{Duration: librarySlideIn, Ease: ui.EaseOut})
 	if l.frames++; l.frames == 1 {
@@ -431,11 +434,11 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 						a.newDoc("")
 					}
 				}
-				if m.Item(i18n.T("在访达中显示")).Disabled(s.IsExternal()).Chosen() {
+				if m.Item(i18n.T("在文件管理器中显示")).Disabled(s.IsExternal()).Chosen() {
 					revealDir(s.Root)
 				}
 				m.Separator()
-				if m.Item(i18n.T("从 ArcMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
+				if m.Item(i18n.T("从 FreeMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
 					a.removeSpace(s.ID)
 					a.loadLibrary()
 				}
@@ -536,7 +539,11 @@ func (a *App) libraryTrash(c *ui.Context) {
 	l := &a.library
 	t := c.Theme()
 	ink := libraryInk(t)
-	ui.Row(c.Key("trash-search")).Height(36).Shrink(0).Margin(10, 8, 0, 7).Radius(10).PaddingX(12).Gap(10).
+	top := float32(10)
+	if bar := c.TitleBar(); !a.prefs.SidebarLeft && bar.Right > 0 {
+		top += bar.Height
+	}
+	ui.Row(c.Key("trash-search")).Height(36).Shrink(0).Margin(top, 8, 0, 8).Radius(controlRadius).PaddingX(12).Gap(8).
 		AlignItems(ui.Center).Background(librarySearch(t)).Children(func() {
 		ui.Icon(c, iconSearch).FontSize(14).TextColor(ink.Alpha(0.5))
 		ui.TextInput(c.Key("trash-query"), &l.query).Grow(1).MinWidth(0).Height(24).Padding(0).
@@ -548,7 +555,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 		ui.Text(c, i18n.T("读取失败。")+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(16, 12, 0, 12)
 		return
 	case len(l.items) == 0:
-		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 ArcMD 删除的文档和文件夹会在这里保留 30 天，可以放回原处。"))
+		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeMD 删除的文档和文件夹会在这里保留 30 天，可以放回原处。"))
 		return
 	}
 	words := strings.Fields(strings.ToLower(l.query))
@@ -588,7 +595,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 
 // trashRow is a deleted item's row: its icon on a faint tile, its name
 // over where it was and when it went, and, under the pointer, the bin
-// (forget ArcMD's copy) and the arrow putting it back. A click puts it
+// (forget FreeMD's copy) and the arrow putting it back. A click puts it
 // back too, as a click on an archived tab restores it in Arc.
 func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 	t := c.Theme()
@@ -623,7 +630,7 @@ func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 				ui.Text(c, where+" · "+strings.TrimSpace(ago(it.Deleted, now))+i18n.T("删除")).FontSize(12).
 					TextColor(ink.Alpha(0.55)).SingleLine()
 			})
-			forget := a.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 ArcMD 保留的副本，系统废纸篓中的原件不受影响"), hovered)
+			forget := a.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 FreeMD 保留的副本，系统废纸篓中的原件不受影响"), hovered)
 			if forget.Clicked() {
 				acted = true
 				a.bin.Forget(it)
@@ -674,62 +681,8 @@ func dayLabel(t, now time.Time) string {
 	return t.Format(i18n.T("2006年1月2日"))
 }
 
-// libraryFootButton is the library's button at the sidebar's foot: Arc's
-// Library glyph, as Cra draws it (LibraryGlyph), a quiet square like the
-// toolbar's buttons.
+// libraryFootButton shares the workspace toolbar's hit target and icon style.
 func (a *App) libraryFootButton(c *ui.Context) ui.Element {
-	t := c.Theme()
-	b := ui.Box(c.Key("library")).Size(30, 30).Shrink(0).Radius(8).Cursor(ui.CursorPointer).Focusable().
-		Role(ui.RoleButton).Label(i18n.T("资料库")).Tooltip(a.withKey(i18n.T("资料库"), "library")).Checked(a.library.open)
-	if b.Hovered() || a.library.open {
-		b.Background(hoverFill(t))
-	}
-	dark := t.Dark
-	b.Draw(func(p *ui.Painter, r ui.Rect) { libraryGlyph(p, r, dark) })
-	return b
-}
-
-// libraryGlyph draws Arc's Library glyph centred in r: a filled box with
-// a light slot near its top, and a puff of confetti rising from it, a
-// cloud, a dot and a triangle. The shapes are Cra's in a 28 DIP square.
-func libraryGlyph(p *ui.Painter, r ui.Rect, dark bool) {
-	ink, slot := black.Alpha(0.26), white.Alpha(0.7)
-	if dark {
-		ink, slot = white.Alpha(0.55), black.Alpha(0.5)
-	}
-	x0 := r.X + (r.W-28)/2
-	y0 := r.Y + (r.H-28)/2
-	at := func(x, y float32) (float32, float32) { return x0 + x, y0 + y }
-	// The box and its slot.
-	bx, by := at(7, 13)
-	p.Fill(ui.Rect{X: bx, Y: by, W: 14, H: 11}, ink, 2.5)
-	sx, sy := at(11.5, 15.4)
-	p.Fill(ui.Rect{X: sx, Y: sy, W: 5, H: 1.6}, slot, 0.8)
-	// The cloud: one outline, so its lobes do not darken where they meet.
-	cloud := &ui.Path{}
-	cloud.MoveTo(at(8.6, 10))
-	cloud.LineTo(at(14.9, 10))
-	c1x, c1y := at(16.7, 10)
-	c2x, c2y := at(16.7, 7.1)
-	ex, ey := at(14.9, 7.1)
-	cloud.CubeTo(c1x, c1y, c2x, c2y, ex, ey)
-	c1x, c1y = at(14.8, 3.4)
-	c2x, c2y = at(10.1, 3.4)
-	ex, ey = at(10.1, 6.4)
-	cloud.CubeTo(c1x, c1y, c2x, c2y, ex, ey)
-	c1x, c1y = at(7.2, 6.0)
-	c2x, c2y = at(6.7, 10)
-	ex, ey = at(8.6, 10)
-	cloud.CubeTo(c1x, c1y, c2x, c2y, ex, ey)
-	cloud.Close()
-	p.FillPath(cloud, ink)
-	// The dot, raised, and the triangle.
-	dx, dy := at(18.3, 5)
-	p.FillPath((&ui.Path{}).Circle(dx, dy, 1), ink)
-	tri := &ui.Path{}
-	tri.MoveTo(at(22.5, 5))
-	tri.LineTo(at(24.7, 9))
-	tri.LineTo(at(20.3, 9))
-	tri.Close()
-	p.FillPath(tri, ink)
+	label := i18n.T("资料库")
+	return iconButton(c, "library", lucideIcons["archive"], label, a.withKey(label, "library"), false).Shrink(0).Checked(a.library.open)
 }

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 func TestUnreadableDiskStopsAutosaveAndFlush(t *testing.T) {

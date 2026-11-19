@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/spacefs"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/spacefs"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -37,7 +37,7 @@ var qaExamples = []string{
 // qaPanel is the question panel right of the document: its header level
 // with the toolbar, a card with the conversation and the question field.
 // It slides open as the sidebar does.
-func (a *App) qaPanel(c *ui.Context) {
+func (a *App) qaPanel(c *ui.Context, docked float32) {
 	t := c.Theme()
 	sp := a.state.ActiveSpace()
 	col := ui.Column(c.Key("qa-dock")).Shrink(0).Clip()
@@ -47,6 +47,9 @@ func (a *App) qaPanel(c *ui.Context) {
 			return
 		}
 		bar := c.TitleBar()
+		if !a.prefs.SidebarLeft {
+			bar.Right = max(0, bar.Right-docked)
+		}
 		ui.Column(c.Key("qa")).Width(qaWidth).Grow(1).MinHeight(0).Padding(0, 8, 8, 0).Children(func() {
 			s := a.qaSession(sp.ID)
 			ui.Row(c.Key("qa-head")).Height(max(bar.Height, 46)).Padding(0, bar.Right, 0, 6).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
@@ -61,7 +64,7 @@ func (a *App) qaPanel(c *ui.Context) {
 					a.qa.open = false
 				}
 			})
-			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(10).Background(glass(t)).
+			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(glass(t)).
 				Border(1, t.Border.Alpha(0.35)).Clip().Children(func() { a.qaBody(c, sp.ID, sp.Name, s) })
 		})
 	})
@@ -201,7 +204,7 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 	ui.Column(c.Key("qa-empty")).Gap(10).Padding(24, 6, 6, 6).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, iconAsk).FontSize(28).TextColor(t.Accent)
 		ui.Text(c, fmt.Sprintf(i18n.T("向「%s」提问"), name)).FontSize(15).FontWeight(600).TextAlign(ui.Center)
-		ui.Text(c, i18n.T("ArcMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")).
+		ui.Text(c, i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")).
 			FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(290)
 		if err := a.qaReady(); err != nil {
 			ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)

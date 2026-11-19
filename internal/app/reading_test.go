@@ -3,9 +3,9 @@ package app
 import (
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/prefs"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -14,19 +14,31 @@ func TestReadingSettingsAndToolbarLock(t *testing.T) {
 	tt.Frame()
 	a.openSettings(tabAppearance)
 	tt.Frame()
-	// The reading group is below the writing group: scroll to it.
-	r, _ := tt.Find("增大正文字号")
-	tt.Scroll(r.X, 400, 0, 400)
-	tt.Frame()
-	if err := tt.Click("增大正文字号"); err != nil {
-		t.Fatal(err)
+	// The document group is below the preview: scroll to it, then step
+	// each number input up with the keyboard.
+	step := func(label string) {
+		t.Helper()
+		scrollIntoView(tt, label, 1200, 760)
+		// The row's label shows first; the input named by it comes after.
+		var in ui.AccessInfo
+		ok := false
+		for _, n := range tt.AccessAll() {
+			if n.Name == label {
+				in, ok = n, true
+			}
+		}
+		if !ok {
+			t.Fatalf("no %s input", label)
+		}
+		tt.ClickAt(in.Bounds.X+8, in.Bounds.Y+in.Bounds.H/2)
+		tt.Key(0, ui.KeyUp)
+		tt.Frame()
 	}
+	step("正文字号")
 	if a.prefs.ReadingSize() != 17 {
-		t.Fatal("font size")
+		t.Fatal("font size", a.prefs.ReadingSize())
 	}
-	if err := tt.Click("增大行距"); err != nil {
-		t.Fatal(err)
-	}
+	step("行距")
 	p, err := (prefs.Store{Path: a.prefStore.Path}).Load()
 	if err != nil || p.FontSize != 17 || p.LineHeight != a.prefs.LineHeight {
 		t.Fatal("preferences not saved", p, err)

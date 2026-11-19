@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 func writeTestPNGFile(t *testing.T, path string, w, h int) {
@@ -206,7 +206,7 @@ func TestQAJumpLatestAndCitationPreview(t *testing.T) {
 	}
 
 	// Scroll up inside QA list: "回到最新" pill appears without shifting paragraph anchors, and clicking it jumps back to end.
-	tt.Scroll(1050, 350, 0, -900)
+	tt.Scroll(s.preview.panelRect.X+s.preview.panelRect.W/2, 350, 0, -900)
 	tt.Frame()
 	if !tt.HasText("回到最新") {
 		t.Fatal("scrolling up in QA did not surface 回到最新 pill")

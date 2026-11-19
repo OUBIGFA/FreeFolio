@@ -3,9 +3,9 @@ package app
 import (
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -19,12 +19,11 @@ import (
 // takes a document dropped on it ("添加到收藏"); with no favorites a card
 // stands in for the tiles until its × closes it.
 
-// Favorite tiles as Arc 1.171 draws them (Cra's FavoritesLayout and
-// FavoriteTileView).
+// Favorite tile dimensions are shared by layout, painting and drag targets.
 const (
 	favoriteTileH  = 47
 	favoriteGap    = 8
-	favoriteCorner = 13
+	favoriteCorner = controlRadius
 	favoriteIcon   = 20
 	// favoriteWidth is the grid's width: the sidebar less its margins.
 	favoriteWidth = float32(sidebarWidth) - 20
@@ -53,7 +52,7 @@ type favDrop struct {
 // favorite fills the row, five go 3 + 2).
 func favoriteLayout(n int, width float32) (cols int, tileW float32) {
 	widest := 1
-	for k := 4; k >= 1; k-- {
+	for k := 3; k >= 1; k-- {
 		if (width-float32(k-1)*favoriteGap)/float32(k) >= favoriteTileH {
 			widest = k
 			break
@@ -229,16 +228,26 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		// The favorites' tiles sit in the sidebar's margin, so the card
 		// lines up with the rows'.
 		b := tile.Bounds()
-		b.W = sidebarWidth - rowInset - b.X
+		b.X -= x
+		b.W = favoriteWidth
 		a.hoverRow(previewDoc, sp, f.Path, b)
 	}
 	if open {
-		tile.Border(2, favoriteRim(t))
+		tile.Border(1, favoriteRim(t))
 	}
 	if hidden || dragging {
 		tile.Opacity(0) // the copy under the pointer stands for it
 	}
-	tile.Children(func() { docIcon(c, title, favoriteIcon) })
+	tile.Children(func() {
+		if g.tileW >= 96 {
+			ui.Row(c).Width(g.tileW).Gap(8).AlignItems(ui.Center).PaddingX(12).Children(func() {
+				ui.Icon(c, iconFile).FontSize(16).TextColor(t.Accent)
+				ui.Text(c, docName(title)).FontWeight(500).TextColor(t.Text).SingleLine().MinWidth(0)
+			})
+		} else {
+			docIcon(c, title, favoriteIcon)
+		}
+	})
 	if sp != nil && a.renameSpace == sp.ID && a.renaming == f.Path {
 		a.renameUnder(c, tile)
 	}
@@ -252,7 +261,7 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		if m.Item(i18n.T("从收藏中移除")).Chosen() {
 			a.toggleFavorite(sp, f.Path)
 		}
-		if m.Item(i18n.T("在访达中显示")).Disabled(sp == nil).Chosen() {
+		if m.Item(i18n.T("在文件管理器中显示")).Disabled(sp == nil).Chosen() {
 			a.revealIn(sp, f.Path)
 		}
 	})

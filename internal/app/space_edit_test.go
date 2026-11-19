@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -87,13 +87,13 @@ func TestSpaceThemeKeepsSidebar(t *testing.T) {
 	settle(tt)
 	after, _ := tt.Find("Journal")
 	card, ok := tt.Find("空间主题")
-	if !ok || card.X < sidebarWidth || before != after || tt.HasText("保存") {
+	if !ok || card.X+card.W > before.X || before != after || tt.HasText("保存") {
 		t.Fatalf("theme editor replaced the sidebar: %v -> %v; card %v", before, after, card)
 	}
-	tt.Click("深色")
+	typeHex(t, tt, "#c0504d")
 	tt.ClickAt(1000, 600)
 	tt.Frame()
-	if a.spaceForm.open || space.ThemeOf(a.state.ActiveSpace()).Appearance != space.AppearanceDark {
+	if a.spaceForm.open || space.ThemeOf(a.state.ActiveSpace()).Colors[0] != "#C0504D" {
 		t.Fatal("clicking away should save and close the theme editor")
 	}
 }
@@ -110,8 +110,13 @@ func TestSpaceIconPickerAnchoredAndImmediate(t *testing.T) {
 	panel, ok := tt.Find("选择空间图标")
 	anchor, _ := tt.Find("切换到 Personal")
 	after, _ := tt.Find("Journal")
-	if !ok || panel.Y+panel.H > anchor.Y || after != before || a.spaceForm.cardOpen {
-		t.Fatalf("picker should sit above its icon: %v, anchor %v", panel, anchor)
+	if !ok || panel.Y < anchor.Y+anchor.H || after != before || a.spaceForm.cardOpen {
+		t.Fatalf("picker should sit below its icon: %v, anchor %v", panel, anchor)
+	}
+	if !tt.HasText("搜索表情") {
+		if err := tt.Click("表情符号"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	tt.Click("搜索表情")
 	tt.Type("books")
@@ -143,6 +148,11 @@ func TestSpaceIconPickerAnchoredAndImmediate(t *testing.T) {
 	}
 	tt.Click("切换到 Personal")
 	tt.Frame()
+	if !tt.HasText("搜索表情") {
+		if err := tt.Click("表情符号"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	tt.Click("搜索表情")
 	tt.Type("books")
 	tt.Key(0, ui.KeyDown)
@@ -164,22 +174,22 @@ func TestSpaceEditDismissAndSwitch(t *testing.T) {
 	settle(tt)
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.spaceForm.open || sp.Icon != "🌱" {
+	if a.spaceForm.open || sp.Icon != "" || sp.Symbol != "folder" {
 		t.Fatal("Escape should dismiss the icon picker without a change")
 	}
 	next := a.state.Add("Work", t.TempDir())
 	a.editSpace(sp)
 	settle(tt)
-	tt.Click("深色")
+	typeHex(t, tt, "#c0504d")
 	tt.Key(ui.Cmd, ui.Key2)
 	settle(tt)
-	if a.spaceForm.open || a.state.ActiveSpace() != next || space.ThemeOf(sp).Appearance != space.AppearanceDark {
+	if a.spaceForm.open || a.state.ActiveSpace() != next || space.ThemeOf(sp).Colors[0] != "#C0504D" {
 		t.Fatal("switching spaces should save the old space's theme and close its editor")
 	}
 }
 
 func TestSpaceEditingSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render independent space editors")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render independent space editors")
 	for _, mode := range []string{"theme", "icon", "name"} {
 		for _, size := range []struct {
 			name string

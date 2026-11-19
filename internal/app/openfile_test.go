@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,5 +70,83 @@ func TestForwardedArgumentsKeepFirstFile(t *testing.T) {
 	}
 	if files := documentArguments(nil, dir); len(files) != 0 {
 		t.Fatal(files)
+	}
+}
+
+func TestLooseFileNeverRegistersInWorkspace(t *testing.T) {
+	a, tt := newTestApp(t)
+	path := filepath.Join(a.cfg.ConfigDir, "spaces.json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := externalFile(t, "Loose.md", "# Loose\n")
+	if !a.openSystemFile(file) {
+		t.Fatal("open failed")
+	}
+	tt.Frame()
+	if a.files == nil || !tt.HasText("Loose.md") || !tt.HasText("返回空间") {
+		t.Fatal("file mode is missing")
+	}
+	a.doc.ed.ReplaceText(nil, "Edited ")
+	if !a.flush() {
+		t.Fatal("flush")
+	}
+	a.saveState()
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("opening an individual file changed the workspace registry")
+	}
+}
+
+func TestSaveAsRescuesConflictAndRoutesDestination(t *testing.T) {
+	a, _ := newTestApp(t)
+	original := externalFile(t, "original.md", "# Original\\n")
+	if !a.openSystemFile(original) {
+		t.Fatal("open")
+	}
+	a.doc.ed.SetSelection(a.doc.ed.Len(), a.doc.ed.Len())
+	a.doc.ed.ReplaceText(nil, " rescue")
+	if err := os.WriteFile(original, []byte("Changed elsewhere"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.checkDisk()
+	if !a.doc.conflict {
+		t.Fatal("expected conflict")
+	}
+	dest := filepath.Join(root(a), "Recovered.md")
+	// The copy, even one inside a space, takes the original's tab.
+	if !a.saveAs(dest) || a.files == nil || a.doc.fullPath() != dest || len(a.files.order) != 1 || a.files.order[0] != a.doc.rel {
+		t.Fatal("did not continue in the saved copy's tab")
+	}
+	b, err := os.ReadFile(dest)
+	if err != nil || !bytes.Contains(b, []byte("rescue")) {
+		t.Fatal("destination lost edits", err)
+	}
+	b, err = os.ReadFile(original)
+	if err != nil || string(b) != "Changed elsewhere" {
+		t.Fatal("original overwritten", err)
+	}
+}
+
+func TestSaveAsKeepsUneditedBytesAndSplit(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.addSplitPane()
+	group, previous := a.split, a.doc
+	original := externalFile(t, "raw.md", "---\\ntitle: Raw\\n---\\n\\n# Title\\n\\n")
+	if !a.openSystemFile(original) {
+		t.Fatal("open")
+	}
+	dest := filepath.Join(t.TempDir(), "copy.md")
+	if !a.saveAs(dest) || a.doc.fullPath() != dest {
+		t.Fatal("save as")
+	}
+	b, err := os.ReadFile(dest)
+	want, _ := os.ReadFile(original)
+	if err != nil || !bytes.Equal(b, want) {
+		t.Fatal("save as rewrote an unedited document")
+	}
+	if !a.leaveFileMode() || a.doc != previous || a.split != group {
+		t.Fatal("lost workspace split")
 	}
 }

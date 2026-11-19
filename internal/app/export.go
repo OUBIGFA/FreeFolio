@@ -9,10 +9,10 @@ import (
 	"path"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -77,7 +77,7 @@ func sanitizeName(title string) string {
 }
 
 // htmlPage is a document exported as a web page: semantic HTML in a page
-// of its own, readable without ArcMD, its images beside it as the
+// of its own, readable without FreeMD, its images beside it as the
 // document's are.
 func htmlPage(title, body string) string {
 	return `<!doctype html>
@@ -85,7 +85,7 @@ func htmlPage(title, body string) string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="ArcMD">
+<meta name="generator" content="FreeMD">
 <title>` + html.EscapeString(title) + `</title>
 <style>
 :root { color-scheme: light dark; }

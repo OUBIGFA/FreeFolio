@@ -1,17 +1,20 @@
 package app
 
 import (
-	"image"
 	"math"
-	"math/rand/v2"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
 // Design tokens. Colors come from the window's theme and the active
 // space's look; nothing else in the package names a color.
+
+const (
+	controlRadius = 6
+	panelRadius   = 10
+)
 
 var (
 	white = ui.RGB(255, 255, 255)
@@ -28,182 +31,34 @@ func splitDropColors(t *ui.Theme) (ui.Color, ui.Color) {
 	return t.Accent.Alpha(0.18), t.Accent.Alpha(0.7)
 }
 
-// spaceEditorSurface is a softly tinted glass surface. The theme controls
-// stay on a light surface even while previewing a dark space; icon pickers
-// follow the surrounding chrome's appearance.
-func spaceEditorSurface(th space.Theme, dark bool) (ui.LinearGradient, ui.Color, ui.Color) {
-	th.Appearance = space.AppearanceLight
-	l := lookOf(th, false)
-	base, ink, rim := white, l.text, black.Alpha(0.18)
-	amount := float32(0.10)
+// spaceEditorSurface is the face of the space's pickers: the window's
+// own background, ink and hairline.
+func spaceEditorSurface(dark bool) (ui.LinearGradient, ui.Color, ui.Color) {
+	t := ui.LightTheme()
 	if dark {
-		base, ink, rim = documentTheme(true).Background, white.Alpha(0.92), white.Alpha(0.20)
-		amount = 0.16
+		t = ui.DarkTheme()
 	}
-	return ui.LinearGradient{Angle: 135, From: base.Mix(l.stops[0].Over(white), amount), To: base.Mix(l.stops[len(l.stops)-1].Over(white), amount/3)}, ink, rim
+	return ui.LinearGradient{Angle: 180, From: t.Background, To: t.Background}, t.Text, t.Border
 }
 
-// spaceLook is a space's theme as the window paints it now, as Cra (MIT)
-// derives Arc's palette from a space's theme: the gradient's stops, and
-// the ink and accent of what is drawn over it.
-type spaceLook struct {
-	space.Look
-	systemDark bool
-	// stops are the gradient's colors from top to bottom; a solid theme's
-	// are see-through, laid over materialScrim.
-	stops []ui.Color
-	// accent colors icons and what is chosen on the chrome; text and muted
-	// color its text.
-	accent, text, muted ui.Color
-	// darkness is 1 for a dark look and 0 for a light one, and between for
-	// two looks mixed while paging (mixLooks), so that what differs
-	// between light and dark chrome changes gradually, not at once.
-	darkness float32
-}
-
-// materialGrey is what Arc's solid themes are laid over where the window
-// has no vibrancy: its material, grey 66 passing 52% of the desktop, over
-// a light desktop, or a darker one while the system is dark.
-func materialGrey(systemDark bool) ui.Color {
-	if systemDark {
-		return ui.RGB(120, 120, 120)
-	}
-	return ui.RGB(180, 180, 180)
-}
-
-// materialScrim darkens the window's own vibrancy material, lighter than
-// the desktop it blurs, toward Arc's.
-var materialScrim = ui.RGB(66, 66, 66).Alpha(0.3)
-
-func lookOf(t space.Theme, systemDark bool) spaceLook {
-	l := spaceLook{Look: t.Look(systemDark), systemDark: systemDark}
-	// Opaque themes: intensity 1 is the colors as they are, lower pulls
-	// them toward white (light) or black (dark).
-	pull, toward := float32(0), white
-	if l.Dark {
-		toward = black
-	}
-	if !l.Solid {
-		k := float32(0.6)
-		if l.Dark {
-			k = 0.35
-		}
-		pull = float32(1-l.Intensity) * k
-	}
-	for _, c := range l.Colors {
-		col := ui.Hex(c).Mix(toward, pull)
-		if l.Solid {
-			col = col.Alpha(float32(space.SolidAlpha(l.Intensity)))
-		}
-		l.stops = append(l.stops, col)
-	}
-	if l.Dark {
-		l.darkness = 1
-		l.text, l.muted = white.Alpha(0.92), white.Alpha(0.6)
-		l.accent = ui.Hex(space.MidToneHex(l.Accent))
-	} else {
-		l.text, l.muted = ui.Hex(space.InkHex(l.Accent)), black.Alpha(0.5)
-		l.accent = ui.Hex(space.ToolbarHex(l.Accent, false))
-	}
-	return l
-}
-
-// opaqueTop is the top of the gradient as it shows over the grey material:
-// the face of the floating sidebar.
-func (l spaceLook) opaqueTop() ui.Color { return l.stops[0].Over(materialGrey(l.systemDark)) }
-
-// paint fills r with the space's gradient and its grain. Over the
-// window's vibrancy material the material is first darkened as Arc's.
-func (l spaceLook) paint(p *ui.Painter, r ui.Rect, radius float32, vibrant bool) {
-	stops := make([]ui.GradientStop, len(l.stops))
-	for i, c := range l.stops {
-		if l.Solid && !vibrant {
-			c = c.Over(materialGrey(l.systemDark))
-		}
-		stops[i] = ui.GradientStop{Color: c, At: float32(i) / float32(len(l.stops)-1)}
-	}
-	if l.Solid && vibrant {
-		p.Fill(r, materialScrim, radius)
-	}
-	p.FillGradient(r, ui.LinearGradient{Angle: 180, Stops: stops}, radius)
-	paintGrain(p, r, radius, l.Noise, l.darkness)
-}
-
-// grain is a tile of noise: white pixels of random opacity, tinted dark
-// over light themes and light over dark ones, as Arc's grain is
-// multiplied over the one and screened over the other.
-var grain = func() *ui.Bitmap {
-	const n = 128
-	img := image.NewNRGBA(image.Rect(0, 0, n, n))
-	rng := rand.New(rand.NewPCG(1, 2))
-	for i := 0; i < n*n; i++ {
-		img.Pix[i*4], img.Pix[i*4+1], img.Pix[i*4+2] = 255, 255, 255
-		img.Pix[i*4+3] = uint8(rng.IntN(256))
-	}
-	return ui.NewBitmap(img)
-}()
-
-// paintGrain lays the grain dark over a light look and light over a dark
-// one. While paging between them both are laid, the light one shifted by
-// half a tile so that their specks do not fall on each other and cancel
-// out, each at the square root of its share: the grain's strength, which
-// goes as the square of its opacity, stays as it is all the way.
-func paintGrain(p *ui.Painter, r ui.Rect, radius float32, amount float64, darkness float32) {
-	if amount <= 0 {
-		return
-	}
-	a := float32(amount)
-	if darkness < 1 {
-		paintGrainTint(p, r, radius, black.Alpha(a*0.09*sqrt32(1-darkness)), false)
-	}
-	if darkness > 0 {
-		paintGrainTint(p, r, radius, white.Alpha(a*0.10*sqrt32(darkness)), true)
-	}
-}
-
-func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }
-
-// paintGrainTint tiles the grain over r, one texel to a device pixel,
-// shifted by half a tile when shift is set.
-func paintGrainTint(p *ui.Painter, r ui.Rect, radius float32, tint ui.Color, shift bool) {
-	// ImageRegion treats a zero Tint as no filter, drawing the white
-	// bitmap at full strength. A fading black tint can round to zero;
-	// skip it once invisible instead of flashing the original grain.
-	if tint.A == 0 {
-		return
-	}
-	bw, bh := grain.Size()
-	scale := max(p.Scale(), 1)
-	tw, th := float32(bw)/scale, float32(bh)/scale
-	x0, y0 := r.X, r.Y
-	if shift {
-		x0, y0 = x0-tw/2, y0-th/2
-	}
-	p.Clip(r, radius, func() {
-		for y := y0; y < r.Y+r.H; y += th {
-			for x := x0; x < r.X+r.W; x += tw {
-				p.ImageRegion(grain, ui.Rect{W: float32(bw), H: float32(bh)}, ui.Rect{X: x, Y: y, W: tw, H: th}, ui.ImageOptions{Tint: tint})
-			}
-		}
-	})
-}
-
-// spaceTheme is the window's chrome in the space's look, as Arc paints its
-// whole window: light or dark as the look is, whatever the system shows,
-// with the look's ink and accent. The document's card uses its own white
-// paper theme (documentTheme).
+// spaceTheme is the window's chrome: MyGo's own light or dark theme, as
+// the system appearance is, with the space's accent. The document's card
+// uses its own paper theme (documentTheme).
 func spaceTheme(base *ui.Theme, l spaceLook) *ui.Theme {
 	t := mixThemes(ui.LightTheme(), ui.DarkTheme(), l.darkness)
 	t.Dark = l.Dark
 	t.Font, t.FontSize, t.Spacing, t.ScrollbarWidth = base.Font, base.FontSize, base.Spacing, base.ScrollbarWidth
 	t.Text, t.TextMuted = l.text, l.muted
+	t.Background = l.opaqueTop()
+	t.Surface = mixColor(white, ui.DarkTheme().Surface, l.darkness)
 	acc := l.accent
 	t.Accent = acc
-	t.AccentHover = acc.Mix(white, 0.12)
-	t.AccentPressed = acc.Mix(black, 0.15)
+	t.AccentText = white
+	t.AccentHover = acc.Mix(black, 0.1)
+	t.AccentPressed = acc.Mix(black, 0.2)
 	t.Focus = acc.Alpha(0.55)
 	t.Selection = acc.Alpha(0.28)
-	t.Radius = 8
+	t.Radius = controlRadius
 	return &t
 }
 
@@ -292,6 +147,94 @@ var docPalette = []ui.Color{
 	ui.RGB(0x08, 0x91, 0xB2), // cyan
 }
 
+// spaceLook is the window's chrome while a space is shown: MyGo's own
+// light or dark surface, as the system appearance is, and the space's
+// color only as the accent of what is chosen on it.
+type spaceLook struct {
+	space.Look
+	systemDark bool
+	// stops are the chrome's fill from top to bottom; both are the same
+	// native surface, kept as a list so two spaces mix while paging.
+	stops []ui.Color
+	// accent colors icons and what is chosen on the chrome; text and muted
+	// color its text.
+	accent, text, muted ui.Color
+	// darkness is 1 for dark chrome and 0 for light chrome.
+	darkness float32
+}
+
+// chromeFill is the window's chrome behind the paper.
+func chromeFill(dark bool) ui.Color {
+	if dark {
+		return ui.Hex("#141416")
+	}
+	return ui.Hex("#F4F4F5")
+}
+
+// spaceAccent turns a space's color into an accent that reads on the
+// native chrome: its hue and some of its chroma kept at one OKLCH
+// lightness, so every space's accent has the same contrast. Near-grey
+// colors take MyGo's blue instead.
+func spaceAccent(hex string, dark bool) ui.Color {
+	l := float32(0.46)
+	if dark {
+		l = 0.66
+	}
+	chroma, hue := oklchOf(hex)
+	if chroma < 0.035 {
+		return ui.Oklch(l, 0.16, 263) // MyGo's blue at the same lightness
+	}
+	return ui.Oklch(l, min(max(chroma, 0.09), 0.14), hue)
+}
+
+// oklchOf is the chroma and hue, in degrees, of an sRGB hex color.
+func oklchOf(hex string) (chroma, hue float32) {
+	r, g, b := space.Components(hex)
+	lin := func(v float64) float64 {
+		if v <= 0.04045 {
+			return v / 12.92
+		}
+		return math.Pow((v+0.055)/1.055, 2.4)
+	}
+	r, g, b = lin(r), lin(g), lin(b)
+	lc := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
+	mc := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
+	sc := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
+	A := 1.9779984951*lc - 2.4285922050*mc + 0.4505937099*sc
+	B := 0.0259040371*lc + 0.7827717662*mc - 0.8086757660*sc
+	h := math.Atan2(B, A) * 180 / math.Pi
+	if h < 0 {
+		h += 360
+	}
+	return float32(math.Hypot(A, B)), float32(h)
+}
+
+func lookOf(t space.Theme, systemDark bool) spaceLook {
+	l := spaceLook{Look: t.Look(systemDark), systemDark: systemDark}
+	l.Dark, l.Solid, l.Noise = systemDark, false, 0
+	native := ui.LightTheme()
+	if systemDark {
+		native, l.darkness = ui.DarkTheme(), 1
+	}
+	fill := chromeFill(systemDark)
+	l.stops = []ui.Color{fill, fill}
+	// MyGo's muted ink, a touch darker on light chrome to keep 4.5:1.
+	l.text, l.muted = native.Text, native.TextMuted
+	if !systemDark {
+		l.muted = native.TextMuted.Mix(native.Text, 0.3)
+	}
+	l.accent = spaceAccent(space.ThemeOf(&space.Space{Theme: &t}).Colors[0], systemDark)
+	return l
+}
+
+// opaqueTop is the chrome's face, as the floating sidebar shows it.
+func (l spaceLook) opaqueTop() ui.Color { return l.stops[0] }
+
+// paint fills r with the chrome.
+func (l spaceLook) paint(p *ui.Painter, r ui.Rect, radius float32, _ bool) {
+	p.Fill(r, l.stops[0], radius)
+}
+
 // docIconColors are the letter's color and the tint behind it of the
 // document titled title: the color itself on a light tint, lighter on a
 // deeper tint in the dark.
@@ -339,7 +282,7 @@ func favoriteFill(t *ui.Theme, open, hovered bool) ui.Color {
 	return pick(t, black.Alpha(0.045), white.Alpha(0.08))
 }
 
-// favoriteRim is the 2 DIP rim of the open favorite's tile.
+// favoriteRim separates the selected tile from the surrounding sidebar.
 func favoriteRim(t *ui.Theme) ui.Color {
 	return pick(t, black.Alpha(0.17), white.Alpha(0.14))
 }

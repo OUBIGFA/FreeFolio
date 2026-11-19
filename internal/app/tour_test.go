@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -36,7 +36,7 @@ func settleTour(tt *ui.Tester) {
 
 func TestTourShowsOnFirstRunOnly(t *testing.T) {
 	a, tt := newTourApp(t)
-	if !a.tour.open || !tt.HasText("欢迎来到 ArcMD") {
+	if !a.tour.open || !tt.HasText("欢迎来到 FreeMD") {
 		t.Fatalf("no tour on the first run: %v", tt.Texts())
 	}
 	// Quitting in the middle of it, the next launch shows it again.
@@ -51,7 +51,7 @@ func TestTourShowsOnFirstRunOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	settleTour(tt)
-	if a.tour.open || tt.HasText("欢迎来到 ArcMD") {
+	if a.tour.open || tt.HasText("欢迎来到 FreeMD") {
 		t.Fatal("skipping left the tour open")
 	}
 	b, err = New(a.cfg)
@@ -81,7 +81,7 @@ func TestTourWalksThroughEveryStep(t *testing.T) {
 		if !ok {
 			t.Fatalf("step %q: card not found", title)
 		}
-		if h := a.tour.hole; card.X < h.X+h.W && title != "用书签记住读到哪儿" {
+		if h := a.tour.hole; card.X < h.X+h.W && card.X+card.W > h.X && card.Y < h.Y+h.H && card.Y+card.H > h.Y && title != "用书签记住读到哪儿" {
 			t.Errorf("step %q: the card at %v covers what it points at, %v", title, card, h)
 		}
 		if err := tt.Click("下一步"); err != nil {
@@ -176,7 +176,7 @@ func TestTourFromCommandBarAndSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	settleTour(tt)
-	if !a.tour.open || a.settingsOpen || !tt.HasText("欢迎来到 ArcMD") {
+	if !a.tour.open || a.settingsOpen || !tt.HasText("欢迎来到 FreeMD") {
 		t.Fatalf("settings: tour %v, settings %v", a.tour.open, a.settingsOpen)
 	}
 }
@@ -202,7 +202,7 @@ func TestTourPlacement(t *testing.T) {
 }
 
 func TestTourSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the tour")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the tour")
 	for _, dark := range []bool{false, true} {
 		for i, step := range tourSteps {
 			name := "tour-" + string(rune('0'+i)) + "-" + step.id
@@ -242,16 +242,11 @@ func TestTourShowsTheThemeCard(t *testing.T) {
 		t.Fatalf("no theme card on its step: %+v", f)
 	}
 	card := a.tour.marks["theme-card"]
-	if h := a.tour.hole; card.W < 300 || h.X > card.X || h.X+h.W < card.X+card.W || h.Y > card.Y || h.Y+h.H < card.Y+card.H {
+	if h := a.tour.hole; card.W < 260 || h.X > card.X || h.X+h.W < card.X+card.W || h.Y > card.Y || h.Y+h.H < card.Y+card.H {
 		t.Fatalf("the hole %v is not round the theme card %v", a.tour.hole, card)
 	}
-	tt.Advance(1500 * time.Millisecond)
-	tt.Frame()
-	if len(before.Colors) > 0 && slices.Equal(f.theme.Colors, before.Colors) {
-		t.Error("the card's colors do not move")
-	}
 	// A press beside the card does not close it, nor keep its colors.
-	tt.ClickAt(900, 700)
+	tt.ClickAt(4, 410)
 	settleTour(tt)
 	if !a.spaceForm.cardOpen {
 		t.Fatal("a press closed the tour's theme card")
@@ -274,7 +269,7 @@ func TestTourShowsTheThemeCard(t *testing.T) {
 	}
 }
 
-// Someone who used ArcMD before it had a tour sees it once after the
+// Someone who used FreeMD before it had a tour sees it once after the
 // update: their spaces are there, their preferences say nothing of it.
 func TestTourShowsOnceAfterUpdate(t *testing.T) {
 	a, _ := newTestApp(t)

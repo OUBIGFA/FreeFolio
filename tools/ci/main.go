@@ -15,7 +15,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
 )
 
 const mygo = "github.com/egoist/mygo"

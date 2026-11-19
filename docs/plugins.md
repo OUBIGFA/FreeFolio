@@ -4,7 +4,7 @@
 > and the `Host` contract exist (`internal/plugin`); the runtimes and the
 > marketplace UI do not yet.
 
-ArcMD's core edits Markdown, organizes it into spaces, and answers
+FreeMD's core edits Markdown, organizes it into spaces, and answers
 questions about a space with a read-only agent (`internal/agent`,
 `internal/spacefs`: the model searches and reads the documents with tools,
 no vector index) on the model the user sets up. Everything else — AI
@@ -15,16 +15,16 @@ their notes.
 
 ## A plugin
 
-A plugin is a folder (distributed as a zip) with `arcmd-plugin.json` at its
+A plugin is a folder (distributed as a zip) with `freemd-plugin.json` at its
 root:
 
 ```json
 {
-  "id": "dev.arcmd.ai-writer",
+  "id": "dev.freemd.ai-writer",
   "name": "AI Writer",
   "version": "0.1.0",
   "description": "Rewrite, summarize and continue your writing.",
-  "author": "ArcMD",
+  "author": "FreeMD",
   "license": "MIT",
   "engine": "0.0.1",
   "runtime": "wasm",
@@ -43,7 +43,7 @@ root:
 | Field | Rule |
 | --- | --- |
 | `id` | Reverse-DNS, lowercase, unique in the marketplace; also the plugin's folder name |
-| `version`, `engine` | Semantic versions; `engine` is the lowest ArcMD version supported |
+| `version`, `engine` | Semantic versions; `engine` is the lowest FreeMD version supported |
 | `runtime` | `wasm` (default, sandboxed) or `process` |
 | `main` | Path inside the plugin: the `.wasm` module, or the executable |
 | `permissions` | Only those listed in `plugin.Permissions`; shown to the user before install |
@@ -52,8 +52,8 @@ root:
 
 ## Plugins don't draw
 
-ArcMD's UI is native, drawn by MyGo. Plugins never get a canvas or a
-webview: they **contribute** commands and panels, which ArcMD draws in its
+FreeMD's UI is native, drawn by MyGo. Plugins never get a canvas or a
+webview: they **contribute** commands and panels, which FreeMD draws in its
 own style, and **answer** invocations with a `Response`:
 
 - `edits` — replacements in the open document, applied as one undo step
@@ -62,16 +62,16 @@ own style, and **answer** invocations with a `Response`:
 - `toast` — a short message.
 
 This keeps every plugin consistent with the Arc/Zen look, accessible, and
-unable to spoof ArcMD's own UI. Streaming (an AI reply arriving token by
+unable to spoof FreeMD's own UI. Streaming (an AI reply arriving token by
 token) will be added to the protocol as a sequence of `markdown` updates,
 which `ui/markdown`'s `Stream` already renders.
 
 ## Runtimes
 
-- **`wasm`** — a WASI module run in ArcMD's process by
+- **`wasm`** — a WASI module run in FreeMD's process by
   [wazero](https://wazero.io) (pure Go, no cgo, matching MyGo's rule). The
   module gets no file system or network of its own: it calls host functions,
-  which check the manifest's permissions. Network calls go through ArcMD
+  which check the manifest's permissions. Network calls go through FreeMD
   (with the system proxy, via MyGo's `netproxy`), secrets through
   `mygo.Secrets`. Portable: one build runs on every platform.
 - **`process`** — an executable speaking JSON-RPC 2.0 over stdin/stdout,
@@ -93,7 +93,7 @@ maintainers review.
   "version": 1,
   "plugins": [
     {
-      "id": "dev.arcmd.ai-writer",
+      "id": "dev.freemd.ai-writer",
       "name": "AI Writer",
       "version": "0.1.0",
       "description": "Rewrite, summarize and continue your writing.",
@@ -117,7 +117,7 @@ Installing (`Manager.Install`) — all enforced and tested:
 5. The new version replaces the old atomically (staged, then renamed);
    the user's enabled/disabled choice is kept.
 
-Plugins live in `<config dir>/ArcMD/plugins/<id>/`; `plugins.json` there
+Plugins live in `<config dir>/FreeMD/plugins/<id>/`; `plugins.json` there
 lists the disabled ones.
 
 ## Roadmap

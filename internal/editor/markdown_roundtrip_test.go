@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 )
 
 func TestRichMarkdownLosslessRoundTripAllFeatures(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRichMarkdownLosslessRoundTripAllFeatures(t *testing.T) {
 	h1.Level = 1
 	h1.Align = "center"
 	h1.Runs = []document.Run{
-		{Text: "ArcMD ", Style: document.Style{Bold: true}},
+		{Text: "FreeMD ", Style: document.Style{Bold: true}},
 		{Text: "Native", Style: document.Style{Bold: true, Color: "blue", Annotation: "wavy", AnnotationColor: "purple"}},
 	}
 

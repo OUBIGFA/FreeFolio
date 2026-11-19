@@ -1,4 +1,4 @@
-// Package prefs keeps ArcMD's preferences beyond the spaces: how focus
+// Package prefs keeps FreeMD's preferences beyond the spaces: how focus
 // mode writes and the keyboard shortcuts rebound, in prefs.json beside
 // spaces.json. The package has no dependency on the window.
 package prefs
@@ -10,18 +10,20 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
 )
 
-// CurrentVersion is the version of prefs.json this ArcMD writes.
-const CurrentVersion = 1
+// CurrentVersion is the version of prefs.json this FreeMD writes.
+const CurrentVersion = 3
 
 // Prefs are the preferences.
 type Prefs struct {
-	Version    int     `json:"version"`
-	FontSize   float32 `json:"fontSize,omitempty"`
-	LineHeight float32 `json:"lineHeight,omitempty"`
-	NoAutoPair bool    `json:"noAutoPair,omitempty"`
+	// SidebarLeft opts out of the default right-hand workspace sidebar.
+	SidebarLeft bool    `json:"sidebarLeft,omitempty"`
+	Version     int     `json:"version"`
+	FontSize    float32 `json:"fontSize,omitempty"`
+	LineHeight  float32 `json:"lineHeight,omitempty"`
+	NoAutoPair  bool    `json:"noAutoPair,omitempty"`
 	// AutoSpace puts a space between Chinese and Latin text as it is typed.
 	AutoSpace bool `json:"autoSpace,omitempty"`
 	// CodeNoWrap disables soft wrapping in code blocks by default so long
@@ -45,7 +47,7 @@ type Prefs struct {
 	// NoDim keeps the other paragraphs bright in focus mode, which fades
 	// them by default.
 	NoDim bool `json:"noDim,omitempty"`
-	// OutlineClosed collapses the outline left of the page, which is open
+	// OutlineClosed collapses the outline right of the page, which is open
 	// by default.
 	OutlineClosed bool `json:"outlineClosed,omitempty"`
 	// Keys rebind commands, by their IDs, to shortcuts written as
@@ -54,8 +56,8 @@ type Prefs struct {
 	// NoAutoUpdate leaves new versions to the user: a background check
 	// then only says one is out, instead of downloading it.
 	NoAutoUpdate bool `json:"noAutoUpdate,omitempty"`
-	// PendingUpdate is the version ArcMD restarted to install; the launch
-	// that runs it says ArcMD was updated, then clears it.
+	// PendingUpdate is the version FreeMD restarted to install; the launch
+	// that runs it says FreeMD was updated, then clears it.
 	PendingUpdate string `json:"pendingUpdate,omitempty"`
 	// TourSeen is set once the tour of the window was finished or skipped.
 	// Until then every launch shows it: the first of a new installation,
@@ -64,6 +66,27 @@ type Prefs struct {
 	// AI is the model the space's questions are asked of. Its API key is
 	// not here but in a separate local file managed by Secrets.
 	AI AI `json:"ai,omitzero"`
+	// Files are the file browser's choices, the mode of loose files opened
+	// outside any space.
+	Files Files `json:"files,omitzero"`
+}
+
+// Files are named so that their zero values are the defaults: the browser
+// closes with its last tab, a double click closes a tab, and every tab
+// shows its close button.
+type Files struct {
+	// KeepOpen leaves an empty browser when the last tab closes instead of
+	// closing the window.
+	KeepOpen bool `json:"keepOpen,omitempty"`
+	// NoDoubleClickClose stops a double click on a tab from closing it.
+	NoDoubleClickClose bool `json:"noDoubleClickClose,omitempty"`
+	// HideTabClose hides the close button on every tab.
+	HideTabClose bool `json:"hideTabClose,omitempty"`
+	// TabAfterCurrent places a newly opened file right of the current tab
+	// rather than at the end.
+	TabAfterCurrent bool `json:"tabAfterCurrent,omitempty"`
+	// ReadOnly opens files locked against editing until unlocked.
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 // AI is a model service speaking the Chat Completions format.
@@ -94,6 +117,13 @@ func (s Store) Load() (*Prefs, error) {
 	if p.Version > CurrentVersion || p.Version < 1 {
 		return nil, fmt.Errorf("prefs: unsupported version %d", p.Version)
 	}
+	if p.Version == 1 {
+		// Version 1 had no side preference. Preserve all its other choices.
+		p.SidebarLeft = false
+	}
+	// Version 2 had no file browser choices; their zero values are the
+	// defaults, so it migrates unchanged.
+	p.Version = CurrentVersion
 	p.normalizeReading()
 	return &p, nil
 }

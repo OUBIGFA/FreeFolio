@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/fuzzy"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/fuzzy"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -53,30 +53,38 @@ func topBlock(d *document, id string) *model.Block {
 
 // marksOf are the blocks of the document with a bookmark, by ID, with
 // their labels.
+func (a *App) bookmarkState(spaceID string) *space.State {
+	if a.files != nil && spaceID == space.ExternalID {
+		return &a.files.marks
+	}
+	return a.state
+}
+
 func (a *App) marksOf(d *document) map[string]string {
 	if d == nil || d.loadErr != nil {
 		return nil
 	}
+	st := a.bookmarkState(d.space.ID)
 	mk := &d.marks
 	rev := d.ed.Revision()
 	if mk.known && mk.rev == rev && mk.gen == a.bookmarkGen {
 		return mk.m
 	}
-	if len(a.state.Bookmarks) == 0 {
+	if len(st.Bookmarks) == 0 {
 		mk.rev, mk.gen, mk.known, mk.bound, mk.m = rev, a.bookmarkGen, true, true, nil
 		return nil
 	}
 	m := map[string]string{}
 	rebound := false
-	for i := range a.state.Bookmarks {
-		b := &a.state.Bookmarks[i]
+	for i := range st.Bookmarks {
+		b := &st.Bookmarks[i]
 		if b.Space != d.space.ID || b.Path != d.rel {
 			continue
 		}
 		blk := topBlock(d, b.Block)
 		if blk == nil && !mk.bound && b.Excerpt != "" {
 			for _, x := range d.ed.Doc.Blocks {
-				if _, taken := m[x.ID]; !taken && a.state.BookmarkIndex(b.Space, b.Path, x.ID) < 0 && editor.BlockExcerpt(x) == b.Excerpt {
+				if _, taken := m[x.ID]; !taken && st.BookmarkIndex(b.Space, b.Path, x.ID) < 0 && editor.BlockExcerpt(x) == b.Excerpt {
 					blk, b.Block, rebound = x, x.ID, true
 					break
 				}
@@ -136,12 +144,13 @@ func (a *App) toggleBookmark(d *document, id string) {
 	if d == nil || d.loadErr != nil {
 		return
 	}
-	if !a.state.RemoveBookmark(d.space.ID, d.rel, id) {
+	st := a.bookmarkState(d.space.ID)
+	if !st.RemoveBookmark(d.space.ID, d.rel, id) {
 		blk := topBlock(d, id)
 		if blk == nil {
 			return
 		}
-		a.state.AddBookmark(space.Bookmark{Space: d.space.ID, Path: d.rel, Block: id, Excerpt: editor.BlockExcerpt(blk), Created: time.Now()})
+		st.AddBookmark(space.Bookmark{Space: d.space.ID, Path: d.rel, Block: id, Excerpt: editor.BlockExcerpt(blk), Created: time.Now()})
 	}
 	a.bookmarksChanged()
 }
@@ -149,8 +158,9 @@ func (a *App) toggleBookmark(d *document, id string) {
 // labelBookmark names the bookmark on the block of the document; an empty
 // label shows the excerpt again.
 func (a *App) labelBookmark(spaceID, rel, id, label string) {
-	if i := a.state.BookmarkIndex(spaceID, rel, id); i >= 0 && a.state.Bookmarks[i].Label != label {
-		a.state.Bookmarks[i].Label = label
+	st := a.bookmarkState(spaceID)
+	if i := st.BookmarkIndex(spaceID, rel, id); i >= 0 && st.Bookmarks[i].Label != label {
+		st.Bookmarks[i].Label = label
 		a.bookmarksChanged()
 	}
 }

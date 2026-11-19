@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -67,7 +67,7 @@ func TestQALongAnswerScrollAndStreaming(t *testing.T) {
 	// Scrolling up hands the reading position to the user, even while the
 	// answer keeps arriving. Compare the actual text's position as well as
 	// the logical row: the same row jumping a screen is also a regression.
-	tt.Scroll(1050, 350, 0, -600)
+	tt.Scroll(s.preview.panelRect.X+s.preview.panelRect.W/2, 350, 0, -600)
 	first, _ = s.list.Visible()
 	label := s.rows[first+1].turn.view.blocks[s.rows[first+1].index].text
 	before, ok := tt.Find(label)
@@ -95,7 +95,7 @@ func TestQALongAnswerScrollAndStreaming(t *testing.T) {
 	}
 	// Scrolling back to the end resumes following, including when the last
 	// paragraph grows rather than adding another row.
-	tt.Scroll(1050, 350, 0, 1000000)
+	tt.Scroll(s.preview.panelRect.X+s.preview.panelRect.W/2, 350, 0, 1000000)
 	turn.apply(agent.Event{Kind: agent.TextDelta, Text: "The newest paragraph"})
 	tt.Frame()
 	qaAdvance(tt, 700*time.Millisecond)

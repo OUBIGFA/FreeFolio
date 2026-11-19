@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -79,7 +79,7 @@ func TestAutosaveOnlyAfterEdits(t *testing.T) {
 	tt.Advance(autosaveDelay + 50*time.Millisecond)
 	tt.Frame()
 	got, _ := vault.Read(root(a), "Welcome.md")
-	if a.doc.dirty() || !strings.Contains(got, "Hello Welcome to ArcMD") {
+	if a.doc.dirty() || !strings.Contains(got, "Hello Welcome to FreeMD") {
 		t.Errorf("after the delay: dirty %v, file starts %q", a.doc.dirty(), got[:min(40, len(got))])
 	}
 }
@@ -87,7 +87,7 @@ func TestAutosaveOnlyAfterEdits(t *testing.T) {
 func TestSourceModeToggle(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)
-	if !a.doc.source || !strings.HasPrefix(a.doc.preview, "# Welcome to ArcMD") {
+	if !a.doc.source || !strings.HasPrefix(a.doc.preview, "# Welcome to FreeMD") {
 		t.Fatal("source mode not shown")
 	}
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)
@@ -154,8 +154,8 @@ func TestSidebarFolds(t *testing.T) {
 	if !a.sidebarHidden || tt.HasText("Journal") {
 		t.Fatalf("sidebar still shows: %v", a.sidebarHidden)
 	}
-	// Pointing at the window's left edge peeks at it.
-	tt.Move(3, 400)
+	// Pointing at the window's right edge peeks at it.
+	tt.Move(1197, 400)
 	tt.Frame()
 	tt.Advance(time.Second)
 	tt.Frame()

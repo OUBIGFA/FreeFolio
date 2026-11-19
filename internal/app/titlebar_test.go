@@ -99,7 +99,7 @@ func TestWindowsTitleBarFullscreen(t *testing.T) {
 }
 
 func TestWindowsTitleBarSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the Windows title bar layout")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the Windows title bar layout")
 	for _, mode := range []string{"normal", "folded", "focus", "split", "split-folded"} {
 		for _, width := range []int{640, 1240} {
 			name := fmt.Sprintf("%s-%d", mode, width)
@@ -124,7 +124,7 @@ func TestLongDocumentNameKeepsToolbarReachable(t *testing.T) {
 }
 
 func TestLongTitleSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render long document names")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render long document names")
 	for _, width := range []int{640, 1240} {
 		a, tt := titleBarTestApp(t, "folded", width, windowsTitleBar)
 		a.doc.rel = "这是一篇标题很长很长的文档用于检查窄窗口中的工具栏不会丢失任何操作按钮.arcmd"

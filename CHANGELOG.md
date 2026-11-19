@@ -1,5 +1,14 @@
 # Changelog
 
+## FreeMD 0.0.1
+
+- Dock the workspace sidebar on the right by default. Choose either edge in Settings → Appearance.
+- Place the document outline on the right and show the drag cursor over block handles.
+- Group search and file opening, improve favorite label contrast, and keep the settings exit in the navigation footer.
+- Build the local Windows x64 test installer with `python -X utf8 tools/build_test_installer.py`.
+
+The entries below describe the inherited ArcMD releases.
+
 ## 0.2.1
 
 This release upgrades PDF export to a pure-Go vector pipeline with hierarchical outlines and clickable links, adds native Mermaid diagram rendering, `\boldsymbol` bold math fonts, and Obsidian `![[...]]` image embed compatibility, speeds up large-document editing and command-bar discovery with Pinyin/multi-keyword search and persistent caching, introduces named version milestones with grapheme-level inline diffs, and resolves Windows shortcut and path-handling issues.

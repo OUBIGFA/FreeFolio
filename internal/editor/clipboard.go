@@ -3,12 +3,12 @@ package editor
 import (
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui/markdown/parser"
 )
 
-const fragmentFormat transfer.Format = "application/vnd.arcmd.document+json"
+const fragmentFormat transfer.Format = "application/vnd.freemd.document+json"
 
 func (e *Editor) copySelection(write func(string)) {
 	r := e.Selection().Range

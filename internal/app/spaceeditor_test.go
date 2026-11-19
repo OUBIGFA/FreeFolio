@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -18,62 +18,28 @@ func TestNewSpaceColorEditor(t *testing.T) {
 	if !a.spaceForm.open || len(a.spaceForm.theme.Colors) != 1 {
 		t.Fatalf("form = %+v", a.spaceForm)
 	}
-	for range 3 {
-		if err := tt.Click("下一页预设颜色"); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-	}
-	if err := tt.Click("将空间颜色设为 Drab 2"); err != nil {
-		t.Fatal(err)
-	}
+	// The card is MyGo's own color picker: a color typed in hex becomes
+	// the space's one color.
+	settle(tt)
+	typeHex(t, tt, "#c0504d")
 	tt.Frame()
-	if got := a.spaceForm.theme.Colors; !slices.Equal(got, []string{space.Drab[1]}) {
-		t.Fatalf("swatch gave %v", got)
+	if got := a.spaceForm.theme.Colors; !slices.Equal(got, []string{"#C0504D"}) {
+		t.Fatalf("picker gave %v", got)
 	}
-	if err := tt.Click("增加颜色"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Click("深色")
-	tt.Frame()
-	if th := a.spaceForm.theme; len(th.Colors) != 2 || th.Appearance != space.AppearanceDark {
-		t.Fatalf("theme = %+v", th)
-	}
-
-	// Pressing on the wheel brings the first color there: right of the
-	// center is red, at the rim fully saturated.
-	wheel, ok := tt.Find("空间颜色")
-	if !ok {
-		t.Fatal("no wheel")
-	}
-	cx, cy := wheel.X+wheel.W/2, wheel.Y+wheel.H/2
-	tt.Press(cx+padReach, cy)
-	tt.Frame()
-	tt.Move(cx+padReach, cy+1)
-	tt.Frame()
-	tt.Release(cx+padReach, cy+1)
-	tt.Frame()
-	h, s, _ := space.HSB(space.Components(a.spaceForm.theme.Colors[0]))
-	if (h > 2 && h < 358) || s < 0.98 {
-		t.Errorf("first color after a press at the rim = %s (hue %v, saturation %v)", a.spaceForm.theme.Colors[0], h, s)
-	}
-	if h2, _, _ := space.HSB(space.Components(a.spaceForm.theme.Colors[1])); h2 < 38 || h2 > 42 {
-		t.Errorf("second color hue = %v, want 40° on", h2)
-	}
-
 	a.spaceForm.name = "Reading"
 	if err := tt.Click("创建空间"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
 	sp := a.state.ActiveSpace()
-	if sp.Name != "Reading" || sp.Theme == nil || len(sp.Theme.Colors) != 2 || sp.Color != sp.Theme.Colors[0] {
+	if sp.Name != "Reading" || sp.Theme == nil || sp.Color != "#C0504D" {
 		t.Fatalf("space = %+v %+v", sp, sp.Theme)
 	}
-	tt.Advance(time.Second) // the tint springs over with the strip
+	tt.Advance(time.Second)
 	tt.Frame()
-	if !a.look.Dark {
-		t.Error("the window should take the dark look")
+	// The chrome stays MyGo's light surface; the color is only the accent.
+	if a.look.Dark || hexOf(a.look.opaqueTop()) != hexOf(chromeFill(false)) || hexOf(a.look.accent) == hexOf(ui.LightTheme().Accent) {
+		t.Errorf("look = %+v", a.look)
 	}
 }
 
@@ -83,15 +49,15 @@ func TestEditSpacePreviewsAndSavesOnDismiss(t *testing.T) {
 	before := space.ThemeOf(sp)
 	a.editSpace(sp)
 	a.spaceForm.theme.Colors = []string{"#4E3A5A"}
-	a.spaceForm.theme.Appearance = space.AppearanceDark
 	tt.Frame()
-	if !a.look.Dark {
-		t.Error("editing should preview the new look in the window")
+	want := spaceAccent("#4E3A5A", false)
+	if a.look.accent != want || a.look.Dark {
+		t.Error("editing should preview the new accent in the window")
 	}
 	// Dismissing the independent editor commits its preview.
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.spaceForm.open || slices.Equal(space.ThemeOf(sp).Colors, before.Colors) || !a.look.Dark {
+	if a.spaceForm.open || slices.Equal(space.ThemeOf(sp).Colors, before.Colors) || a.look.accent != want {
 		t.Fatalf("dismiss did not commit the preview: %+v", space.ThemeOf(sp))
 	}
 	saved, err := a.store.Load()
@@ -188,4 +154,16 @@ func TestNewSpaceThemeButtonTogglesCard(t *testing.T) {
 	if a.spaceForm.open {
 		t.Fatal("cancel should drop the draft")
 	}
+}
+
+// typeHex types a color into the space card's hex field.
+func typeHex(t *testing.T, tt *ui.Tester, hex string) {
+	t.Helper()
+	field, ok := tt.Access("十六进制")
+	if !ok {
+		t.Fatal("the color card has no hex field")
+	}
+	tt.ClickAt(field.Bounds.X+field.Bounds.W/2, field.Bounds.Y+field.Bounds.H/2)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(hex)
 }

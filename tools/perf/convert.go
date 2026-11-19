@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/tools/internal/toolutil"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
 )
 
 type xmlPart struct {

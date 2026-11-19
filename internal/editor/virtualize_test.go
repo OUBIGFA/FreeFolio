@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -214,6 +214,8 @@ func TestLargeDocument200kInteractiveEditingAndIME(t *testing.T) {
 	// Cancel an active composition via Escape.
 	tt.Compose("quxiao", 6)
 	tt.Key(0, ui.KeyEscape)
+	// Native IMEs consume Escape and send an empty preedit to the client.
+	tt.Compose("", 0)
 	if e.Composing() {
 		t.Fatal("Escape did not cancel active composition")
 	}

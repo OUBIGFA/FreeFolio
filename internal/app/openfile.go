@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // openSystemFile handles file associations and command-line documents. The
-// deepest existing folder space wins. External files share one collection;
+// deepest existing folder space wins. Loose files stay in memory for this session;
 // opening a Markdown file never converts it or copies the user's document.
 func (a *App) openSystemFile(file string) bool {
 	full, err := filepath.Abs(file)
@@ -23,11 +23,16 @@ func (a *App) openSystemFile(file string) bool {
 	}
 	info, err := os.Stat(full)
 	if err != nil || !info.Mode().IsRegular() || !vault.IsDocument(full) {
-		a.notify("请选择 ArcMD 或 Markdown 文档：%s", filepath.Base(full))
+		a.notify("请选择 FreeMD 或 Markdown 文档：%s", filepath.Base(full))
 		return false
 	}
 	if !a.flush() {
 		return false
+	}
+	if a.files != nil {
+		// The browser keeps what opens in it, even a file of a space: only
+		// "返回空间" leads back to the spaces.
+		return a.openLooseFile(full)
 	}
 	var target *space.Space
 	var rel string
@@ -49,17 +54,7 @@ func (a *App) openSystemFile(file string) bool {
 		}
 	}
 	if target == nil {
-		target, err = a.externalSpace()
-		if err != nil {
-			a.notify("无法打开文件。%v", err)
-			return false
-		}
-		rel = target.AddExternal(full)
-		delete(a.pageTrees, target.ID)
-		if a.state.ActiveSpace() == target {
-			a.refreshTree()
-		}
-		a.saveState()
+		return a.openLooseFile(full)
 	}
 	if !a.openAnywhere(target.ID, rel) {
 		return false

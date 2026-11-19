@@ -1,22 +1,31 @@
 {
-  "name": "ArcMD",
-  "slug": "arcmd",
-  "identifier": "com.cizai.arcmd",
-  "version": "0.2.1",
+  "name": "FreeMD",
+  "slug": "freemd",
+  "identifier": "io.github.oubigfa.freemd",
+  "version": "0.0.1",
   "icon": "resources/icon.png",
-  "main": "./cmd/arcmd",
+  "main": "./cmd/freemd",
   "out": "dist",
-  "resources": ["LICENSE", "third_party"],
+  "resources": [
+    "LICENSE",
+    "third_party"
+  ],
   "fileAssociations": [
     {
-      "ext": ["md", "markdown", "mdx"],
+      "ext": [
+        "md",
+        "markdown",
+        "mdx"
+      ],
       "name": "Markdown Document",
       "mimeType": "text/markdown",
       "role": "Editor"
     },
     {
-      "ext": ["arcmd"],
-      "name": "ArcMD Document",
+      "ext": [
+        "arcmd"
+      ],
+      "name": "Legacy Markdown Document",
       "mimeType": "application/x-arcmd",
       "role": "Editor"
     }
@@ -24,9 +33,7 @@
   "macos": {
     "icon": "resources/icon.icns"
   },
-  "linux": { "webview": false },
-  "updates": {
-    "publicKey": "5WSm8Z4W2nF//KbuHmHZjP1uR8RC7vvS/xApNVO5nWc=",
-    "github": "Ciao1019/ArcMD"
+  "linux": {
+    "webview": false
   }
 }

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -41,6 +41,7 @@ func caretOn(a *App, id string) {
 
 func TestBookmarkToggleAndMark(t *testing.T) {
 	a, tt := newTestApp(t)
+	tt.SetSize(1700, 760) // room for the outline beside the page
 	tt.Frame()
 	ids := bookmarkDoc(t, a, tt, "Long.arcmd", "# Long\n\nFirst part\n\nSecond part\n\nThird part")
 	focusDocument(a, tt)
@@ -203,6 +204,7 @@ func TestBookmarkMarkdownFindsBlockByExcerpt(t *testing.T) {
 
 func TestBookmarkRenameInOutline(t *testing.T) {
 	a, tt := newTestApp(t)
+	tt.SetSize(1700, 760) // room for the outline beside the page
 	tt.Frame()
 	ids := bookmarkDoc(t, a, tt, "Named.arcmd", "# Named\n\n## Part\n\nThe figure below")
 	focusDocument(a, tt)
@@ -240,6 +242,7 @@ func TestFormulaBookmarkInOutline(t *testing.T) {
 	for _, mode := range []string{"light", "dark", "narrow"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt := newTestApp(t)
+			tt.SetSize(1700, 760) // room for the outline beside the page
 			if mode == "dark" {
 				tt.SetDark(true)
 			}
@@ -254,6 +257,7 @@ func TestFormulaBookmarkInOutline(t *testing.T) {
 			if mode == "narrow" {
 				tt.SetSize(540, 760)
 				tt.Frame()
+				tt.Advance(300 * time.Millisecond)
 				if err := tt.Click("展开目录"); err != nil {
 					t.Fatal(err)
 				}
@@ -311,6 +315,7 @@ func TestFormulaBookmarkUpdatesAndFallbacks(t *testing.T) {
 	for _, source := range []string{bookmarkIntegral, strings.Repeat("x+", 60) + `\frac{a}{b}`, `\frac{a}`, ""} {
 		t.Run(source, func(t *testing.T) {
 			a, tt := newTestApp(t)
+			tt.SetSize(1700, 760) // room for the outline beside the page
 			tt.Frame()
 			ids := bookmarkDoc(t, a, tt, "Math.arcmd", "# Math\n\n$$\n"+source+"\n$$")
 			focusDocument(a, tt)

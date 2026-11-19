@@ -16,8 +16,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // Dir is the folder of a space holding its documents' versions.

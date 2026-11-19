@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/pdf"
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/pdf"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -47,7 +47,7 @@ func (a *App) startPDF(printing bool) {
 	source := &document{space: &space.Space{Root: root}, rel: rel}
 	dir := filepath.Dir(d.fullPath())
 	if printing {
-		dir = filepath.Join(os.TempDir(), i18n.T("ArcMD 打印"))
+		dir = filepath.Join(os.TempDir(), i18n.T("FreeMD 打印"))
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			a.notify("准备打印失败。%v", err)
 			return

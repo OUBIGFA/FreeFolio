@@ -17,8 +17,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 type perfSample struct {
@@ -31,17 +31,17 @@ type perfSample struct {
 // undo history intentionally use substantial time and memory. Run it through
 // tools/perf/overlay.go to exclude software rasterization from CPU timing.
 func TestPerformance(t *testing.T) {
-	fixture := os.Getenv("ARCMD_PERF_FIXTURE")
-	output := os.Getenv("ARCMD_PERF_OUTPUT")
+	fixture := os.Getenv("FREEMD_PERF_FIXTURE")
+	output := os.Getenv("FREEMD_PERF_OUTPUT")
 	if fixture == "" || output == "" {
-		t.Fatal("set ARCMD_PERF_FIXTURE and ARCMD_PERF_OUTPUT")
+		t.Fatal("set FREEMD_PERF_FIXTURE and FREEMD_PERF_OUTPUT")
 	}
 	count := 100
-	if value := os.Getenv("ARCMD_PERF_SAMPLES"); value != "" {
+	if value := os.Getenv("FREEMD_PERF_SAMPLES"); value != "" {
 		var err error
 		count, err = strconv.Atoi(value)
 		if err != nil || count < 1 || count > 1000 {
-			t.Fatal("ARCMD_PERF_SAMPLES must be between 1 and 1000")
+			t.Fatal("FREEMD_PERF_SAMPLES must be between 1 and 1000")
 		}
 	}
 	if err := os.MkdirAll(output, 0o755); err != nil {
@@ -99,7 +99,7 @@ func TestPerformance(t *testing.T) {
 		}
 	}
 	snapshot("before")
-	if path := os.Getenv("ARCMD_PERF_PROFILE"); path != "" {
+	if path := os.Getenv("FREEMD_PERF_PROFILE"); path != "" {
 		f, err := os.Create(path)
 		if err != nil {
 			t.Fatal(err)

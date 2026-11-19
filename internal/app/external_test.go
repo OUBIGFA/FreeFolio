@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 func externalFile(t *testing.T, name, content string) string {
@@ -24,76 +25,40 @@ func externalFile(t *testing.T, name, content string) string {
 	return full
 }
 
-func TestExternalCollectionDoesNotImportFolders(t *testing.T) {
+func TestLooseFilesStayOutOfSearchAndLibrary(t *testing.T) {
 	a, tt := newTestApp(t)
-	first := externalFile(t, "README.md", "# First external\n\nOpened unique content")
+	first := externalFile(t, "README.md", "# First external\\n\\nOpened unique content")
 	second := externalFile(t, "README.md", "# Second external")
-	parent := filepath.Dir(first)
-	if err := os.Mkdir(filepath.Join(parent, "Empty folder"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(parent, "Unopened.md"), []byte("secret sibling text"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(filepath.Dir(first), "Unopened.md"), []byte("secret sibling"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	count := len(a.state.Spaces)
 	for _, file := range []string{first, second, first} {
 		if !a.openSystemFile(file) {
-			t.Fatalf("open %s", file)
+			t.Fatal("open", file)
 		}
 	}
-	sp := a.doc.space
-	if !sp.IsExternal() || len(a.state.Spaces) != count+1 || len(sp.ExternalFiles) != 2 || len(a.tree) != 2 {
-		t.Fatalf("unexpected collection: %+v tree=%v", sp, a.tree)
-	}
-	for _, n := range a.tree {
-		if n.Dir {
-			t.Fatal("imported a folder")
-		}
-	}
-	if a.doc.fullPath() != first {
-		t.Fatal("reopening selected the wrong same-named file")
-	}
-	a.openSystemFile(second)
-	a.renameIn(sp, a.doc.rel)
-	if a.newName != "README" {
-		t.Fatal("rename used the list alias as a disk filename")
-	}
-	a.commitRename()
-	if a.doc.fullPath() != second || len(sp.ExternalFiles) != 2 {
-		t.Fatal("unchanged rename altered the file")
-	}
-	a.openSystemFile(first)
 	tt.Frame()
-	tt.Advance(time.Second)
-	tt.Frame()
-	if !tt.HasText("README") || !tt.HasText("README 2") || tt.HasText("Empty folder") || !tt.HasText("打开文件…") {
-		t.Fatalf("wrong sidebar: %v", tt.Texts())
+	if a.doc.fullPath() != first || len(a.files.order) != 2 || a.state.Get(space.ExternalID) != nil || len(a.state.Spaces) != count {
+		t.Fatal("loose paths entered the workspace or collided")
+	}
+	if !tt.HasText("README.md · "+filepath.Base(filepath.Dir(first))) || tt.HasText("Unopened.md") || tt.HasText(filepath.Dir(first)) {
+		t.Fatal("incorrect file view")
+	}
+	if _, err := resolveFile(a.doc.space, "Unopened.md"); err == nil {
+		t.Fatal("sibling resolved")
 	}
 	a.refreshSearch()
-	if len(a.textHits("unique content")) != 1 || len(a.textHits("secret sibling")) != 0 {
-		t.Fatal("search escaped collection")
-	}
-	fs := a.qaSpace(sp.ID)
-	docs, err := fs.Docs()
-	if err != nil || len(docs) != 2 {
-		t.Fatalf("QA docs %v: %v", docs, err)
-	}
-	if _, err := fs.Page("Unopened.md"); err == nil {
-		t.Fatal("QA read an unopened sibling")
-	}
-	if _, err := resolveFile(sp, "Unopened.md"); err == nil {
-		t.Fatal("unregistered file resolved")
+	if len(a.textHits("unique content")) != 0 || len(a.textHits("secret sibling")) != 0 {
+		t.Fatal("search indexed a loose file")
 	}
 	a.loadLibrary()
-	if len(a.library.trees[sp.ID]) != 2 {
-		t.Fatal("library did not use collection")
+	if _, ok := a.library.trees[space.ExternalID]; ok {
+		t.Fatal("library contains loose documents")
 	}
-	loaded, err := New(a.cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.doc == nil || loaded.doc.fullPath() != first || len(loaded.tree) != 2 {
-		t.Fatal("collection did not survive restart")
+	restarted, err := New(a.cfg)
+	if err != nil || restarted.files != nil || restarted.doc == nil || restarted.doc.fullPath() == first {
+		t.Fatal("restart restored a loose file", err)
 	}
 }
 
@@ -104,12 +69,12 @@ func TestExternalInPlaceSaveAndRename(t *testing.T) {
 		t.Fatal("open")
 	}
 	sp := a.doc.space
-	a.toggleFavorite(sp, a.doc.rel)
+
 	a.doc.ed.ReplaceText(nil, "Edited ")
 	if !a.flush() {
 		t.Fatal("save")
 	}
-	if a.doc.fullPath() != file || len(sp.ExternalFiles) != 1 || !a.state.IsFavorite(sp.ID, a.doc.rel) {
+	if a.doc.fullPath() != file || len(sp.ExternalFiles) != 1 {
 		t.Fatal("in-place save lost identity")
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(file), "External.arcmd")); !os.IsNotExist(err) {
@@ -137,11 +102,11 @@ func TestExternalLinkedFileOpensOnlyWhenFollowed(t *testing.T) {
 	if err := os.WriteFile(next, []byte("# Next"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if !a.openSystemFile(file) || len(a.tree) != 1 {
+	if !a.openSystemFile(file) || len(a.files.order) != 1 {
 		t.Fatal("opened siblings automatically")
 	}
 	a.followLink("Next.md")
-	if a.doc.fullPath() != next || len(a.tree) != 2 {
+	if a.doc.fullPath() != next || len(a.files.order) != 2 {
 		t.Fatal("linked file did not open in collection")
 	}
 }
@@ -164,43 +129,151 @@ func TestExternalRenameSavesDirtyMarkdown(t *testing.T) {
 	}
 }
 
-func TestExternalRemoveFromMenuKeepsFilesAndSpace(t *testing.T) {
+// Closing the last tab closes the window; only "返回空间" returns to the
+// spaces, from the kept empty browser too.
+func TestClosingLastTabClosesWindowNotReturns(t *testing.T) {
 	a, tt := newTestApp(t)
+	original := a.doc
+	closed := 0
+	a.closeMain = func() { closed++ }
 	file := externalFile(t, "External.md", "# Original")
 	if !a.openSystemFile(file) {
 		t.Fatal("open")
 	}
-	sp := a.doc.space
 	tt.Frame()
+	if err := tt.Click("关闭标签页 External.md"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if closed != 1 || a.files == nil || a.doc != nil {
+		t.Fatal("the last tab did not close the window", closed)
+	}
+	if data, err := os.ReadFile(file); err != nil || string(data) != "# Original" {
+		t.Fatal("close changed original", err)
+	}
+
+	a.prefs.Files.KeepOpen = true
+	a.openSystemFile(file)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyW)
+	tt.Frame()
+	if closed != 1 || a.files == nil || !tt.HasText("没有打开的文件") {
+		t.Fatal("the kept browser did not stay empty")
+	}
+	if err := tt.Click("返回空间"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.files != nil || a.doc != original {
+		t.Fatal("did not restore the workspace editor")
+	}
+}
+
+func TestFileTabsSwitchAndClose(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.closeMain = func() { t.Fatal("closed the window with tabs left") }
+	files := []string{externalFile(t, "One.md", "# One"), externalFile(t, "Two.md", "# Two"), externalFile(t, "Three.md", "# Three")}
+	for _, file := range files {
+		a.openSystemFile(file)
+	}
+	tt.Frame()
+	if a.doc.fullPath() != files[2] {
+		t.Fatal("the last opened file is not shown")
+	}
+	tab := func(name string) ui.Rect {
+		t.Helper()
+		r, ok := tt.Find(name)
+		if !ok {
+			t.Fatal("no tab", name)
+		}
+		return r
+	}
+	if err := tt.Click("One.md"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc.fullPath() != files[0] {
+		t.Fatal("a click did not show its tab")
+	}
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	if a.doc.fullPath() != files[1] {
+		t.Fatal("Ctrl+Tab did not show the next tab")
+	}
+
+	// A double click closes a tab, unless turned off.
+	a.prefs.Files.NoDoubleClickClose = true
+	r := tab("Three.md")
+	tt.ClickAt(r.X+12, r.Y+r.H/2)
+	tt.ClickAt(r.X+12, r.Y+r.H/2)
+	tt.Frame()
+	if len(a.files.order) != 3 || a.doc.fullPath() != files[2] {
+		t.Fatal("a double click closed a tab while turned off")
+	}
+	a.prefs.Files.NoDoubleClickClose = false
 	tt.Advance(time.Second)
+	tt.ClickAt(r.X+12, r.Y+r.H/2)
+	tt.ClickAt(r.X+12, r.Y+r.H/2)
 	tt.Frame()
-	if err := tt.RightClick("External"); err != nil {
+	if len(a.files.order) != 2 || a.doc.fullPath() != files[1] {
+		t.Fatal("a double click did not close the tab and show its neighbor", a.files.order)
+	}
+
+	// The middle button closes a tab that is not shown, leaving the shown one.
+	r = tab("One.md")
+	tt.PressButton(2, r.X+12, r.Y+r.H/2)
+	tt.Frame()
+	tt.ReleaseButton(2, r.X+12, r.Y+r.H/2)
+	tt.Frame()
+	if len(a.files.order) != 1 || a.doc.fullPath() != files[1] {
+		t.Fatal("the middle button did not close the tab", a.files.order)
+	}
+
+	a.prefs.Files.HideTabClose = true
+	tt.Frame()
+	if _, ok := tt.Find("关闭标签页 Two.md"); ok {
+		t.Fatal("the close button shows while hidden")
+	}
+}
+
+// A file of a space opened in the browser stays in it, and new tabs follow
+// the chosen position.
+func TestFileBrowserKeepsSpaceFilesAndPlacesTabs(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.prefs.Files.TabAfterCurrent = true
+	first, last := externalFile(t, "First.md", "# First"), externalFile(t, "Last.md", "# Last")
+	a.openSystemFile(first)
+	a.openSystemFile(last)
+	a.showFileTab(a.files.order[0])
+	inSpace := filepath.Join(root(a), "Inside.md")
+	if err := os.WriteFile(inSpace, []byte("# Inside"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("从外部空间移除"); err != nil {
-		t.Fatal(err)
+	if !a.openSystemFile(inSpace) || a.files == nil || a.doc.fullPath() != inSpace {
+		t.Fatal("a file of a space left the browser")
 	}
-	if _, err := os.Stat(file); err != nil {
-		t.Fatal("removed original", err)
+	if names := a.files.order; len(names) != 3 || names[1] != a.doc.rel {
+		t.Fatal("the new tab is not right of the current one", names)
 	}
-	if a.doc != nil || len(sp.ExternalFiles) != 0 || !tt.HasText("打开的外部文档会显示在这里，文件保留在原位置。") {
-		t.Fatal("remove did not close entry")
-	}
-	a.removeSpace(sp.ID)
-	if a.state.Get(sp.ID) != sp {
-		t.Fatal("built-in space removed")
-	}
-	if err := a.state.Remove(sp.ID); err != space.ErrBuiltIn {
-		t.Fatal("model allowed removal", err)
-	}
-	a.openSettings(tabSpaces)
 	tt.Frame()
-	if err := tt.Click("从 ArcMD 移除 外部空间"); err == nil && a.state.Get(sp.ID) == nil {
-		t.Fatal("settings removed built-in")
+}
+
+func TestFileBrowserReadOnlyIsPerTab(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.prefs.Files.ReadOnly = true
+	one, two := externalFile(t, "One.md", "# One"), externalFile(t, "Two.md", "# Two")
+	a.openSystemFile(one)
+	if !a.doc.ed.ReadOnly {
+		t.Fatal("did not open read-only")
 	}
-	loaded, err := New(a.cfg)
-	if err != nil || loaded.state.Get(sp.ID) == nil {
-		t.Fatal("empty collection not persisted", err)
+	a.doc.ed.SetReadOnly(false)
+	a.openSystemFile(two)
+	if !a.doc.ed.ReadOnly {
+		t.Fatal("the second file did not open read-only")
+	}
+	a.showFileTab(a.files.order[0])
+	if a.doc.ed.ReadOnly {
+		t.Fatal("the unlocked tab locked again")
 	}
 }
 
@@ -211,7 +284,7 @@ func TestExternalRemoveSavesDirtyMarkdown(t *testing.T) {
 	sp, rel := a.doc.space, a.doc.rel
 	a.doc.ed.ReplaceText(nil, "Saved ")
 	a.forgetExternal(sp, rel)
-	if a.doc != nil || len(sp.ExternalFiles) != 0 {
+	if a.files == nil || len(a.files.order) != 0 || len(sp.ExternalFiles) != 0 {
 		t.Fatal("forget left an entry open")
 	}
 	if b, err := os.ReadFile(file); err != nil || !strings.Contains(string(b), "Saved") {
@@ -295,7 +368,7 @@ func TestExternalWatchAndConflict(t *testing.T) {
 }
 
 func TestExternalSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT for external space")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT for external space")
 	for _, size := range []struct {
 		name string
 		w, h int

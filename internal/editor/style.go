@@ -3,12 +3,12 @@ package editor
 import (
 	"maps"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/egoist/mygo/ui"
 )
 
 // Page holds the colors of the page beyond ui.Theme. The page's look and
-// metrics follow a Feishu-style theme. ArcMD's app passes them from internal/app/theme.go; a zero Page is derived from the
+// metrics follow a Feishu-style theme. FreeMD's app passes them from internal/app/theme.go; a zero Page is derived from the
 // ui.Theme, so tests and other hosts need none.
 type Page struct {
 	// Marker colors list bullets, numbers and a done task's check.

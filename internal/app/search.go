@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/search"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/search"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // searchState is the command bar's full-text search: the index of every
@@ -246,6 +246,9 @@ func (a *App) liveIndex() *search.Index {
 	live := make([]search.Live, 0, len(docs))
 	for _, d := range docs {
 		s.liveDocs[d] = liveStamp{d.ed.Revision(), place{d.space.ID, d.rel}}
+		if a.files != nil && d.space == a.files.locations {
+			continue
+		}
 		live = append(live, search.Live{Space: d.space.ID, Path: d.rel, Text: d.plainText()})
 	}
 	s.overlay, s.liveBase, s.overlayReady = s.index.WithLive(live), s.index, true

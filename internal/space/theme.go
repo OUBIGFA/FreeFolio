@@ -38,10 +38,10 @@ const (
 // BrandPairs are the second colors Arc gives each Brand color on its page
 // of pairs, 29–46° further round the hue wheel.
 var (
-	Brand      = []string{"#F2EAE4", "#F29BBB", "#A6729D", "#F25E6B", "#FF8558", "#F8D558", "#34E895", "#6CBAD9", "#666789"}
-	BrandPairs = []string{"#EFF1E3", "#EFB19B", "#A6727F", "#EAAF5A", "#F0E941", "#A4F454", "#38E5E7", "#7F7EDC", "#7F6589"}
-	Drab       = []string{"#4E3A5A", "#693558", "#8F4042", "#B16D40", "#D7B35D", "#CDCCA4", "#7AA982", "#226149", "#26456B"}
-	Pastel     = []string{"#FEFBFA", "#FFE9F3", "#F1D1EC", "#FFCBD1", "#FFE0D3", "#FFF9E5", "#DEFDEB", "#DCF3FC", "#C5C6E5"}
+	Brand      = []string{"#808080", "#477366", "#425E77", "#916459", "#776484", "#7E6E48", "#596D80", "#6F7560", "#695F5A"}
+	BrandPairs = []string{"#B0B0B0", "#79988B", "#8298AE", "#B49784", "#AB95AE", "#ABA178", "#8295A1", "#ABB09A", "#B09D94"}
+	Drab       = []string{"#4A4A4A", "#264C43", "#2B455A", "#633E36", "#53445E", "#514C37", "#344955", "#444E3C", "#524844"}
+	Pastel     = []string{"#E2E2E2", "#D8E5DE", "#D8E2EA", "#EADDD5", "#E6DDE9", "#E9E4D4", "#D9E1E5", "#E1E5D9", "#E6DFDA"}
 	Greyscale  = []string{"#FFFFFF", "#E6E6E6", "#CCCCCC", "#B2B2B2", "#808080", "#666666", "#333333", "#1A1A1A", "#000000"}
 )
 
@@ -99,7 +99,7 @@ func PageOf(colors []string) int {
 
 // newOrder is the order new spaces take the Brand colors in, the cream
 // last: Arc picks one at random, but a fixed turn keeps neighbors apart.
-var newOrder = []int{7, 1, 5, 6, 3, 2, 4, 8, 0}
+var newOrder = []int{0, 1, 2, 3, 4, 5, 6, 7, 8}
 
 // NewTheme is a new space's theme, as Arc's: one of its bright Brand colors,
 // on Auto, at 0.8 intensity and without grain. The n-th space takes the

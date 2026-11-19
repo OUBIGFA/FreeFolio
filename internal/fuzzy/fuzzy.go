@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/pinyin"
+	"github.com/OUBIGFA/FreeMD/internal/pinyin"
 )
 
 // Score returns how well query matches s, and whether it matches at all:

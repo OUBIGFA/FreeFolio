@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
@@ -13,7 +13,7 @@ import (
 // ImportHTML turns HTML copied from a browser, Feishu, Notion or a word
 // processor into a document: headings, paragraphs, lists and tasks, quotes,
 // code, tables, rules and images, with bold, italic, underline, strike,
-// code and links. Styles, scripts and what ArcMD cannot show are left out;
+// code and links. Styles, scripts and what FreeMD cannot show are left out;
 // the text always survives.
 func ImportHTML(source string) *document.Document {
 	root, err := html.Parse(strings.NewReader(source))
@@ -209,7 +209,7 @@ func (h *htmlImporter) walk(n *html.Node, style document.Style) {
 			h.text("\n", style)
 			return
 		}
-		// A line break inside a paragraph begins another, as ArcMD's
+		// A line break inside a paragraph begins another, as FreeMD's
 		// paragraphs hold no line breaks.
 		h.flush()
 		return
@@ -259,7 +259,7 @@ func (h *htmlImporter) walk(n *html.Node, style document.Style) {
 			}
 			return
 		}
-		// A picture elsewhere is a link to it: ArcMD shows pictures kept
+		// A picture elsewhere is a link to it: FreeMD shows pictures kept
 		// beside the document.
 		label := attr(n, "alt")
 		if label == "" {

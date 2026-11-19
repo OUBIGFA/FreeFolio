@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/app"
+	"github.com/OUBIGFA/FreeMD/internal/app"
 )
 
 // A question asked in the terminal searches, reads and answers, and the
@@ -42,7 +42,7 @@ func TestAsk(t *testing.T) {
 		fmt.Fprint(w, "data: [DONE]\n\n")
 	}))
 	defer srv.Close()
-	t.Setenv("ARCMD_AI_KEY", "")
+	t.Setenv("FREEMD_AI_KEY", "")
 	var out, errOut bytes.Buffer
 	cfg := app.Config{ConfigDir: filepath.Join(dir, "config")}
 	code := ask([]string{"-space", spaceDir, "-base-url", "http://127.0.0.1:" + strings.Split(srv.URL, ":")[2], "-model", "m", "为什么延期？"}, cfg, &out, &errOut)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -57,6 +57,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 		return e
 	}
 	form := ui.Column(c.Key("space-form")).Grow(1).MinHeight(0).Gap(8).Padding(14, 0, 0, 0)
+	var pickerAnchor ui.Element
 	form.Children(func() {
 		ui.Column(c).AlignItems(ui.Center).Gap(4).Margin(0, 0, 16, 0).Children(func() {
 			ui.Text(c, i18n.T("新建空间")).FontSize(17).FontWeight(600).TextColor(t.Text)
@@ -87,7 +88,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 					f.openIconPicker()
 				}
 			}
-			a.iconPicker(c, f, icon)
+			pickerAnchor = icon
 
 			name := ui.TextInput(c.Key("space-name"), &f.name).Grow(1).MinWidth(0).Height(fieldH).Padding(0, 2).FontSize(13).
 				Placeholder(i18n.T("空间名称")).Label(i18n.T("名称")).AutoFocus().Background(ui.Transparent).Border(0, ui.Transparent)
@@ -139,6 +140,8 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 	})
 	if f.open {
 		a.themeCard(c, f, form)
+		// The icon menu stays above the live theme preview on either docking side.
+		a.iconPicker(c, f, pickerAnchor)
 	}
 }
 

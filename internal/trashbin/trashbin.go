@@ -1,5 +1,5 @@
-// Package trashbin keeps what ArcMD moved to the system's trash, so that
-// it can be put back from ArcMD: the system's trash cannot be listed or
+// Package trashbin keeps what FreeMD moved to the system's trash, so that
+// it can be put back from FreeMD: the system's trash cannot be listed or
 // restored from on every platform. Before a document or folder goes to the
 // trash, a copy goes in the bin, with where it was; restoring writes the
 // copy back, never over a file. Copies older than Keep are let go. The
@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // Keep is how long the bin keeps a copy; MaxSize the largest file or

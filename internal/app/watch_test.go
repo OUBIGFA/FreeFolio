@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -67,7 +67,7 @@ func TestWatchReloadsCleanDocument(t *testing.T) {
 	if !strings.Contains(a.doc.text(), "Changed in another editor.") || a.doc.dirty() || a.doc.conflict {
 		t.Fatalf("not reloaded: %q", tt.Texts())
 	}
-	// ArcMD's own save is reported too, and changes nothing.
+	// FreeMD's own save is reported too, and changes nothing.
 	a.doc.ed.SetSelection(0, 0)
 	a.doc.ed.ReplaceText(nil, "Hi ")
 	tt.Frame()
@@ -225,7 +225,7 @@ func TestWatchFollowsSpaces(t *testing.T) {
 // TestConflictSnapshot renders the bar over a document in conflict, for
 // review.
 func TestConflictSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the conflict bar")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the conflict bar")
 	for _, name := range []string{"conflict", "missing"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

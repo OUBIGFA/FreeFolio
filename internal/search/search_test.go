@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // plain treats a file's content as its text, counting reads.

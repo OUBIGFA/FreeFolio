@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
 )
 
 func write(t *testing.T, root, name, text string) {
@@ -32,7 +32,7 @@ func TestVersionGates(t *testing.T) {
 func testVersionGates(t *testing.T, newline string) {
 	t.Helper()
 	root := t.TempDir()
-	write(t, root, "mygo.json", `{"name":"ArcMD","slug":"arcmd","version":"0.0.1"}`)
+	write(t, root, "mygo.json", `{"name":"FreeMD","slug":"freemd","version":"0.0.1"}`)
 	write(t, root, "internal/app/app.go", "package app"+newline+"const Version = \"0.0.1\""+newline)
 	env := map[string]string{"GITHUB_REF_TYPE": "tag", "GITHUB_REF_NAME": "v0.0.1"}
 	get := func(k string) string { return env[k] }
@@ -59,8 +59,8 @@ func TestUnsupportedBackend(t *testing.T) {
 }
 func TestMissingInstaller(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "dist/windows-amd64/ArcMD.exe", "app")
-	if _, err := collect(root, config{"ArcMD", "arcmd", "0.1.0"}, "windows/amd64"); err == nil {
+	write(t, root, "dist/windows-amd64/FreeMD.exe", "app")
+	if _, err := collect(root, config{"FreeMD", "freemd", "0.1.0"}, "windows/amd64"); err == nil {
 		t.Fatal("missing installer accepted")
 	}
 	entries, err := os.ReadDir(filepath.Join(root, "dist/release"))
@@ -73,15 +73,15 @@ func TestMissingInstaller(t *testing.T) {
 }
 func TestPortableResources(t *testing.T) {
 	root := t.TempDir()
-	files := map[string]string{"ArcMD.exe": "app", "LICENSE": "notice", "third_party/quiet-md/LICENSE": "third-party notice", "runtime.dll": "resource", "arcmd-setup-0.1.0-amd64.exe": "installer"}
+	files := map[string]string{"FreeMD.exe": "app", "LICENSE": "notice", "third_party/quiet-md/LICENSE": "third-party notice", "runtime.dll": "resource", "freemd-setup-0.1.0-amd64.exe": "installer"}
 	for name, text := range files {
 		write(t, root, "dist/windows-amd64/"+name, text)
 	}
-	names, err := collect(root, config{"ArcMD", "arcmd", "0.1.0"}, "windows/amd64")
+	names, err := collect(root, config{"FreeMD", "freemd", "0.1.0"}, "windows/amd64")
 	if err != nil {
 		t.Fatal(err)
 	}
-	archive, err := zip.OpenReader(filepath.Join(root, "dist/release/arcmd-0.1.0-windows-amd64.zip"))
+	archive, err := zip.OpenReader(filepath.Join(root, "dist/release/freemd-0.1.0-windows-amd64.zip"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestPortableResources(t *testing.T) {
 		got = append(got, f.Name)
 	}
 	slices.Sort(got)
-	want := []string{"ArcMD.exe", "LICENSE", "runtime.dll", "third_party/quiet-md/LICENSE"}
+	want := []string{"FreeMD.exe", "LICENSE", "runtime.dll", "third_party/quiet-md/LICENSE"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("portable files: %q", got)
 	}
@@ -99,9 +99,9 @@ func TestPortableResources(t *testing.T) {
 }
 func TestLinuxPrerelease(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "dist/linux-arm64/arcmd_0.2.0~beta.1_arm64.deb", "deb")
-	write(t, root, "dist/linux-arm64/arcmd-0.2.0-beta-1-linux-arm64.tar.gz", "archive")
-	names, err := collect(root, config{"ArcMD", "arcmd", "0.2.0-beta-1"}, "linux/arm64")
+	write(t, root, "dist/linux-arm64/freemd_0.2.0~beta.1_arm64.deb", "deb")
+	write(t, root, "dist/linux-arm64/freemd-0.2.0-beta-1-linux-arm64.tar.gz", "archive")
+	names, err := collect(root, config{"FreeMD", "freemd", "0.2.0-beta-1"}, "linux/arm64")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +109,8 @@ func TestLinuxPrerelease(t *testing.T) {
 }
 func TestEmptyDMG(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "dist/darwin-arm64/arcmd-0.1.0-arm64.dmg", "")
-	if _, err := collect(root, config{"ArcMD", "arcmd", "0.1.0"}, "darwin/arm64"); err == nil {
+	write(t, root, "dist/darwin-arm64/freemd-0.1.0-arm64.dmg", "")
+	if _, err := collect(root, config{"FreeMD", "freemd", "0.1.0"}, "darwin/arm64"); err == nil {
 		t.Fatal("empty DMG accepted")
 	}
 }
@@ -142,23 +142,23 @@ func verifyChecksums(t *testing.T, root, target string, names []string) {
 
 func TestUpdateFiles(t *testing.T) {
 	root := t.TempDir()
-	c := config{Name: "ArcMD", Slug: "arcmd", Version: "0.2.0"}
-	write(t, root, "dist/darwin-arm64/arcmd-0.2.0-arm64.dmg", "dmg")
+	c := config{Name: "FreeMD", Slug: "freemd", Version: "0.2.0"}
+	write(t, root, "dist/darwin-arm64/freemd-0.2.0-arm64.dmg", "dmg")
 	names, err := collect(root, c, "darwin/arm64")
-	if err != nil || !slices.Equal(names, []string{"arcmd-0.2.0-arm64.dmg"}) {
+	if err != nil || !slices.Equal(names, []string{"freemd-0.2.0-arm64.dmg"}) {
 		t.Fatalf("an unsigned build has no update files: %v %v", names, err)
 	}
 	write(t, root, "dist/darwin-arm64/update-darwin-arm64.json", "{}")
 	if _, err := collect(root, c, "darwin/arm64"); err == nil {
 		t.Fatal("a manifest without its archive accepted")
 	}
-	write(t, root, "dist/darwin-arm64/arcmd-0.2.0-darwin-arm64.tar.gz", "app")
-	write(t, root, "dist/darwin-arm64/arcmd-0.1.0-to-0.2.0-darwin-arm64.delta", "delta")
+	write(t, root, "dist/darwin-arm64/freemd-0.2.0-darwin-arm64.tar.gz", "app")
+	write(t, root, "dist/darwin-arm64/freemd-0.1.0-to-0.2.0-darwin-arm64.delta", "delta")
 	names, err = collect(root, c, "darwin/arm64")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"arcmd-0.1.0-to-0.2.0-darwin-arm64.delta", "arcmd-0.2.0-arm64.dmg", "arcmd-0.2.0-darwin-arm64.tar.gz", "update-darwin-arm64.json"}
+	want := []string{"freemd-0.1.0-to-0.2.0-darwin-arm64.delta", "freemd-0.2.0-arm64.dmg", "freemd-0.2.0-darwin-arm64.tar.gz", "update-darwin-arm64.json"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("names %v, want %v", names, want)
 	}

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
 )
 
 func overlayCommand(destination string) error {
@@ -40,7 +40,7 @@ func prepareOverlay(root, destination string) (string, error) {
 	if err := json.Unmarshal([]byte(raw), &module); err != nil {
 		return "", err
 	}
-	if module.Version != "v0.7.4" {
+	if module.Version != "v0.10.0" {
 		return "", fmt.Errorf("review the timing adapter for MyGo %s", module.Version)
 	}
 	moduleCopy := filepath.Join(out, "mygo")

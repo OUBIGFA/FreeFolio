@@ -5,21 +5,21 @@ import (
 	"math"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/update"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/update"
 	"github.com/egoist/mygo/ui"
 )
 
 // The update banners, toast and window, ported from Cra's UpdateBanner,
 // ShinyToast and UpdaterWindow (MIT) with their measurements of Arc 1.171:
 //
-//   - Ready ("更新已准备就绪！" / "点击重新启动", or "ArcMD 有新版本"): a 56
+//   - Ready ("更新已准备就绪！" / "点击重新启动", or "FreeMD 有新版本"): a 56
 //     DIP card above the spaces, title 13 semibold and subtitle 11, a 40×37
 //     heart with a download arrow knocked out of it 10 from the right. The
 //     arrow lifts, dips and springs back while a heart-shaped ripple grows
 //     to 129% and fades (Arc's 2 s timing); it plays when the card appears
 //     and loops while it is hovered.
-//   - Updated ("ArcMD 已更新！"): a 102 DIP card, title 14 medium with
+//   - Updated ("FreeMD 已更新！"): a 102 DIP card, title 14 medium with
 //     twinkling sparkles, a ✕, and two rows with an icon on a faint tile
 //     and a drawn arrow. It pops in with a slight tilt that settles.
 //   - The toast says the ready card's news at the top right of the page
@@ -150,7 +150,7 @@ func (a *App) updatedCard(c *ui.Context, bl bannerLook, entering bool) {
 	} else {
 		card.AnimatePose(ui.Pose{}, ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 220, Damping: 16}})
 	}
-	title := i18n.T("ArcMD 已更新！")
+	title := i18n.T("FreeMD 已更新！")
 	since := u.shownSince
 	still := a.reduceMotion
 	card.Children(func() {
@@ -509,7 +509,7 @@ func (a *App) updateToast(c *ui.Context) {
 }
 
 // updateWindowView is the update window (Arc's UpdaterWindowController, as
-// Cra measures it): ArcMD's name and version, what the updater is doing,
+// Cra measures it): FreeMD's name and version, what the updater is doing,
 // and one wide button, with "以后再说" under it when there is a choice.
 func (a *App) updateWindowView(c *ui.Context) {
 	u := &a.updates
@@ -523,10 +523,10 @@ func (a *App) updateWindowView(c *ui.Context) {
 			ui.Box(c.Key("updater-heart")).Size(84, 78).Draw(func(p *ui.Painter, r ui.Rect) {
 				paintUpdateHeart(p, ui.Rect{X: r.X + 10, Y: r.Y + 10, W: r.W - 20, H: r.H - 20}, t.Accent, 0)
 			})
-			title := "ArcMD"
+			title := "FreeMD"
 			sub := i18n.T("版本 ") + Version
 			if u.release != nil && (u.phase == phaseFound || u.phase == phaseDownloading || u.phase == phaseReady) {
-				title = "ArcMD " + u.release.Version()
+				title = "FreeMD " + u.release.Version()
 				sub = i18n.T("当前版本 ") + Version
 			}
 			ui.Text(c, title).Margin(10, 0, 0, 0).FontSize(24).FontWeight(700)
@@ -548,7 +548,7 @@ func (a *App) updateWindowView(c *ui.Context) {
 					a.closeUpdateWindow()
 				}
 			case phaseUpToDate:
-				status(i18n.T("ArcMD 已是最新版本"))
+				status(i18n.T("FreeMD 已是最新版本"))
 				if updaterButtonView(c, i18n.T("好"), false) {
 					a.closeUpdateWindow()
 				}

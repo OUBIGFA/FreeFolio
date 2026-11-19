@@ -167,7 +167,7 @@ func drag(tt *ui.Tester, from, to string, dy float32, over func()) {
 // TestFavoritesSnapshot renders one, three and five favorites, the open
 // one light, for review.
 func TestFavoritesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the favorites")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the favorites")
 	for _, n := range []int{1, 3, 5} {
 		for _, dark := range []bool{false, true} {
 			name := fmt.Sprintf("favorites-%d", n)
@@ -188,6 +188,7 @@ func TestFavoritesSnapshot(t *testing.T) {
 				for range 3 {
 					tt.Frame()
 				}
+				tt.Advance(time.Second)
 				writePNG(t, filepath.Join(dir, name+".png"), tt.Image())
 			})
 		}
@@ -277,6 +278,11 @@ func TestFavoritesSlotSlidesList(t *testing.T) {
 		}
 		return 0
 	}
+	tile, ok := tt.Find("A")
+	if !ok {
+		t.Fatal("favorite tile missing")
+	}
+	dropY := tile.Y + tile.H/2
 	before := top()
 	tt.Press(c.X+30, c.Y+c.H/2)
 	ys := []float32{before}
@@ -288,7 +294,7 @@ func TestFavoritesSlotSlidesList(t *testing.T) {
 	steps := 8
 	for i := 1; i <= steps; i++ {
 		k := float32(i) / float32(steps)
-		tt.Move(c.X+30, c.Y+c.H/2+(75-c.Y-c.H/2)*k)
+		tt.Move(c.X+30, c.Y+c.H/2+(dropY-c.Y-c.H/2)*k)
 		frame()
 	}
 	for range 20 {
@@ -304,7 +310,7 @@ func TestFavoritesSlotSlidesList(t *testing.T) {
 	if moved := ys[len(ys)-1] - before; moved < 50 {
 		t.Errorf("the list moved only %v for a new row: %v", moved, ys)
 	}
-	tt.Release(c.X+30, 75)
+	tt.Release(c.X+30, dropY)
 }
 
 // TestRenameFavorite renames a favorite, another space's, from its tile's

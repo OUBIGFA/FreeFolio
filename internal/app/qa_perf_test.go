@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
 )
 
 // Keep both long histories and one long answer in the workload: virtualizing

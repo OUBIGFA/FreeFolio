@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -139,7 +139,7 @@ var popoverTransition = ui.ElementTransition{
 	Position: true,
 	Size:     true,
 	Colors:   true,
-	Enter:    &ui.Motion{Opacity: 0.9, Scale: 0.96, Y: 3},
+	Enter:    &ui.Motion{Opacity: 0.9, Y: 3},
 }
 
 type slashPillMatch struct{ ed *Editor }
@@ -638,7 +638,7 @@ func (e *Editor) blockMenu(c *ui.Context, surface ui.Element) {
 	})
 }
 
-// copyBlockContent puts block id on the clipboard with ArcMD's structured
+// copyBlockContent puts block id on the clipboard with FreeMD's structured
 // fragment, as the block menu's copy does.
 func (e *Editor) copyBlockContent(id string) {
 	start, end := -1, -1

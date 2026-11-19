@@ -6,18 +6,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/update"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/update"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
-// Software updates, as Arc's and Cra's: ArcMD checks its GitHub releases
+// Software updates, as Arc's and Cra's: FreeMD checks its GitHub releases
 // in the background, ten seconds after launch and every eight hours,
 // downloads a new version on its own (unless the user turned that off) and
 // says so in a card above the spaces at the foot of the sidebar, or in a
 // toast while the sidebar is hidden. Clicking it restarts into the new
-// version, whose first launch says "ArcMD 已更新！". "检查更新…" opens the
+// version, whose first launch says "FreeMD 已更新！". "检查更新…" opens the
 // update window. MyGo's Updater downloads, checks the signature and
 // replaces the app; the views are in updateview.go.
 
@@ -26,11 +26,11 @@ import (
 type updateService interface {
 	// Enabled reports whether this build can update itself.
 	Enabled() bool
-	// Check returns the newer release, or nil when ArcMD is up to date.
+	// Check returns the newer release, or nil when FreeMD is up to date.
 	Check(ctx context.Context) (updateRelease, error)
 }
 
-// updateRelease is a newer version of ArcMD.
+// updateRelease is a newer version of FreeMD.
 type updateRelease interface {
 	Version() string
 	// Notes are the release notes, in Markdown.
@@ -113,14 +113,14 @@ type updateState struct {
 	// lastCheck is when the last check answered.
 	lastCheck time.Time
 	checkErr  error
-	// relaunch restarts ArcMD and openURL opens a page in the browser;
+	// relaunch restarts FreeMD and openURL opens a page in the browser;
 	// tests replace them.
 	relaunch func()
 	openURL  func(url string)
 }
 
 // startUpdates notes, at launch, whether the restart before installed the
-// version this ArcMD is.
+// version this FreeMD is.
 func (a *App) startUpdates() {
 	if v := a.prefs.PendingUpdate; v != "" {
 		if v == Version {
@@ -300,7 +300,7 @@ func (a *App) downloaded(rel updateRelease, err error) {
 
 // installUpdate restarts into the downloaded version, or downloads the one
 // found first. Documents are saved as on quitting: a document that cannot
-// be saved keeps ArcMD open.
+// be saved keeps FreeMD open.
 func (a *App) installUpdate() {
 	u := &a.updates
 	if u.ready == "" {
@@ -367,7 +367,7 @@ func (a *App) dismissBanner() {
 	}
 }
 
-// openUpdatePage opens a page about ArcMD's releases in the browser.
+// openUpdatePage opens a page about FreeMD's releases in the browser.
 func (a *App) openUpdatePage(url string) {
 	if a.updates.openURL != nil {
 		a.updates.openURL(url)
@@ -412,11 +412,11 @@ func (a *App) updateSummary() string {
 	case !a.updatesEnabled():
 		return i18n.T("开发版本或无法写入的安装位置不会自动更新。")
 	case u.ready != "":
-		return "ArcMD " + u.ready + i18n.T(" 已下载，重新启动后安装。")
+		return "FreeMD " + u.ready + i18n.T(" 已下载，重新启动后安装。")
 	case u.downloading:
 		return i18n.T("正在下载新版本…")
 	case u.found != "":
-		return "ArcMD " + u.found + i18n.T(" 可以更新。")
+		return "FreeMD " + u.found + i18n.T(" 可以更新。")
 	case u.checking:
 		return i18n.T("正在检查更新…")
 	case u.lastCheck.IsZero():

@@ -1,4 +1,4 @@
-// Package space models ArcMD's spaces: separate worlds of Markdown files,
+// Package space models FreeMD's spaces: separate worlds of Markdown files,
 // each with its own folder, name, icon and color, as Arc's spaces keep
 // separate sets of tabs. The package knows nothing of the UI.
 package space
@@ -407,7 +407,8 @@ type State struct {
 // Space.Sort, folders sorted by name or time. Version 9 adds the built-in
 // external space and its explicit ExternalFiles collection; older states
 // acquire it on the first external open.
-const CurrentVersion = 9
+// Version 10 retires the external collection. Startup detaches its references.
+const CurrentVersion = 10
 
 // ErrNotFound reports a space ID the state does not have.
 var ErrNotFound = errors.New("space: not found")
@@ -453,6 +454,10 @@ func (st *State) Add(name, root string) *Space {
 		Name: strings.TrimSpace(name),
 		Icon: Icons[n%len(Icons)],
 		Root: root,
+	}
+	if n == 0 {
+		s.Icon = ""
+		s.Symbol = "folder"
 	}
 	s.SetTheme(NewTheme(n))
 	if s.Name == "" {

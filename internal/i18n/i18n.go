@@ -1,4 +1,4 @@
-// Package i18n says ArcMD's interface in the language the reader picked:
+// Package i18n says FreeMD's interface in the language the reader picked:
 // the interface is written in Chinese, and T looks each message up in the
 // language shown, falling back to the Chinese where a translation is
 // missing. It does not depend on the UI, so every package can use it.

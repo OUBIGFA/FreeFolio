@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,7 +21,7 @@ func (a *App) splitView(c *ui.Context) {
 	bar := c.TitleBar()
 	if a.folded() {
 		ui.Row(c.Key("split-window-bar")).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left+4).AlignItems(ui.Center).DragWindow().Children(func() {
-			if iconButton(c, "sidebar", iconSidebar, i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+			if iconButton(c, "sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
 				a.toggleSidebar()
 			}
 			ui.Spacer(c)
@@ -31,7 +31,7 @@ func (a *App) splitView(c *ui.Context) {
 		// Left controls sit above the sidebar. Right controls need a full
 		// title-bar band so they cannot cover the top pane's toolbar.
 		height := float32(8)
-		if bar.Right > 0 {
+		if bar.Right > 0 || bar.Left > 0 && !a.prefs.SidebarLeft {
 			height = max(height, bar.Height)
 		}
 		ui.Box(c).Height(height).DragWindow()
@@ -97,7 +97,7 @@ func (a *App) splitView(c *ui.Context) {
 func (a *App) splitPaneView(c *ui.Context, s *splitGroup, pane *splitPane, index int, width float32) {
 	t := c.Theme()
 	d := pane.doc
-	card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinWidth(0).MinHeight(0).Radius(10).Clip().
+	card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinWidth(0).MinHeight(0).Radius(panelRadius).Clip().
 		Shadow(0, 1, 4, 0, cardShadow(t)).Label(fmt.Sprintf(i18n.T("分屏 %d"), index+1))
 	if d == nil {
 		card.Background(splitEmpty(t))

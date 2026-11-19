@@ -1,7 +1,9 @@
 package app
 
 import (
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"image/color"
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -65,4 +67,41 @@ func TestDarkPageKeepsNamedColors(t *testing.T) {
 			t.Errorf("callout %q missing on dark paper", k)
 		}
 	}
+}
+
+// Exercise both endpoints of every preset, including selected tree rows.
+func TestSpaceChromeContrast(t *testing.T) {
+	lum := func(c ui.Color) float64 {
+		channel := func(v uint8) float64 {
+			n := float64(v) / 255
+			if n <= 0.04045 {
+				return n / 12.92
+			}
+			return math.Pow((n+0.055)/1.055, 2.4)
+		}
+		return .2126*channel(c.R) + .7152*channel(c.G) + .0722*channel(c.B)
+	}
+	lowest := math.Inf(1)
+	for _, page := range space.PresetPages {
+		for _, colors := range page.Swatches {
+			for _, dark := range []bool{false, true} {
+				for _, intensity := range []float64{0, 1} {
+					l := lookOf(space.Theme{Colors: colors, Intensity: intensity}, dark)
+					for _, stop := range l.stops {
+						for _, bg := range []ui.Color{stop, l.accent.Alpha(.12).Over(stop)} {
+							for _, fg := range []ui.Color{l.text, l.muted, l.accent} {
+								a, b := lum(fg.Over(bg)), lum(bg)
+								ratio := (max(a, b) + .05) / (min(a, b) + .05)
+								lowest = min(lowest, ratio)
+								if ratio < 4.5 {
+									t.Fatalf("preset %s %v dark=%v ratio %.2f", page.Name, colors, dark, ratio)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	t.Logf("Minimum text and icon contrast %.2f:1", lowest)
 }

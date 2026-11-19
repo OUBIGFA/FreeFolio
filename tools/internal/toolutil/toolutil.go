@@ -22,12 +22,12 @@ func Root() (string, error) {
 	}
 	for {
 		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if err == nil && strings.Contains(string(data), "module github.com/Ciao1019/ArcMD") {
+		if err == nil && strings.Contains(string(data), "module github.com/OUBIGFA/FreeMD") {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("run this command inside the ArcMD repository")
+			return "", fmt.Errorf("run this command inside the FreeMD repository")
 		}
 		dir = parent
 	}

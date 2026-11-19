@@ -3,14 +3,14 @@ package app
 import (
 	"reflect"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 )
 
 // Only paths and geometry are persisted; editor contents use the ordinary
 // document save path. Missing files restore as an empty, replaceable pane.
 func (a *App) captureSplits() bool {
-	if a.documentContext > 0 || a.splitResizing {
+	if a.files != nil || a.documentContext > 0 || a.splitResizing {
 		return false
 	}
 	a.syncSplit()

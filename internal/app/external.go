@@ -1,13 +1,11 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
 
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -71,25 +69,10 @@ func (a *App) forgetExternal(sp *space.Space, rel string) {
 	if !sp.IsExternal() {
 		return
 	}
-	doc := a.residentDocument(sp.ID, rel)
-	if !a.flush() {
-		return
+	if f := a.files; f != nil && sp == f.locations {
+		a.closeFileTab(rel)
 	}
-	if doc != nil {
-		rel = doc.rel // the first save may have migrated Markdown
-	}
-	for _, d := range a.residentDocuments() {
-		if d.space == sp && d.rel == rel {
-			a.replaceReferences(d, nil)
-		}
-	}
-	a.state.Forget(sp.ID, rel)
-	delete(sp.ExternalFiles, rel)
-	_ = history.Forget(sp.Root, rel)
-	delete(a.pageTrees, sp.ID)
-	a.saveState()
-	a.refreshTree()
-	a.refreshSearch()
+
 }
 
 func (a *App) chooseExternalFiles() {
@@ -109,12 +92,4 @@ func (a *App) chooseExternalFiles() {
 			}
 		})
 	}()
-}
-
-func (a *App) externalSpace() (*space.Space, error) {
-	root := filepath.Join(a.cfg.ConfigDir, "external")
-	if err := os.MkdirAll(root, 0700); err != nil {
-		return nil, err
-	}
-	return a.state.EnsureExternal(i18n.T("外部空间"), root), nil
 }

@@ -493,7 +493,7 @@ func (e *Engine) enterToggle(b *Block) {
 	})
 }
 
-// Fragment captures selected structure for ArcMD's clipboard representation.
+// Fragment captures selected structure for FreeMD's clipboard representation.
 func (e *Engine) Fragment() *Document {
 	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
 	if a == 0 && z == Len(e.Doc.PlainText()) {

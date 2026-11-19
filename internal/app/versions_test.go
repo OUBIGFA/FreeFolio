@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/history"
 	"github.com/egoist/mygo/ui"
 )
 

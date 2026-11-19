@@ -9,8 +9,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )

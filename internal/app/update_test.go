@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/prefs"
-	"github.com/Ciao1019/ArcMD/internal/update"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/update"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -100,10 +100,10 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	if f.release.installs != 0 {
 		t.Fatal("automatic downloads are off")
 	}
-	if !tt.HasText("ArcMD 有新版本") || !tt.HasText("ArcMD 0.3.0") {
+	if !tt.HasText("FreeMD 有新版本") || !tt.HasText("FreeMD 0.3.0") {
 		t.Fatalf("the available card: %q", tt.Texts())
 	}
-	tt.Click("ArcMD 有新版本")
+	tt.Click("FreeMD 有新版本")
 	tt.Frame()
 	if !a.updates.window || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") {
 		t.Fatalf("the update window with the notes: %q", tt.Texts())
@@ -127,7 +127,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	tt.Frame()
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("ArcMD 已是最新版本") {
+	if !tt.HasText("FreeMD 已是最新版本") {
 		t.Fatalf("up to date: %q", tt.Texts())
 	}
 	tt.Click("好")
@@ -151,12 +151,12 @@ func TestUpdateManualCheck(t *testing.T) {
 	f.err, f.release = nil, &fakeRelease{version: "0.2.0"}
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("ArcMD 0.2.0") || !tt.HasText("当前版本 "+Version) || !tt.HasText("有新版本可用") {
+	if !tt.HasText("FreeMD 0.2.0") || !tt.HasText("当前版本 "+Version) || !tt.HasText("有新版本可用") {
 		t.Fatalf("found: %q", tt.Texts())
 	}
 	tt.Click("以后再说")
 	tt.Frame()
-	if tt.HasText("ArcMD 有新版本") {
+	if tt.HasText("FreeMD 有新版本") {
 		t.Fatal("put off, the update leaves no banner")
 	}
 }
@@ -241,7 +241,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	tt.SetTitleBar(ui.TitleBar{Height: 46, Left: 78})
 	tt.Frame()
 	tt.Advance(time.Second)
-	if !tt.HasText("ArcMD 已更新！") || !tt.HasText("新功能") {
+	if !tt.HasText("FreeMD 已更新！") || !tt.HasText("新功能") {
 		t.Fatalf("the updated card: %q", tt.Texts())
 	}
 	if p, _ := store.Load(); p.PendingUpdate != "" {
@@ -254,7 +254,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	}
 	tt.Click("关闭")
 	tt.Frame()
-	if tt.HasText("ArcMD 已更新！") {
+	if tt.HasText("FreeMD 已更新！") {
 		t.Fatal("✕ puts the card away")
 	}
 
@@ -308,7 +308,7 @@ func TestArrowCutsOutOfHeart(t *testing.T) {
 }
 
 func TestSnapshotUpdates(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the update banners")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the update banners")
 	for _, name := range []string{"ready", "available", "updated", "toast", "window-found", "window-ready", "ready@dark", "updated@dark", "settings"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

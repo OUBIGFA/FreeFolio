@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -60,7 +60,7 @@ func TestGhostMatchesUpstreamPictures(t *testing.T) {
 				}
 			}
 			t.Logf("pixel MAE %.4f/255, relative ink difference %.4f", diff/(96*96), diff/ink)
-			if dir := os.Getenv("ARCMD_SNAPSHOT"); dir != "" {
+			if dir := os.Getenv("FREEMD_SNAPSHOT"); dir != "" {
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					t.Fatal(err)
 				}

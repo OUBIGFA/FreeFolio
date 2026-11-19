@@ -1,6 +1,6 @@
 {
-  "goModSha256": "6c18f96f588f2ff10b9f8659419bb1f2c51d3ffd68be30ed5b0b457fd95aeab8",
-  "goSumSha256": "a7f878f305e743427e5340b9e5fa02824a8418533a381b722c1d98bfd9f1c26f",
+  "goModSha256": "39bf75a67b5d40e2f005a1d78b6e2b7f95a425183297e66cb562c0d63bf4a3b4",
+  "goSumSha256": "f0bf244ee6c18b2613b3a326b681ff06c6b21e733ba0e4daed2c2ff72b5d7cd5",
   "modules": [
     {
       "module": "github.com/ebitengine/purego",
@@ -14,11 +14,11 @@
     },
     {
       "module": "github.com/egoist/mygo",
-      "version": "v0.7.4",
+      "version": "v0.10.0",
       "relation": "direct",
       "sourceUrl": "https://github.com/egoist/mygo",
-      "archiveHash": "h1:0qkDpDRo7C9g8PM8eu4V6FVouhLiTrUdqKD6I31Lv3Q=",
-      "goModHash": "h1:dVav53PwF2xEotjf4oA5lTY2Jp2exgzyjLhbSXhbMwE=",
+      "archiveHash": "h1:HpLUrlh6WES+4VYbz5K0TvUSw/v8PSdjT/ttiUYrBFM=",
+      "goModHash": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
       "spdxLicenseId": "MIT",
       "consumer": "FreeMD Go build (go.mod)"
     },

@@ -5,17 +5,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 const (
-	// sidebarWidth matches the reference Zen profile's 230 CSS-pixel sidebar.
-	sidebarWidth = 230
+	// Both docking positions use the same document tree and measures.
+	sidebarWidth = 260
 	// slide is how long the sidebar takes to fold and unfold.
 	slide = 240 * time.Millisecond
 	// peekDelay lets the pointer cross the floating panel's small outer gap.
@@ -28,6 +28,10 @@ func (a *App) Content() *ui.Content { return ui.View(a.View) }
 // View builds the window from the state, every frame.
 func (a *App) View(c *ui.Context) {
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
+	if a.files != nil {
+		a.fileView(c)
+		return
+	}
 	winW, _ := c.Size()
 	if winW > 0 {
 		a.narrowTick(winW)
@@ -83,6 +87,9 @@ func (a *App) View(c *ui.Context) {
 	a.updateToastTick()
 
 	frame := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	if !a.prefs.SidebarLeft {
+		frame.Reverse()
+	}
 	vibrant := c.Vibrancy()
 	if vibrant {
 		c.Root().Background(ui.Transparent)
@@ -156,10 +163,14 @@ func (a *App) View(c *ui.Context) {
 
 // shortcuts handles the window's keys.
 func (a *App) shortcuts(c *ui.Context) {
-	if a.recording != "" || a.tour.open {
+	if a.settingsOpen || a.recording != "" || a.tour.open {
 		return // the settings take the next key, the tour its own
 	}
 	switch {
+	case c.Shortcut(ui.Cmd, ui.KeyO):
+		a.chooseExternalFiles()
+	case c.Shortcut(ui.Cmd|ui.Shift, ui.KeyS):
+		a.chooseSaveAs()
 	case a.pressed(c, "palette"):
 		a.openPalette()
 	case a.pressed(c, "split-add"):
@@ -241,11 +252,14 @@ func (a *App) currentDir() string {
 	return ""
 }
 
-// peekSidebar shows the folded sidebar over the content while the pointer
-// is at the window's left edge or over it, as Arc does.
+// peekSidebar measures pointer distance from the selected docking edge.
 func (a *App) peekSidebar(c *ui.Context) {
 	t := c.Theme()
 	x, _, inside := c.Root().PointerPosition()
+	w, _ := c.Size()
+	if !a.prefs.SidebarLeft {
+		x = w - x
+	}
 	// Test the final panel area, so moving into it during the slide does
 	// not close it before the animated panel reaches the pointer.
 	over := inside && (x < 8 || a.peek && x < sidebarWidth+12)
@@ -270,7 +284,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 	look := a.look
 	ui.Overlay(c, func() {
 		_, h := c.Size()
-		panel := ui.Column(c.Key("peek")).Absolute().Left(6).Top(6).Width(sidebarWidth).Height(h-12).
+		panel := ui.Column(c.Key("peek")).Absolute().Top(6).Width(sidebarWidth).Height(h-12).
 			Radius(12).Background(a.look.opaqueTop()).Border(1, t.Border.Alpha(0.5)).
 			Draw(func(p *ui.Painter, r ui.Rect) { look.paint(p, r, 12, false) }).
 			Shadow(0, 10, 32, 0, black.Alpha(0.28)).Clip()
@@ -279,7 +293,14 @@ func (a *App) peekSidebar(c *ui.Context) {
 			target = 1
 		}
 		v := panel.Animate("in", target, 150*time.Millisecond)
-		panel.Translate(-(sidebarWidth+24)*(1-v), 0).Hidden(v < 0.01 && !a.peek)
+		offset := (sidebarWidth + 24) * (1 - v)
+		if a.prefs.SidebarLeft {
+			panel.Left(6)
+			offset = -offset
+		} else {
+			panel.Right(6)
+		}
+		panel.Translate(offset, 0).Hidden(v < 0.01 && !a.peek)
 		panel.Children(func() { a.sidebar(c, true) })
 	})
 }
@@ -297,14 +318,14 @@ func (a *App) main(c *ui.Context, docked float32) {
 	a.qa.shown = main.Animate("qa-width", target, slide)
 	a.qa.resizing = a.qa.shown != target
 	left := float32(8)
-	if docked > 0.5 {
+	if docked > 0.5 && a.prefs.SidebarLeft {
 		left = 0
 	}
 	// The question panel, when open, stands right of the document and its
 	// toolbar, which then leaves the window buttons' room to it.
 	panel := a.qa.shown
 	right := float32(8)
-	if panel > 0.5 {
+	if panel > 0.5 || docked > 0.5 && !a.prefs.SidebarLeft {
 		right = 0
 	}
 	main.Children(func() {
@@ -313,16 +334,15 @@ func (a *App) main(c *ui.Context, docked float32) {
 				a.splitView(c)
 				return
 			}
-			a.toolbar(c)
-			card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(10).
-				Shadow(0, 1, 4, 0, cardShadow(t)).Border(1, t.Border.Alpha(0.35)).Clip()
+			a.toolbar(c, docked)
+			card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(panelRadius).Border(1, t.Border).Clip()
 			w, _ := c.Size()
 			a.splitDropTarget(c, card)
 			a.tourMark("bookmarks", card)
 			card.Children(func() { a.documentContent(c, a.doc, w-docked-right-left-2-panel) })
 		})
 		if !a.spaceForm.open || a.spaceForm.id != "" {
-			a.qaPanel(c)
+			a.qaPanel(c, docked)
 		}
 	})
 }
@@ -418,15 +438,20 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 // toolbar is the row above the card: the history's arrows, the address
 // of the document, as Arc's, the editor's word count and format menu,
 // and the more menu. It drags the window.
-func (a *App) toolbar(c *ui.Context) {
+func (a *App) toolbar(c *ui.Context, docked float32) {
 	bar := c.TitleBar()
 	// The sidebar reserves the left controls; Windows and Linux can keep
 	// their window buttons on the right, over this toolbar instead.
-	right := bar.Right
+	left, right := bar.Left, bar.Right
+	if a.prefs.SidebarLeft {
+		left = max(0, left-docked)
+	} else {
+		right = max(0, right-docked)
+	}
 	if a.qa.shown > 0.5 {
 		right = 0 // the question panel's header holds the window buttons' room
 	}
-	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, 46)).Padding(0, right, 0, 0).Gap(2).AlignItems(ui.Center).DragWindow()
+	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, 52)).Padding(0, right+8, 0, left).Gap(2).AlignItems(ui.Center).DragWindow()
 	if a.qa.shown > 0.5 {
 		// A narrow document's controls must not paint or receive clicks over
 		// the question panel while it takes room beside the document.
@@ -434,8 +459,7 @@ func (a *App) toolbar(c *ui.Context) {
 	}
 	toolbar.Children(func() {
 		if a.folded() {
-			ui.Box(c).Width(bar.Left + 4)
-			if iconButton(c, "show-sidebar", iconSidebar, i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+			if iconButton(c, "show-sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
 				a.toggleSidebar()
 			}
 		}
@@ -451,7 +475,8 @@ func (a *App) toolbar(c *ui.Context) {
 		ui.Box(c).Width(8)
 		a.address(c)
 		ui.Box(c).Width(8)
-		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source {
+		// A narrow pane, as beside the library, keeps its room for the path.
+		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && toolbar.LayoutBounds().W >= 560 {
 			a.doc.ed.Corner(c)
 		}
 		ask := iconButton(c, "ask", iconAsk, i18n.T("问答"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
@@ -469,11 +494,11 @@ func (a *App) toolbar(c *ui.Context) {
 // space, its folders and its name; a click opens the command bar.
 func (a *App) address(c *ui.Context) {
 	t := c.Theme()
-	f := ui.Row(c.Key("address")).Grow(1).MinWidth(0).Height(32).Radius(9).PaddingX(12).Gap(8).
+	f := ui.Row(c.Key("address")).Grow(1).MinWidth(0).Height(42).Radius(controlRadius).PaddingX(12).Gap(8).
 		AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("文档路径")).
-		Background(field(t))
+		Background(ui.Transparent)
 	if f.Hovered() {
-		f.Background(field(t).Mix(white, 0.2))
+		f.Background(hoverFill(t))
 	}
 	f.Children(func() {
 		if a.spaceForm.open && a.spaceForm.id == "" {
@@ -486,18 +511,15 @@ func (a *App) address(c *ui.Context) {
 			ui.Text(c, i18n.T("搜索或打开文档")).TextColor(t.TextMuted).NoWrap()
 			return
 		}
-		docIcon(c, a.iconTitle(a.doc.space.ID, a.doc.rel), 16)
-		sp := a.doc.space
-		parts := []string{sp.Name}
-		if dir := path.Dir(a.doc.rel); dir != "." {
-			parts = append(parts, strings.Split(dir, "/")...)
-		}
-		ui.Text(c, strings.Join(parts, " / ")+" /").TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
-		tip := a.doc.rel
-		if sp.IsExternal() {
-			tip = sp.ExternalFiles[a.doc.rel]
-		}
-		ui.Text(c, path.Base(a.doc.rel)).FontWeight(500).SingleLine().Shrink(1).MinWidth(0).Tooltip(tip)
+		ui.Icon(c, iconFile).FontSize(19).TextColor(t.TextMuted)
+		ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
+			breadcrumb := a.doc.space.Name
+			if dir := path.Dir(a.doc.rel); dir != "." {
+				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
+			}
+			ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		})
 		ui.Spacer(c)
 		status, color := "", t.TextMuted
 		switch {
@@ -515,23 +537,13 @@ func (a *App) address(c *ui.Context) {
 	}
 }
 
-// iconButton is a quiet square button showing an icon, as in Arc's
-// toolbar.
+// iconButton is a quiet button showing only an icon, named by label for
+// assistive technology, with tip as its tooltip.
 func iconButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, disabled bool) ui.Element {
-	t := c.Theme()
-	b := ui.Box(c.Key(key)).Size(30, 30).Radius(8).Center().Focusable().Role(ui.RoleButton).
-		Label(label).Tooltip(tip).Disabled(disabled)
-	color := t.Text.Alpha(0.72)
-	if disabled {
-		color = t.Text.Alpha(0.25)
-	} else {
-		b.Cursor(ui.CursorPointer)
-		if b.Hovered() {
-			b.Background(hoverFill(t))
-		}
-	}
-	b.Children(func() { ui.Icon(c, icon).FontSize(16).TextColor(color) })
-	return b
+	return quietButton(c, key, func(b ui.Element) ui.Element {
+		return b.Size(30, 30).Padding(0).Center().Label(label).Tooltip(tip).Disabled(disabled).
+			Children(func() { ui.Icon(c, icon).FontSize(16) })
+	})
 }
 
 func errText(err error) string {

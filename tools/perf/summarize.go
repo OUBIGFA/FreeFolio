@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/Ciao1019/ArcMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
 )
 
 type quantile struct {
@@ -115,19 +115,19 @@ func summarizeDirectory(dir string) (map[string]any, error) {
 	var rounds []map[string]any
 	all := map[string]map[string][]quantile{}
 	for _, op := range operationNames {
-		all[op] = map[string][]quantile{"arcmd": {}, "quiet": {}}
+		all[op] = map[string][]quantile{"freemd": {}, "quiet": {}}
 	}
 	for i := 1; i <= runs; i++ {
-		var arcmd map[string]json.RawMessage
-		if err := toolutil.ReadJSON(filepath.Join(dir, fmt.Sprintf("arcmd-%d/results.json", i)), &arcmd); err != nil {
+		var freemd map[string]json.RawMessage
+		if err := toolutil.ReadJSON(filepath.Join(dir, fmt.Sprintf("freemd-%d/results.json", i)), &freemd); err != nil {
 			return nil, err
 		}
 		var count int
-		if err := json.Unmarshal(arcmd["samples_per_operation"], &count); err != nil {
+		if err := json.Unmarshal(freemd["samples_per_operation"], &count); err != nil {
 			return nil, err
 		}
 		if count != samples {
-			return nil, fmt.Errorf("unexpected ArcMD sample count")
+			return nil, fmt.Errorf("unexpected FreeMD sample count")
 		}
 		quietLog, err := readText(filepath.Join(dir, fmt.Sprintf("quiet-%d/log", i)))
 		if err != nil {
@@ -137,13 +137,13 @@ func summarizeDirectory(dir string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		arcLog, err := readText(filepath.Join(dir, fmt.Sprintf("arcmd-%d.log", i)))
+		arcLog, err := readText(filepath.Join(dir, fmt.Sprintf("freemd-%d.log", i)))
 		if err != nil {
 			return nil, err
 		}
 		for _, op := range operationNames {
 			var a arcOperation
-			if err := json.Unmarshal(arcmd[op], &a); err != nil {
+			if err := json.Unmarshal(freemd[op], &a); err != nil {
 				return nil, err
 			}
 			if len(a.Samples) != samples {
@@ -160,15 +160,15 @@ func summarizeDirectory(dir string) (map[string]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			all[op]["arcmd"] = append(all[op]["arcmd"], q)
+			all[op]["freemd"] = append(all[op]["freemd"], q)
 			all[op]["quiet"] = append(all[op]["quiet"], quiet[op].Frame)
 		}
-		rounds = append(rounds, map[string]any{"arcmd": arcmd, "quiet": quiet, "quiet_log": quietLog, "arcmd_log": arcLog})
+		rounds = append(rounds, map[string]any{"freemd": freemd, "quiet": quiet, "quiet_log": quietLog, "arcmd_log": arcLog})
 	}
 	summary := map[string]map[string]quantile{}
 	for _, op := range operationNames {
 		summary[op] = map[string]quantile{}
-		for _, product := range []string{"arcmd", "quiet"} {
+		for _, product := range []string{"freemd", "quiet"} {
 			var p50, p95, max []float64
 			for _, q := range all[op][product] {
 				p50 = append(p50, q.P50)
@@ -209,7 +209,7 @@ func summarizeCommand(args []string) error {
 	if err := toolutil.WriteJSON(*out, report); err != nil {
 		return err
 	}
-	fmt.Println("| Size | Operation | ArcMD P50 | Quiet.md P50 | ArcMD P95 | Quiet.md P95 |\n|---|---|---:|---:|---:|---:|")
+	fmt.Println("| Size | Operation | FreeMD P50 | Quiet.md P50 | FreeMD P95 | Quiet.md P95 |\n|---|---|---:|---:|---:|---:|")
 	for _, size := range []string{"10k", "100k", "1m"} {
 		if raw, ok := sizes[size]; ok {
 			entry := raw.(map[string]any)
@@ -219,7 +219,7 @@ func summarizeCommand(args []string) error {
 			}
 			for _, op := range operationNames {
 				products := entry["summary"].(map[string]map[string]quantile)[op]
-				a, q := products["arcmd"], products["quiet"]
+				a, q := products["freemd"], products["quiet"]
 				tail := "short sample | short sample"
 				if count >= 100 {
 					tail = fmt.Sprintf("%.2f | %.2f", a.P95, q.P95)

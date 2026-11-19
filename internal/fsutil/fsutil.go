@@ -1,4 +1,4 @@
-// Package fsutil holds small file system helpers shared by ArcMD's
+// Package fsutil holds small file system helpers shared by FreeMD's
 // packages.
 package fsutil
 

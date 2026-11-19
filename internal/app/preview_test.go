@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -47,8 +47,11 @@ func TestFolderPreview(t *testing.T) {
 	if len(a.preview.items) != 2 || a.preview.items[0].rel != "Journal/Plans.md" {
 		t.Fatalf("items %+v", a.preview.items)
 	}
-	if !tt.HasText("Plans") || !tt.Focused("搜索文件夹") {
+	if !tt.HasText("Plans") || tt.Focused("搜索文件夹") {
 		t.Fatalf("card: %q", tt.Texts())
+	}
+	if err := tt.Click("搜索文件夹"); err != nil {
+		t.Fatal(err)
 	}
 	tt.Type("idea")
 	tt.Frame()
@@ -121,7 +124,7 @@ func TestDocPreview(t *testing.T) {
 // TestPreviewSnapshot renders both cards in a light, a dark and a pink
 // space, for review.
 func TestPreviewSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the previews")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the previews")
 	for _, look := range []string{"light", "dark", "pink"} {
 		for _, kind := range []string{"folder", "doc"} {
 			t.Run(look+"-"+kind, func(t *testing.T) {
@@ -137,7 +140,7 @@ func TestPreviewSnapshot(t *testing.T) {
 					os.WriteFile(filepath.Join(sp.Root, n), []byte("# "+filepath.Base(n)+"\n\n今天写一点东西，记录想法。\n\n- 一\n- 二\n"), 0o644)
 				}
 				a.refreshTree()
-				rel := "Welcome.md"
+				rel := "Journal/Ideas.md"
 				if kind == "folder" {
 					sp.SetExpanded("Journal", false)
 					rel = "Journal"
@@ -150,6 +153,9 @@ func TestPreviewSnapshot(t *testing.T) {
 				tt.Frame()
 				tt.Advance(time.Second)
 				tt.Frame()
+				if target := a.preview.shown; target == nil || target.rel != rel {
+					t.Fatalf("preview is missing for %s", rel)
+				}
 				writePNG(t, filepath.Join(dir, "preview-"+look+"-"+kind+".png"), tt.Image())
 			})
 		}

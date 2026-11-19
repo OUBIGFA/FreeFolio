@@ -4,8 +4,8 @@ import (
 	"image"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -59,7 +59,7 @@ func (a *App) toggleTypewriter() {
 	a.savePrefs()
 }
 
-// setOutline opens or collapses the outline left of the page, in every
+// setOutline opens or collapses the outline right of the page, in every
 // document.
 func (a *App) setOutline(open bool) {
 	a.prefs.OutlineClosed = !open
@@ -150,7 +150,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 			a.withDocument(d, fn)
 		}
 	}
-	return editor.Options{
+	options := editor.Options{
 		FontSize:        a.prefs.ReadingSize(),
 		LineHeight:      a.prefs.ReadingLine(),
 		FontFamily:      a.prefs.BodyFamily(),
@@ -191,4 +191,13 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		BookmarkKey:   a.cachedBookmarkShortKey(),
 		Reserved:      a.reservedKeys(),
 	}
+	if a.files != nil && d.space == a.files.locations {
+		// Space search, backlinks and tags have no meaning for a loose file.
+		options.Footer = nil
+		options.OpenWiki = nil
+		options.PreviewWiki = nil
+		options.WikiSuggest = nil
+		options.OpenTag = nil
+	}
+	return options
 }

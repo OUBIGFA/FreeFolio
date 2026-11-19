@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Ciao1019/ArcMD/internal/agent"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -22,12 +22,13 @@ func (a *App) settingsAI(c *ui.Context) {
 		ai.BaseURL = aiPreset(ai.Provider).BaseURL
 	}
 	a.dropStaleModels()
-	sep := func() { ui.Box(c).Height(1).Margin(0, 12).Background(t.Text.Alpha(0.06)) }
+	sep := func() { settingsSeparator(c) }
 	row := func(key, label, note string, control func()) {
-		ui.Column(c.Key(key)).Padding(10, 12).Gap(6).Children(func() {
+		ui.Column(c.Key(key)).Padding(settingsRowInset(c)+2, 16).Gap(8).Children(func() {
 			ui.Column(c).Gap(2).Children(func() {
-				ui.Text(c, label)
-				if note != "" {
+				ui.Text(c, label).FontSize(13).FontWeight(500)
+				_, h := c.Size()
+				if note != "" && h >= 560 {
 					ui.Text(c, note).FontSize(12).TextColor(t.TextMuted)
 				}
 			})
@@ -130,9 +131,9 @@ func (a *App) settingsAI(c *ui.Context) {
 	}
 	ui.Text(c.Key("ai-status"), status).FontSize(12).TextColor(color)
 	if err := a.qa.modelsErr; err != nil {
-		ui.Text(c.Key("models-error"), i18n.T("获取模型列表失败：")+qaErrorText(err)).FontSize(12).TextColor(t.TextMuted).Selectable()
+		ui.Text(c.Key("models-error"), i18n.T("获取模型列表失败：")+qaErrorText(err)).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(err.Error())
 	}
-	ui.Text(c, i18n.T("提问时，问题和模型读到的文档片段会发送给上面的服务；服务地址须为 https（本机服务除外）。ArcMD 不会把文档发到别处。")).
+	ui.Text(c, i18n.T("提问时，问题和模型读到的文档片段会发送给上面的服务；服务地址须为 https（本机服务除外）。FreeMD 不会把文档发到别处。")).
 		FontSize(12).TextColor(t.TextMuted)
 }
 

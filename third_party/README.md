@@ -1,6 +1,6 @@
 # Dependencies and attribution
 
-Prism uses `github.com/egoist/mygo` v0.7.4 for native windows, UI primitives,
+FreeMD uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,
 text shaping and system input transport. Its module cache stays untouched.
 The Markdown editor is implemented in `internal/editor` and has no vendored
 editor component or TeX engine.

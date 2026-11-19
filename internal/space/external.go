@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -56,4 +57,31 @@ func (s *Space) AddExternal(full string) string {
 			return rel
 		}
 	}
+}
+
+// DetachExternal removes legacy registry entries without touching any file.
+func (st *State) DetachExternal() bool {
+	if st.Get(ExternalID) == nil {
+		return false
+	}
+	st.Spaces = slices.DeleteFunc(st.Spaces, func(s *Space) bool { return s.IsExternal() })
+	st.Favorites = slices.DeleteFunc(st.Favorites, func(f Favorite) bool { return f.Space == ExternalID })
+	st.Bookmarks = slices.DeleteFunc(st.Bookmarks, func(b Bookmark) bool { return b.Space == ExternalID })
+	for _, s := range st.Spaces {
+		if s.Split != nil {
+			for i, p := range s.Split.Panes {
+				if p.Space == ExternalID {
+					s.Split.Panes[i].Space = ""
+					s.Split.Panes[i].Path = ""
+				}
+			}
+		}
+	}
+	if st.Active == ExternalID {
+		st.Active = ""
+		if len(st.Spaces) > 0 {
+			st.Active = st.Spaces[0].ID
+		}
+	}
+	return true
 }

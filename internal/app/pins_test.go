@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/egoist/mygo/ui"
 	"os"
 	"path/filepath"
 	"slices"
@@ -166,7 +167,7 @@ func TestListMenu(t *testing.T) {
 	a, tt := newTestApp(t)
 	sp := a.state.ActiveSpace()
 	settle(tt)
-	tt.RightClickAt(100, 480)
+	tt.RightClickAt(1100, 480)
 	if !slices.Contains(tt.Menu(), "新建文件夹") || !slices.Contains(tt.Menu(), "更改空间图标…") {
 		t.Fatalf("menu %q", tt.Menu())
 	}
@@ -196,7 +197,7 @@ func TestNewFolderWithDoc(t *testing.T) {
 // the line, in light and dark, and the placeholder of an empty pinned
 // section under a drag, for review.
 func TestPinsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the pinned section")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the pinned section")
 	for _, dark := range []bool{false, true} {
 		name := "pins"
 		if dark {
@@ -262,27 +263,30 @@ func TestHeaderFoldsPins(t *testing.T) {
 	}
 }
 
-// A closed folder keeps the open document in sight, one level in.
-func TestFolderPeek(t *testing.T) {
+// Collapsing a folder hides every descendant while its document stays open.
+func TestFolderDisclosure(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.state.Favorites = nil
-	sp := a.state.ActiveSpace()
 	a.open("Journal/Ideas.md")
-	sp.SetExpanded("Journal", false)
 	settle(tt)
-	var depth = -1
-	for _, r := range a.rows {
-		if r.rel == "Journal/Ideas.md" {
-			depth = r.depth
-		}
+	if err := tt.Click("Journal"); err != nil {
+		t.Fatal(err)
 	}
-	if depth != 1 {
-		t.Fatalf("the open document under the closed folder: depth %d", depth)
+	settle(tt)
+	if sectionOf(a, "Journal/Ideas.md") != "" || a.doc.rel != "Journal/Ideas.md" {
+		t.Fatal("collapse must only hide descendants")
 	}
-	a.open("Welcome.md")
+	if !tt.Focused("Journal") {
+		t.Fatal("collapsed folder lost keyboard focus")
+	}
+	tt.Key(0, ui.KeyRight)
+	settle(tt)
+	if sectionOf(a, "Journal/Ideas.md") == "" {
+		t.Fatal("Right did not expand the focused folder")
+	}
+	tt.Key(0, ui.KeyLeft)
 	settle(tt)
 	if sectionOf(a, "Journal/Ideas.md") != "" {
-		t.Fatal("the peek stayed after another document opened")
+		t.Fatal("Left did not collapse the focused folder")
 	}
 }
 
@@ -301,7 +305,7 @@ func TestFolderGlyphTurns(t *testing.T) {
 // TestHeaderSnapshot renders the header under the pointer and the pinned
 // section folded, with a closed folder keeping its open document in sight.
 func TestHeaderSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the header")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the header")
 	a, tt := newTestApp(t)
 	tt.SetSize(900, 520)
 	sp := a.state.ActiveSpace()

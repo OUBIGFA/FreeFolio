@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/i18n"
-	"github.com/Ciao1019/ArcMD/internal/mermaid"
-	"github.com/Ciao1019/ArcMD/internal/tex"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/mermaid"
+	"github.com/OUBIGFA/FreeMD/internal/tex"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -238,7 +238,6 @@ type Editor struct {
 	imageEnter      imageEnterState
 	captionedImages map[string]bool
 	scrollBounds    ui.Rect
-	surfaceReserve  float32
 }
 
 type row struct {
@@ -544,7 +543,7 @@ type Options struct {
 	// Bindings rebind the editor's commands (DefaultBindings) to other
 	// keys; a command left out keeps its default.
 	Bindings map[string]Combo
-	// Outline opens the outline left of the page; SetOutline, when set,
+	// Outline opens the outline right of the page; SetOutline, when set,
 	// shows the outline's buttons and keeps what the reader picks. Without
 	// it the page has no outline, as in thumbnails.
 	Outline    bool
@@ -606,6 +605,10 @@ func (e *Editor) SetMarkedText(r *ui.TextInputRange, text string, selected ui.Te
 		e.refused = e.refused || text != ""
 		return
 	}
+	if text == "" {
+		e.cancelComposition()
+		return
+	}
 	e.editImageCaption()
 	e.Buffer.SetMarkedText(r, text, selected)
 	e.reveal = true
@@ -650,15 +653,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.watchMermaid()
 	e.watchInline()
 	pane := ui.Column(c).Grow(1).MinHeight(0).MinWidth(0)
-	// The outline, open, takes room left of the page: the page slides over
-	// as it opens, keeping offscreen shaping while it moves.
-	reserve := e.outlineReserve(c, o)
-	if reserve > 0 {
-		o.Width -= reserve
-	}
-	if reserve != e.outlineState.target {
-		o.Resizing = true
-	}
+	e.fitOutline(o)
 	e.reduceMotion = c.Preferences().ReduceMotion
 	e.layoutForView(c, o)
 	e.updateMotion(c.Now(), o)
@@ -711,8 +706,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 			_, e.viewport = c.Size()
 		}
 		e.scrollBounds = scroll.Bounds()
-		e.surfaceReserve = reserve
-		e.stepSelectionDrag(c, scroll, reserve)
+		e.stepSelectionDrag(c, scroll)
 		scroll.TrackScroll(&e.Scroll)
 		scroll.Children(func() {
 			height := e.height
@@ -731,7 +725,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 			// out, not where it scrolled to.
 			e.outlineState.scrollMax = max(0, max(height, e.viewport)-e.viewport)
 			e.revealPending(c)
-			content := ui.Box(c.Key("page-content")).Width(o.Width).Height(max(height, e.viewport)).Shrink(0).MarginStart(reserve)
+			content := ui.Box(c.Key("page-content")).Width(o.Width).Height(max(height, e.viewport)).Shrink(0)
 			content.Children(func() {
 				surface = ui.Box(c.Key("writing-surface")).Width(o.Width).Height(max(height, e.viewport)).Shrink(0).
 					HandleTextInput(e).Role(ui.RoleTextField).Label(i18n.T("文档")).FocusRing(false)
@@ -756,11 +750,29 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 						o.DropFiles(files, at)
 					}
 				}
-				if e.resizing != nil || e.hoveredResizer() != nil {
+				if e.dragID != "" {
+					surface.Cursor(ui.CursorGrabbing)
+				} else if e.resizing != nil || e.hoveredResizer() != nil {
 					surface.Cursor(ui.CursorResizeEW)
 				} else if _, ok := e.hoveredGap(); ok {
 					// A click here adds a paragraph rather than placing the caret.
 					surface.Cursor(ui.CursorPointer)
+				} else if inside && !e.dragging {
+					var handle *blockHandle
+					var add bool
+					if !e.ReadOnly {
+						handle, add = e.blockControlAt(px, py)
+					}
+					switch {
+					case handle != nil && add:
+						surface.Cursor(ui.CursorPointer)
+					case handle != nil:
+						surface.Cursor(ui.CursorGrab)
+					case !e.overText(px, py):
+						// The surface spans the whole pane for presses in the
+						// margins, but only the text column reads as editable.
+						surface.Cursor(ui.CursorDefault)
+					}
 				}
 				e.hoverID = ""
 				if inside {
@@ -801,7 +813,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				}
 			})
 		})
-		e.outlineView(c, pane, reserve)
+		e.outlineView(c, pane)
 		e.findBox(c)
 	})
 	if !e.ReadOnly {
@@ -827,13 +839,13 @@ func (e *Editor) footerTop() float32 {
 }
 
 // surfaceBounds returns the writing surface's window-space bounds adjusted for
-// the current frame's Scroll.Y and outline reserve, avoiding a one-frame lag
+// the current frame's scroll offset, avoiding a one-frame lag
 // when popovers open or reposition on the same frame the editor scrolls.
 func (e *Editor) surfaceBounds(surface ui.Element) ui.Rect {
 	b := surface.Bounds()
 	if e.scrollBounds.H > 0 {
 		sy := min(max(0, e.Scroll.Y), e.outlineState.scrollMax)
-		b.X = e.scrollBounds.X + e.surfaceReserve
+		b.X = e.scrollBounds.X
 		b.Y = e.scrollBounds.Y - sy
 		if b.W == 0 {
 			b.W = e.width
@@ -1994,6 +2006,30 @@ func (e *Editor) toggleTask(at int, x float32) bool {
 	return true
 }
 
+// overText reports whether the surface point lies over the text column, from
+// the top of the page to just under the last block. A drag selection keeps the
+// I-beam wherever it goes; the caller checks that before asking.
+func (e *Editor) overText(x, y float32) bool {
+	const slack = 24
+	return x >= e.padding && x <= e.width-e.padding && y <= e.contentEnd+slack
+}
+
+// The painted grip and add button share hit geometry with press and hover.
+func (e *Editor) blockControlAt(x, y float32) (*blockHandle, bool) {
+	first, end := e.visibleHandleRange(y-64, y+64)
+	for i := first; i < end; i++ {
+		h := e.indexedHandle(i)
+		localY := y - e.ownerVisualDY(h.id)
+		if h.rect.Contains(x, localY) {
+			return h, false
+		}
+		if h.plus().Contains(x, localY) {
+			return h, true
+		}
+	}
+	return nil, false
+}
+
 func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 	if e.ReadOnly {
 		if ev.Kind == ui.InputPointerDown && ev.Button == 0 {
@@ -2055,21 +2091,17 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 				return true
 			}
 		}
-		hs, he := e.visibleHandleRange(ev.Y-64, ev.Y+64)
-		for hi := hs; hi < he; hi++ {
-			h := *e.indexedHandle(hi)
-			if p := h.plus(); ev.X >= p.X && ev.X <= p.X+p.W && ev.Y >= p.Y && ev.Y <= p.Y+p.H {
+		if h, add := e.blockControlAt(ev.X, ev.Y); h != nil {
+			if add {
 				e.insertAfter(h.id)
 				return true
 			}
-			if ev.X >= h.rect.X && ev.X <= h.rect.X+h.rect.W && ev.Y >= h.rect.Y && ev.Y <= h.rect.Y+h.rect.H {
-				if !e.blockSelected(h.id) {
-					e.clearBlocks()
-				}
-				e.dragID, e.dropIndex = h.id, h.index
-				e.dragStartY, e.dragY, e.dragActive = ev.Y, ev.Y, false
-				return true
+			if !e.blockSelected(h.id) {
+				e.clearBlocks()
 			}
+			e.dragID, e.dropIndex = h.id, h.index
+			e.dragStartY, e.dragY, e.dragActive = ev.Y, ev.Y, false
+			return true
 		}
 	}
 	if e.tableDragPointer(ev) {

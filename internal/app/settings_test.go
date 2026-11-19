@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -71,7 +72,7 @@ func TestMoreMenuAndSettings(t *testing.T) {
 	if err := tt.Click("GitHub 开源仓库"); err != nil {
 		t.Fatal(err)
 	}
-	wantURL := "https://github.com/Ciao1019/ArcMD"
+	wantURL := "https://github.com/OUBIGFA/FreeMD"
 	if got := tt.OpenedURLs(); !slices.Equal(got, []string{wantURL}) {
 		t.Fatalf("repository link: %q", got)
 	}
@@ -148,8 +149,8 @@ func TestMoreMenuWithoutUsableDocument(t *testing.T) {
 
 // TestSettingsSnapshot renders the ⋯ menu and each settings tab, for review.
 func TestSettingsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the settings")
-	for _, name := range []string{"more-menu", "more-menu@dark", "more-menu@narrow", "export-menu", tabGeneral, tabAppearance, tabSpaces, tabShortcuts, tabAbout, "about@dark", "about@narrow"} {
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the settings")
+	for _, name := range []string{"more-menu", "more-menu@dark", "more-menu@narrow", "export-menu", tabGeneral, tabWriting, tabAI, tabUpdates, "writing@narrow", "ai@narrow", tabAppearance, tabSpaces, tabShortcuts, tabAbout, "about@dark", "about@narrow"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			tt.SetSize(1240, 760)
@@ -210,5 +211,65 @@ func TestToolbarCorner(t *testing.T) {
 	}
 	if _, ok := tt.Find("更多格式"); ok {
 		t.Fatal("format menu shown over the export preview")
+	}
+}
+
+func TestFixedSettingsFitMinimumWindow(t *testing.T) {
+	for tab, labels := range map[string][]string{
+		tabGeneral:    {"新空间的默认位置", "配置文件夹（spaces.json、插件）"},
+		tabAppearance: {"界面语言", "正文字体", "页面宽度", "正文字号", "行距", "恢复默认外观"},
+		tabWriting:    {"打字机滚动", "打开文档时画出手绘标注", "专注模式淡化其他段落", "括号与引号自动配对", "中英文之间自动加空格", "代码块自动换行"},
+		tabSpaces:     {"新建空间…"}, tabUpdates: {"检查更新…"}, tabAbout: {"重新观看"}, tabAI: {"服务地址", "粘贴 API Key", "输入模型名称", "获取模型"},
+	} {
+		t.Run(tab, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			tt.SetSize(640, 420)
+			a.openSettings(tab)
+			tt.Frame()
+			tt.Frame()
+			for _, label := range labels {
+				scrollIntoView(tt, label, 641, 421)
+				r, ok := tt.Find(label)
+				if !ok || r.W < 1 || r.H < 1 || r.Y < 0 || r.X < 0 || r.X+r.W > 641 || r.Y+r.H > 421 {
+					t.Errorf("%q out of view: %+v found=%v", label, r, ok)
+				}
+			}
+		})
+	}
+}
+
+// scrollIntoView scrolls the settings page until what shows label is in a
+// window w by h, as a reader scrolls to it.
+func scrollIntoView(tt *ui.Tester, label string, w, h float32) {
+	for range 20 {
+		r, ok := tt.Find(label)
+		if !ok || r.H >= 1 && r.Y >= 0 && r.Y+r.H <= h {
+			return
+		}
+		tt.Scroll(w-40, h/2, 0, 120)
+		tt.Frame()
+	}
+}
+
+func TestFileBrowserSettings(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.openSettings(tabFiles)
+	tt.Frame()
+	for _, label := range []string{"显示标签页关闭按钮", "双击标签页关闭", "以只读方式打开文件", "关闭最后一个标签页时关闭窗口"} {
+		sw, ok := tt.AccessByRole(ui.RoleSwitch, label)
+		if !ok {
+			t.Fatal("no switch", label)
+		}
+		tt.ClickAt(sw.Bounds.X+sw.Bounds.W/2, sw.Bounds.Y+sw.Bounds.H/2)
+		tt.Frame()
+	}
+	if err := tt.Click("当前标签页右侧"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	want := prefs.Files{KeepOpen: true, NoDoubleClickClose: true, HideTabClose: true, TabAfterCurrent: true, ReadOnly: true}
+	saved, err := (prefs.Store{Path: a.prefStore.Path}).Load()
+	if err != nil || a.prefs.Files != want || saved.Files != want {
+		t.Fatalf("file browser choices: %+v, saved %+v, %v", a.prefs.Files, saved, err)
 	}
 }

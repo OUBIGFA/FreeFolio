@@ -13,8 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/wiki"
+	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/wiki"
 	"github.com/egoist/mygo/ui/markdown/parser"
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -34,6 +34,10 @@ type parsedMarkdown struct {
 // ImportMarkdown adapts Markdown (with GFM, TeX math, YAML frontmatter and
 // semantic HTML extensions) to the native document tree. The original text is
 // retained in ImportSource so unedited blocks preserve their author formatting.
+// The editor interprets alert markers and references itself. Keep them in the
+// source tree instead of opting into new extensions through parser.Default.
+const markdownExtensions = parser.GFM | parser.ExtFootnotes | parser.ExtMath | parser.ExtDollarMath
+
 func ImportMarkdown(source string) *document.Document {
 	return parseMarkdownSourceMode(source, false).doc
 }
@@ -71,7 +75,7 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 	}
 	result.Goal = goal
 
-	parsed := parser.New(parser.Default | parser.ExtDollarMath)
+	parsed := parser.New(markdownExtensions)
 	parsed.Set(text)
 
 	nextID := func() string {
@@ -558,7 +562,7 @@ func splitObsidianImageParagraph(text string, start, end int, in []parser.Inline
 		}
 		snippet := strings.Join(prose, "\n")
 		prose = prose[:0]
-		sub := parser.New(parser.Default | parser.ExtDollarMath)
+		sub := parser.New(markdownExtensions)
 		sub.Set(snippet)
 		for cIdx := range sub.Children(0) {
 			cNode := sub.Block(cIdx)
@@ -1023,7 +1027,7 @@ func buildChunkBuckets(orig parsedMarkdown) map[uint64][]int {
 }
 
 // ExportMarkdown serializes a rich Document to standard Markdown, preserving
-// custom ArcMD features via GFM extensions, YAML frontmatter and semantic HTML,
+// custom FreeMD features via GFM extensions, YAML frontmatter and semantic HTML,
 // while keeping unedited blocks from ImportSource byte-for-byte intact.
 func ExportMarkdown(doc *document.Document) string {
 	if doc.ImportSource != "" {

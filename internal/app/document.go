@@ -16,12 +16,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	model "github.com/Ciao1019/ArcMD/internal/document"
-	"github.com/Ciao1019/ArcMD/internal/editor"
-	"github.com/Ciao1019/ArcMD/internal/fsutil"
-	"github.com/Ciao1019/ArcMD/internal/history"
-	"github.com/Ciao1019/ArcMD/internal/space"
-	"github.com/Ciao1019/ArcMD/internal/vault"
+	model "github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -93,7 +93,7 @@ type document struct {
 }
 
 func openDocument(sp *space.Space, rel, text string, preferSource bool) *document {
-	d := &document{space: sp, rel: rel, diskText: text, source: preferSource}
+	d := &document{space: sp, rel: rel, historyOff: sp.IsExternal() && sp.Root == "", diskText: text, source: preferSource}
 	var doc *model.Document
 	if strings.EqualFold(path.Ext(rel), ".arcmd") {
 		var err error
@@ -506,7 +506,7 @@ func (d *document) applyAsyncSave(res asyncSaveResult) {
 func (d *document) save() error { return d.write(false) }
 
 // write saves the document. Unless force is set, it refuses to overwrite a
-// file that changed since ArcMD last read or wrote it, or to bring back one
+// file that changed since FreeMD last read or wrote it, or to bring back one
 // that went: the file watch may be late or absent, so the file itself is
 // compared, a cheap read of one document.
 func (d *document) write(force bool) error {
