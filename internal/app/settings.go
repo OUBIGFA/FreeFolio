@@ -106,8 +106,8 @@ func settingsTabs() []struct{ id, label, icon string } {
 }
 
 // settingsView is a page of its own over the window: the navigation on
-// the chrome, the chosen page on a white pane under a breadcrumb. The exit
-// sits at the navigation's foot, away from the window's caption buttons.
+// the chrome, the chosen page on a white pane under a breadcrumb. The way
+// back sits at the navigation's head, beside its title.
 func (a *App) settingsView(c *ui.Context) {
 	if !a.settingsOpen {
 		return
@@ -124,13 +124,19 @@ func (a *App) settingsView(c *ui.Context) {
 			ui.Box(c.Key("settings-title")).Height(max(12, bar.Height)).DragWindow()
 			ui.Row(c.Key("settings-body")).Grow(1).MinHeight(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 10, 10, 10).Gap(8).Children(func() {
-					ui.Text(c, i18n.T("设置")).FontSize(15).FontWeight(600).Padding(4, 8, 4, 8)
+					// The way back heads the navigation, beside its title.
+					ui.Row(c.Key("settings-back-row")).Gap(4).AlignItems(ui.Center).Children(func() {
+						if iconButton(c, "settings-back", iconBack, i18n.T("返回"), i18n.T("返回")+" (Esc)", false).Clicked() {
+							a.settingsOpen = false
+						}
+						ui.Text(c, i18n.T("设置")).FontSize(15).FontWeight(600)
+					})
 					ui.Sidebar(c.Key("settings-tabs"), &a.settingsTab, func() {
 						for _, tab := range settingsTabs() {
 							ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(min(32, h/14))
 						}
 					}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(2).Background(ui.Transparent)
-					if ui.Button(c.Key("done"), i18n.T("完成")).Height(32).Clicked() || (a.recording == "" && c.Shortcut(0, ui.KeyEscape)) {
+					if a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
 						a.settingsOpen = false
 					}
 				})
@@ -256,6 +262,16 @@ func (a *App) settingsGeneral(c *ui.Context) {
 	})
 	ui.Text(c, i18n.T("颜色与图标按空间设置：在侧边栏的空间名称上右键，选择要修改的属性。")).
 		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
+	settingsSection(c, i18n.T("窗口"))
+	settingsGroup(c, "closing", func() {
+		tray := !a.prefs.KeepRunningOff
+		toggleRow(c, "close-to-tray", i18n.T("关闭窗口时最小化到托盘"), i18n.T("FreeMD 继续在通知区域运行；点击托盘图标打开窗口，右键选择退出。"), &tray, nil)
+		if tray == a.prefs.KeepRunningOff {
+			a.prefs.KeepRunningOff = !tray
+			a.savePrefs()
+			a.syncTray()
+		}
+	})
 }
 
 func (a *App) settingsWriting(c *ui.Context) {
@@ -536,7 +552,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 				}
 				ui.Row(c.Key("space-row-"+s.ID)).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().Background(spaceAccent(space.ThemeOf(s).Colors[0], t.Dark).Alpha(0.12)).Children(func() {
-						spaceGlyph(c, s.Icon, s.Symbol, s.Name, 15, spaceAccent(space.ThemeOf(s).Colors[0], t.Dark))
+						a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, spaceAccent(space.ThemeOf(s).Colors[0], t.Dark))
 					})
 					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
 						ui.Text(c, s.Name).FontSize(13).FontWeight(500).SingleLine()

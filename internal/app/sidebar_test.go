@@ -289,3 +289,38 @@ func TestSpaceSwitchStopsOnSaveFailure(t *testing.T) {
 		t.Fatal("retry did not save and restore the original editor")
 	}
 }
+
+// Dragging the sidebar's inner edge sets its width, kept in the prefs and
+// bounded; a double click goes back to the standard width.
+func TestSidebarResizesByDraggingItsEdge(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1200, 800)
+	settle(tt)
+	edge, ok := tt.Find("调整侧边栏宽度")
+	if !ok || edge.X < 1200-sidebarWidth-8 || edge.X > 1200-sidebarWidth+8 {
+		t.Fatalf("the edge is not at the sidebar's inner side: %+v", edge)
+	}
+	x, y := edge.X+edge.W/2, edge.Y+edge.H/2
+	tt.Press(x, y)
+	tt.Move(x-40, y)
+	tt.Frame()
+	tt.Move(x-80, y)
+	tt.Frame()
+	tt.Release(x-80, y)
+	settle(tt)
+	if a.prefs.SidebarWidth != sidebarWidth+80 || a.sidebarW() != sidebarWidth+80 {
+		t.Fatal("dragged width", a.prefs.SidebarWidth)
+	}
+	stored, err := a.prefStore.Load()
+	if err != nil || stored.SidebarWidth != sidebarWidth+80 {
+		t.Fatal("kept", stored, err)
+	}
+	a.prefs.SidebarWidth = 5000
+	if a.sidebarW() != sidebarMax {
+		t.Fatal("bounded", a.sidebarW())
+	}
+	a.prefs.SidebarWidth = 0
+	if a.sidebarW() != sidebarWidth {
+		t.Fatal("standard")
+	}
+}

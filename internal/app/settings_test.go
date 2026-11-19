@@ -273,3 +273,23 @@ func TestFileBrowserSettings(t *testing.T) {
 		t.Fatalf("file browser choices: %+v, saved %+v, %v", a.prefs.Files, saved, err)
 	}
 }
+
+// Closing to the tray is on by default and the general page turns it off.
+func TestCloseToTraySetting(t *testing.T) {
+	a, tt := newTestApp(t)
+	if a.prefs.KeepRunningOff {
+		t.Fatal("on by default")
+	}
+	a.openSettings(tabGeneral)
+	tt.Frame()
+	sw, ok := tt.AccessByRole(ui.RoleSwitch, "关闭窗口时最小化到托盘")
+	if !ok || !sw.Checked {
+		t.Fatal("the switch shows on", sw)
+	}
+	tt.ClickAt(sw.Bounds.X+sw.Bounds.W/2, sw.Bounds.Y+sw.Bounds.H/2)
+	tt.Frame()
+	stored, err := a.prefStore.Load()
+	if !a.prefs.KeepRunningOff || err != nil || !stored.KeepRunningOff {
+		t.Fatal("turned off and kept", stored, err)
+	}
+}

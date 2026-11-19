@@ -546,7 +546,7 @@ func (a *App) docPreview(c *ui.Context) {
 				Width:     previewThumbW,
 				Theme:     dt,
 				Page:      pageStyle(a.paperDark),
-				LoadImage: d.imageResource,
+				LoadImage: a.cachedImageFor(d),
 			})
 		})
 	})

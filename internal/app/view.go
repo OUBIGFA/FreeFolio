@@ -14,8 +14,12 @@ import (
 )
 
 const (
-	// Both docking positions use the same document tree and measures.
+	// Both docking positions use the same document tree and measures:
+	// sidebarWidth wide unless the user drags it between sidebarMin and
+	// sidebarMax.
 	sidebarWidth = 260
+	sidebarMin   = 220
+	sidebarMax   = 480
 	// slide is how long the sidebar takes to fold and unfold.
 	slide = 240 * time.Millisecond
 	// peekDelay lets the pointer cross the floating panel's small outer gap.
@@ -33,6 +37,7 @@ func (a *App) View(c *ui.Context) {
 		return
 	}
 	winW, _ := c.Size()
+	a.winW = winW
 	if winW > 0 {
 		a.narrowTick(winW)
 	}
@@ -105,18 +110,23 @@ func (a *App) View(c *ui.Context) {
 		// The docked sidebar slides as it folds: its column narrows while
 		// what is in it keeps its width, cut by the column.
 		dock := ui.Column(c.Key("dock")).Shrink(0).Clip()
-		target := float32(sidebarWidth)
+		target := a.sidebarW()
 		if a.folded() {
 			target = 0
 		}
-		inner := float32(sidebarWidth)
+		inner := a.sidebarW()
 		if a.library.open {
 			// The library takes over the sidebar, widened for its rail,
 			// shown even when the sidebar is folded away.
 			inner = a.libraryWidth(winW)
 			target = inner
 		}
-		docked = dock.Animate("width", target, slide)
+		// Dragged, the edge follows the pointer at once.
+		motion := slide
+		if a.sidebarResizing {
+			motion = 0
+		}
+		docked = dock.Animate("width", target, motion)
 		dock.Width(docked).Hidden(docked < 0.5).Children(func() {
 			if docked < 0.5 {
 				return
@@ -125,7 +135,7 @@ func (a *App) View(c *ui.Context) {
 				a.libraryView(c, inner)
 				return
 			}
-			side := ui.Column(c.Key("side")).Width(sidebarWidth).Grow(1)
+			side := ui.Column(c.Key("side")).Width(a.sidebarW()).Grow(1)
 			// Back from the library, the spaces fade in again, as Arc's.
 			pose := ui.Pose{}
 			if a.library.frames == 0 {
@@ -136,6 +146,7 @@ func (a *App) View(c *ui.Context) {
 				c.AnimationFrame()
 			}
 			side.Children(func() { a.sidebar(c, false) })
+			a.sidebarResizer(c, docked)
 		})
 		a.main(c, docked)
 	})
@@ -158,6 +169,81 @@ func (a *App) View(c *ui.Context) {
 	a.tourView(c)
 	if a.captureSplits() {
 		a.saveState()
+	}
+}
+
+// sidebarW is the docked sidebar's width as the user left it, within
+// bounds; the window's own width caps it so the page keeps room.
+func (a *App) sidebarW() float32 {
+	w := a.prefs.SidebarWidth
+	if w == 0 {
+		w = sidebarWidth
+	}
+	hi := float32(sidebarMax)
+	if a.winW > 0 {
+		hi = min(hi, max(sidebarMin, a.winW-400))
+	}
+	return min(max(w, sidebarMin), hi)
+}
+
+// sidebarResizer is the docked sidebar's inner edge: dragging it sets the
+// width, a double click goes back to the standard one, and the arrow keys
+// move it by 10.
+func (a *App) sidebarResizer(c *ui.Context, docked float32) {
+	if a.folded() || a.library.open || docked < sidebarMin-1 {
+		a.sidebarResizing = false
+		return
+	}
+	t := c.Theme()
+	label := i18n.T("调整侧边栏宽度")
+	h := ui.Box(c.Key("sidebar-resizer")).Absolute().Top(0).Bottom(0).Width(8).Cursor(ui.CursorResizeEW).
+		Focusable().Role(ui.RoleSplitter).Label(label).Tooltip(i18n.T("拖动调整宽度；双击恢复默认"))
+	if a.prefs.SidebarLeft {
+		h.Right(0)
+	} else {
+		h.Left(0)
+	}
+	set := func(w float32) {
+		a.prefs.SidebarWidth = w
+		a.prefs.SidebarWidth = a.sidebarW()
+		if a.prefs.SidebarWidth == sidebarWidth {
+			a.prefs.SidebarWidth = 0
+		}
+	}
+	dx, _, held := h.Dragged()
+	if held {
+		if !a.sidebarResizing {
+			a.sidebarResizing, a.sidebarDrag = true, a.sidebarW()
+		}
+		// The sidebar on the right widens as its left edge goes left.
+		if !a.prefs.SidebarLeft {
+			dx = -dx
+		}
+		a.sidebarDrag += dx
+		set(a.sidebarDrag)
+	} else if a.sidebarResizing {
+		a.sidebarResizing = false
+		a.savePrefs()
+	}
+	step := float32(10)
+	if !a.prefs.SidebarLeft {
+		step = -step
+	}
+	switch {
+	case h.DoubleClicked():
+		a.prefs.SidebarWidth = 0
+		a.savePrefs()
+	case h.Shortcut(0, ui.KeyLeft):
+		set(a.sidebarW() - step)
+		a.savePrefs()
+	case h.Shortcut(0, ui.KeyRight):
+		set(a.sidebarW() + step)
+		a.savePrefs()
+	}
+	if held || h.Hovered() || h.FocusVisible() {
+		h.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X + r.W/2 - 1, Y: r.Y + 12, W: 2, H: r.H - 24}, t.Accent.Alpha(0.5), 1)
+		})
 	}
 }
 
@@ -262,7 +348,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 	}
 	// Test the final panel area, so moving into it during the slide does
 	// not close it before the animated panel reaches the pointer.
-	over := inside && (x < 8 || a.peek && x < sidebarWidth+12)
+	over := inside && (x < 8 || a.peek && x < a.sidebarW()+12)
 	switch {
 	case a.palette.open || a.settingsOpen:
 		a.peek = false
@@ -284,7 +370,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 	look := a.look
 	ui.Overlay(c, func() {
 		_, h := c.Size()
-		panel := ui.Column(c.Key("peek")).Absolute().Top(6).Width(sidebarWidth).Height(h-12).
+		panel := ui.Column(c.Key("peek")).Absolute().Top(6).Width(a.sidebarW()).Height(h-12).
 			Radius(12).Background(a.look.opaqueTop()).Border(1, t.Border.Alpha(0.5)).
 			Draw(func(p *ui.Painter, r ui.Rect) { look.paint(p, r, 12, false) }).
 			Shadow(0, 10, 32, 0, black.Alpha(0.28)).Clip()
@@ -293,7 +379,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 			target = 1
 		}
 		v := panel.Animate("in", target, 150*time.Millisecond)
-		offset := (sidebarWidth + 24) * (1 - v)
+		offset := (a.sidebarW() + 24) * (1 - v)
 		if a.prefs.SidebarLeft {
 			panel.Left(6)
 			offset = -offset
@@ -490,29 +576,25 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	})
 }
 
-// address shows where the document is, as Arc's address field: the
-// space, its folders and its name; a click opens the command bar.
+// address shows where the document is, centered in the toolbar: its name
+// over the space and its folders. It only shows; the toolbar around it
+// drags the window, and the sidebar's field opens the command bar.
 func (a *App) address(c *ui.Context) {
 	t := c.Theme()
-	f := ui.Row(c.Key("address")).Grow(1).MinWidth(0).Height(42).Radius(controlRadius).PaddingX(12).Gap(8).
-		AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("文档路径")).
-		Background(ui.Transparent)
-	if f.Hovered() {
-		f.Background(hoverFill(t))
-	}
+	f := ui.Row(c.Key("address")).Grow(1).MinWidth(0).Height(42).PaddingX(12).Gap(8).
+		AlignItems(ui.Center).Justify(ui.Center).Label(i18n.T("文档路径"))
 	f.Children(func() {
 		if a.spaceForm.open && a.spaceForm.id == "" {
-			ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
 			ui.Text(c, i18n.T("新空间")).TextColor(t.TextMuted).NoWrap()
 			return
 		}
 		if a.doc == nil {
-			ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
-			ui.Text(c, i18n.T("搜索或打开文档")).TextColor(t.TextMuted).NoWrap()
+			if sp := a.state.ActiveSpace(); sp != nil {
+				ui.Text(c, sp.Name).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+			}
 			return
 		}
-		ui.Icon(c, iconFile).FontSize(19).TextColor(t.TextMuted)
-		ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
+		ui.Column(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
@@ -520,7 +602,6 @@ func (a *App) address(c *ui.Context) {
 			}
 			ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		})
-		ui.Spacer(c)
 		status, color := "", t.TextMuted
 		switch {
 		case a.doc.saveErr != nil:
@@ -532,9 +613,6 @@ func (a *App) address(c *ui.Context) {
 			ui.Text(c, status).FontSize(12).TextColor(color).NoWrap().Tooltip(errText(a.doc.saveErr))
 		}
 	})
-	if f.Clicked() {
-		a.openPalette()
-	}
 }
 
 // iconButton is a quiet button showing only an icon, named by label for
@@ -582,7 +660,7 @@ func (a *App) emptyState(c *ui.Context) {
 	sp := a.state.ActiveSpace()
 	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 		if sp != nil {
-			spaceGlyph(c, sp.Icon, sp.Symbol, sp.Name, 40, t.Accent)
+			a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 40, t.Accent)
 			ui.Text(c, sp.Name).FontSize(20).Bold()
 		}
 		switch {

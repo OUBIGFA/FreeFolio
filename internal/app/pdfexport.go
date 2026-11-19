@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"image"
 	"io/fs"
 	"os"
 	"path"
@@ -123,11 +124,16 @@ func (a *App) pdfExportView(c *ui.Context) {
 	job.next = c.Now().Add(time.Millisecond)
 	if job.tops == nil {
 		job.opts = editor.Options{
-			Width:        paperWidth,
-			Theme:        documentTheme(false),
-			Page:         pageStyle(false),
-			LoadImage:    job.source.imageResource,
-			LoadRawImage: job.source.rawImage,
+			Width:     paperWidth,
+			Theme:     documentTheme(false),
+			Page:      pageStyle(false),
+			LoadImage: a.cachedImageFor(job.source),
+			LoadRawImage: func(url string) image.Image {
+				if isRemoteImage(url) {
+					return a.remote.raw(url)
+				}
+				return job.source.rawImage(url)
+			},
 		}
 		ui.Render(func(c *ui.Context) { job.tops = job.ed.Paginate(job.opts, paperHeight-2*paperMargin) }, 1, 1, 1)
 		job.writer.ReservePages(len(job.tops))

@@ -14,16 +14,24 @@ import (
 )
 
 // CurrentVersion is the version of prefs.json this FreeMD writes.
-const CurrentVersion = 3
+// Version 4 adds SidebarWidth and KeepRunningOff, whose zero values are
+// the defaults, so version 3 migrates unchanged.
+const CurrentVersion = 4
 
 // Prefs are the preferences.
 type Prefs struct {
 	// SidebarLeft opts out of the default right-hand workspace sidebar.
-	SidebarLeft bool    `json:"sidebarLeft,omitempty"`
-	Version     int     `json:"version"`
-	FontSize    float32 `json:"fontSize,omitempty"`
-	LineHeight  float32 `json:"lineHeight,omitempty"`
-	NoAutoPair  bool    `json:"noAutoPair,omitempty"`
+	SidebarLeft bool `json:"sidebarLeft,omitempty"`
+	// SidebarWidth is the docked sidebar's width as dragged; 0 is the
+	// standard width.
+	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
+	// KeepRunningOff quits FreeMD when its window closes instead of
+	// hiding it in the notification area, which the zero value keeps.
+	KeepRunningOff bool    `json:"keepRunningOff,omitempty"`
+	Version        int     `json:"version"`
+	FontSize       float32 `json:"fontSize,omitempty"`
+	LineHeight     float32 `json:"lineHeight,omitempty"`
+	NoAutoPair     bool    `json:"noAutoPair,omitempty"`
 	// AutoSpace puts a space between Chinese and Latin text as it is typed.
 	AutoSpace bool `json:"autoSpace,omitempty"`
 	// CodeNoWrap disables soft wrapping in code blocks by default so long

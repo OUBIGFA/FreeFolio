@@ -89,12 +89,17 @@ func readBranch(root, rel string, ancestors []os.FileInfo) ([]*Node, error) {
 				continue // unreadable folders are left out
 			}
 			n := &Node{Name: name, Path: p, Dir: true, Children: kids}
-			if fi, err := e.Info(); err == nil {
-				n.Modified = fi.ModTime()
-			}
+			// The folder's own time changes whenever an entry comes or goes,
+			// as with the temporary file of every atomic save, so it stands
+			// only for an empty folder.
 			for _, k := range kids {
-				if k.Modified.After(n.Modified) || n.Modified.IsZero() {
+				if k.Modified.After(n.Modified) {
 					n.Modified = k.Modified
+				}
+			}
+			if n.Modified.IsZero() {
+				if fi, err := e.Info(); err == nil {
+					n.Modified = fi.ModTime()
 				}
 			}
 			dirs = append(dirs, n)

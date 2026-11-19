@@ -392,7 +392,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 			h.Background(hoverFill(t))
 		}
 		h.Children(func() {
-			spaceGlyph(c, s.Icon, s.Symbol, s.Name, 15, t.Accent)
+			a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, t.Accent)
 			ui.Text(c, s.Name).FontWeight(650).SingleLine().Grow(1).MinWidth(0)
 			edit := iconButton(c, "edit", iconPalette, i18n.T("编辑空间"), i18n.T("编辑空间"), false).Size(26, 26)
 			edit.Opacity(map[bool]float32{true: 1, false: 0}[hovered || edit.Hovered()])

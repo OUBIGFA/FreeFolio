@@ -393,6 +393,14 @@ func (e *Editor) paintMatches(p *ui.Painter, bounds ui.Rect) {
 		}
 		dx, dy := e.visualOffset(r)
 		_, clipBox, _, _, scrollX, noWrap := e.codeScrollFor(r)
+		if r.foldH > 0 {
+			fc := foldClip(r)
+			if !noWrap {
+				clipBox = fc
+			}
+			clipBox.H = min(clipBox.H, fc.Y+fc.H-clipBox.Y)
+			noWrap = true
+		}
 		paintRowMatches := func(sx float32) {
 			start := sort.Search(len(f.matches), func(i int) bool { return f.matches[i].End > r.leaf.Start })
 			for i := start; i < len(f.matches) && f.matches[i].Start < r.leaf.End+1; i++ {

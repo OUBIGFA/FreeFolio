@@ -22,6 +22,7 @@ var (
 	iconPlus          = lucide(`<path d="M5 12h14"/><path d="M12 5v14"/>`)
 	iconFormat        = lucide(`<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/>`)
 	iconChevron       = lucide(`<path d="m6 9 6 6 6-6"/>`)
+	iconChevronUp     = lucide(`<path d="m18 15-6-6-6 6"/>`)
 	iconChevronRight  = lucide(`<path d="m9 18 6-6-6-6"/>`)
 	iconChevronsRight = lucide(`<path d="m6 7 5 5-5 5"/><path d="m13 7 5 5-5 5"/>`)
 	iconOutline       = lucide(`<path d="M21 5H3"/><path d="M15 12H3"/><path d="M17 19H3"/>`)

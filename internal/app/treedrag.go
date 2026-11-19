@@ -61,6 +61,9 @@ func arrangeNodes(sp *space.Space, dir string, nodes []*vault.Node) {
 	if len(nodes) == 0 {
 		return
 	}
+	byName := func(x, y *vault.Node) int {
+		return strings.Compare(strings.ToLower(x.Title()), strings.ToLower(y.Title()))
+	}
 	switch sp.SortOf(dir) {
 	case "name":
 		// Folders first, then documents, each by name as people read it.
@@ -68,10 +71,20 @@ func arrangeNodes(sp *space.Space, dir string, nodes []*vault.Node) {
 			if x.Dir != y.Dir {
 				return b2i(y.Dir) - b2i(x.Dir)
 			}
-			return strings.Compare(strings.ToLower(x.Title()), strings.ToLower(y.Title()))
+			return byName(x, y)
 		})
 	case "modified":
-		slices.SortStableFunc(nodes, func(x, y *vault.Node) int { return y.Modified.Compare(x.Modified) })
+		// Folders first as by name, then newest first; equal times by name,
+		// so the order does not depend on how the folder was read.
+		slices.SortStableFunc(nodes, func(x, y *vault.Node) int {
+			if x.Dir != y.Dir {
+				return b2i(y.Dir) - b2i(x.Dir)
+			}
+			if c := y.Modified.Compare(x.Modified); c != 0 {
+				return c
+			}
+			return byName(x, y)
+		})
 	default:
 		names := make([]string, len(nodes))
 		byName := make(map[string]*vault.Node, len(nodes))

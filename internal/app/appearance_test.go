@@ -78,11 +78,11 @@ func TestSidebarPositionAndSettingsExit(t *testing.T) {
 		if err := tt.Click(side); err != nil {
 			t.Fatal(err)
 		}
-		done, ok := tt.Find("完成")
-		if !ok || done.X > 200 || done.Y < 760-80 {
-			t.Fatalf("settings exit is outside the rail footer: %+v", done)
+		back, ok := tt.Find("返回")
+		if !ok || back.X > 200 || back.Y > 80 {
+			t.Fatalf("settings back is outside the rail head: %+v", back)
 		}
-		if err := tt.Click("完成"); err != nil || a.settingsOpen {
+		if err := tt.Click("返回"); err != nil || a.settingsOpen {
 			t.Fatalf("exit failed: %v", err)
 		}
 		settle(tt)
@@ -115,9 +115,9 @@ func TestSidebarPositionAndSettingsExit(t *testing.T) {
 	tt.SetSize(640, 420)
 	a.openSettings(tabAppearance)
 	tt.Frame()
-	done, ok := tt.Find("完成")
-	if !ok || done.Y < 340 || done.Y+done.H > 420 {
-		t.Fatalf("minimum window exit: %+v", done)
+	back, ok := tt.Find("返回")
+	if !ok || back.Y < 0 || back.Y+back.H > 80 {
+		t.Fatalf("minimum window exit: %+v", back)
 	}
 }
 

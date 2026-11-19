@@ -824,16 +824,7 @@ func decodeLocalImageSync(full string) editor.ImageResource {
 		}
 		return editor.ImageResource{Problem: problem, Local: true}
 	}
-	bmp, err := ui.DecodeBitmap(data)
-	if err != nil {
-		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: true}
-	}
-	w, h := bmp.Size()
-	res := editor.ImageResource{Bitmap: bmp, Width: w, Height: h, Local: true}
-	if frames, delays, ok := gifFrames(data); ok {
-		res.Frames, res.Delays = frames, delays
-	}
-	return res
+	return decodeImageData(data, true)
 }
 
 // isMissingDocFile distinguishes a deleted document file from a non-directory

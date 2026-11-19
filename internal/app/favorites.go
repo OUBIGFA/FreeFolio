@@ -25,8 +25,6 @@ const (
 	favoriteGap    = 8
 	favoriteCorner = controlRadius
 	favoriteIcon   = 20
-	// favoriteWidth is the grid's width: the sidebar less its margins.
-	favoriteWidth = float32(sidebarWidth) - 20
 	// favoriteCardH is the empty card's fill; the list goes 4 DIPs below.
 	favoriteCardH = 93.5
 )
@@ -73,8 +71,11 @@ type favoriteGrid struct {
 	tileW, h float32
 }
 
-func gridOf(n int) favoriteGrid {
-	cols, w := favoriteLayout(n, favoriteWidth)
+// favoriteWidth is the grid's width: the sidebar less its margins.
+func (a *App) favoriteWidth() float32 { return a.sidebarW() - 20 }
+
+func (a *App) gridOf(n int) favoriteGrid {
+	cols, w := favoriteLayout(n, a.favoriteWidth())
 	g := favoriteGrid{n: n, cols: cols, tileW: w}
 	if rows := (n + cols - 1) / cols; rows > 0 {
 		g.h = float32(rows)*favoriteTileH + float32(rows-1)*favoriteGap
@@ -121,7 +122,7 @@ func (a *App) favorites(c *ui.Context) {
 	if drop != nil {
 		slots++
 	}
-	g := gridOf(slots)
+	g := a.gridOf(slots)
 	col := ui.Column(c.Key("favorites")).PaddingX(10)
 	a.tourMark("favorites", col)
 	col.Children(func() {
@@ -165,7 +166,7 @@ func (a *App) favorites(c *ui.Context) {
 func (a *App) favoritesDrag(c *ui.Context, box ui.Element, resting []int) {
 	slotUnder := func() int {
 		x, y, _ := box.PointerPosition()
-		return gridOf(len(resting)+1).slotAt(x, y)
+		return a.gridOf(len(resting)+1).slotAt(x, y)
 	}
 	dropped, isDrop := ui.Drop[sidebarDrag](box)
 	over, isOver := ui.DragOver[sidebarDrag](box)
@@ -229,7 +230,7 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		// lines up with the rows'.
 		b := tile.Bounds()
 		b.X -= x
-		b.W = favoriteWidth
+		b.W = a.favoriteWidth()
 		a.hoverRow(previewDoc, sp, f.Path, b)
 	}
 	if open {

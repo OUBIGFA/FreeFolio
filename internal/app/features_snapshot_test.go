@@ -1,9 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,4 +173,28 @@ func TestV03FeaturesSnapshot(t *testing.T) {
 		tt.Frame()
 		savePNG(t, filepath.Join(dir, "feature-versions-milestone.png"), tt)
 	})
+}
+
+// TestFoldAndSidebarSnapshot renders a long code block folded and opened,
+// a space with a picture icon and the sidebar dragged wider.
+func TestFoldAndSidebarSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render code folds")
+	a, tt := newTestApp(t)
+	tt.SetSize(1240, 760)
+	var lines []string
+	for i := 1; i <= 40; i++ {
+		lines = append(lines, fmt.Sprintf("fmt.Println(\"line %d\")", i))
+	}
+	os.WriteFile(filepath.Join(root(a), "Code.md"), []byte("# 代码\n\n```go\n"+strings.Join(lines, "\n")+"\n```\n\n后面的段落。\n"), 0o644)
+	a.refreshTree()
+	a.open("Code.md")
+	settle(tt)
+	writePNG(t, filepath.Join(dir, "code-folded.png"), tt.Image())
+	a.doc.ed.ToggleCodeFold(a.doc.ed.Doc.Blocks[1].ID)
+	settle(tt)
+	writePNG(t, filepath.Join(dir, "code-open.png"), tt.Image())
+	a.prefs.SidebarWidth = 360
+	a.state.ActiveSpace().SetIcon("工作", "", "")
+	settle(tt)
+	writePNG(t, filepath.Join(dir, "sidebar-wide.png"), tt.Image())
 }

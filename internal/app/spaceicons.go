@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
@@ -86,23 +87,34 @@ func emojiIndex(emoji string) int {
 	return -1
 }
 
-// spaceGlyph draws a space's icon: its symbol, else its emoji, else the
-// first letter of its name.
-func spaceGlyph(c *ui.Context, emoji, symbol, name string, size float32, color ui.Color) ui.Element {
+// spaceGlyph draws a space's icon: its picture, else its symbol, else
+// its emoji or text, else the first letter of its name.
+func (a *App) spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size float32, color ui.Color) ui.Element {
+	if bmp := a.spaceIconImage(image); bmp != nil {
+		return ui.Image(c, bmp).Size(size*1.1, size*1.1).Radius(size * 0.22).Shrink(0)
+	}
 	if svg := lucideIcons[symbol]; svg != nil {
 		return ui.Icon(c, svg).FontSize(size * 0.92).TextColor(color)
 	}
 	if emoji != "" {
-		return ui.Text(c, emoji).FontSize(size).TextColor(color)
+		// Text of the user's own, a word or two letters, is set smaller
+		// than an emoji so it stays within the icon's square.
+		if n := utf8.RuneCountInString(emoji); n > 1 && emojiIndex(emoji) < 0 {
+			size *= max(0.5, 0.95-0.15*float32(n))
+		}
+		return ui.Text(c, emoji).FontSize(size).TextColor(color).NoWrap()
 	}
 	return ui.Text(c, monogram(vault.Title(name))).FontSize(size * 0.85).FontWeight(650).TextColor(color)
 }
 
 // iconPickerState is what the picker remembers while it is open.
 type iconPickerState struct {
-	symbols bool // the Icon tab
-	query   string
-	grid    ui.GridState
+	// tab is the tab shown: pickerEmoji, pickerSymbols or pickerCustom.
+	tab int
+	// text is the custom tab's field, the user's own text as the icon.
+	text  string
+	query string
+	grid  ui.GridState
 	// scroll is the emoji to bring to the top of the grid in the next
 	// frame, -1 for none.
 	scroll   int
@@ -113,7 +125,15 @@ type iconPickerState struct {
 // current emoji's row at the top.
 func (f *spaceForm) openIconPicker() {
 	f.iconsOpen = true
-	f.picker.symbols = f.symbol != ""
+	f.picker.tab, f.picker.text = pickerEmoji, ""
+	switch {
+	case f.image != "":
+		f.picker.tab = pickerCustom
+	case f.symbol != "":
+		f.picker.tab = pickerSymbols
+	case f.icon != "" && emojiIndex(f.icon) < 0:
+		f.picker.tab, f.picker.text = pickerCustom, f.icon
+	}
 	f.picker.query = ""
 	f.picker.selected = -1
 	f.picker.scroll = -1
@@ -137,9 +157,12 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 			}
 			panel.Children(func() {
 				a.pickerHeader(c, f)
-				if f.picker.symbols {
+				switch f.picker.tab {
+				case pickerSymbols:
 					symbolGrid(c, f)
-				} else {
+				case pickerCustom:
+					a.customIcon(c, f)
+				default:
 					emojiGrid(c, f)
 				}
 			})
@@ -171,16 +194,11 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 
 // pickerHeader is the Emoji / Icon tabs and the button removing the icon.
 func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
-	ui.Row(c).Padding(0, 0, 0, 16).Gap(4).AlignItems(ui.Center).Children(func() {
-		tab := 0
-		if f.picker.symbols {
-			tab = 1
-		}
-		ui.Tabs(c.Key("icon-tabs"), &tab, i18n.T("表情符号"), i18n.T("图标集")).Label(i18n.T("图标类型"))
-		f.picker.symbols = tab == 1
+	ui.Row(c).Padding(0, 0, 0, 2).Gap(2).AlignItems(ui.Center).Children(func() {
+		ui.Tabs(c.Key("icon-tabs"), &f.picker.tab, i18n.T("表情符号"), i18n.T("图标集"), i18n.T("自定义")).Label(i18n.T("图标类型")).Shrink(1).MinWidth(0)
 		ui.Spacer(c)
-		if iconButton(c, "remove-icon", lucideIcons["trash"], i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "").Size(28, 28).Clicked() {
-			f.icon, f.symbol = "", ""
+		if iconButton(c, "remove-icon", lucideIcons["trash"], i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
+			f.icon, f.symbol, f.image = "", "", ""
 			f.iconsOpen = false
 		}
 	})
@@ -217,7 +235,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 		p.grid.Selected = &p.selected
 		grid := ui.GridView(c.Key("emoji-grid"), &p.grid, n, pickerCell, pickerCell, func(i int) {
 			e := emojiAll[at(i)]
-			on := e.emoji == f.icon && f.symbol == ""
+			on := e.emoji == f.icon && f.symbol == "" && f.image == ""
 			cell := ui.Box(c).Grow(1).Height(pickerCell).Center().Cursor(ui.CursorPointer).
 				Role(ui.RoleButton).Label(e.emoji + " " + e.name).Tooltip(e.name)
 			hovered := cell.Hovered()
@@ -232,7 +250,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 			})
 			cell.Children(func() { ui.Text(c, e.emoji).FontSize(21) })
 			if cell.Clicked() {
-				f.icon, f.symbol = e.emoji, ""
+				f.icon, f.symbol, f.image = e.emoji, "", ""
 				f.iconsOpen = false
 			}
 		}).Grow(1).MinHeight(0).Margin(8, 0, 0, 0)
@@ -242,7 +260,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 			p.grid.ScrollIntoView(0)
 		}
 		if grid.Submitted() && p.selected >= 0 && p.selected < n {
-			f.icon, f.symbol, f.iconsOpen = emojiAll[at(p.selected)].emoji, "", false
+			f.icon, f.symbol, f.image, f.iconsOpen = emojiAll[at(p.selected)].emoji, "", "", false
 		}
 		if p.scroll >= 0 && !searching {
 			p.grid.ScrollTo(p.scroll, ui.Start)
@@ -273,7 +291,7 @@ func symbolGrid(c *ui.Context, f *spaceForm) {
 	ui.Scroll(c.Key("symbol-scroll")).Grow(1).MinHeight(0).Margin(8, 0, 0, 0).Children(func() {
 		ui.Grid(c.Key("symbols")).Columns(6).Gap(8).AlignSelf(ui.Center).Label(i18n.T("图标列表")).FocusGroup(ui.Horizontal).Children(func() {
 			for _, name := range spaceSymbols {
-				on := name == f.symbol
+				on := name == f.symbol && f.image == ""
 				b := ui.Box(c.Key("symbol:"+name)).Size(pickerCell, pickerCell).Center().Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleButton).Label(i18n.T("图标 ") + name).Tooltip(name).Checked(on)
 				hovered := b.Hovered()
@@ -288,7 +306,7 @@ func symbolGrid(c *ui.Context, f *spaceForm) {
 				})
 				b.Children(func() { ui.Icon(c, lucideIcons[name]).FontSize(15).TextColor(t.Text) })
 				if b.Clicked() {
-					f.icon, f.symbol = "", name
+					f.icon, f.symbol, f.image = "", name, ""
 					f.iconsOpen = false
 				}
 			}

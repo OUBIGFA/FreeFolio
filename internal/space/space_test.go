@@ -124,17 +124,21 @@ func TestRenamedAndExpanded(t *testing.T) {
 
 func TestSetIcon(t *testing.T) {
 	var s Space
-	s.SetIcon("📚", "")
+	s.SetIcon("📚", "", "")
 	if s.Icon != "📚" || s.Symbol != "" {
 		t.Errorf("emoji: %+v", s)
 	}
-	s.SetIcon("📚", "star")
+	s.SetIcon("📚", "star", "")
 	if s.Icon != "" || s.Symbol != "star" {
 		t.Errorf("a symbol should replace the emoji: %+v", s)
 	}
-	s.SetIcon("", "")
+	s.SetIcon("", "", "")
 	if s.Icon != "" || s.Symbol != "" {
 		t.Errorf("no icon: %+v", s)
+	}
+	s.SetIcon("📚", "star", "a1.png")
+	if s.Icon != "" || s.Symbol != "" || s.Image != "a1.png" {
+		t.Errorf("a picture should replace both: %+v", s)
 	}
 }
 
@@ -220,11 +224,20 @@ func TestFolderSortFollowsAndClears(t *testing.T) {
 	s.SetSort("Notes", "modified")
 	s.SetSort("", "name")
 	s.SetSort("x", "bogus")
-	if s.SortOf("Notes") != "modified" || s.SortOf("") != "name" || s.SortOf("x") != "" {
+	// A folder without its own choice sorts as the folders above it, and
+	// one keeping its own order under a sorted folder says so.
+	if s.SortOf("Notes") != "modified" || s.SortOf("") != "name" || s.SortOf("x") != "" || s.Sort["x"] != "manual" {
 		t.Fatal(s.Sort)
 	}
+	if s.SortOf("Notes/Days/2024") != "modified" || s.SortOf("Other/Deep") != "name" {
+		t.Fatal("inherited", s.Sort)
+	}
+	s.SetSort("x", "name")
+	if _, own := s.Sort["x"]; own || s.SortOf("x") != "name" {
+		t.Fatal("a choice the folder inherits is not kept", s.Sort)
+	}
 	s.Renamed("Notes", "Journal")
-	if s.SortOf("Journal") != "modified" || s.SortOf("Notes") != "" {
+	if _, kept := s.Sort["Notes"]; s.SortOf("Journal") != "modified" || kept {
 		t.Fatal("renaming follows", s.Sort)
 	}
 	s.Place("", []string{"a", "b"}, "b", 0)

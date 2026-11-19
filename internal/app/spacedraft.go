@@ -78,7 +78,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			}
 			icon.Children(func() {
 				if !empty {
-					spaceGlyph(c, f.icon, f.symbol, f.name, 15, t.Accent)
+					a.spaceGlyph(c, f.icon, f.symbol, f.image, f.name, 15, t.Accent)
 				}
 			})
 			if icon.Clicked() {
@@ -171,7 +171,7 @@ func (a *App) draftState(c *ui.Context) {
 		return
 	}
 	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
-		spaceGlyph(c, f.icon, f.symbol, name, 40, t.Accent)
+		a.spaceGlyph(c, f.icon, f.symbol, f.image, name, 40, t.Accent)
 		ui.Text(c, name).FontSize(20).Bold()
 		ui.Text(c, i18n.T("命名空间、挑选颜色，按 Enter 创建。")).TextColor(t.TextMuted)
 	})

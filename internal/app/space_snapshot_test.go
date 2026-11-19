@@ -47,19 +47,24 @@ func TestSpaceFormSnapshot(t *testing.T) {
 // of emoji and symbol icons, for review.
 func TestSpaceIconSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the icon picker")
-	for _, name := range []string{"space-icons-emoji", "space-icons-symbols"} {
+	for _, name := range []string{"space-icons-emoji", "space-icons-symbols", "space-icons-custom"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			tt.SetSize(1240, 700)
 			for i, icon := range [][2]string{{"📚", ""}, {"", "leaf"}, {"", "code-xml"}, {"✈️", ""}} {
 				s := a.state.Add(fmt.Sprintf("Space %d", i), t.TempDir())
-				s.SetIcon(icon[0], icon[1])
+				s.SetIcon(icon[0], icon[1], "")
 			}
 			a.newSpaceForm()
 			a.spaceForm.name = "旅行"
 			a.spaceForm.cardOpen = false
 			a.spaceForm.openIconPicker()
-			a.spaceForm.picker.symbols = name == "space-icons-symbols"
+			switch name {
+			case "space-icons-symbols":
+				a.spaceForm.picker.tab = pickerSymbols
+			case "space-icons-custom":
+				a.spaceForm.picker.tab, a.spaceForm.picker.text = pickerCustom, "工作"
+			}
 			for range 4 {
 				tt.Frame()
 			}
@@ -90,7 +95,7 @@ func TestSpaceBarSnapshot(t *testing.T) {
 			tt.SetDark(dark)
 			for i, icon := range [][2]string{{"", "moon"}, {"📚", ""}} {
 				s := a.state.Add(fmt.Sprintf("Space %d", i), t.TempDir())
-				s.SetIcon(icon[0], icon[1])
+				s.SetIcon(icon[0], icon[1], "")
 			}
 			for range 4 {
 				tt.Frame()

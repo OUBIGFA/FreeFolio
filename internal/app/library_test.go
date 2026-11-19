@@ -25,7 +25,7 @@ func libraryApp(t *testing.T) (*App, *ui.Tester) {
 		}
 		s := a.state.Add(name, root)
 		s.SetTheme(space.NewTheme(i + 1))
-		s.SetIcon([]string{"💼", "✈️"}[i], "")
+		s.SetIcon([]string{"💼", "✈️"}[i], "", "")
 		s.SetExpanded("Notes", true)
 	}
 	tt.Frame()

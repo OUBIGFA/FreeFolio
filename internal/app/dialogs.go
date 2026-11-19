@@ -19,7 +19,9 @@ type spaceForm struct {
 	name    string
 	icon    string
 	// symbol is the Lucide name of the space's glyph; it wins over icon.
+	// image, a picture's file name in space-icons, wins over both.
 	symbol string
+	image  string
 	root   string // "" for the default folder of a new space
 	// theme is the look being edited, which the window previews for an
 	// existing space until the dialog closes.
@@ -64,7 +66,7 @@ func (a *App) editSpaceProperty(s *space.Space, property string) {
 		}
 	}
 	th := space.ThemeOf(s)
-	a.spaceForm = spaceForm{open: true, id: s.ID, edit: property, name: s.Name, icon: s.Icon, symbol: s.Symbol, root: s.Root, theme: th, knob: -1, cardOpen: property == "theme"}
+	a.spaceForm = spaceForm{open: true, id: s.ID, edit: property, name: s.Name, icon: s.Icon, symbol: s.Symbol, image: s.Image, root: s.Root, theme: th, knob: -1, cardOpen: property == "theme"}
 	a.spaceForm.page = max(0, space.PageOf(th.Colors))
 	if property == "icon" {
 		a.spaceForm.openIconPicker()
@@ -107,7 +109,7 @@ func (a *App) submitSpace() {
 		case "name":
 			s.Name = name
 		case "icon":
-			s.SetIcon(icon, f.symbol)
+			s.SetIcon(icon, f.symbol, f.image)
 		case "theme":
 			s.SetTheme(f.theme)
 		}
@@ -124,7 +126,7 @@ func (a *App) submitSpace() {
 		return
 	}
 	s := a.state.Add(name, root)
-	s.SetIcon(icon, f.symbol)
+	s.SetIcon(icon, f.symbol, f.image)
 	s.SetTheme(f.theme)
 	// An empty folder starts with a page showing how to write.
 	if docs, err := vault.List(root); err == nil && len(docs) == 0 {

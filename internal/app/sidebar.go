@@ -105,6 +105,9 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Clicked() {
 				a.chooseExternalFiles()
 			}
+			if a.libraryFootButton(c).Clicked() {
+				a.toggleLibrary()
+			}
 		})
 	})
 }
@@ -383,7 +386,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 				ui.Icon(c.Key("chevron"), iconChevronDown).FontSize(13).TextColor(t.TextMuted).
 					AnimatePose(ui.Pose{Rotate: turn}, ui.Animation{Duration: 120 * time.Millisecond, Ease: ui.EaseInOut})
 			} else {
-				spaceGlyph(c, sp.Icon, sp.Symbol, sp.Name, 14.5, t.Accent)
+				a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 14.5, t.Accent)
 			}
 		})
 		if live && icon.Clicked() {
@@ -563,7 +566,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			}
 			cardX, cardY, cardW := rb.X+inset, rb.Y, rb.W-inset
 			if cardW <= 0 {
-				cardW = sidebarWidth - 2*rowInset - inset
+				cardW = a.sidebarW() - 2*rowInset - inset
 			}
 			gx := min(max(px-cardX, 8), max(8, cardW-8))
 			gy := min(max(py-cardY, 4), rowHeight-4)
@@ -698,7 +701,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				}
 			}
 			if tr.W <= 0 {
-				tr = ui.Rect{X: row.Bounds().X, Y: a.dragSettle.fromY, W: sidebarWidth - 2*rowInset, H: rowHeight}
+				tr = ui.Rect{X: row.Bounds().X, Y: a.dragSettle.fromY, W: a.sidebarW() - 2*rowInset, H: rowHeight}
 			}
 			a.dragSettle.toRect = ui.Rect{X: tr.X + inset, Y: tr.Y, W: tr.W - inset, H: tr.H}
 			a.dragSettle.hasTarget = true
@@ -1000,9 +1003,6 @@ func (a *App) spaceBar(c *ui.Context) {
 	foot := ui.Row(c.Key("spaces")).Height(36).Gap(2).AlignItems(ui.Center)
 	a.tourMark("spaces", foot)
 	foot.Children(func() {
-		if a.libraryFootButton(c).Clicked() {
-			a.toggleLibrary()
-		}
 		list := ui.ScrollHorizontal(c.Key("space-list")).Grow(1).MinWidth(0).Height(34).
 			FocusGroup(ui.Horizontal).TrackScroll(&a.spaceScroll).Scrollbars(false)
 		width := list.Bounds().W
@@ -1034,7 +1034,7 @@ func (a *App) spaceBar(c *ui.Context) {
 					if on {
 						b.Background(t.Surface).Border(1, t.Border)
 					}
-					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Name, on, b.Hovered()) })
+					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, on, b.Hovered()) })
 
 					b.ContextMenu(func(m *ui.Menu) {
 						a.spaceEditMenu(m, s)
@@ -1068,7 +1068,7 @@ func (a *App) spaceBar(c *ui.Context) {
 					if changed || a.spaceBarFor != "draft" {
 						d.ScrollIntoView()
 					}
-					d.Children(func() { a.spaceBarGlyph(c, f.icon, f.symbol, f.name, true, false) })
+					d.Children(func() { a.spaceBarGlyph(c, f.icon, f.symbol, f.image, f.name, true, false) })
 				}
 			})
 		})
@@ -1083,13 +1083,13 @@ func (a *App) spaceBar(c *ui.Context) {
 
 // spaceBarGlyph is a space's icon on the bar: in the accent and a little
 // larger when chosen, faint otherwise and brighter under the pointer.
-func (a *App) spaceBarGlyph(c *ui.Context, emoji, symbol, name string, on, hovered bool) {
+func (a *App) spaceBarGlyph(c *ui.Context, emoji, symbol, image, name string, on, hovered bool) {
 	t := c.Theme()
 	size, color := float32(15), t.Text
 	if on {
 		size, color = 17, t.Accent
 	}
-	g := spaceGlyph(c, emoji, symbol, name, size, color)
+	g := a.spaceGlyph(c, emoji, symbol, image, name, size, color)
 	switch {
 	case on:
 	case hovered:

@@ -36,6 +36,10 @@ type Space struct {
 	// tab of the icon picker, as Cra keeps Arc's symbols beside its emoji
 	// (never both). It wins over Icon.
 	Symbol string `json:"symbol,omitempty"`
+	// Image is the file name, in the configuration folder's space-icons,
+	// of a picture the user chose as the glyph (version 11). It wins over
+	// Symbol and Icon.
+	Image string `json:"image,omitempty"`
 	// Color is the space's main hex color (#RRGGBB), the first of its
 	// theme's; spaces saved before themes have only this.
 	Color string `json:"color"`
@@ -67,27 +71,67 @@ type Space struct {
 	// the folder's own order.
 	Order map[string][]string `json:"order,omitempty"`
 	// Sort is how a folder, by its path ("" for the root), sorts its files
-	// and folders instead of the order dragging leaves: "name" or
-	// "modified", newest first (version 8).
+	// and folders instead of the order dragging leaves: "name", "modified"
+	// (newest first) or "manual" (version 8). A folder without an entry
+	// sorts as the nearest folder above it that has one (version 11), so
+	// sorting a folder sorts what it holds; "manual" keeps a folder in its
+	// own order under a sorted one.
 	Sort map[string]string `json:"sort,omitempty"`
 }
 
-// Sorts are the ways a folder may sort, beside its own order ("").
+// Sorts are the ways a folder may sort, as menus offer them: its own order
+// (""), by name, or newest first.
 var Sorts = []string{"", "name", "modified"}
 
-// SortOf is how the folder dir sorts: "" for the order dragging leaves.
-func (s *Space) SortOf(dir string) string { return s.Sort[dir] }
+// manualSort is stored for a folder that keeps its own order although a
+// folder above it sorts.
+const manualSort = "manual"
 
-// SetSort sets how the folder dir sorts; "" goes back to its own order.
+// SortOf is how the folder dir sorts, its own choice or else the nearest
+// one above it: "" for the order dragging leaves.
+func (s *Space) SortOf(dir string) string {
+	for {
+		if mode, ok := s.Sort[dir]; ok {
+			if mode == manualSort {
+				return ""
+			}
+			return mode
+		}
+		if dir == "" {
+			return ""
+		}
+		dir, _ = parentOf(dir)
+	}
+}
+
+// SetSort sets how the folder dir sorts; "" is its own order. A choice the
+// folder would inherit anyway is not stored, so the folder goes on
+// following the folders above it.
 func (s *Space) SetSort(dir, mode string) {
 	if mode != "name" && mode != "modified" {
-		delete(s.Sort, dir)
+		mode = ""
+	}
+	delete(s.Sort, dir)
+	if mode == s.SortOf(dir) {
 		return
+	}
+	if mode == "" {
+		mode = manualSort
 	}
 	if s.Sort == nil {
 		s.Sort = map[string]string{}
 	}
 	s.Sort[dir] = mode
+}
+
+// UsesSort reports whether any folder of the space sorts so.
+func (s *Space) UsesSort(mode string) bool {
+	for _, m := range s.Sort {
+		if m == mode {
+			return true
+		}
+	}
+	return false
 }
 
 // Arrange orders the names of the folder dir's files and folders as the
@@ -123,8 +167,9 @@ func (s *Space) Arrange(dir string, names []string) []string {
 func (s *Space) Place(dir string, shown []string, name string, index int) {
 	list := slices.DeleteFunc(slices.Clone(shown), func(n string) bool { return n == name })
 	index = min(max(index, 0), len(list))
-	// Placing by hand is the folder's own order again.
-	delete(s.Sort, dir)
+	// Placing by hand is the folder's own order again, even under a
+	// sorted folder.
+	s.SetSort(dir, "")
 	if s.Order == nil {
 		s.Order = map[string][]string{}
 	}
@@ -201,10 +246,15 @@ func under(p, rel string) bool { return p == rel || strings.HasPrefix(p, rel+"/"
 func (s *Space) Renamed(from, to string) {
 	s.reorderRenamed(from, to)
 	re := renamer(from, to)
+	// Re-keyed as stored: SetSort would compare with parents not yet
+	// renamed.
 	sorts := s.Sort
 	s.Sort = nil
 	for k, v := range sorts {
-		s.SetSort(re(k), v)
+		if s.Sort == nil {
+			s.Sort = map[string]string{}
+		}
+		s.Sort[re(k)] = v
 	}
 	for i, p := range s.Pins {
 		s.Pins[i] = re(p)
@@ -344,7 +394,10 @@ func (st *State) MovedAcross(fromID, from, toID, to string) {
 		}
 		for k, mode := range src.Sort {
 			if under(k, from) {
-				dst.SetSort(re(k), mode)
+				if dst.Sort == nil {
+					dst.Sort = map[string]string{}
+				}
+				dst.Sort[re(k)] = mode
 			}
 		}
 	}
@@ -408,7 +461,10 @@ type State struct {
 // external space and its explicit ExternalFiles collection; older states
 // acquire it on the first external open.
 // Version 10 retires the external collection. Startup detaches its references.
-const CurrentVersion = 10
+// Version 11 lets a folder's Sort reach the folders it holds, with "manual"
+// for one keeping its own order, and adds Space.Image, a picture as the
+// space's icon; older states read unchanged.
+const CurrentVersion = 11
 
 // ErrNotFound reports a space ID the state does not have.
 var ErrNotFound = errors.New("space: not found")
@@ -510,9 +566,12 @@ func NewID() string {
 }
 
 // SetIcon gives the space an emoji or a symbol, or neither, never both.
-func (s *Space) SetIcon(emoji, symbol string) {
+func (s *Space) SetIcon(emoji, symbol, image string) {
+	if image != "" {
+		emoji, symbol = "", ""
+	}
 	if symbol != "" {
 		emoji = ""
 	}
-	s.Icon, s.Symbol = emoji, symbol
+	s.Icon, s.Symbol, s.Image = emoji, symbol, image
 }

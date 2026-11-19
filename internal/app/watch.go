@@ -186,6 +186,10 @@ func (a *App) filesChanged(id string, events []mygo.FileEvent) {
 			a.moved(sp, e.OldPath, e.Path)
 		}
 	}
+	// Sorted newest first, a write moves the file, and its folders, up.
+	if !structural && len(events) > 0 && sp.UsesSort("modified") {
+		structural = true
+	}
 	if structural {
 		delete(a.pageTrees, id)
 		if a.state.ActiveSpace() == sp {

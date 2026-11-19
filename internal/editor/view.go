@@ -192,9 +192,11 @@ type Editor struct {
 	codeLex                     map[string]*codeLexCache
 	codeNoWrap                  bool
 	codeWrapOverride            map[string]bool
-	codeScrollX                 map[string]float32
-	codeBarDrag                 string
-	codeBarGrab                 float32
+	// codeOpen are the long code blocks opened from their fold.
+	codeOpen    map[string]bool
+	codeScrollX map[string]float32
+	codeBarDrag string
+	codeBarGrab float32
 	// bookmarks are the host's marks on the page (bookmarks.go).
 	bookmarks bookmarkState
 	// reserved are keys the host takes, which the page leaves alone.
@@ -242,11 +244,13 @@ type Editor struct {
 
 type row struct {
 	leafRevision uint64
-	leaf         document.Leaf
-	layout       *textLayout
-	rect         ui.Rect
-	x, y         float32
-	picture      *imageFigure
+	// foldH is the height a folded code block's text keeps, 0 unfolded.
+	foldH   float32
+	leaf    document.Leaf
+	layout  *textLayout
+	rect    ui.Rect
+	x, y    float32
+	picture *imageFigure
 	// number is the position of a numbered item in its list, from 1.
 	number int
 	// size is the font size, which sizes the row's hand-drawn marks.
@@ -302,7 +306,11 @@ type decoration struct {
 	empty          bool
 	mermaidHidden  bool
 	mermaidWellOff float32
-	yApplied       float64
+	// foldable marks a code block long enough to fold, folded one that
+	// shows only its first lines, and lines how many it holds.
+	foldable, folded bool
+	lines            int
+	yApplied         float64
 }
 
 // hovered reports whether the pointer is over r, with slack around it for
@@ -868,6 +876,7 @@ func (e *Editor) layout(o Options) {
 		noteKey:    e.noteKey(),
 		codeNoWrap: e.codeNoWrap,
 	}
+	e.openFoldAtCaret()
 	finishResize := e.resizePending && (!o.Resizing || e.resizeBatch)
 	refreshResize := e.resizePending && e.resizeScroll != e.Scroll.Y
 	anchor := resizeAnchor{}
@@ -1087,6 +1096,13 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		winTop, winBottom = e.virtualWindow()
 		caretID, anchorID, revealID, caretOwner, anchorOwner, revealOwner = e.activeBlockOwners()
 	}
+	caretLeaf := e.Engine.LeafAt(e.Caret)
+	// codeDecoration marks a code block's decoration with its fold.
+	codeDecoration := func(d *decoration, b *document.Block) {
+		if e.codeFoldable(b) {
+			d.foldable, d.folded, d.lines = true, e.codeFolded(b), codeLines(b, 1<<30)
+		}
+	}
 	var blockLayout func(*document.Block, float32, float32, float32) float32
 	blockLayout = func(b *document.Block, x, y, w float32) float32 {
 		if b.Kind == "columns" {
@@ -1154,6 +1170,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		}
 		if laid == nil && deferShape {
 			estH := e.estimateBlockHeight(b, font, e.hintWidthFor(b, shapeWidth))
+			if e.codeFolded(b) {
+				estH = min(estH, foldedCodeHeight(font))
+			}
 			total := top + max(estH, font.Size*font.LineHeight) + bottom
 			if b.Kind == "math" || isMermaidBlock(b) {
 				total = estH
@@ -1175,6 +1194,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 						d.kind, d.label, d.id, d.mermaidHidden = "mermaid", b.Language, b.ID, true
 					} else if b.Kind == "code" {
 						d.label, d.id = b.Language, b.ID
+						codeDecoration(&d, b)
 					}
 					if b.Kind == "callout" {
 						d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1191,8 +1211,19 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		}
 		_, h = laid.Size()
 		h = max(h, font.Size*font.LineHeight)
+		fullH := h
+		var foldH float32
+		if b.Kind == "code" && e.codeFoldable(b) {
+			if caretLeaf.Block.ID == b.ID {
+				e.openCodeAtCaret(b, laid, e.Caret-leaf.Start, font)
+			}
+			if e.codeFolded(b) {
+				foldH = foldedCodeHeight(font)
+				h = min(h, foldH)
+			}
+		}
 		total := top + h + bottom
-		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header}
+		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header, foldH: foldH}
 		if b.Kind == "image" {
 			total = e.layoutImage(&row, o)
 		}
@@ -1210,7 +1241,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			row.rect.H = total
 		}
 		if virtualize && leaf.Owner == b.ID && canDeferKind(b.Kind) {
-			hintH := h
+			hintH := fullH
 			if b.Kind == "math" || isMermaidBlock(b) {
 				hintH = total
 			}
@@ -1224,6 +1255,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 				d.mermaidHidden, d.mermaidWellOff = row.mermaidHidden, mermaidWellOff
 			} else if b.Kind == "code" {
 				d.label, d.id = b.Language, b.ID
+				codeDecoration(&d, b)
 			}
 			if b.Kind == "callout" {
 				d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1551,7 +1583,15 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					}
 				}
 			}
-			if _, clipBox, _, _, scrollX, noWrap := e.codeScrollFor(r); noWrap {
+			_, clipBox, _, _, scrollX, noWrap := e.codeScrollFor(r)
+			if r.foldH > 0 {
+				fc := foldClip(r)
+				if !noWrap {
+					clipBox = fc
+				}
+				clipBox.H = min(clipBox.H, fc.Y+fc.H-clipBox.Y)
+			}
+			if noWrap || r.foldH > 0 {
 				p.Clip(ui.Rect{X: bounds.X + clipBox.X + dx, Y: bounds.Y + clipBox.Y + dy, W: clipBox.W, H: clipBox.H}, 0, func() {
 					paintRowBody(scrollX)
 				})
@@ -1561,6 +1601,9 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		}
 	}
 	paintRowPass(false)
+	if !e.printing {
+		e.paintCodeFolds(p, bounds, t)
+	}
 	if plan.active && !e.printing {
 		card := ui.Rect{
 			X: bounds.X + e.padding - 8,
@@ -1761,6 +1804,9 @@ func (e *Editor) hoverControl(x, y float32) bool {
 			e.colorOpen = !(e.colorOpen && e.colorID == d.id)
 			e.colorID, e.colorAt = d.id, calloutIconRect(d)
 			return true
+		case d.kind == "code" && d.foldable && in(e.codeFoldButton(d)):
+			e.ToggleCodeFold(d.id)
+			return true
 		case d.kind == "code" && d.id != "" && in(languageButton(d)):
 			e.langOpen = !(e.langOpen && e.langID == d.id)
 			e.langID, e.langAt = d.id, languageButton(d)
@@ -1938,7 +1984,7 @@ func (e *Editor) paintLineNumbers(p *ui.Painter, bounds ui.Rect, d decoration) {
 		}
 		caret := r.layout.Caret(at)
 		lineY := r.y + caret.Y
-		if clip && lineY > visBot {
+		if clip && lineY > visBot || r.foldH > 0 && caret.Y >= r.foldH {
 			break
 		}
 		if !clip || lineY+max(caret.H, 22) >= visTop {
@@ -2048,6 +2094,10 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 				}
 				if d.kind != "code" {
 					continue
+				}
+				if d.foldable && in(e.codeFoldButton(d)) {
+					e.ToggleCodeFold(d.id)
+					return true
 				}
 				if canShowWrapButton(d) && in(wrapButton(d)) && (e.hovered(d.rect, 0) || e.isCodeNoWrap(e.blockByID(d.id))) {
 					e.ToggleCodeWrap(d.id)

@@ -1,6 +1,10 @@
 package app
 
 import (
+	"bytes"
+	"image"
+	"image/png"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -216,5 +220,53 @@ func TestSpaceEditingSnapshot(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// The picker's own tab takes a short text of the user's or a picture,
+// copied into the configuration folder, as the space's icon.
+func TestSpaceCustomIconTextAndPicture(t *testing.T) {
+	a, tt := newTestApp(t)
+	settle(tt)
+	sp := a.state.ActiveSpace()
+	open := func() {
+		t.Helper()
+		a.editSpaceProperty(sp, "icon")
+		tt.Frame()
+		if err := tt.Click("自定义"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	open()
+	if err := tt.Click("自定义图标文字"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("工作区")
+	tt.Type("多")
+	tt.Key(0, ui.KeyEnter)
+	settle(tt)
+	if sp.Icon != "工作区" || sp.Symbol != "" || sp.Image != "" || a.spaceForm.open {
+		t.Fatalf("text icon: %+v", sp)
+	}
+	pic := filepath.Join(t.TempDir(), "Logo.PNG")
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	var buf bytes.Buffer
+	png.Encode(&buf, img)
+	os.WriteFile(pic, buf.Bytes(), 0o644)
+	a.pickFiles = func(done func([]string)) { done([]string{pic}) }
+	open()
+	if err := tt.Click("选择图片…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if sp.Image == "" || sp.Icon != "" || filepath.Ext(sp.Image) != ".png" {
+		t.Fatalf("picture icon: %+v", sp)
+	}
+	if _, err := os.Stat(filepath.Join(a.cfg.ConfigDir, "space-icons", sp.Image)); err != nil || a.spaceIconImage(sp.Image) == nil {
+		t.Fatal("the picture is kept and shows", err)
+	}
+	if a.spaceIconImage("../prefs.json") != nil {
+		t.Fatal("only file names in the folder")
 	}
 }

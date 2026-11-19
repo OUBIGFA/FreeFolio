@@ -84,6 +84,15 @@ type App struct {
 
 	cfg Config
 	win *mygo.Window
+	// tray is the notification area's icon while closing the window hides
+	// it there; quitting is set from the start of a quit until it is
+	// canceled, so that the window then closes for good.
+	tray     *mygo.Tray
+	quitting bool
+	// remote fetches and keeps the documents' pictures from the web.
+	remote *remoteImages
+	// spaceIcons are the pictures chosen as space icons, decoded, by name.
+	spaceIcons map[string]*ui.Bitmap
 	// closeMain closes the main window, as the file browser does when its
 	// last tab closes; nil in tests, which leaves the empty browser.
 	closeMain func()
@@ -108,6 +117,12 @@ type App struct {
 	paneNavigation  bool
 	documentContext int
 	splitResizing   bool
+	// sidebarResizing is set while the sidebar's edge is dragged, from
+	// the width sidebarDrag the pointer has taken it to; winW is the
+	// window's width as the frame began.
+	sidebarResizing bool
+	sidebarDrag     float32
+	winW            float32
 	sessions        map[string]*spaceSession
 	// openDocs are the pinned documents kept open behind the one shown,
 	// and bounce the row springing from a close (opendocs.go).
@@ -275,6 +290,7 @@ func New(cfg Config) (*App, error) {
 		sessions:  make(map[string]*spaceSession),
 		openDocs:  make(map[place]*document),
 		prefStore: prefs.Store{Path: filepath.Join(cfg.ConfigDir, "prefs.json")},
+		remote:    newRemoteImages(filepath.Join(cfg.ConfigDir, "cache", "images")),
 		bin:       trashbin.Bin{Dir: filepath.Join(cfg.ConfigDir, "trash")},
 		qa:        qaState{secrets: prefs.Secrets{Dir: filepath.Join(cfg.ConfigDir, "credentials")}},
 		// The spaces fade in on coming back from the library, not at start.
@@ -449,19 +465,69 @@ func (a *App) Run() error {
 		a.search.async = true
 		a.refreshSearch()
 		a.updates.svc, a.updates.async = mygoUpdates{}, true
+		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
+		mygo.App.OnQuitCanceled(func() { a.quitting = false })
+		a.syncTray()
 		a.win.OnClose(func(event *mygo.CloseEvent) {
 			if !a.flush() {
 				event.PreventDefault()
-			} else {
-				a.cancelPDF()
-				a.finishSpaceEdit()
-				if a.captureSplits() {
-					a.saveState()
-				}
+				return
 			}
+			a.finishSpaceEdit()
+			if a.captureSplits() {
+				a.saveState()
+			}
+			if !a.quitting && a.tray != nil {
+				// Saved as on closing, the window only hides: the tray
+				// brings it back, and a running PDF export goes on.
+				event.PreventDefault()
+				a.win.Hide()
+				return
+			}
+			a.cancelPDF()
 		})
 	})
 	return mygo.App.Run()
+}
+
+// syncTray shows the notification area's icon while closing the window
+// keeps FreeMD running, and removes it otherwise.
+func (a *App) syncTray() {
+	if a.prefs.KeepRunningOff {
+		if a.tray != nil {
+			a.tray.Destroy()
+			a.tray = nil
+		}
+		return
+	}
+	if a.tray != nil || a.win == nil {
+		return
+	}
+	show := func() {
+		if a.win.IsMinimized() {
+			a.win.Restore()
+		}
+		a.win.Show()
+		a.win.Focus()
+	}
+	tray, err := mygo.NewTray(mygo.TrayOptions{
+		ID:      "freemd",
+		Icon:    resources.Icon,
+		ToolTip: "FreeMD",
+		Menu: mygo.NewMenu([]*mygo.MenuItem{
+			{Label: i18n.T("打开 FreeMD"), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},
+			mygo.Separator(),
+			{Label: i18n.T("退出 FreeMD"), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+		}),
+	})
+	if err != nil {
+		a.notify("无法创建托盘图标。%v", err)
+		return
+	}
+	// On Windows and Linux a click opens the window and a right click the
+	// menu; macOS shows the menu on any click.
+	tray.OnClick(show)
+	a.tray = tray
 }
 
 // appMenu is the application menu, with "检查更新…" after About on macOS
@@ -565,7 +631,25 @@ func (a *App) imageResourceFor(d *document, url string) editor.ImageResource {
 	if d == nil {
 		return editor.ImageResource{}
 	}
+	if isRemoteImage(url) {
+		return a.remote.resource(url, a.asyncPost(), func() {
+			if d.ed != nil {
+				d.ed.InvalidateImage(url)
+			}
+		})
+	}
 	return d.imageResourceWith(url, a.asyncPost())
+}
+
+// cachedImageFor loads d's pictures at once, as thumbnails and PDF export
+// do: web pictures only as already fetched.
+func (a *App) cachedImageFor(d *document) func(string) editor.ImageResource {
+	return func(url string) editor.ImageResource {
+		if isRemoteImage(url) {
+			return a.remote.resource(url, nil, nil)
+		}
+		return d.imageResource(url)
+	}
 }
 
 func (a *App) session(id string) *spaceSession {

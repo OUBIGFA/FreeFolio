@@ -177,7 +177,7 @@ func (p ImageProblem) text() string {
 	case ImageUnreadable:
 		return i18n.T("无法读取图片，请检查文件及访问权限。")
 	case ImageRemote:
-		return i18n.T("暂不加载网络图片，请选择本地图片。")
+		return i18n.T("无法加载网络图片，请检查链接或网络。")
 	default:
 		return i18n.T("图片路径无效，请重新选择图片。")
 	}
