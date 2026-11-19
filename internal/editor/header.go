@@ -36,6 +36,8 @@ type headerState struct {
 	// iconRect is the icon's box and coverRect the cover's, empty when
 	// there is none; titleTop is where the first block starts.
 	iconRect, coverRect ui.Rect
+	// propsRect is the properties' box (properties.go), empty without any.
+	propsRect           ui.Rect
 	titleTop            float32
 	coverImage          *ui.Bitmap
 	iconOpen, coverOpen bool
@@ -78,6 +80,7 @@ func (e *Editor) layoutHeader(o Options) float32 {
 		h.iconRect = ui.Rect{X: e.padding - 4, Y: top, W: iconSize + 8, H: iconSize + 8}
 		y = top + iconSize + 24
 	}
+	y = e.layoutProperties(o, y)
 	h.titleTop = y
 	return y
 }

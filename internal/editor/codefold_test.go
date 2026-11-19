@@ -18,7 +18,7 @@ func TestLongCodeFoldsAndItsToggleFollowsTheBlock(t *testing.T) {
 		t.Fatal("only the long block folds")
 	}
 	folded := e.rows[0].rect.H
-	if folded > 40+codeFoldLines*22+34+1 {
+	if folded > 40+codeFoldLines*22+34+codeFoldLane+1 {
 		t.Fatalf("folded height %v", folded)
 	}
 	var d decoration
@@ -39,21 +39,30 @@ func TestLongCodeFoldsAndItsToggleFollowsTheBlock(t *testing.T) {
 	if e.codeFolded(long) || e.rows[0].rect.H <= folded+500 {
 		t.Fatal("the toggle opens the block", e.rows[0].rect.H)
 	}
-	// Open and longer than the view, the toggle sits at the view's foot,
-	// within the block.
+	// Open and longer than the view, the toggle stays in its lane at the
+	// block's foot, below the code, not over it at the view's foot.
 	for i := range e.decorations {
 		if dc := *e.indexedDecoration(i); dc.id == long.ID {
 			d = dc
 		}
 	}
 	b = e.codeFoldButton(d)
-	if b.Y+b.H > e.Scroll.Y+e.viewport || b.Y+b.H < e.Scroll.Y+e.viewport-40 || b.Y+b.H > d.rect.Y+d.rect.H {
+	if b.Y+b.H != d.rect.Y+d.rect.H-codeFoldMargin {
 		t.Fatalf("toggle %+v, view %v..%v, block %+v", b, e.Scroll.Y, e.Scroll.Y+e.viewport, d.rect)
+	}
+	// Folding with the view scrolled past the block's top goes back to it.
+	e.Scroll.Y = e.rows[0].rect.Y + 400
+	tt.Frame()
+	if e.Scroll.Y <= e.rows[0].rect.Y {
+		t.Fatal("the view did not scroll into the block")
 	}
 	e.ToggleCodeFold(long.ID)
 	tt.Frame()
 	if !e.codeFolded(long) {
 		t.Fatal("folds again")
+	}
+	if top := e.rows[0].rect.Y; e.Scroll.Y > top {
+		t.Fatalf("scroll %v stays past the folded block's top %v", e.Scroll.Y, top)
 	}
 	// The caret going into the part out of sight opens the block.
 	leaf := e.Engine.LeafAt(1)
@@ -107,5 +116,43 @@ func TestWrappedCodeFoldsByItsHeight(t *testing.T) {
 	tt.Frame()
 	if e.codeFoldable(e.Doc.Blocks[0]) {
 		t.Fatal("a short block folds")
+	}
+}
+
+// The toggle of a foldable block has a lane of its own below the code, so
+// it covers no text, open or folded, and keeps a margin from the block's
+// foot.
+func TestCodeFoldToggleHasItsOwnLane(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 20; i++ {
+		lines = append(lines, strings.Repeat("x", 200))
+	}
+	e, tt := newTester("```text\n" + strings.Join(lines, "\n") + "\n```\n\nafter")
+	tt.Frame()
+	b := e.Doc.Blocks[0]
+	for _, open := range []bool{false, true} {
+		if open {
+			e.ToggleCodeFold(b.ID)
+			tt.Frame()
+		}
+		r := e.rows[0]
+		textBottom := r.y + r.foldH
+		if r.foldH == 0 {
+			_, h := r.layout.Size()
+			textBottom = r.y + h
+		}
+		var d decoration
+		for i := range e.decorations {
+			if dc := *e.indexedDecoration(i); dc.id == b.ID {
+				d = dc
+			}
+		}
+		btn := e.codeFoldButton(d)
+		if btn.Y < textBottom+codeFoldMargin-0.5 {
+			t.Errorf("open=%v: toggle %+v over the text ending at %v", open, btn, textBottom)
+		}
+		if foot := d.rect.Y + d.rect.H; btn.Y+btn.H > foot-codeFoldMargin+0.5 {
+			t.Errorf("open=%v: toggle %+v within %v of the foot %v", open, btn, codeFoldMargin, foot)
+		}
 	}
 }

@@ -673,6 +673,19 @@ func (a *App) imageResourceFor(d *document, url string) editor.ImageResource {
 	if d == nil {
 		return editor.ImageResource{}
 	}
+	if !isRemoteImage(url) && isVideoFile(url) {
+		// A video file of the space plays from where it is.
+		full, err := d.localImage(url)
+		if err != nil {
+			return editor.ImageResource{Problem: editor.ImageInvalid}
+		}
+		if _, err := os.Stat(full); err != nil {
+			return editor.ImageResource{Problem: editor.ImageMissing, Local: true}
+		}
+		res := videoFileResource(full)
+		res.Local = true
+		return res
+	}
 	if isRemoteImage(url) {
 		return a.remote.resource(url, a.asyncPost(), func() {
 			if d.ed != nil {

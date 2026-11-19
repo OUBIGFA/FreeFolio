@@ -167,6 +167,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		DropFiles:       func(paths []string, at int) { run(func() { a.insertImages(paths, at) }) },
 		PasteImage:      func(data []byte) { run(func() { a.pasteImage(data) }) },
 		LoadImage:       func(url string) editor.ImageResource { return a.imageResourceFor(d, url) },
+		OpenVideo:       openVideo,
 		ReplaceImage:    func(id, url string) { a.pickReplacementImage(d, id, url) },
 		RevealImage:     func(url string) { a.revealImage(d, url) },
 		CropImage:       func(id, url string, r image.Rectangle) { a.cropImage(d, id, url, r) },

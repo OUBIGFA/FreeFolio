@@ -114,8 +114,10 @@ func TestSpaceIconPickerAnchoredAndImmediate(t *testing.T) {
 	panel, ok := tt.Find("选择空间图标")
 	anchor, _ := tt.Find("切换到 Personal")
 	after, _ := tt.Find("Journal")
-	if !ok || panel.Y < anchor.Y+anchor.H || after != before || a.spaceForm.cardOpen {
-		t.Fatalf("picker should sit below its icon: %v, anchor %v", panel, anchor)
+	// The spaces sit at the sidebar's foot: the picker opens above its
+	// icon there, below it where there is room, and never over it.
+	if !ok || panel.Y < anchor.Y+anchor.H && panel.Y+panel.H > anchor.Y || after != before || a.spaceForm.cardOpen {
+		t.Fatalf("picker should sit beside its icon: %v, anchor %v", panel, anchor)
 	}
 	if !tt.HasText("搜索表情") {
 		if err := tt.Click("表情符号"); err != nil {

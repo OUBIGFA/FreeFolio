@@ -14,10 +14,22 @@ import (
 // editing session's and never changes the Markdown. Lines count as they
 // show: a prompt of a few long lines that wrap stands as tall as many
 // short ones, so the height the block lays out to decides, not its
-// newlines. Its toggle sits at the foot of the block, or at the foot of
-// the view while the block runs past it, so it stays at hand for the block
-// being read and no other.
+// newlines. Its toggle sits in a lane of its own at the foot of the block,
+// open or folded, so it never covers the code; folding goes back to the
+// block's top.
 const codeFoldLines = 15
+
+// A foldable code block keeps a lane of its own below its text for the
+// toggle, so the toggle never covers code, even a last line that runs the
+// block's full width: the toggle stands codeFoldMargin above the block's
+// foot and as far below its last line.
+const (
+	codeFoldButtonH = 24
+	codeFoldMargin  = 12
+	// codeFoldLane is the height a foldable block adds to the code box's
+	// bottom padding (26, blockMetrics) to hold the toggle and its margins.
+	codeFoldLane = codeFoldButtonH + 2*codeFoldMargin - 26
+)
 
 // codeLines is how many lines the code block b holds, counting no further
 // than limit.
@@ -80,6 +92,14 @@ func (e *Editor) ToggleCodeFold(id string) {
 		if leaf := e.Engine.LeafAt(e.Caret); leaf.Block.ID == id {
 			e.SetSelection(leaf.Start, leaf.Start)
 		}
+		// Folded from below its top, as from the toggle at its foot, the
+		// block would shrink out of sight above: go back to its top.
+		if idx, ok := e.rowIDs[id]; ok {
+			if top := e.indexedRow(idx).rect.Y; top < e.Scroll.Y {
+				e.scrollGlide = scrollGlideState{}
+				e.Scroll.Y = max(0, top-48)
+			}
+		}
 	} else {
 		if e.codeOpen == nil {
 			e.codeOpen = map[string]bool{}
@@ -129,17 +149,11 @@ func (e *Editor) openFoldAtCaret() {
 	}
 }
 
-// codeFoldButton is where a long code block shows its toggle: at a folded
-// block's foot, over its fade; an open one's follows the foot of the view
-// while the block runs past it. A folded block entering at the view's
-// foot keeps its toggle at its own foot, off the code it would cover.
+// codeFoldButton is where a long code block shows its toggle: in the lane
+// at the block's foot, below its last line.
 func (e *Editor) codeFoldButton(d decoration) ui.Rect {
-	w, h := float32(96), float32(24)
-	bottom := d.rect.Y + d.rect.H - 2
-	if e.viewport > 0 && !d.folded {
-		bottom = min(bottom, e.Scroll.Y+e.viewport-12)
-	}
-	bottom = max(bottom, d.rect.Y+48+h)
+	w, h := float32(96), float32(codeFoldButtonH)
+	bottom := max(d.rect.Y+d.rect.H-codeFoldMargin, d.rect.Y+48+h)
 	return ui.Rect{X: d.rect.X + (d.rect.W-w)/2, Y: bottom - h, W: w, H: h}
 }
 

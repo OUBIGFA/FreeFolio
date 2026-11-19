@@ -48,6 +48,8 @@ type inlineObject struct {
 	// cannot show, which label then names.
 	picture *ui.Bitmap
 	image   bool
+	// video is the address of the video an inline image is the poster of.
+	video string
 }
 
 type textLayout struct {
@@ -428,7 +430,7 @@ func (e *Editor) inlineImage(token inlineToken, a, z int, font ui.Font, lineW fl
 		if lineW > 0 && w > lineW-4 {
 			w, h = lineW-4, (lineW-4)*h/w
 		}
-		obj.picture, obj.rect = res.Bitmap, ui.Rect{W: w, H: h}
+		obj.picture, obj.rect, obj.video = res.Bitmap, ui.Rect{W: w, H: h}, res.Video
 		return obj
 	}
 	name := alt

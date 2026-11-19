@@ -196,13 +196,15 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 	}
 	t := c.Theme()
 	label := i18n.T("调整侧边栏宽度")
+	hint := i18n.T("拖动调整宽度；双击恢复默认，默认宽度时双击展开到最宽")
 	h := ui.Box(c.Key("sidebar-resizer")).Absolute().Top(0).Bottom(0).Width(8).Cursor(ui.CursorResizeEW).
-		Focusable().Role(ui.RoleSplitter).Label(label).Tooltip(i18n.T("拖动调整宽度；双击恢复默认，默认宽度时双击展开到最宽"))
+		Focusable().Role(ui.RoleSplitter).Label(label).Description(hint)
 	if a.prefs.SidebarLeft {
 		h.Right(0)
 	} else {
 		h.Left(0)
 	}
+	a.resizerTip(c, h, hint)
 	set := func(w float32) {
 		a.prefs.SidebarWidth = w
 		a.prefs.SidebarWidth = a.sidebarW()
@@ -255,6 +257,42 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 		})
 	}
 }
+
+// resizerTip shows the resizer's hint beside the line, toward the document,
+// at the pointer's height. The line spans the window, so Element.Tooltip
+// would find no room above or below it and pin the tip to the window's top,
+// over the toolbar's controls next to the line.
+func (a *App) resizerTip(c *ui.Context, h ui.Element, hint string) {
+	t := c.Theme()
+	r := h.Bounds()
+	_, y, inside := c.Root().PointerPosition()
+	if !inside || r.H <= 0 {
+		y = r.Y + r.H/2
+	}
+	// Keep the tip off the toolbar band and the window's bottom edge.
+	y = min(max(y, r.Y+64), r.Y+r.H-48)
+	ui.TooltipBase(c, h, func(tip ui.Element) {
+		fill, text := t.Inverse, t.InverseText
+		if fill == ui.Transparent {
+			fill = t.Text
+		}
+		if text == ui.Transparent {
+			text = t.Background
+		}
+		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.25)).
+			Background(fill).TextColor(text).FontSize(t.FontSize-1).Shadow(0, 2, 8, 0, black.Alpha(0.2))
+		tip.Children(func() { ui.Text(c, hint) })
+		if a.prefs.SidebarLeft {
+			tip.AttachTo(h, ui.AnchorRight, ui.AnchorLeft).MarginStart(6)
+		} else {
+			tip.AttachTo(h, ui.AnchorLeft, ui.AnchorRight).MarginEnd(6)
+		}
+		tip.Top(y - (r.Y + r.H/2))
+	})
+}
+
+// spaceKeys are the digits that, with ⌘, go to the first nine spaces.
+var spaceKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
 
 // shortcuts handles the window's keys.
 func (a *App) shortcuts(c *ui.Context) {
@@ -325,8 +363,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	case a.pressed(c, "export-pdf"):
 		a.exportPDF()
 	}
-	keys := []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
-	for i, k := range keys {
+	for i, k := range spaceKeys {
 		if i < splitLimit && c.Shortcut(ui.Ctrl|ui.Shift, k) {
 			a.focusPane(i, true)
 		}
@@ -552,20 +589,21 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		// the question panel while it takes room beside the document.
 		toolbar.Clip()
 	}
+	// The toggle that opens the folded sidebar sits on the sidebar's edge.
+	showSidebar := func() {
+		if a.folded() && iconButton(c, "show-sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+			a.toggleSidebar()
+		}
+	}
 	toolbar.Children(func() {
-		if a.folded() {
-			if iconButton(c, "show-sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
-				a.toggleSidebar()
-			}
+		ui.Row(c.Key("brand")).PaddingX(8).Shrink(0).Children(func() { brand(c, "", true) })
+		if a.prefs.SidebarLeft {
+			showSidebar()
 		}
-		if iconButton(c, "back", iconBack, i18n.T("后退"), a.withKey(i18n.T("后退"), "back"), !a.canGo(-1)).Clicked() {
-			a.goHistory(-1)
-		}
-		if iconButton(c, "forward", iconForward, i18n.T("前进"), a.withKey(i18n.T("前进"), "forward"), !a.canGo(1)).Clicked() {
-			a.goHistory(1)
-		}
-		if iconButton(c, "reload", iconReload, i18n.T("重新载入"), a.withKey(i18n.T("从磁盘重新载入"), "reload"), a.doc == nil).Clicked() {
-			a.reload()
+		// The history's arrows live beside the sidebar's search field; with
+		// the sidebar folded away they come back here to stay reachable.
+		if docked < 0.5 {
+			a.historyButtons(c)
 		}
 		ui.Box(c).Width(8)
 		a.address(c)
@@ -582,7 +620,23 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.toggleQA()
 		}
 		a.moreMenu(c)
+		if !a.prefs.SidebarLeft {
+			showSidebar()
+		}
 	})
+}
+
+// historyButtons are the back, forward and reload buttons.
+func (a *App) historyButtons(c *ui.Context) {
+	if iconButton(c, "back", iconBack, i18n.T("后退"), a.withKey(i18n.T("后退"), "back"), !a.canGo(-1)).Clicked() {
+		a.goHistory(-1)
+	}
+	if iconButton(c, "forward", iconForward, i18n.T("前进"), a.withKey(i18n.T("前进"), "forward"), !a.canGo(1)).Clicked() {
+		a.goHistory(1)
+	}
+	if iconButton(c, "reload", iconReload, i18n.T("重新载入"), a.withKey(i18n.T("从磁盘重新载入"), "reload"), a.doc == nil).Clicked() {
+		a.reload()
+	}
 }
 
 // address shows where the document is, centered in the toolbar: its name

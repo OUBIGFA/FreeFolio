@@ -64,17 +64,24 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 				a.toggleSidebar()
 			}
 		})
-		ui.Row(c.Key("brand")).Padding(0, 16, 6, 16).AlignItems(ui.Center).Children(func() { brand(c, "", false) })
 		t := c.Theme()
-		// The command bar, shown as MyGo's button faced like a search
-		// field, with its shortcut at the end as the reference apps do.
-		ui.Column(c.Key("workspace-actions")).PaddingX(12).Children(func() {
+		// The history's arrows lead the command bar, shown as MyGo's button
+		// faced like a search field, with its shortcut at the end as the
+		// reference apps do.
+		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+			a.historyButtons(c)
 			label := i18n.T("搜索或打开文档")
-			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).Children(func() {
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).Grow(1).MinWidth(0)
+			// A narrow field gives the shortcut's room to the label; the
+			// tooltip still names the shortcut.
+			wide := search.Bounds().W >= 190
+			search.Children(func() {
 				ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
 				ui.Text(c, label).FontSize(13).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				ui.Text(c, a.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
+				if wide {
+					ui.Text(c, a.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
+				}
 			})
 			if search.Clicked() {
 				a.openPalette()
@@ -89,14 +96,14 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
-		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
-		ui.Box(c).Height(1).Background(separator(c.Theme()))
 		if len(a.state.Favorites) > 0 {
 			ui.Text(c, i18n.T("收藏文档")).PaddingStart(16).FontSize(13).FontWeight(600).TextColor(c.Theme().TextMuted)
 		}
 		a.favorites(c)
 		a.pagerView(c)
 		a.updateBanner(c)
+		// The spaces sit at the foot, over the settings, as Arc's.
+		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
 		ui.Row(c.Key("sidebar-settings")).Padding(0, 12).Gap(4).AlignItems(ui.Center).Children(func() {
 			if shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).Clicked() {
 				a.openSettings(tabGeneral)
@@ -1012,7 +1019,7 @@ func (a *App) spaceBar(c *ui.Context) {
 				for i, s := range a.state.Spaces {
 					tip := s.Name
 					if i < 9 {
-						tip = fmt.Sprintf("%s (⌘%d)", s.Name, i+1)
+						tip = fmt.Sprintf("%s (%s)", s.Name, combo(ui.Cmd, spaceKeys[i]).Label())
 					}
 					b := ui.Box(c.Key("space-"+s.ID)).Size(30, 30).Shrink(0).Radius(8).Center().Cursor(ui.CursorPointer).
 						Focusable().Role(ui.RoleButton).Label(i18n.T("切换到 ") + s.Name).Tooltip(tip)
@@ -1147,7 +1154,7 @@ func (a *App) inlineNewDocRow(c *ui.Context, index int, seamY float32) {
 // sliding down smoothly as new documents appear above it.
 func (a *App) newDocRow(c *ui.Context) {
 	t := c.Theme()
-	label, tip := i18n.T("新建文档"), i18n.T("新建文档 (⌘N)")
+	label, tip := i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc")
 	open := a.state.ActiveSpace().IsExternal()
 	if open {
 		label, tip = i18n.T("打开文件…"), i18n.T("只添加选中的文件，保留原位置")

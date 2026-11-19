@@ -39,6 +39,9 @@ type ImageResource struct {
 	// prints, and shows when the system reduces motion.
 	Frames []*ui.Bitmap
 	Delays []time.Duration
+	// Video, when set, is the address of a video the picture is the
+	// poster of, which plays in its place (video.go).
+	Video string
 }
 
 // InvalidateImage drops a cached image entry (such as a placeholder whose

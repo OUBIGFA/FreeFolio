@@ -68,15 +68,15 @@ var tourSteps = []tourStep{
 		body: func(*App) string {
 			return i18n.T("这就是空间颜色：把指针移到空间名称上，点右侧的「•••」选择「编辑主题颜色…」打开它。空间图标和侧边栏中选中的项目会使用这种颜色。")
 		},
-		keys: func(*App) []string {
-			return []string{i18n.T("跟随系统"), i18n.T("浅色"), i18n.T("深色"), i18n.T("− / + 颜色数")}
+		keys: func(a *App) []string {
+			return []string{i18n.T("••• › 编辑主题颜色…"), a.tourKey("palette") + i18n.T(" 编辑主题颜色…")}
 		}},
 	{id: "swipe", label: "左右滑动", title: "左右轻扫，切换空间",
 		body: func(*App) string {
-			return i18n.T("在侧边栏上双指左右轻扫，像翻页一样换到相邻的空间，窗口的颜色跟着渐变。用键盘也可以。")
+			return i18n.T("在侧边栏上双指左右轻扫，像翻页一样换到相邻的空间，强调色跟着切换。用键盘也可以。")
 		},
 		keys: func(a *App) []string {
-			return []string{a.tourKey("prev-space"), a.tourKey("next-space"), "⌃1 … ⌃9"}
+			return []string{a.tourKey("prev-space"), a.tourKey("next-space"), combo(ui.Cmd, spaceKeys[0]).Label() + " … " + combo(ui.Cmd, spaceKeys[8]).Label()}
 		}},
 	{id: "bookmarks", label: "书签", title: "用书签记住读到哪儿",
 		body: func(*App) string {

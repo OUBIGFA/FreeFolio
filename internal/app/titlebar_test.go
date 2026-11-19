@@ -132,3 +132,72 @@ func TestLongTitleSnapshot(t *testing.T) {
 		savePNG(t, filepath.Join(dir, fmt.Sprintf("long-title-%d.png", width)), tt)
 	}
 }
+
+// The resizer spans the window, so its tip has no room above or below it:
+// it shows beside the line at the pointer's height, toward the document,
+// never over the toolbar's controls next to the line.
+func TestSidebarResizerTipStaysOffTheToolbar(t *testing.T) {
+	for _, left := range []bool{true, false} {
+		a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
+		a.prefs.SidebarLeft = left
+		settle(tt)
+		line, ok := tt.Find("调整侧边栏宽度")
+		if !ok {
+			t.Fatal("no resizer")
+		}
+		tt.Move(line.X+line.W/2, 300)
+		tt.Advance(time.Second)
+		tt.Frame()
+		tip, ok := tt.Find("拖动调整宽度；双击恢复默认，默认宽度时双击展开到最宽")
+		if !ok {
+			t.Fatalf("left=%v: the resizer's tip does not show", left)
+		}
+		for _, label := range []string{"更多格式", "更多", "问答"} {
+			r, _ := tt.Find(label)
+			if tip.X < r.X+r.W && r.X < tip.X+tip.W && tip.Y < r.Y+r.H && r.Y < tip.Y+tip.H {
+				t.Errorf("left=%v: tip %+v covers %q %+v", left, tip, label, r)
+			}
+		}
+		if tip.Y > 300 || tip.Y+tip.H < 300 {
+			t.Errorf("left=%v: tip %+v is not at the pointer's height", left, tip)
+		}
+		if left && tip.X < line.X || !left && tip.X+tip.W > line.X+line.W {
+			t.Errorf("left=%v: tip %+v is not on the document's side of %+v", left, tip, line)
+		}
+	}
+}
+
+// The brand leads the toolbar; the history's buttons stand beside the
+// sidebar's search field while it is docked and return to the toolbar
+// when it folds; the toggle that unfolds it sits on the sidebar's side.
+func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
+	for _, left := range []bool{true, false} {
+		a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
+		a.prefs.SidebarLeft = left
+		settle(tt)
+		search, _ := tt.Find("搜索或打开文档")
+		back, _ := tt.Find("后退")
+		reload, _ := tt.Find("重新载入")
+		if back.Y < search.Y-4 || back.Y > search.Y+search.H || reload.X+reload.W > search.X {
+			t.Errorf("left=%v: history %+v..%+v not left of the search field %+v", left, back, reload, search)
+		}
+		path, _ := tt.Find("文档路径")
+		logo, ok := tt.Find("FreeMD")
+		if !ok || logo.Y > 40 || logo.X > path.X {
+			t.Errorf("left=%v: brand %+v does not lead the toolbar (path %+v)", left, logo, path)
+		}
+		if err := tt.Click("收起侧边栏"); err != nil {
+			t.Fatal(err)
+		}
+		settle(tt)
+		show, ok := tt.Find("展开侧边栏")
+		more, _ := tt.Find("更多")
+		back, _ = tt.Find("后退")
+		if !ok || back.Y > 40 {
+			t.Fatalf("left=%v: folded, toggle %v %+v, back %+v", left, ok, show, back)
+		}
+		if left && show.X > back.X || !left && show.X < more.X {
+			t.Errorf("left=%v: the toggle %+v is not on the sidebar's side (back %+v, more %+v)", left, show, back, more)
+		}
+	}
+}

@@ -41,6 +41,8 @@ type remoteImages struct {
 	dir     string
 	client  *http.Client
 	entries map[string]*remoteImage
+	// tweetEndpoint replaces X's embed service in tests (videoembed.go).
+	tweetEndpoint string
 }
 
 type remoteImage struct {
@@ -71,7 +73,20 @@ func (r *remoteImages) resource(url string, post func(func()), redraw func()) ed
 		}
 		return e.resource
 	}
+	if isVideoFile(url) {
+		// A video file plays from its address: nothing to fetch first.
+		res := videoFileResource(url)
+		r.entries[url] = &remoteImage{resource: res}
+		return res
+	}
 	if post == nil {
+		if isVideoEmbed(url) {
+			if res, ok := r.cachedEmbed(url); ok {
+				r.entries[url] = &remoteImage{resource: res}
+				return res
+			}
+			return editor.ImageResource{Problem: editor.ImageRemote}
+		}
 		if data, err := os.ReadFile(r.cachePath(url)); err == nil {
 			res := decodeImageData(data, false)
 			if res.Bitmap != nil {
@@ -106,6 +121,9 @@ func (r *remoteImages) resource(url string, post func(func()), redraw func()) ed
 // fetch reads the picture from the disk cache, or else from the web,
 // keeping what it fetched. It runs off the main thread.
 func (r *remoteImages) fetch(url string) editor.ImageResource {
+	if isVideoEmbed(url) {
+		return r.fetchEmbed(url)
+	}
 	path := r.cachePath(url)
 	if data, err := os.ReadFile(path); err == nil {
 		if res := decodeImageData(data, false); res.Bitmap != nil {

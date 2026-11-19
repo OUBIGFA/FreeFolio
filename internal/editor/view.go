@@ -143,29 +143,32 @@ type Editor struct {
 	readingSize, readingLine  float32
 	fontFamily                string
 	openLink                  func(string)
-	outline                   []outlineItem
-	outlineState              outlineState
-	pointer                   ui.Point
-	pointerInside             bool
-	copiedID                  string
-	copiedAt                  time.Time
-	page                      Page
-	laidPage                  layoutPageKey
-	colorOpen                 bool
-	colorID                   string
-	langOpen                  bool
-	langID                    string
-	langAt                    ui.Rect
-	colorAt                   ui.Rect
-	words                     int
-	wordsRevision             uint64
-	wordsReady                bool
-	wordCache                 map[string]cachedWordCount
-	accessDoc                 *document.Document
-	accessRev                 uint64
-	accessStart               int
-	accessEnd                 int
-	accessVal                 string
+	// openVideo is the host's, and video the one playing (video.go).
+	openVideo     func(string) (*ui.VideoPlayer, error)
+	video         videoState
+	outline       []outlineItem
+	outlineState  outlineState
+	pointer       ui.Point
+	pointerInside bool
+	copiedID      string
+	copiedAt      time.Time
+	page          Page
+	laidPage      layoutPageKey
+	colorOpen     bool
+	colorID       string
+	langOpen      bool
+	langID        string
+	langAt        ui.Rect
+	colorAt       ui.Rect
+	words         int
+	wordsRevision uint64
+	wordsReady    bool
+	wordCache     map[string]cachedWordCount
+	accessDoc     *document.Document
+	accessRev     uint64
+	accessStart   int
+	accessEnd     int
+	accessVal     string
 	// wiki completes the [[link]] being typed (wikilinks.go).
 	wiki wikiState
 	// footerH is the height the host's footer took the last frame.
@@ -186,9 +189,16 @@ type Editor struct {
 	// source; the others show what the HTML says (htmlview.go).
 	htmlEditing, laidHTML string
 	// loadImage is the host's image loader, which images within text use.
-	loadImage         func(string) ImageResource
-	htmls             map[string]*htmlBox
-	laidFindKey       string
+	loadImage   func(string) ImageResource
+	htmls       map[string]*htmlBox
+	laidFindKey string
+	// laidProps is the propsKey the header was last laid out for.
+	laidProps string
+	// props are the frontmatter's properties as parsed from propsSource;
+	// propsFolded folds them under their toggle (properties.go).
+	propsSource       string
+	props             []property
+	propsFolded       bool
 	bindings          map[string]Combo
 	openWiki, openTag func(string)
 	maths             map[string]mathShape
@@ -513,6 +523,9 @@ type Options struct {
 	Theme        *ui.Theme
 	LoadImage    func(string) ImageResource
 	LoadRawImage func(string) image.Image
+	// OpenVideo, when set, opens the video of a picture that is a video's
+	// poster (ImageResource.Video) to play in its place.
+	OpenVideo func(url string) (*ui.VideoPlayer, error)
 	// ReplaceImage selects a new file for a stable block ID. RevealImage
 	// opens its local file (or nearest existing folder) in the file manager.
 	ReplaceImage func(id, url string)
@@ -664,6 +677,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.bookmarks.marks, e.bookmarks.toggle, e.bookmarks.label, e.bookmarks.key = o.Bookmarks, o.ToggleBookmark, o.LabelBookmark, o.BookmarkKey
 	e.reserved = o.Reserved
 	e.loadImage = o.LoadImage
+	e.openVideo = o.OpenVideo
 	e.sync()
 	if e.imageCaptionID != "" && e.Engine.LeafAt(e.Caret).Block.ID != e.imageCaptionID {
 		e.imageCaptionID, e.ready = "", false
@@ -823,7 +837,9 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					e.starter(c)
 					e.headerControls(c)
 				}
+				e.propertiesView(c)
 				e.imageControls(c, o)
+				e.videoControls(c)
 				e.bookmarkMarks(c)
 				if o.Footer != nil {
 					footer := ui.Column(c.Key("page-footer")).Absolute().Left(e.padding).Top(e.footerTop()).Width(max(80, e.width-2*e.padding))
@@ -902,7 +918,7 @@ func (e *Editor) layout(o Options) {
 	if e.find.open {
 		findKey = e.find.query
 	}
-	same := !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidHTML == e.htmlEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing
+	same := !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidHTML == e.htmlEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing && e.laidProps == e.propsKey()
 	if same && e.cacheRevision == e.Revision() {
 		return
 	}
@@ -935,6 +951,7 @@ func (e *Editor) layout(o Options) {
 	e.laidMermaid = e.mermaidEditing
 	e.laidHTML = e.htmlEditing
 	e.laidFindKey = findKey
+	e.laidProps = e.propsKey()
 	// The text column is 820 wide unless the reader picked another.
 	e.column = columnWidth(o.Column)
 	e.padding = max(46, (o.Width-e.column)/2)
@@ -1192,6 +1209,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			if e.codeFolded(b) {
 				estH = min(estH, foldedCodeHeight(font))
 			}
+			if e.codeFoldable(b) {
+				bottom += codeFoldLane
+			}
 			total := top + max(estH, font.Size*font.LineHeight) + bottom
 			if b.Kind == "math" || isMermaidBlock(b) {
 				total = estH
@@ -1247,6 +1267,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 				foldH = foldedCodeHeight(font)
 				h = min(h, foldH)
 			}
+			bottom += codeFoldLane
 		}
 		total := top + h + bottom
 		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header, foldH: foldH}
