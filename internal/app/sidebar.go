@@ -96,6 +96,11 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
+		// New Document sits under the search, with the root's sort beside it.
+		ui.Row(c.Key("new-doc-bar")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+			a.newDocRow(c)
+			a.sortButton(c, sp)
+		})
 		if len(a.state.Favorites) > 0 {
 			ui.Text(c, i18n.T("收藏文档")).PaddingStart(16).FontSize(13).FontWeight(600).TextColor(c.Theme().TextMuted)
 		}
@@ -234,9 +239,6 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 						a.splitSidebarRow(c, sp)
 					}
 					a.nodes(c, sp, nodes, 0, "", live, prev, &seams)
-					if err == nil && live {
-						a.newDocRow(c)
-					}
 				})
 				ui.Box(c).Height(40)
 			})
@@ -1153,8 +1155,8 @@ func (a *App) inlineNewDocRow(c *ui.Context, index int, seamY float32) {
 	}
 }
 
-// newDocRow ends the tree with a dashed slot making a document at the root,
-// sliding down smoothly as new documents appear above it.
+// newDocRow is the dashed slot under the search making a document at the
+// root.
 func (a *App) newDocRow(c *ui.Context) {
 	t := c.Theme()
 	label, tip := i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc")
@@ -1172,12 +1174,9 @@ func (a *App) newDocRow(c *ui.Context) {
 			a.newDocPulse = time.Time{}
 		}
 	}
-	row := ui.Row(c.Key("new-doc-row")).Height(rowHeight).PaddingX(10).Gap(6).Radius(controlRadius).Center().
+	row := ui.Row(c.Key("new-doc-row")).Height(rowHeight).Grow(1).MinWidth(0).PaddingX(10).Gap(6).Radius(controlRadius).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip).
 		Background(ui.Transparent)
-	if pulsing || a.listDragging {
-		row.Transition(ui.ElementTransition{Animation: &listAnim, Position: true})
-	}
 	lit := row.Animate("lit", b2f(row.Hovered() || pulsing), 180*time.Millisecond)
 	fill, border := dashedSlotColors(t, lit)
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -1208,13 +1207,23 @@ var sortNames = map[string]string{"": "手动排序", "name": "按名称", "modi
 // sortMenu adds 排序方式 ▸ to a folder's menu: its own order, which
 // dragging leaves, by name, or newest first.
 func (a *App) sortMenu(m *ui.Menu, sp *space.Space, dir string) {
-	m.Submenu(i18n.T("排序方式"), func(sub *ui.Menu) {
-		for _, mode := range space.Sorts {
-			if sub.Item(i18n.T(sortNames[mode])).Checked(sp.SortOf(dir) == mode).Chosen() {
-				a.setSort(sp, dir, mode)
-			}
+	m.Submenu(i18n.T("排序方式"), func(sub *ui.Menu) { a.sortItems(sub, sp, dir) })
+}
+
+// sortItems are the ways the folder dir of sp sorts, the current checked.
+func (a *App) sortItems(m *ui.Menu, sp *space.Space, dir string) {
+	for _, mode := range space.Sorts {
+		if m.Item(i18n.T(sortNames[mode])).Checked(sp.SortOf(dir) == mode).Chosen() {
+			a.setSort(sp, dir, mode)
 		}
-	})
+	}
+}
+
+// sortButton opens the root's sorts from beside New Document.
+func (a *App) sortButton(c *ui.Context, sp *space.Space) {
+	label := i18n.T("排序方式")
+	iconButton(c, "sort-root", iconSort, label, label, false).Shrink(0).Role(ui.RoleMenuButton).
+		PopoverMenuButton(func(m *ui.Menu) { a.sortItems(m, sp, "") })
 }
 
 // setSort sorts the folder dir of sp so and keeps it.

@@ -15,6 +15,7 @@ var (
 	iconWindowBack   = lucide(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="m9 16 3-3 3 3"/>`)
 	iconSidebar      = lucide(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>`)
 	iconSidebarRight = lucide(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>`)
+	iconSort         = lucide(`<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>`)
 	iconBack         = lucide(`<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>`)
 	iconForward      = lucide(`<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>`)
 	iconReload       = lucide(`<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>`)

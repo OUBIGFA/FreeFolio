@@ -25,7 +25,7 @@ import (
 const (
 	propsToggleH = 30 // the toggle's row
 	propsRowH    = 30 // a property's row, before a list wraps
-	propsGap     = 32 // between the properties and the first block
+	propsGap     = 48 // between the properties and the first block
 	propsKeyW    = 160
 )
 
@@ -334,10 +334,12 @@ func (e *Editor) propsField(c *ui.Context, id, current, label string, commit fun
 	if !ok || !ps.focused[id] {
 		draft = current
 	}
-	in := ui.TextInput(c.Key(id), &draft).Label(label).FontSize(13).Height(26).PaddingX(6).Grow(1).MinWidth(0)
+	// Even padding, not a fixed height, centers the line in the box: a
+	// height of 26 left less room than the line and pushed the text down.
+	in := ui.TextInput(c.Key(id), &draft).Label(label).FontSize(13).Padding(4, 6).Grow(1).MinWidth(0)
 	was, now := ps.focused[id], in.Focused()
 	ps.focused[id] = now
-	e.quietField(in, now)
+	e.quietField(c, in, now, 4, 6)
 	if now && c.Shortcut(0, ui.KeyEscape) {
 		draft = current
 	}
@@ -350,12 +352,19 @@ func (e *Editor) propsField(c *ui.Context, id, current, label string, commit fun
 
 // quietField lets a property's field read as text, as Obsidian's do: no
 // box until the pointer is over it or it has the focus, which keeps the
-// field's own ring.
-func (e *Editor) quietField(f ui.Element, focused bool) {
+// field's own ring. Under the pointer it shows only a faint hairline, no
+// fill: the input's own hover border, which it sets as it paints, would
+// stand out, so it gets no width and the line is drawn here instead; its
+// padding (py, px, as the field sets it) grows by the width taken, so the
+// text does not move.
+func (e *Editor) quietField(c *ui.Context, f ui.Element, focused bool, py, px float32) {
 	switch {
 	case focused:
 	case f.Hovered():
-		f.Background(e.page.Hover).Border(1, ui.Color{})
+		t := c.Theme()
+		f.Background(ui.Color{}).Border(0, ui.Color{}).Padding(py+1, px+1).Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Stroke(r, t.Border, t.Radius, 1)
+		})
 	default:
 		f.Background(ui.Color{}).Border(1, ui.Color{})
 	}
@@ -405,7 +414,7 @@ func (e *Editor) propertiesView(c *ui.Context) {
 		if ps.adding {
 			ui.Row(c.Key("property-new")).Height(propsRowH).Gap(8).AlignItems(ui.Center).Children(func() {
 				name := ui.TextInput(c.Key("property-new-name"), &ps.newName).Label(i18n.T("新属性名")).
-					Placeholder(i18n.T("属性名")).FontSize(13).Height(26).PaddingX(6).Width(propsKeyW).Shrink(0)
+					Placeholder(i18n.T("属性名")).FontSize(13).Padding(4, 6).Width(propsKeyW).Shrink(0)
 				if !ps.focused["new"] {
 					name.Focus()
 				}
@@ -531,8 +540,8 @@ func (e *Editor) propertyValue(c *ui.Context, i int, p property, editable bool) 
 	switch lower := strings.ToLower(value); {
 	case p.list:
 		tokens := slices.Clone(p.values)
-		field := ui.TokenField(c.Key("value-list"), &tokens, nil).Label(p.key).Grow(1).MinWidth(0)
-		e.quietField(field, field.Focused())
+		field := ui.TokenField(c.Key("value-list"), &tokens, nil).Label(p.key).Padding(6, 10).Grow(1).MinWidth(0)
+		e.quietField(c, field, field.Focused(), 6, 10)
 		if field.Changed() {
 			e.setProperty(i, tokens, true)
 		}

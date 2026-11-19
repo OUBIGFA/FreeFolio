@@ -134,3 +134,30 @@ func TestNewestFirstReachesSubfoldersAndFollowsWrites(t *testing.T) {
 		t.Fatal("a write moves the file up", got)
 	}
 }
+
+// The sort button beside New Document, under the search, sorts the root.
+func TestSidebarSortButtonSortsRoot(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	sp := a.state.ActiveSpace()
+	search, ok1 := tt.Find("搜索或打开文档")
+	newDoc, ok2 := tt.Find("新建文档")
+	tree, ok3 := tt.Find("Journal")
+	if !ok1 || !ok2 || !ok3 {
+		t.Fatal("sidebar parts missing")
+	}
+	if !(search.Y < newDoc.Y && newDoc.Y < tree.Y) {
+		t.Fatal("New Document sits between the search and the tree", search, newDoc, tree)
+	}
+	if err := tt.Click("排序方式"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("按名称"); err != nil {
+		t.Fatal(err, tt.Menu())
+	}
+	tt.Frame()
+	if sp.SortOf("") != "name" {
+		t.Fatal("root sorted by name", sp.SortOf(""))
+	}
+}

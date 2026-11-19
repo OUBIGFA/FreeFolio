@@ -161,9 +161,9 @@ func TestListDropNoop(t *testing.T) {
 	}
 }
 
-// Clicking "+ 新建文档" creates a document above the button while the dashed
-// button stays lit and glides down smoothly over several frames.
-func TestNewDocSlidesButton(t *testing.T) {
+// Clicking "+ 新建文档" under the search lights the dashed button, which
+// stays where it is as the new document joins the tree below.
+func TestNewDocButtonStaysPut(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.state.Favorites = nil
 	tt.Frame()
@@ -190,15 +190,10 @@ func TestNewDocSlidesButton(t *testing.T) {
 		tt.Frame()
 		ys = append(ys, btnY())
 	}
-	var maxStep float32
-	for i := 1; i < len(ys); i++ {
-		maxStep = max(maxStep, ys[i]-ys[i-1])
-	}
-	if maxStep > 28 {
-		t.Fatalf("新建文档 jumped %v DIPs in one frame: %v", maxStep, ys)
-	}
-	if total := ys[len(ys)-1] - before; total < 38 || total > 44 {
-		t.Fatalf("新建文档 moved %v DIPs, want ~41: %v", total, ys)
+	for _, y := range ys {
+		if y != before {
+			t.Fatalf("新建文档 moved from %v: %v", before, ys)
+		}
 	}
 }
 
