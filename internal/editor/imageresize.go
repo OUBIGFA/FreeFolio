@@ -30,7 +30,7 @@ func (e *Editor) imageHandles(c *ui.Context, r row) {
 		}
 		h := ui.Box(c.Key(fmt.Sprintf("resize-image:%s:%d", id, side))).Absolute().Left(x).Top(rect.Y+rect.H/2-18).Size(10, 36).
 			Focusable().Role(ui.RoleSlider).Label(i18n.T("调整图片宽度")).Value(fmt.Sprintf("%.0f", rect.W)).Cursor(ui.CursorResizeEW).
-			Radius(5).Background(e.page.Popover).Border(1, c.Theme().Accent)
+			Radius(5).Background(e.page.Popover).Border(1, e.page.Caption.Alpha(0.6))
 		if h.FocusVisible() {
 			h.Border(2, c.Theme().Accent)
 		}

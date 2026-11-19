@@ -478,17 +478,21 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 		row := *e.indexedRow(i)
 		f := row.picture
 		id, src := row.leaf.Block.ID, row.leaf.Block.URL
-		key := c.Key("image:" + id)
+		// Each control takes a key of its own, made from the block's:
+		// Context.Key only names the next control, so keys chained from
+		// one Context would name several alike and collide between two
+		// pictures in view.
+		key := "image:" + id
 		if f.resource.Loading {
 			continue
 		}
 		if f.resource.Bitmap == nil {
 			r := f.bounds
-			ui.Box(key.Key("status")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
+			ui.Box(c.Key(key+":status")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
 				Role(ui.RoleImage).Label(i18n.T("无法显示图片：") + f.name + "。" + row.leaf.Block.Text() + "。" + f.resource.Problem.text()).Tooltip(src)
 		}
 		for _, action := range f.actions {
-			b := e.imageButton(key.Key(action.key), action.label, action.bounds)
+			b := e.imageButton(c.Key(key+":"+action.key), action.label, action.bounds)
 			if b.Clicked() {
 				if action.key == "choose" {
 					o.ReplaceImage(id, src)
@@ -504,7 +508,7 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 			continue
 		}
 		r := f.bounds
-		picture := ui.Box(key).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
+		picture := ui.Box(c.Key(key)).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
 			Focusable().Role(ui.RoleButton).Label(i18n.T("查看图片：") + f.name).Tooltip(row.leaf.Block.Text()).Cursor(ui.CursorPointer)
 		if picture.Clicked() {
 			e.FocusBlock(id)
@@ -564,7 +568,7 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 		})
 		e.imageHandles(c, row)
 		if (picture.Hovered() || picture.Focused() || e.hovered(r, 0)) && r.W >= 100 && r.H >= 56 {
-			button := e.imageButton(key.Key("zoom"), i18n.T("放大查看"), ui.Rect{X: r.X + r.W - 82, Y: r.Y + 8, W: 74, H: 28})
+			button := e.imageButton(c.Key(key+":zoom"), i18n.T("放大查看"), ui.Rect{X: r.X + r.W - 82, Y: r.Y + 8, W: 74, H: 28})
 			button.Background(e.page.Popover)
 			if button.Clicked() {
 				open()

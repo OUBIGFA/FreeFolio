@@ -1007,7 +1007,10 @@ func (a *App) spaceBar(c *ui.Context) {
 		a.spaceBarFor = active.ID
 	}
 	draft := a.spaceForm.open && a.spaceForm.id == ""
-	foot := ui.Row(c.Key("spaces")).Height(36).Gap(2).AlignItems(ui.Center)
+	// The bar stands on a rounded white card of its own, apart from the
+	// list above and the settings below; the chosen space is a tint on it.
+	foot := ui.Row(c.Key("spaces")).Height(40).PaddingX(3).Gap(2).AlignItems(ui.Center).
+		Radius(10).Background(t.Surface).Border(1, t.Border)
 	a.tourMark("spaces", foot)
 	foot.Children(func() {
 		list := ui.ScrollHorizontal(c.Key("space-list")).Grow(1).MinWidth(0).Height(34).
@@ -1039,7 +1042,7 @@ func (a *App) spaceBar(c *ui.Context) {
 						b.Background(hoverFill(t))
 					}
 					if on {
-						b.Background(t.Surface).Border(1, t.Border)
+						b.Background(t.Accent.Alpha(0.10))
 					}
 					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, on, b.Hovered()) })
 

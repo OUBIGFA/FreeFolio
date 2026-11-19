@@ -186,6 +186,19 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 	if key == ui.KeyEscape && e.closeHeader() {
 		return true
 	}
+	if e.tableSel.ok {
+		// A selected row or column takes Backspace and Delete; any other
+		// key puts the selection away.
+		switch key {
+		case ui.KeyBackspace, ui.KeyDelete:
+			e.deleteTableLine()
+			return true
+		case ui.KeyEscape:
+			e.tableSel = tableSelection{}
+			return true
+		}
+		e.tableSel = tableSelection{}
+	}
 	if (e.annotatePanel || e.markPop.open) && key == ui.KeyEscape {
 		e.annotatePanel, e.markPop.open = false, false
 		return true

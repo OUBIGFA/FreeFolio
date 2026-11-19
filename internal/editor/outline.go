@@ -226,8 +226,14 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 	if shown <= 0 {
 		return
 	}
+	// The page position buttons stand at the margin's foot, under the
+	// outline's list.
+	bottom := float32(16)
+	if e.scrollEndsShown() {
+		bottom += scrollEndsH + 16
+	}
 	panel := ui.Column(c.Key("outline")).Absolute().Right(0).Top(0).Width(s.width).Height(e.viewport).
-		Padding(s.buttonTop, 16, 16, 12).Gap(8).Opacity(shown).Translate((1-shown)*24, 0)
+		Padding(s.buttonTop, 16, bottom, 12).Gap(8).Opacity(shown).Translate((1-shown)*24, 0)
 	panel.Children(func() {
 		close := ui.ButtonBase(c.Key("outline-close")).Size(28, 28).Radius(6).Center().AlignSelf(ui.End).
 			Label(i18n.T("收起目录")).Tooltip(i18n.T("收起目录")).KeepFocus().Cursor(ui.CursorPointer)
@@ -346,7 +352,6 @@ func (e *Editor) outlineTopLevel() int {
 }
 
 type outlinePillMatch struct{ ed *Editor }
-type outlineBarMatch struct{ ed *Editor }
 
 // outlineList lists the entries: the section being read in the accent
 // color, a click scrolling to it, a heading dragged onto another moving
@@ -426,9 +431,6 @@ func (e *Editor) outlineList(c *ui.Context) {
 				row.Children(func() {
 					if on {
 						slidingPill(c, outlinePillMatch{e}, t.Accent.Alpha(0.08), 6)
-						ui.Box(c.Key("active-bar")).Absolute().Left(1).Top(6).Bottom(6).Width(2.5).
-							Radius(1.5).Background(t.Accent).PassThrough().
-							Transition(ui.ElementTransition{Duration: 120 * time.Millisecond, Match: outlineBarMatch{e}})
 					}
 					ui.Row(c).Grow(1).MinWidth(0).Justify(ui.Start).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, item.text).FontSize(14).FontWeight(weight).TextColor(color).SingleLine().MinWidth(0).Shrink(1)

@@ -569,11 +569,43 @@ func TestCodeCopyAndTableBars(t *testing.T) {
 	if tt.Clipboard() != "fmt.Println(1)" || e.copiedID == "" {
 		t.Fatal("copy", tt.Clipboard())
 	}
-	// The table has no bars or pins around its grid to paint or press:
-	// a press just left of and above it lands on no control.
+	at := func(r ui.Rect) (float32, float32) { return bounds.X + r.X + r.W/2, bounds.Y + r.Y + r.H/2 }
+	click := func(r ui.Rect) {
+		x, y := at(r)
+		tt.Move(x, y)
+		tt.Frame()
+		tt.ClickAt(x, y)
+		tt.Frame()
+	}
+	// The pin at the table's right edge appends a column.
 	table := find("table")
-	if e.hoverControl(table.rect.X-8, table.rect.Y-8) {
-		t.Fatal("a control around the table")
+	click(pin(table, true, 2))
+	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 3 {
+		t.Fatal("pin column", cols)
+	}
+	// The row bar selects the second row; its toolbar inserts above it.
+	table = find("table")
+	click(rowBar(table, 1))
+	if !e.tableSel.ok || !e.tableSel.rows || e.tableSel.index != 1 {
+		t.Fatal("row bar", e.tableSel)
+	}
+	if err := tt.Click("在上方插入行"); err != nil {
+		t.Fatal(err)
+	}
+	if rows := len(e.Doc.Blocks[1].Children); rows != 3 || e.Doc.Blocks[1].Children[2].Children[0].Text() != "1" {
+		t.Fatal("insert row above", rows)
+	}
+	// Selecting the first column, then Backspace, deletes it.
+	focus(e, tt)
+	table = find("table")
+	click(columnBar(table, 0))
+	tt.Key(0, ui.KeyBackspace)
+	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 2 || e.Doc.Blocks[1].Children[0].Children[0].Text() != "B" {
+		t.Fatal("delete column", cols)
+	}
+	tt.Key(ui.Cmd, ui.KeyZ)
+	if cols := len(e.Doc.Blocks[1].Children[0].Children); cols != 3 {
+		t.Fatal("undo column", cols)
 	}
 }
 

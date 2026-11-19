@@ -774,7 +774,13 @@ func (e *Editor) visualOffset(r row) (dx, dy float32) {
 	if blockID != ownerID && r.leaf.Block.Kind == "cell" {
 		if _, rowIdx, colIdx, ok := e.Doc.CellAt(blockID); ok {
 			dy += e.tableRowVisualDY(ownerID, rowIdx)
+			if e.tableDrag.active && e.tableDrag.id == ownerID && e.tableDrag.from == rowIdx {
+				dy += e.tableDrag.y - e.tableDrag.startY
+			}
 			dx += e.tableColVisualDX(ownerID, colIdx)
+			if e.tableColDrag.active && e.tableColDrag.id == ownerID && e.tableColDrag.from == colIdx {
+				dx += e.tableColDrag.x - e.tableColDrag.startX
+			}
 		}
 	}
 	return dx, dy
@@ -807,6 +813,7 @@ func (e *Editor) tableRowVisualDY(tableID string, rowIdx int) float32 {
 			dy += slide.dy
 		}
 	}
+	dy += e.tableDragShift(tableID, rowIdx)
 	return dy
 }
 
@@ -820,6 +827,7 @@ func (e *Editor) tableColVisualDX(tableID string, colIdx int) float32 {
 			dx += slide.dx
 		}
 	}
+	dx += e.tableColDragShift(tableID, colIdx)
 	return dx
 }
 

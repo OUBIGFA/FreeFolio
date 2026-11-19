@@ -25,7 +25,7 @@ import (
 const (
 	propsToggleH = 30 // the toggle's row
 	propsRowH    = 30 // a property's row, before a list wraps
-	propsGap     = 16 // between the properties and the first block
+	propsGap     = 32 // between the properties and the first block
 	propsKeyW    = 160
 )
 

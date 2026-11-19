@@ -151,7 +151,7 @@ func TestVirtualOutlineDragAcrossOffscreenRows(t *testing.T) {
 			var target string
 			for i := 270; i > 230; i-- {
 				name := fmt.Sprintf("跳到 Heading %d", i)
-				if r, ok := tt.Find(name); ok && r.Y > 120 && r.Y+r.H < 600 {
+				if r, ok := tt.Find(name); ok && r.Y > 120 && r.Y+r.H < 500 { // above the page position buttons
 					target = name
 					x, y = r.X+r.W/2, r.Y+r.H/2
 					break

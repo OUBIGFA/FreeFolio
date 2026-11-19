@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestLongCodeFoldsAndItsToggleFollowsTheBlock(t *testing.T) {
@@ -211,44 +210,63 @@ func TestVirtualizedCodeBlockKeepsItsFold(t *testing.T) {
 	}
 }
 
-// A long page shows buttons to its top and end at the pane's bottom right;
-// a short one shows none.
+// A long page shows buttons to its top and end in its right margin, clear
+// of the text column; a short one shows none. The end is the page's true
+// end even where a long page laid it out by estimate, and quick trips
+// back and forth over pictures that cannot show leave the page working.
 func TestScrollEndsOnLongPages(t *testing.T) {
 	_, short := newTester("one\n\ntwo")
 	if _, ok := short.Find("回到顶部"); ok {
 		t.Fatal("a short page has the buttons")
 	}
-	var parts []string
-	for i := range 200 {
-		parts = append(parts, fmt.Sprintf("paragraph %d", i))
-	}
-	e, tt := newTester(strings.Join(parts, "\n\n"))
-	tt.Frame()
-	top, ok := tt.Find("回到顶部")
-	if !ok {
-		t.Fatal("a long page has no buttons")
-	}
-	if top.X < 900-80 || top.Y < 650-100 {
-		t.Fatalf("buttons at %+v, not the bottom right", top)
-	}
-	if err := tt.Click("回到底部"); err != nil {
-		t.Fatal(err)
-	}
-	for range 60 {
-		tt.Advance(20 * time.Millisecond)
+	for _, n := range []int{200, 1200} {
+		var parts []string
+		for i := range n {
+			parts = append(parts, fmt.Sprintf("paragraph %d", i))
+			if i%40 == 0 {
+				parts = append(parts, fmt.Sprintf("![missing %d](missing-%d.png)", i, i), fmt.Sprintf("![gone %d](gone-%d.png)", i, i))
+			}
+		}
+		parts = append(parts, "the last line")
+		e, tt := newTester(strings.Join(parts, "\n\n"))
 		tt.Frame()
-	}
-	if end := e.outlineState.scrollMax; e.Scroll.Y < end-1 {
-		t.Fatalf("scrolled to %v of %v", e.Scroll.Y, end)
-	}
-	if err := tt.Click("回到顶部"); err != nil {
-		t.Fatal(err)
-	}
-	for range 60 {
-		tt.Advance(20 * time.Millisecond)
+		top, ok := tt.Find("回到顶部")
+		if !ok {
+			t.Fatalf("%d: a long page has no buttons", n)
+		}
+		if top.X < 900-e.padding || top.Y < 650-100 {
+			t.Fatalf("%d: buttons at %+v, not in the right margin past %v", n, top, 900-e.padding)
+		}
+		for range 6 {
+			for _, label := range []string{"回到底部", "回到顶部"} {
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+				tt.Frame()
+			}
+		}
+		if err := tt.Click("回到底部"); err != nil {
+			t.Fatal(err)
+		}
+		for range 10 {
+			tt.Frame()
+		}
+		if e.scrollTrip.dir != 0 || e.Scroll.Y < e.outlineState.scrollMax-1 || !lastInView(e) {
+			t.Fatalf("%d: at %v of %v, trip %+v", n, e.Scroll.Y, e.outlineState.scrollMax, e.scrollTrip)
+		}
+		if err := tt.Click("回到顶部"); err != nil {
+			t.Fatal(err)
+		}
 		tt.Frame()
+		if e.Scroll.Y != 0 {
+			t.Fatalf("%d: back at %v, not the top", n, e.Scroll.Y)
+		}
 	}
-	if e.Scroll.Y > 1 {
-		t.Fatalf("back at %v, not the top", e.Scroll.Y)
-	}
+}
+
+// lastInView reports whether the page's last block shows in the view.
+func lastInView(e *Editor) bool {
+	last := e.Doc.Blocks[len(e.Doc.Blocks)-1].ID
+	r := e.indexedRow(e.rowIDs[last]).rect
+	return r.Y >= e.Scroll.Y && r.Y+r.H <= e.Scroll.Y+e.viewport+1
 }

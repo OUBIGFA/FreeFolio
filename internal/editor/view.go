@@ -94,6 +94,7 @@ type Editor struct {
 	menuID                           string
 	menuSub                          string
 	menuScroll                       ui.ScrollState
+	tableSel                         tableSelection
 	cellFillOpen, cellFillOpened     bool
 	foldButtons                      []foldButton
 	revealKey                        [2]uint64
@@ -108,8 +109,9 @@ type Editor struct {
 	markPop                             markPopover
 	openReveal                          openReveal
 	// refusedAt is when typing last reached the locked page.
-	refusedAt time.Time
-	attach    func()
+	refusedAt   time.Time
+	tableDanger bool
+	attach      func()
 	// pasteImage takes a picture pasted from the clipboard; dropFiles takes
 	// files dragged in from another app or pasted, to go before the top-level
 	// block at the index (-1: at the caret). fileOver is where files dragged
@@ -249,8 +251,11 @@ type Editor struct {
 	inlinePopLen    int
 	smartBack       smartRollback
 	mathFence       mathFenceRollback
+	tableDrag       tableRowDrag
+	tableColDrag    tableColDrag
 	resizeMoved     bool
 	scrollGlide     scrollGlideState
+	scrollTrip      scrollTrip
 	unfoldPending   bool
 	taskAnim        map[string]time.Time
 	imageEnter      imageEnterState
@@ -699,6 +704,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	pane.Children(func() {
 		e.stepJump(c)
 		e.stepScrollGlide(c)
+		e.stepScrollTrip(c)
 		if e.revealAt != nil && e.viewport > 0 {
 			// A find match scrolls to a third of the way down the page.
 			if r, _, ok := e.BoundsForRange(*e.revealAt); ok && (r.Y < e.Scroll.Y+20 || r.Y+r.H > e.Scroll.Y+e.viewport-32) {
@@ -801,6 +807,9 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 						surface.Cursor(ui.CursorPointer)
 					case handle != nil:
 						surface.Cursor(ui.CursorGrab)
+					case e.overTableStrip(px, py):
+						// The strips paint nothing; the hand shows they act.
+						surface.Cursor(ui.CursorPointer)
 					case !e.overText(px, py):
 						// The surface spans the whole pane for presses in the
 						// margins, but only the text column reads as editable.
@@ -1402,7 +1411,13 @@ func (e *Editor) decorationOffset(d decoration) (dx, dy float32) {
 	}
 	if d.kind == "cell" && d.ownerID != "" {
 		dy += e.tableRowVisualDY(d.ownerID, d.rowIdx)
+		if e.tableDrag.active && e.tableDrag.id == d.ownerID && e.tableDrag.from == d.rowIdx {
+			dy += e.tableDrag.y - e.tableDrag.startY
+		}
 		dx += e.tableColVisualDX(d.ownerID, d.colIdx)
+		if e.tableColDrag.active && e.tableColDrag.id == d.ownerID && e.tableColDrag.from == d.colIdx {
+			dx += e.tableColDrag.x - e.tableColDrag.startX
+		}
 	}
 	return dx, dy
 }
@@ -1416,7 +1431,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	plan := e.currentDragPlan()
 	if !e.printing {
 		rowSlack := float32(40)
-		if e.motion.moving || plan.active {
+		if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
 			rowSlack = 200
 		}
 		e.ensureVisibleShaped(rowSlack, t)
@@ -1432,7 +1447,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		p.StrokeDashed(slot, t.Accent.Alpha(0.65), 8, 1.25)
 	}
 	decSlack := float32(1)
-	if e.motion.moving || plan.active {
+	if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
 		decSlack = 160
 	}
 	paintDecorationPass := func(draggedOnly bool) {
@@ -1456,7 +1471,9 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 			case "code", "raw":
 				pg := e.page
 				border := pg.CodeBorder
-				if d.kind == "code" && (e.hovered(d.rect, 0) || e.langOpen && e.langID == d.id) {
+				// Hover leaves the box as it is; only the language menu
+				// open over it marks it.
+				if d.kind == "code" && e.langOpen && e.langID == d.id {
 					border = pg.CodeHover
 				}
 				p.Fill(r, pg.CodeFill, 8)
@@ -1545,7 +1562,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	e.openReveal.order = nil
 	selection := e.Selection().Range
 	rowSlack := float32(40)
-	if e.motion.moving || plan.active {
+	if e.motion.moving || plan.active || e.tableDrag.active || e.tableColDrag.active {
 		rowSlack = 200
 	}
 	paintRowPass := func(draggedOnly bool) {
@@ -1860,6 +1877,8 @@ func (e *Editor) hoverControl(x, y float32) bool {
 		case d.kind == "mermaid" && d.id != "" && in(mermaidCopyButton(d)) && e.hovered(d.rect, 0):
 			e.copyBlock(d.id)
 			return true
+		case d.kind == "table" && e.tableControl(d, x, y):
+			return true
 		}
 	}
 	return false
@@ -2153,6 +2172,7 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 			return true
 		}
 		e.colorOpen, e.langOpen = false, false
+		e.tableSel = tableSelection{}
 		for ri := range e.resizers {
 			resize := *e.indexedResizer(ri)
 			if math.Abs(float64(ev.X-resize.x)) < 5 && ev.Y >= resize.y && ev.Y <= resize.y+resize.h {
@@ -2184,6 +2204,9 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 			e.dragStartY, e.dragY, e.dragActive = ev.Y, ev.Y, false
 			return true
 		}
+	}
+	if e.tableDragPointer(ev) {
+		return true
 	}
 	if e.resizing != nil {
 		if ev.Kind == ui.InputPointerMove {

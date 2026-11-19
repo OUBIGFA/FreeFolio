@@ -228,18 +228,33 @@ func TestTableEnterFlowAndRowDragReorder(t *testing.T) {
 		t.Fatalf("double-Enter did not exit trailing blank table row: %+v", e.Doc.Blocks)
 	}
 
-	// Add a second data row and move it above the first, one step.
+	// Add a second data row and drag row 2 above row 1 using its rowBar.
 	l10, _ := e.Engine.LeafByID(e.Doc.Blocks[0].Children[1].Children[0].ID)
 	e.SetSelection(l10.End, l10.End)
 	tt.Key(0, ui.KeyEnter)
 	typeKeys(tt, "R2A")
 	tt.Frame()
-	e.Engine.MoveTableRow(e.Doc.Blocks[0].ID, 2, 1)
+
+	bounds, _ := tt.Find("文档")
+	d, ok := e.tableDecoration(e.Doc.Blocks[0].ID)
+	if !ok {
+		t.Fatal("missing table decoration")
+	}
+	rb2 := rowBar(d, 2)
+	rb1 := rowBar(d, 1)
+	sx, sy := bounds.X+rb2.X+rb2.W/2, bounds.Y+rb2.Y+rb2.H/2
+	ty := bounds.Y + rb1.Y + 4
+	tt.Move(sx, sy)
+	tt.Frame()
+	tt.Press(sx, sy)
+	tt.Move(sx, ty)
+	tt.Frame()
+	tt.Release(sx, ty)
 	tt.Frame()
 
 	tbl = e.Doc.Blocks[0]
 	if tbl.Children[1].Children[0].Text() != "R2A" || tbl.Children[2].Children[0].Text() != "R1A" {
-		t.Fatalf("row move did not reorder rows: r1=%q r2=%q", tbl.Children[1].Children[0].Text(), tbl.Children[2].Children[0].Text())
+		t.Fatalf("row drag did not reorder rows: r1=%q r2=%q", tbl.Children[1].Children[0].Text(), tbl.Children[2].Children[0].Text())
 	}
 }
 
@@ -432,7 +447,44 @@ func TestFocusAfterglowFoldChevronAndTaskBounce(t *testing.T) {
 	}
 }
 
-func TestTableColumnEqualWidthSnap(t *testing.T) {
+func TestTableColumnDragReorderAndEqualWidthSnap(t *testing.T) {
+	e, tt := newTester("| ColA | ColB | ColC |\n| --- | --- | --- |\n| 1 | 2 | 3 |")
+	focus(e, tt)
+	tblID := e.Doc.Blocks[0].ID
+	l00, _ := e.Engine.LeafByID(e.Doc.Blocks[0].Children[0].Children[0].ID)
+	e.SetSelection(l00.End, l00.End)
+	tt.Frame()
+
+	bounds, _ := tt.Find("文档")
+	d, ok := e.tableDecoration(tblID)
+	if !ok {
+		t.Fatal("missing table decoration")
+	}
+	cb2 := columnBar(d, 2)
+	cb0 := columnBar(d, 0)
+	sx, sy := bounds.X+cb2.X+cb2.W/2, bounds.Y+cb2.Y+cb2.H/2
+	tx := bounds.X + cb0.X + 8
+	tt.Move(sx, sy)
+	tt.Frame()
+	tt.Press(sx, sy)
+	tt.Move(tx, sy)
+	tt.Frame()
+	if !e.tableColDrag.active || e.tableColDrag.to != 0 {
+		t.Fatalf("column drag did not target column 0: %+v", e.tableColDrag)
+	}
+	tt.Release(tx, sy)
+	tt.Frame()
+
+	hdr := e.Doc.Blocks[0].Children[0].Children
+	if hdr[0].Text() != "ColC" || hdr[1].Text() != "ColA" || hdr[2].Text() != "ColB" {
+		t.Fatalf("column drag reorder mismatch: %q, %q, %q", hdr[0].Text(), hdr[1].Text(), hdr[2].Text())
+	}
+	tt.Key(ui.Cmd, ui.KeyZ)
+	hdr = e.Doc.Blocks[0].Children[0].Children
+	if hdr[0].Text() != "ColA" || hdr[1].Text() != "ColB" || hdr[2].Text() != "ColC" {
+		t.Fatal("column drag reorder did not undo in a single step")
+	}
+
 	// Start with unequal 2-column widths and drag within 6 DIP of equal width:
 	// magnetic snap commits exact 50% / 50% widths.
 	e2, tt2 := newTester("| Left | Right |\n| --- | --- |\n| a | b |")
