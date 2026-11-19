@@ -30,7 +30,7 @@ func TestVersionSixMigrationAndAttributes(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(decoded, e.Doc) {
 		t.Fatal("v6 round trip", err)
 	}
-	if _, err := Decode(strings.Replace(s, `"version": 8`, `"version": 5`, 1)); err == nil {
+	if _, err := Decode(strings.Replace(s, `"version": 9`, `"version": 5`, 1)); err == nil {
 		t.Fatal("accepted new attributes in v5")
 	}
 	e.Undo()

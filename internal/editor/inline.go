@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -25,6 +26,9 @@ type inlineMathEdit struct {
 type inlineToken struct {
 	start, end   int
 	source, note string
+	// image is the address of an image, ![alt](image), shown in the line
+	// at its size; alt its description, with Obsidian's |width.
+	image, alt string
 }
 
 type inlineObject struct {
@@ -40,6 +44,10 @@ type inlineObject struct {
 	editing           bool
 	placeholder       bool
 	hasErr            bool
+	// picture is an inline image's bitmap, nil while it loads or when it
+	// cannot show, which label then names.
+	picture *ui.Bitmap
+	image   bool
 }
 
 type textLayout struct {
@@ -55,12 +63,19 @@ func inlineTokens(s string) []inlineToken {
 			i += 1 + n
 			continue
 		}
+		if s[i] == '!' {
+			if m := inlineImageRe.FindStringSubmatchIndex(s[i:]); m != nil && m[0] == 0 {
+				out = append(out, inlineToken{start: i, end: i + m[1], alt: s[i+m[2] : i+m[3]], image: s[i+m[4] : i+m[5]]})
+				i += m[1]
+				continue
+			}
+		}
 		if strings.HasPrefix(s[i:], "[^") {
 			if n := strings.IndexByte(s[i+2:], ']'); n > 0 {
 				z := i + 2 + n + 1
 				label := s[i+2 : z-1]
 				if !strings.ContainsAny(label, " \t\r\n[") {
-					out = append(out, inlineToken{i, z, "", label})
+					out = append(out, inlineToken{start: i, end: z, note: label})
 					i = z
 					continue
 				}
@@ -95,11 +110,15 @@ func inlineTokens(s string) []inlineToken {
 			i++
 			continue
 		}
-		out = append(out, inlineToken{i, z + 1, s[i+1 : z], ""})
+		out = append(out, inlineToken{start: i, end: z + 1, source: s[i+1 : z]})
 		i = z + 1
 	}
 	return out
 }
+
+// inlineImageRe is an image of Markdown within text: ![alt](address) with
+// an optional "title", which the line shows as the image.
+var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]+)>?(?:\s+"[^"\n]*")?\s*\)`)
 
 func literalBlock(kind string) bool {
 	return kind == "code" || kind == "raw" || kind == "math" || kind == "image"
@@ -162,7 +181,12 @@ func (e *Editor) watchInline() {
 	}
 	for _, t := range inlineTokens(s) {
 		a, z := document.Len(s[:t.start]), document.Len(s[:t.end])
-		if t.note == "" && atLo > a && atHi < z && tokenAllowed(l.Block, a, z) {
+		if t.image != "" && atLo >= a && atHi <= z && atLo < z && atHi > a {
+			// The caret in an image's syntax shows its source to edit.
+			e.inlineEditing = fmt.Sprintf("%s:%d:%d:image", l.Block.ID, a, z)
+			return
+		}
+		if t.note == "" && t.image == "" && atLo > a && atHi < z && tokenAllowed(l.Block, a, z) {
 			activate(a, z, t.source)
 			return
 		}
@@ -272,6 +296,13 @@ func (e *Editor) shapeInline(b *document.Block, spans []ui.Span, font ui.Font, s
 		if hasEdit && a < editObj.end && z > editObj.start {
 			continue
 		}
+		if token.image != "" {
+			if e.inlineEditing == fmt.Sprintf("%s:%d:%d:image", b.ID, a, z) {
+				continue // its source shows, to edit
+			}
+			l.objects = append(l.objects, e.inlineImage(token, a, z, font, shape.Width))
+			continue
+		}
 		obj := inlineObject{start: a, end: z, note: token.note, scale: 1}
 		if token.note != "" {
 			note, ok := e.notes[token.note]
@@ -331,7 +362,14 @@ func (e *Editor) shapeInline(b *document.Block, spans []ui.Span, font ui.Font, s
 		o := &l.objects[i]
 		o.index = o.start - delta
 		span := ui.Span{Text: "\ufffc"}
-		if o.box != nil {
+		if o.image {
+			w, h := o.rect.W, o.rect.H
+			if o.picture == nil {
+				lw, lh := o.label.Size()
+				w, h = lw+8, lh+font.Size*.25
+			}
+			span.ObjectWidth, span.ObjectHeight = w, h
+		} else if o.box != nil {
 			extra := float32(4)
 			if o.editing {
 				extra = 10
@@ -370,6 +408,40 @@ func (e *Editor) shapeInline(b *document.Block, spans []ui.Span, font ui.Font, s
 		}
 	}
 	return l
+}
+
+// inlineImage is the object an image within text shows as: the picture
+// at its width (the |width of its description, or its own), no wider than
+// the line, or while it loads or cannot show, a chip naming it.
+func (e *Editor) inlineImage(token inlineToken, a, z int, font ui.Font, lineW float32) inlineObject {
+	obj := inlineObject{start: a, end: z, scale: 1, image: true, source: token.image}
+	alt, width := parseMarkdownImageAlt(token.alt)
+	var res ImageResource
+	if e.loadImage != nil {
+		res = e.imageResource(token.image, Options{LoadImage: e.loadImage})
+	}
+	if res.Bitmap != nil && res.Width > 0 && res.Height > 0 {
+		w, h := float32(res.Width), float32(res.Height)
+		if width > 0 {
+			w, h = width, width*h/w
+		}
+		if lineW > 0 && w > lineW-4 {
+			w, h = lineW-4, (lineW-4)*h/w
+		}
+		obj.picture, obj.rect = res.Bitmap, ui.Rect{W: w, H: h}
+		return obj
+	}
+	name := alt
+	if name == "" {
+		name = imageName(token.image)
+	}
+	obj.label = ui.ShapeText("🖼 "+name, ui.Font{Family: font.Family, Size: font.Size * .85}, 0)
+	return obj
+}
+
+func labelHeight(l *ui.TextLayout) float32 {
+	_, h := l.Size()
+	return h
 }
 
 func (l *textLayout) visual(at int, end bool) int {
@@ -463,6 +535,18 @@ func (e *Editor) paintInline(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 	for _, o := range r.layout.objects {
 		ox, oy := bounds.X+r.x+dx+o.rect.X, bounds.Y+r.y+dy+o.rect.Y
 		x, y := ox+2, oy
+		if o.image {
+			if o.picture != nil {
+				p.Clip(ui.Rect{X: ox, Y: oy, W: o.rect.W, H: o.rect.H}, 4, func() {
+					p.Image(o.picture, ui.Rect{X: ox, Y: oy, W: o.rect.W, H: o.rect.H}, ui.Contain)
+				})
+			} else {
+				frame := ui.Rect{X: ox + 1, Y: oy, W: o.rect.W - 2, H: o.rect.H}
+				p.Fill(frame, e.page.InlineFill, 4)
+				p.TextLayout(o.label, ox+4, oy+(o.rect.H-labelHeight(o.label))/2, e.page.Caption)
+			}
+			continue
+		}
 		if o.box != nil {
 			if o.editing {
 				frame := ui.Rect{X: ox, Y: oy - 2, W: max(20, o.rect.W-2), H: o.rect.H + 4}

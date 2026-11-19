@@ -476,12 +476,40 @@ func TestOutlineFloatsOverNarrowPage(t *testing.T) {
 	if !found || !hasPage || entry.X < 700-outlineWidth || page.W != 700 {
 		t.Fatalf("outline should float over the right edge without narrowing the document: %+v, %+v", entry, page)
 	}
-	if err := tt.Click("收起目录"); err != nil {
-		t.Fatal(err)
+	// The rail keeps the outline open until Escape; then the pointer
+	// alone opens it, as long as it stays over the rail or the panel.
+	tt.Move(100, 400)
+	tt.Frame()
+	if !e.OutlineOpen() {
+		t.Fatal("a click keeps the outline open")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Advance(time.Second)
+	tt.Frame()
+	if e.OutlineOpen() || tt.HasText("Beta") {
+		t.Fatal("outline stayed open")
+	}
+	rail, _ := tt.Find("展开目录")
+	tt.Move(rail.X+rail.W/2, rail.Y+rail.H/2)
+	tt.Advance(time.Second)
+	tt.Frame()
+	panel, ok := tt.Find("目录")
+	if !ok || !tt.HasText("Beta") {
+		t.Fatal("hovering the rail did not open the outline")
+	}
+	// As tall as its entries, not the whole view, beside the page's edge.
+	if panel.H > 5*outlineRow+60 || panel.X+panel.W > 700 || panel.X < 700-outlineWidth-12 {
+		t.Fatalf("panel %+v", panel)
+	}
+	// The panel's hover is the last frame's: it closes a frame later.
+	tt.Move(100, 400)
+	for range 3 {
+		tt.Frame()
+		tt.Advance(time.Second)
 	}
 	tt.Frame()
-	if e.OutlineOpen() {
-		t.Fatal("outline stayed open")
+	if tt.HasText("Beta") {
+		t.Fatal("the outline stayed after the pointer left")
 	}
 }
 

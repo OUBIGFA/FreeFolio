@@ -77,10 +77,10 @@ func validStyleName(name string, allowed []string) bool {
 // as either a standard <mark> element or a <span> with both inline CSS (for
 // external Markdown viewers) and lossless data-* attributes (for FreeMD).
 func spanTagAndAttrs(s document.Style) (tag, attrs string) {
-	if s.Color == "" && s.Highlight == "light-yellow" && s.Annotation == "" {
+	if s.Color == "" && s.Highlight == "light-yellow" && s.Annotation == "" && s.Size == 0 {
 		return "mark", ""
 	}
-	if s.Color == "" && s.Highlight == "" && s.Annotation == "" {
+	if s.Color == "" && s.Highlight == "" && s.Annotation == "" && s.Size == 0 {
 		return "", ""
 	}
 	var css []string
@@ -88,6 +88,11 @@ func spanTagAndAttrs(s document.Style) (tag, attrs string) {
 	if hex := textColorHex[s.Color]; hex != "" {
 		css = append(css, "color:"+hex)
 		data = append(data, `data-color="`+s.Color+`"`)
+	} else if document.IsHexColor(s.Color) {
+		css = append(css, "color:"+s.Color)
+	}
+	if s.Size != 0 {
+		css = append(css, "font-size:"+strconv.FormatFloat(float64(s.Size), 'f', -1, 32)+"em")
 	}
 	if hex := highlightHex[s.Highlight]; hex != "" {
 		css = append(css, "background-color:"+hex)
@@ -133,6 +138,34 @@ func spanTagAndAttrs(s document.Style) (tag, attrs string) {
 	}
 	parts = append(parts, data...)
 	return "span", strings.Join(parts, " ")
+}
+
+// exactTextColor is the text color a CSS color names: a color of the
+// palette when it is one, else the exact #rrggbb, or "" for none and for
+// the near-black or near-white ink of pasted text, which is the page's own.
+func exactTextColor(v string) string {
+	name := matchTextColorCSS(v)
+	if name == "" {
+		return ""
+	}
+	v = strings.ToLower(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(v), "!important")))
+	if namedTextColors[v] == name || strings.EqualFold(textColorHex[name], v) || v == name {
+		return name
+	}
+	c, ok := cssColor(v)
+	if !ok {
+		return name
+	}
+	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
+}
+
+// textSizeOf is a Style.Size of a scale from the body's size: none for
+// the body's own, within the bounds the model keeps.
+func textSizeOf(scale float32) float32 {
+	if scale <= 0 || scale > 0.97 && scale < 1.03 {
+		return 0
+	}
+	return float32(math.Round(float64(min(max(scale, document.MinTextSize), document.MaxTextSize))*1000) / 1000)
 }
 
 // parseCSSProps splits an inline CSS style attribute into lowercase property pairs.
@@ -314,10 +347,17 @@ func applyNodeRichStyle(n *xhtml.Node, style document.Style) document.Style {
 		style.NoMath = true
 	}
 	props := parseCSSProps(attr(n, "style"))
+	color := props["color"]
+	if n.DataAtom == atom.Font && color == "" {
+		color = attr(n, "color")
+	}
 	if style.Color == "" {
-		if c := matchTextColorCSS(props["color"]); c != "" {
-			style.Color = c
-		}
+		style.Color = exactTextColor(color)
+	}
+	if size := props["font-size"]; size != "" {
+		style.Size = textSizeOf(cssFontSize(strings.ToLower(size), 16, 16) / 16)
+	} else if n.DataAtom == atom.Font && attr(n, "size") != "" {
+		style.Size = textSizeOf(fontTagSize(attr(n, "size"), 16) / 16)
 	}
 	if style.Highlight == "" {
 		bg := props["background-color"]
@@ -441,8 +481,8 @@ func outerHTMLMark(s document.Style) (kind, val string) {
 		return "underline", "1"
 	case s.Script != "":
 		return "script", s.Script
-	case s.Color != "" || s.Highlight != "" || s.Annotation != "":
-		return "span", fmt.Sprintf("%s|%s|%s|%s", s.Color, s.Highlight, s.Annotation, s.AnnotationColor)
+	case s.Color != "" || s.Highlight != "" || s.Annotation != "" || s.Size != 0:
+		return "span", fmt.Sprintf("%s|%s|%s|%s|%g", s.Color, s.Highlight, s.Annotation, s.AnnotationColor, s.Size)
 	}
 	return "", ""
 }
@@ -462,8 +502,8 @@ func hasHTMLMark(s document.Style, kind string) (bool, string) {
 	case "script":
 		return s.Script != "", s.Script
 	case "span":
-		on := s.Color != "" || s.Highlight != "" || s.Annotation != ""
-		return on, fmt.Sprintf("%s|%s|%s|%s", s.Color, s.Highlight, s.Annotation, s.AnnotationColor)
+		on := s.Color != "" || s.Highlight != "" || s.Annotation != "" || s.Size != 0
+		return on, fmt.Sprintf("%s|%s|%s|%s|%g", s.Color, s.Highlight, s.Annotation, s.AnnotationColor, s.Size)
 	}
 	return false, ""
 }
@@ -483,7 +523,7 @@ func clearHTMLMark(r document.Run, kind string) document.Run {
 	case "script":
 		r.Style.Script = ""
 	case "span":
-		r.Style.Color, r.Style.Highlight = "", ""
+		r.Style.Color, r.Style.Highlight, r.Style.Size = "", "", 0
 		r.Style.Annotation, r.Style.AnnotationColor = "", ""
 	}
 	return r
@@ -626,7 +666,7 @@ func applyInlineHTMLToken(raw string, stack *[]htmlStyleFrame, style *document.S
 			case atom.Mark:
 				style.Highlight = ""
 			case atom.Span, atom.Font:
-				style.Color, style.Highlight = "", ""
+				style.Color, style.Highlight, style.Size = "", "", 0
 				style.Annotation, style.AnnotationColor = "", ""
 			case atom.A:
 				style.Link = ""

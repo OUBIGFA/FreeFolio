@@ -446,6 +446,17 @@ func (e *Editor) blockSpans(b *document.Block, font ui.Font, header bool, theme 
 		}
 		if c, ok := pg.TextColors[style.Color]; ok {
 			span.Color, span.DecorationColor = c, c
+		} else if document.IsHexColor(style.Color) {
+			// An exact color, from HTML within the Markdown.
+			c := ui.Hex(style.Color)
+			span.Color, span.DecorationColor = c, c
+		}
+		if style.Size != 0 {
+			base := span.Size
+			if base == 0 {
+				base = font.Size
+			}
+			span.Size = base * style.Size
 		}
 		if c, ok := pg.Highlights[style.Highlight]; ok {
 			span.Background, span.Radius = c, 2

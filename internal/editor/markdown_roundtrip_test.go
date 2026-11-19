@@ -359,3 +359,49 @@ func TestObsidianImageEmbedsImportAndRoundTrip(t *testing.T) {
 		t.Fatalf("re-import of space URL failed: %+v", reimported.Blocks[0])
 	}
 }
+
+// Blank lines past the one parting two blocks import as empty lines and
+// write back as the blank lines they were, the document edited or not.
+func TestExtraBlankLinesRoundTrip(t *testing.T) {
+	src := "# Title\n\none\n\n\ntwo\n\n\n\nthree\n\n- a\n- b\n\n\n\n## Next\n"
+	doc := ImportMarkdown(src)
+	var kinds []string
+	for _, b := range doc.Blocks {
+		k := b.Kind
+		if isBlankLine(b) {
+			k = "blank"
+		}
+		kinds = append(kinds, k)
+	}
+	want := []string{"heading", "paragraph", "blank", "paragraph", "blank", "blank", "paragraph", "bullet", "bullet", "blank", "blank", "heading"}
+	if strings.Join(kinds, " ") != strings.Join(want, " ") {
+		t.Fatalf("blocks %v", kinds)
+	}
+	if got := ExportMarkdown(doc); got != src {
+		t.Fatalf("unedited export:\n%q", got)
+	}
+	doc.Blocks[1].Runs = []document.Run{{Text: "ONE"}}
+	if got, want := ExportMarkdown(doc), strings.Replace(src, "\none\n", "\nONE\n", 1); got != want {
+		t.Fatalf("edited export:\n%q\nwant\n%q", got, want)
+	}
+	// Fresh, as a document made in the editor writes them.
+	doc.ImportSource = ""
+	if got := ExportMarkdown(doc); !strings.Contains(got, "ONE\n\n\ntwo\n\n\n\nthree") {
+		t.Fatalf("fresh export:\n%q", got)
+	}
+}
+
+// One block edited, the rest of the source writes back as it was: a
+// paragraph right under its heading stays there, a heading keeps its
+// trailing space, and an anchor of tags alone stays HTML, not a blank line.
+func TestEditKeepsTheRestOfTheSource(t *testing.T) {
+	src := "intro\n\n<a id=\"x\" name=\"x\"></a>\n## Heading \nright under\n\n\n\n## Next\nbody\n"
+	doc := ImportMarkdown(src)
+	if doc.Blocks[1].Kind != "raw" {
+		t.Fatalf("anchor imported as %s", doc.Blocks[1].Kind)
+	}
+	doc.Blocks[0].Runs = []document.Run{{Text: "INTRO"}}
+	if got, want := ExportMarkdown(doc), strings.Replace(src, "intro", "INTRO", 1); got != want {
+		t.Fatalf("export\n%q\nwant\n%q", got, want)
+	}
+}

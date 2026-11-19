@@ -182,16 +182,22 @@ type Editor struct {
 	// the others show the formula (math.go).
 	mathEditing, laidMath       string
 	mermaidEditing, laidMermaid string
-	laidFindKey                 string
-	bindings                    map[string]Combo
-	openWiki, openTag           func(string)
-	maths                       map[string]mathShape
-	mathGlyphs                  map[string]*ui.TextLayout
-	mermaids                    map[string]mermaidShape
-	mermaidLayouts              map[string]*ui.TextLayout
-	codeLex                     map[string]*codeLexCache
-	codeNoWrap                  bool
-	codeWrapOverride            map[string]bool
+	// htmlEditing is the HTML block the caret is in, which shows its
+	// source; the others show what the HTML says (htmlview.go).
+	htmlEditing, laidHTML string
+	// loadImage is the host's image loader, which images within text use.
+	loadImage         func(string) ImageResource
+	htmls             map[string]*htmlBox
+	laidFindKey       string
+	bindings          map[string]Combo
+	openWiki, openTag func(string)
+	maths             map[string]mathShape
+	mathGlyphs        map[string]*ui.TextLayout
+	mermaids          map[string]mermaidShape
+	mermaidLayouts    map[string]*ui.TextLayout
+	codeLex           map[string]*codeLexCache
+	codeNoWrap        bool
+	codeWrapOverride  map[string]bool
 	// codeOpen are the long code blocks opened from their fold; codeTall
 	// those whose text, as laid out or estimated, stands taller than the
 	// fold (codefold.go).
@@ -270,6 +276,9 @@ type row struct {
 	mathHidden bool
 	mathErr    string
 	mathError  *ui.TextLayout
+	// html is an HTML block shown at rest, htmlTop where it starts.
+	html    *htmlBox
+	htmlTop float32
 
 	mermaid       *mermaid.Diagram
 	mermaidTop    float32
@@ -654,6 +663,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.header.pickCover = o.PickCover
 	e.bookmarks.marks, e.bookmarks.toggle, e.bookmarks.label, e.bookmarks.key = o.Bookmarks, o.ToggleBookmark, o.LabelBookmark, o.BookmarkKey
 	e.reserved = o.Reserved
+	e.loadImage = o.LoadImage
 	e.sync()
 	if e.imageCaptionID != "" && e.Engine.LeafAt(e.Caret).Block.ID != e.imageCaptionID {
 		e.imageCaptionID, e.ready = "", false
@@ -662,6 +672,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.revealCaret()
 	e.watchMath()
 	e.watchMermaid()
+	e.watchHTML()
 	e.watchInline()
 	pane := ui.Column(c).Grow(1).MinHeight(0).MinWidth(0)
 	e.fitOutline(o)
@@ -891,7 +902,7 @@ func (e *Editor) layout(o Options) {
 	if e.find.open {
 		findKey = e.find.query
 	}
-	same := !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing
+	same := !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidHTML == e.htmlEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing
 	if same && e.cacheRevision == e.Revision() {
 		return
 	}
@@ -906,6 +917,7 @@ func (e *Editor) layout(o Options) {
 		clear(e.maths)
 		clear(e.mermaidLayouts)
 		clear(e.mermaids)
+		clear(e.htmls)
 		clear(e.codeLex)
 		pageKey.page = clonePage(e.page)
 	} else {
@@ -921,6 +933,7 @@ func (e *Editor) layout(o Options) {
 	e.ready, e.width, e.cacheRevision, e.cacheTheme, e.laidPage = true, o.Width, e.Revision(), *o.Theme, pageKey
 	e.laidMath = e.mathEditing
 	e.laidMermaid = e.mermaidEditing
+	e.laidHTML = e.htmlEditing
 	e.laidFindKey = findKey
 	// The text column is 820 wide unless the reader picked another.
 	e.column = columnWidth(o.Column)
@@ -1142,7 +1155,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		key := e.blockShapeKey(b, font, header)
 		cached, ok := e.cache[b.ID]
 		sameShape := ok && cached.key == key && slices.Equal(cached.runs, b.Runs)
-		active := virtualize && (b.ID == caretID || b.ID == anchorID || b.ID == revealID || b.ID == e.dragID || b.ID == e.mathEditing || b.ID == e.mermaidEditing || strings.HasPrefix(e.inlineEditing, b.ID+":"))
+		active := virtualize && (b.ID == caretID || b.ID == anchorID || b.ID == revealID || b.ID == e.dragID || b.ID == e.mathEditing || b.ID == e.mermaidEditing || b.ID == e.htmlEditing || strings.HasPrefix(e.inlineEditing, b.ID+":"))
 		deferShape := virtualize && !active && leaf.Owner == b.ID && canDeferKind(b.Kind)
 
 		var laid *textLayout
@@ -1181,6 +1194,10 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			}
 			total := top + max(estH, font.Size*font.LineHeight) + bottom
 			if b.Kind == "math" || isMermaidBlock(b) {
+				total = estH
+			}
+			// An HTML block at rest measured once stands as it showed.
+			if hint, ok := e.heightHints[b.ID]; b.Kind == "raw" && b.ID != e.htmlEditing && ok && hint.exact && hint.width == e.hintWidthFor(b, shapeWidth) {
 				total = estH
 			}
 			if y+total < winTop || y > winBottom {
@@ -1244,6 +1261,12 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			total = e.mathRow(&row, h)
 			row.rect.H = total
 		}
+		if b.Kind == "raw" {
+			if t := e.htmlRow(&row, o); t > 0 {
+				total = t + gap
+				row.rect.H = total
+			}
+		}
 		var mermaidWellOff float32
 		if isMermaidBlock(b) {
 			total, mermaidWellOff = e.mermaidRow(&row, h, gap)
@@ -1251,13 +1274,14 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		}
 		if virtualize && leaf.Owner == b.ID && canDeferKind(b.Kind) {
 			hintH := fullH
-			if b.Kind == "math" || isMermaidBlock(b) {
+			if b.Kind == "math" || isMermaidBlock(b) || row.html != nil {
 				hintH = total
 			}
 			e.recordExactHeight(b.ID, e.hintWidthFor(b, shapeWidth), hintH, font, b.Runs)
 		}
 		e.rows = append(e.rows, row)
-		if b.Kind == "code" || b.Kind == "raw" || b.Kind == "math" || b.Kind == "quote" || b.Kind == "callout" || b.Kind == "rule" {
+		// An HTML block at rest has no code box: it shows as its HTML.
+		if b.Kind == "code" || b.Kind == "raw" && row.html == nil || b.Kind == "math" || b.Kind == "quote" || b.Kind == "callout" || b.Kind == "rule" {
 			d := decoration{kind: b.Kind, id: b.ID, ownerID: leaf.Owner, rect: ui.Rect{X: x, Y: y, W: w, H: total - gap}}
 			if isMermaidBlock(b) {
 				d.kind, d.label, d.id = "mermaid", b.Language, b.ID
@@ -1564,6 +1588,11 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					}
 				}
 				if e.paintMath(p, bounds, r, t) {
+					return
+				}
+				if r.html != nil {
+					hx, hy := bounds.X+r.rect.X+dx, bounds.Y+r.rect.Y+dy+r.htmlTop
+					e.paintHTML(p, r.html, hx, hy, t)
 					return
 				}
 				if e.paintMermaid(p, bounds, r, t) {

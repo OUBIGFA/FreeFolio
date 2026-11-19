@@ -43,7 +43,7 @@ const writingSample = `# 留一点空白
 
 func TestSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the writing surface")
-	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "table-select", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline@dark",
+	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "table-select", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline-rail", "outline-float@dark", "outline@dark",
 		// The same on dark paper, as the system's dark appearance shows it.
 		"writing-empty@dark", "writing-source@dark", "rich-blocks@dark", "rich-lists@dark", "writing-selection@dark", "callouts@dark",
 		"block-menu@dark", "table-select@dark", "text-colors@dark", "find@dark", "table-merge@dark", "writing-paste", "writing-paste-narrow"} {
@@ -120,6 +120,10 @@ func TestSnapshot(t *testing.T) {
 				a.prefs.OutlineClosed = true
 				tt.Frame()
 				tt.Advance(time.Second)
+			}
+			if name == "outline-rail" {
+				tt.SetSize(760, 650)
+				tt.Frame()
 			}
 			if name == "outline-float" {
 				tt.SetSize(760, 650)

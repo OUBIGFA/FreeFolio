@@ -24,9 +24,11 @@ import (
 // headings and list items, cell backgrounds, merged cells and callout
 // emoji, version 5 the page's icon and cover, version 6 scripts, image widths
 // and footnotes, version 7 hand-drawn text annotations, version 8 toggle
-// blocks and the word goal. Older documents are read and migrated in memory, and written back
-// as the current version only when edited.
-const CurrentVersion = 8
+// blocks and the word goal, version 9 exact text colors (#rrggbb in
+// Style.Color) and text sizes, as HTML within Markdown writes them. Older
+// documents are read and migrated in memory, and written back as the
+// current version only when edited.
+const CurrentVersion = 9
 
 // CoverGradients are the covers drawn rather than pictured, as
 // "gradient:name" in Document.Cover.
@@ -85,6 +87,10 @@ type Style struct {
 	// (version 7).
 	Annotation      string `json:"annotation,omitempty"`
 	AnnotationColor string `json:"annotationColor,omitempty"`
+	// Size scales the text from the body's size, as an em: 0 is the body's
+	// own (version 9). Color may also be an exact #rrggbb (version 9), as
+	// HTML within Markdown gives text a color outside TextColors.
+	Size float32 `json:"size,omitempty"`
 }
 
 type Run struct {
@@ -357,8 +363,28 @@ func (d *Document) migrate() error {
 		}
 		return false
 	}
-	if v8(d.Blocks) || d.Goal != 0 {
+	if d.Version < 8 && (v8(d.Blocks) || d.Goal != 0) {
 		return errors.New("document: toggle blocks and word goals require version 8")
+	}
+	var v9 func([]*Block) bool
+	v9 = func(blocks []*Block) bool {
+		for _, b := range blocks {
+			if b == nil {
+				continue
+			}
+			for _, r := range b.Runs {
+				if r.Style.Size != 0 || IsHexColor(r.Style.Color) {
+					return true
+				}
+			}
+			if v9(b.Children) {
+				return true
+			}
+		}
+		return false
+	}
+	if v9(d.Blocks) {
+		return errors.New("document: exact text colors and sizes require version 9")
 	}
 	d.Version = CurrentVersion
 	return nil
@@ -486,7 +512,28 @@ func hashRuns(h hash.Hash, buf *[64]byte, runs []Run) {
 		hashString(h, buf, st.Highlight)
 		hashString(h, buf, st.Annotation)
 		hashString(h, buf, st.AnnotationColor)
+		hashFloat32(h, buf, st.Size)
 	}
+}
+
+// The bounds of Style.Size, as the HTML within Markdown that sets it keeps
+// within them.
+const (
+	MinTextSize = 0.5
+	MaxTextSize = 4
+)
+
+// IsHexColor reports an exact text color, #rrggbb in lowercase.
+func IsHexColor(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, c := range s[1:] {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func hashBlock(h hash.Hash, buf *[64]byte, b *Block) {
@@ -646,8 +693,11 @@ func (d *Document) Validate() error {
 			if r.Style.Script != "" && r.Style.Script != "sup" && r.Style.Script != "sub" {
 				return errors.New("document: invalid script")
 			}
-			if r.Style.Color != "" && !oneOf(r.Style.Color, TextColors) || r.Style.Highlight != "" && !oneOf(r.Style.Highlight, TextHighlights) {
+			if r.Style.Color != "" && !oneOf(r.Style.Color, TextColors) && !IsHexColor(r.Style.Color) || r.Style.Highlight != "" && !oneOf(r.Style.Highlight, TextHighlights) {
 				return errors.New("document: invalid text color")
+			}
+			if r.Style.Size != 0 && !(r.Style.Size >= MinTextSize && r.Style.Size <= MaxTextSize) {
+				return errors.New("document: invalid text size")
 			}
 			if r.Style.Annotation != "" && !oneOf(r.Style.Annotation, Annotations) ||
 				r.Style.AnnotationColor != "" && (r.Style.Annotation == "" || !oneOf(r.Style.AnnotationColor, TextColors)) {

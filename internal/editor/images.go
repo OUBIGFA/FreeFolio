@@ -47,6 +47,21 @@ func (e *Editor) InvalidateImage(src string) {
 	if e.images != nil {
 		delete(e.images, src)
 	}
+	// Text holding the image in its line, and HTML blocks naming it, were
+	// laid out around its placeholder: they shape again.
+	for id, c := range e.cache {
+		for _, r := range c.runs {
+			if strings.Contains(r.Text, src) {
+				delete(e.cache, id)
+				break
+			}
+		}
+	}
+	for id, b := range e.htmls {
+		if strings.Contains(b.src, src) {
+			delete(e.htmls, id)
+		}
+	}
 	e.ready = false
 }
 

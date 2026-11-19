@@ -57,6 +57,9 @@ type outlineState struct {
 	// the drag goes on (outlineList).
 	list     ui.ScrollState
 	dragging string
+	// panelHovered is whether the pointer was over the floating panel in
+	// the last frame, which keeps the panel open as it leaves the rail.
+	panelHovered bool
 
 	headingsDoc   *document.Document
 	headingsRev   uint64
@@ -197,6 +200,10 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 	if s.mode == outlineOff {
 		return
 	}
+	if s.mode == outlineFloating {
+		e.floatingOutline(c, pane)
+		return
+	}
 	t := c.Theme()
 	target := float32(0)
 	if e.OutlineOpen() {
@@ -221,9 +228,6 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 	}
 	panel := ui.Column(c.Key("outline")).Absolute().Right(0).Top(0).Width(s.width).Height(e.viewport).
 		Padding(s.buttonTop, 16, 16, 12).Gap(8).Opacity(shown).Translate((1-shown)*24, 0)
-	if s.mode == outlineFloating {
-		panel.Background(e.page.Popover).Shadow(-4, 0, 24, 0, t.Text.Alpha(.12)).KeepFocus()
-	}
 	panel.Children(func() {
 		close := ui.ButtonBase(c.Key("outline-close")).Size(28, 28).Radius(6).Center().AlignSelf(ui.End).
 			Label(i18n.T("收起目录")).Tooltip(i18n.T("收起目录")).KeepFocus().Cursor(ui.CursorPointer)
@@ -238,9 +242,107 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 		}
 		e.outlineList(c)
 	})
-	if s.mode == outlineFloating && s.floating && panel.PressedOutside() {
+}
+
+// Over a narrow page the outline is a rail at the page's right edge: a
+// short line per heading, stepped in by level, the section being read in
+// the accent color. Hovering the rail opens the outline as a small panel
+// as tall as its entries, on a hairline border without a heavy shadow; a
+// click on the rail keeps it open until a press outside or Escape.
+const (
+	railStepMax   = 10 // the most room a heading's line takes on the rail
+	railStepMin   = 4
+	railLineMax   = 16 // the line of a top-level heading
+	railLineMin   = 6
+	railWidth     = 28
+	floatPanelMax = 0.6 // of the view's height
+	floatFade     = 150 * time.Millisecond
+)
+
+func (e *Editor) floatingOutline(c *ui.Context, pane ui.Element) {
+	s := &e.outlineState
+	t := c.Theme()
+	n := len(e.outline)
+	active := e.activeOutline()
+	top := e.outlineTopLevel()
+	// The rail takes at most half the view; a longer outline shows the
+	// lines around the section being read.
+	railMax := max(80, e.viewport*0.5)
+	step := min(float32(railStepMax), max(railStepMin, railMax/float32(max(n, 1))))
+	count := min(n, max(1, int(railMax/step)))
+	from := min(max(0, active-count/2), n-count)
+	rail := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(6).Top(s.buttonTop).
+		Width(railWidth).Height(float32(count)*step + 12).
+		Label(i18n.T("展开目录")).KeepFocus().Cursor(ui.CursorPointer).Expanded(s.floating)
+	railHovered := rail.Hovered()
+	rail.Draw(func(p *ui.Painter, r ui.Rect) {
+		for i := range count {
+			item := e.indexedOutline(from + i)
+			w := max(float32(railLineMin), railLineMax-float32(min(item.level-top, 4))*3)
+			color := t.Text.Alpha(.22)
+			if railHovered {
+				color = t.Text.Alpha(.38)
+			}
+			if from+i == active {
+				color = t.Accent
+			}
+			y := r.Y + 6 + float32(i)*step + step/2 - 1
+			p.Fill(ui.Rect{X: r.X + r.W - 6 - w, Y: y, W: w, H: 2}, color, 1)
+		}
+	})
+	if rail.Clicked() {
+		s.floating = !s.floating
+	}
+	open := s.floating || railHovered || s.panelHovered
+	// Animate goes at once when the desktop asks for less motion.
+	shown := pane.Animate("outline-float", boolFloat(open), floatFade)
+	if shown <= 0 {
+		s.panelHovered = false
+		return
+	}
+	// As tall as its entries, within floatPanelMax of the view: the list
+	// scrolls past that.
+	panel := ui.Column(c.Key("outline")).Absolute().Right(6).Top(s.buttonTop-6).
+		Width(min(float32(outlineWidth), s.width-12)).MaxHeight(max(120, e.viewport*floatPanelMax)).Padding(6).Radius(10).
+		Background(e.page.Popover).Border(1, t.Text.Alpha(.12)).KeepFocus().
+		Role(ui.RoleDialog).Label(i18n.T("目录")).Opacity(shown).Translate((1-shown)*8, 0)
+	panel.Children(func() { e.outlineList(c) })
+	s.panelHovered = panel.Hovered()
+	if s.floating && !railHovered && panel.PressedOutside() || s.floating && c.Shortcut(0, ui.KeyEscape) {
 		s.floating = false
 	}
+}
+
+func boolFloat(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// activeOutline is the entry of the section being read, or of the
+// heading a jump goes to.
+func (e *Editor) activeOutline() int {
+	active := max(0, sort.Search(len(e.outline), func(i int) bool { return e.indexedOutline(i).y > e.Scroll.Y+96 })-1)
+	if e.outlineState.jump.id != "" {
+		// A jump marks where it goes at once, not each heading it passes.
+		for i, item := range e.outline {
+			if item.id == e.outlineState.jump.id {
+				active = i
+			}
+		}
+	}
+	return active
+}
+
+// outlineTopLevel is the level of the outline's highest heading, from
+// which the entries step in.
+func (e *Editor) outlineTopLevel() int {
+	top := 6
+	for _, item := range e.outline {
+		top = min(top, item.level)
+	}
+	return top
 }
 
 type outlinePillMatch struct{ ed *Editor }
@@ -255,19 +357,8 @@ func (e *Editor) outlineList(c *ui.Context) {
 	if len(e.Doc.Blocks) > 0 {
 		title = e.Doc.Blocks[0].ID
 	}
-	active := max(0, sort.Search(len(e.outline), func(i int) bool { return e.indexedOutline(i).y > e.Scroll.Y+96 })-1)
-	if e.outlineState.jump.id != "" {
-		// A jump marks where it goes at once, not each heading it passes.
-		for i, item := range e.outline {
-			if item.id == e.outlineState.jump.id {
-				active = i
-			}
-		}
-	}
-	top := 6
-	for _, item := range e.outline {
-		top = min(top, item.level)
-	}
+	active := e.activeOutline()
+	top := e.outlineTopLevel()
 	// Only the rows near what the list shows are built: a long page has
 	// thousands of headings, and building each one every frame was most of
 	// a frame. Spacers keep the rows out of view taking their room.

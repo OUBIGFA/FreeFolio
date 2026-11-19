@@ -23,6 +23,11 @@ import (
 type importedChunk struct {
 	from, to int
 	raw      string
+	// start and end are the chunk's bytes in the source; tight marks a
+	// chunk the next one followed on the very next line, with no blank line
+	// between them, as a paragraph right under a heading.
+	start, end int
+	tight      bool
 }
 
 type parsedMarkdown struct {
@@ -90,8 +95,18 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 	var blocks func(int, string, int) []*document.Block
 	blocks = func(parent int, context string, indent int) []*document.Block {
 		var out []*document.Block
+		prevEnd := -1
 		for index := range parsed.Children(parent) {
 			node := parsed.Block(index)
+			// Blank lines past the one that parts two top-level blocks show
+			// as empty lines, as Obsidian shows them; they hold no source
+			// of their own, so the Markdown writes them back as blank lines.
+			if parent == 0 && !forSearch && prevEnd >= 0 && prevEnd <= node.Start {
+				for range extraBlankLines(text[prevEnd:node.Start]) {
+					out = append(out, &document.Block{ID: nextID(), Kind: "paragraph", Runs: []document.Run{{Text: ""}}})
+				}
+			}
+			prevEnd = node.End
 			startCount := len(out)
 			b := &document.Block{ID: nextID(), Kind: "paragraph", Indent: indent}
 			switch node.Kind {
@@ -123,6 +138,18 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 					}
 				}
 				b.Runs = importRuns(in, document.Style{})
+				// A paragraph of tags alone, as an anchor <a id="x"></a>, says
+				// nothing to read: it stays the HTML it is, shown as Obsidian
+				// shows it, rather than an empty paragraph, which reads as a
+				// blank line.
+				if node.Kind == parser.Paragraph && context == "" && b.Text() == "" && strings.TrimSpace(text[node.Start:node.End]) != "" {
+					b.Kind, b.Runs = "raw", []document.Run{{Text: text[node.Start:node.End]}}
+					out = append(out, b)
+					if !forSearch && parent == 0 {
+						topSpans = append(topSpans, rawSpan{b, node.Start, node.End})
+					}
+					continue
+				}
 				if context != "" {
 					b.Kind = context
 				}
@@ -271,6 +298,37 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 	return parsedMarkdown{doc: result, rawFrontmatter: rawFM, chunks: chunks}
 }
 
+// extraBlankLines counts the blank lines between two blocks, past the one
+// that only parts them; gap runs from the end of the one, before its line
+// break, to the start of the other.
+func extraBlankLines(gap string) int {
+	lines := strings.Split(gap, "\n")
+	blank := 0
+	for _, l := range lines[1 : len(lines)-1] {
+		if strings.TrimSpace(l) == "" {
+			blank++
+		}
+	}
+	return max(0, blank-1)
+}
+
+// isBlankLine reports a block written as a blank line of its own: an empty
+// paragraph at the left, as extra blank lines between blocks import.
+func isBlankLine(b *document.Block) bool {
+	return b.Kind == "paragraph" && b.Text() == "" && b.Indent == 0 && normCellAlign(b.Align) == "" && len(b.Children) == 0
+}
+
+// joinMarkdownItem writes the separator before an item: a blank line, a
+// line break between items of a list, and after a blank-line block just the
+// line break that ends it.
+func joinMarkdownItem(out *strings.Builder, prevList, prevBlank, list bool) {
+	if prevBlank || prevList && list {
+		out.WriteString("\n")
+		return
+	}
+	out.WriteString("\n\n")
+}
+
 // buildStructuredBlocks resolves multi-block HTML wrappers (columns, details,
 // aligned containers) while tracking source byte ranges for top-level chunks.
 func buildStructuredBlocks(blocks []*document.Block, spans []rawSpan, text string, forSearch bool) ([]*document.Block, []importedChunk) {
@@ -314,12 +372,23 @@ func buildStructuredBlocks(blocks []*document.Block, spans []rawSpan, text strin
 			}
 		}
 		if e >= s && e <= len(text) {
+			// The spaces ending the chunk's last line are its own, as a
+			// heading's trailing space: written back with it.
+			for e < len(text) && (text[e] == ' ' || text[e] == '\t') {
+				e++
+			}
 			raw := strings.TrimRight(text[s:e], "\r\n")
 			if raw != "" {
-				chunks = append(chunks, importedChunk{from: i, to: j + 1, raw: raw})
+				chunks = append(chunks, importedChunk{from: i, to: j + 1, raw: raw, start: s, end: s + len(raw)})
 			}
 		}
 		i = j + 1
+	}
+	for k := 0; k+1 < len(chunks); k++ {
+		if a, z := chunks[k].end, chunks[k+1].start; a <= z && chunks[k].to == chunks[k+1].from {
+			gap := text[a:z]
+			chunks[k].tight = strings.Count(gap, "\n") == 1 && strings.TrimSpace(gap) == ""
+		}
 	}
 	return blocks, chunks
 }
@@ -679,7 +748,35 @@ func parseSingleImgTag(raw, align string) (*document.Block, bool) {
 	return b, true
 }
 
+// tryImportHTMLBlock makes an HTML block a native one when the native
+// block says all the HTML does: when it writes back the same HTML, as the
+// aligned paragraphs, images and rich tables FreeMD writes itself. Other
+// HTML stays an HTML block, shown as written (htmlview.go), so nothing of
+// it is lost to a block that cannot hold it, as a cell's color or a
+// font's size.
 func tryImportHTMLBlock(raw string, baseIndent int) (*document.Block, bool) {
+	b, ok := nativeHTMLBlock(raw, baseIndent)
+	if !ok {
+		return nil, false
+	}
+	written, _, _ := renderSingleMarkdownItem([]*document.Block{b}, 0, map[int]int{})
+	if b.Kind != "image" && normalizeHTMLForCompare(written) != normalizeHTMLForCompare(raw) {
+		return nil, false
+	}
+	return b, true
+}
+
+// normalizeHTMLForCompare evens out what HTML may write either way: case,
+// quotes and the white space between and inside tags.
+func normalizeHTMLForCompare(s string) string {
+	s = strings.ToLower(strings.ReplaceAll(s, "'", `"`))
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.ReplaceAll(s, "> <", "><")
+	s = strings.ReplaceAll(s, " />", ">")
+	return strings.ReplaceAll(s, "/>", ">")
+}
+
+func nativeHTMLBlock(raw string, baseIndent int) (*document.Block, bool) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, false
@@ -1096,8 +1193,10 @@ func exportWithSourceChunks(doc *document.Document, orig parsedMarkdown, buckets
 	used := make([]bool, len(orig.chunks))
 	cursors := make(map[uint64]int, len(buckets))
 	type emittedItem struct {
-		text   string
-		isList bool
+		text          string
+		isList, blank bool
+		// chunk is the source chunk the item writes back, -1 for none.
+		chunk int
 	}
 	items := make([]emittedItem, 0, len(blocks))
 	numberedSeq := map[int]int{}
@@ -1140,22 +1239,25 @@ func exportWithSourceChunks(doc *document.Document, orig parsedMarkdown, buckets
 			if !isList {
 				clear(numberedSeq)
 			}
-			items = append(items, emittedItem{text: ch.raw, isList: isList})
+			items = append(items, emittedItem{text: ch.raw, isList: isList, blank: spanLen == 1 && isBlankLine(blocks[i]), chunk: matched})
 			i += spanLen
 			continue
 		}
 		text, consumed, isList := renderSingleMarkdownItem(blocks, i, numberedSeq)
-		items = append(items, emittedItem{text: text, isList: isList})
+		items = append(items, emittedItem{text: text, isList: isList, blank: isBlankLine(blocks[i]), chunk: -1})
 		i += consumed
 	}
 
 	var body strings.Builder
 	for idx, it := range items {
 		if idx > 0 {
-			if items[idx-1].isList && it.isList {
+			// Two chunks written back as they followed each other keep the
+			// line break between them, not a blank line: the rest of the
+			// source stays as it was where one block changed.
+			if prev := items[idx-1]; prev.chunk >= 0 && it.chunk == prev.chunk+1 && orig.chunks[prev.chunk].tight {
 				body.WriteString("\n")
 			} else {
-				body.WriteString("\n\n")
+				joinMarkdownItem(&body, prev.isList, prev.blank, it.isList)
 			}
 		}
 		body.WriteString(it.text)
@@ -1203,23 +1305,19 @@ func isMarkdownListKind(kind string) bool {
 func renderMarkdownBlockList(blocks []*document.Block) string {
 	numberedSeq := map[int]int{}
 	type item struct {
-		text   string
-		isList bool
+		text          string
+		isList, blank bool
 	}
 	var items []item
 	for i := 0; i < len(blocks); {
 		text, consumed, isList := renderSingleMarkdownItem(blocks, i, numberedSeq)
-		items = append(items, item{text: text, isList: isList})
+		items = append(items, item{text: text, isList: isList, blank: isBlankLine(blocks[i])})
 		i += consumed
 	}
 	var out strings.Builder
 	for idx, it := range items {
 		if idx > 0 {
-			if items[idx-1].isList && it.isList {
-				out.WriteString("\n")
-			} else {
-				out.WriteString("\n\n")
-			}
+			joinMarkdownItem(&out, items[idx-1].isList, items[idx-1].blank, it.isList)
 		}
 		out.WriteString(it.text)
 	}
@@ -1685,6 +1783,19 @@ func formatMarkdownLeafRun(run document.Run) string {
 }
 
 func escapePlainSegment(s string) string {
+	// An image's syntax within text is the image (inline.go): it writes
+	// back as it is, its brackets unescaped.
+	if tokens := imageTokens(s); len(tokens) > 0 {
+		var b strings.Builder
+		pos := 0
+		for _, t := range tokens {
+			b.WriteString(escapePlainSegment(s[pos:t.start]))
+			b.WriteString(s[t.start:t.end])
+			pos = t.end
+		}
+		b.WriteString(escapePlainSegment(s[pos:]))
+		return b.String()
+	}
 	links := wiki.Links(s)
 	if len(links) == 0 {
 		return escapeMarkdownPlain(s)
@@ -1705,6 +1816,17 @@ func escapePlainSegment(s string) string {
 	}
 	b.WriteString(escapeMarkdownPlain(s[pos:]))
 	return b.String()
+}
+
+// imageTokens are the images of Markdown within s.
+func imageTokens(s string) []inlineToken {
+	var out []inlineToken
+	for _, t := range inlineTokens(s) {
+		if t.image != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func escapeMarkdownPlain(s string) string {
@@ -2148,6 +2270,7 @@ func fnvMixStyle(h uint64, st document.Style) uint64 {
 	h = fnvMixString(h, st.Script)
 	h = fnvMixString(h, st.Link)
 	h = fnvMixString(h, st.Color)
+	h = fnvMixUint32(h, math.Float32bits(st.Size))
 	h = fnvMixString(h, st.Highlight)
 	h = fnvMixString(h, st.Annotation)
 	return fnvMixString(h, st.AnnotationColor)

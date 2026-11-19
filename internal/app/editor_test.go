@@ -138,7 +138,7 @@ func TestSaveFailureKeepsUnsavedSource(t *testing.T) {
 
 func TestInvalidNativeDocumentCannotOverwriteFile(t *testing.T) {
 	a, tt := newTestApp(t)
-	const source = `{"format":"arcmd","version":9,"blocks":[]}`
+	const source = `{"format":"arcmd","version":10,"blocks":[]}`
 	if err := vault.Write(root(a), "Future.arcmd", source); err != nil {
 		t.Fatal(err)
 	}
