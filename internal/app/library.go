@@ -48,23 +48,23 @@ var libraryPages = []struct {
 }
 
 const (
-	libraryRail     = 113
+	libraryRail     = 112
 	libraryList     = 304
-	libraryButtonW  = 97
-	libraryButtonH  = 80
-	libraryRowH     = 56
-	libraryHeaderH  = 40
-	libraryCardW    = 240
-	libraryCardGap  = 24
-	libraryCardLead = 27
-	libraryInset    = 48 // the cards from the window's top and bottom
-	libraryPlus     = 29
-	libraryPlusGap  = 34
-	libraryTrail    = 37.5
+	libraryButtonW  = 92
+	libraryButtonH  = 64
+	libraryRowH     = 54
+	libraryHeaderH  = 36
+	libraryCardW    = 244
+	libraryCardGap  = 20
+	libraryCardLead = 24
+	libraryInset    = 36 // the cards from the window's top and bottom
+	libraryPlus     = 36
+	libraryPlusGap  = 24
+	libraryTrail    = 28
 	libraryPageRoom = 420 // what the Spaces page leaves the document
 	librarySlide    = 14  // how far the library slides in from the left
 	librarySlideIn  = 120 * time.Millisecond
-	libraryCardRow  = 30
+	libraryCardRow  = 32
 )
 
 // library is the state of the library: shown or not, and its pages'.
@@ -207,9 +207,8 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 	})
 }
 
-// libraryRail is the column of pages: a faint wash brightening to the
-// right and ending in a hairline, the page buttons centred, the back
-// arrow at the foot.
+// libraryRail is the column of pages: a subtle wash ending in a hairline,
+// compact page tabs, and a clear back action at the foot.
 func (a *App) libraryRail(c *ui.Context) {
 	t := c.Theme()
 	ink := libraryInk(t)
@@ -217,27 +216,28 @@ func (a *App) libraryRail(c *ui.Context) {
 	rail := ui.Column(c.Key("library-rail")).Width(libraryRail).Shrink(0).AlignItems(ui.Center).DragWindow()
 	rail.Draw(func(p *ui.Painter, r ui.Rect) {
 		wash := ui.Rect{X: r.X, Y: r.Y, W: r.W - 1, H: r.H}
-		p.FillGradient(wash, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
-			{Color: ink.Alpha(0.02), At: 0}, {Color: ink.Alpha(0.045), At: 1},
-		}}, 0)
-		p.Fill(ui.Rect{X: r.X + r.W - 1, Y: r.Y, W: 1, H: r.H}, ink.Alpha(0.09), 0)
+		p.Fill(wash, ink.Alpha(0.025), 0)
+		p.Fill(ui.Rect{X: r.X + r.W - 1, Y: r.Y, W: 1, H: r.H}, separator(t), 0)
 	})
 	rail.Children(func() {
-		ui.Box(c).Height(max(bar.Height, 46)).Shrink(0)
+		ui.Box(c).Height(max(bar.Height, 52)).Shrink(0)
 		ui.Spacer(c)
-		ui.Column(c).Gap(20).Children(func() {
+		ui.Column(c).Gap(8).Children(func() {
 			for _, pg := range libraryPages {
 				a.libraryButton(c, pg.page, i18n.T(pg.title), pg.icon)
 			}
 		})
 		ui.Spacer(c)
-		ui.Row(c).AlignSelf(ui.Stretch).Height(32).Margin(0, 0, 8, 8).Children(func() {
-			b := ui.Box(c.Key("library-back")).Size(32, 32).Radius(8).Center().Cursor(ui.CursorPointer).
+		ui.Row(c).AlignSelf(ui.Stretch).Padding(0, 10, 12, 10).Children(func() {
+			b := ui.Row(c.Key("library-back")).Grow(1).Height(32).Radius(8).Gap(6).Center().Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RoleButton).Label(i18n.T("退出资料库")).Tooltip(i18n.T("退出资料库 (Esc)"))
 			if b.Hovered() {
 				b.Background(hoverFill(t))
 			}
-			b.Children(func() { ui.Icon(c, iconBack).FontSize(15).TextColor(ink.Alpha(0.6)) })
+			b.Children(func() {
+				ui.Icon(c, iconBack).FontSize(14).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("返回")).FontSize(12).FontWeight(500).TextColor(t.TextMuted).NoWrap()
+			})
 			if b.Clicked() {
 				a.closeLibrary()
 			}
@@ -246,12 +246,11 @@ func (a *App) libraryRail(c *ui.Context) {
 }
 
 // libraryButton is a page's button on the rail: its glyph and name, the
-// page shown on a light fill with its glyph in the space's accent.
+// page shown on an accent-tinted fill with its glyph in the space's accent.
 func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon *ui.SVG) {
 	t := c.Theme()
-	ink := libraryInk(t)
 	chosen := a.library.page == page
-	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(12).AlignItems(ui.Center).
+	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(10).Gap(6).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTab).Label(title).Selected(chosen)
 	if chosen && a.library.page != libTrash {
 		// The keys leave the document, which would take Escape, for the
@@ -260,23 +259,21 @@ func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon 
 	}
 	switch {
 	case chosen:
-		b.Background(ink.Alpha(0.07))
+		b.Background(t.Accent.Alpha(0.11))
 	case b.Hovered():
-		b.Background(ink.Alpha(0.04))
+		b.Background(hoverFill(t))
 	}
 	b.Children(func() {
-		ui.Box(c).Height(21)
-		glyph := ink.Alpha(0.6)
+		glyph := t.TextMuted
+		textCol := t.TextMuted
+		weight := 500
 		if chosen {
 			glyph = t.Accent
+			textCol = t.Text
+			weight = 600
 		}
-		ui.Icon(c, icon).FontSize(19).TextColor(glyph)
-		ui.Box(c).Height(9)
-		alpha := float32(0.6)
-		if chosen {
-			alpha = 0.82
-		}
-		ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(ink.Alpha(alpha)).NoWrap()
+		ui.Icon(c, icon).FontSize(18).TextColor(glyph)
+		ui.Text(c, title).FontSize(12).FontWeight(weight).TextColor(textCol).NoWrap()
 	})
 	if b.Clicked() && !chosen {
 		a.openLibrary(page)
@@ -326,12 +323,15 @@ func (a *App) librarySpaces(c *ui.Context) {
 				}
 			}
 			plus := ui.Box(c.Key("library-new-space")).Size(libraryPlus, libraryPlus).Shrink(0).AlignSelf(ui.Center).
-				Margin(0, 0, 0, libraryPlusGap-libraryCardGap).Radius(libraryPlus / 2).Center().Cursor(ui.CursorPointer).
-				Focusable().Role(ui.RoleButton).Label(i18n.T("新建空间")).Tooltip(i18n.T("新建空间")).Background(t.Accent)
+				Margin(0, 0, 0, libraryPlusGap-libraryCardGap).Radius(10).Center().Cursor(ui.CursorPointer).
+				Focusable().Role(ui.RoleButton).Label(i18n.T("新建空间")).Tooltip(i18n.T("新建空间")).
+				Background(t.Surface).Border(1, t.Border)
+			plusInk := t.TextMuted
 			if plus.Hovered() {
-				plus.Background(t.Accent.Mix(white, 0.15))
+				plus.Background(t.Accent.Alpha(0.10)).Border(1, t.Accent.Alpha(0.45))
+				plusInk = t.Accent
 			}
-			plus.Children(func() { ui.Icon(c, iconPlus).FontSize(16).TextColor(white) })
+			plus.Children(func() { ui.Icon(c, iconPlus).FontSize(16).TextColor(plusInk) })
 			if plus.Clicked() {
 				a.closeLibrary()
 				a.newSpaceForm()
@@ -349,8 +349,8 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 	look := lookOf(space.ThemeOf(s), base.Dark)
 	t := spaceTheme(base, look)
 	active := s == a.state.ActiveSpace()
-	card := ui.Themed(c.Key("card-"+s.ID), t).Width(libraryCardW).Shrink(0).Radius(14).Padding(8).Gap(4).
-		Role(ui.RoleGroup).Label(s.Name).Clip()
+	card := ui.Themed(c.Key("card-"+s.ID), t).Width(libraryCardW).Shrink(0).Radius(12).Padding(8).Gap(4).
+		Background(t.Surface).Role(ui.RoleGroup).Label(s.Name).Clip()
 	if moved {
 		// Lifted while the pointer holds it, settling flat into its slot.
 		lift := a.library.move != nil && !a.library.move.settling
@@ -360,32 +360,25 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 		}
 		card.AnimatePose(pose, ui.Animation{Duration: 160 * time.Millisecond, Ease: ui.EaseOut})
 		if lift {
-			card.Shadow(0, 14, 32, 0, black.Alpha(0.22))
+			card.Shadow(0, 12, 28, 0, black.Alpha(0.18))
 		}
 	} else {
 		card.Transition(ui.ElementTransition{Animation: &listAnim, Position: true})
 	}
-	card.Draw(func(p *ui.Painter, r ui.Rect) {
-		look.paint(p, r, 14, false)
-		if active {
-			p.Fill(r, white.Alpha(0.22), 14)
-		}
-	})
-	switch {
-	case active:
-		card.Border(2, white.Alpha(0.7))
-	default:
-		card.Border(1, t.Border.Alpha(0.4))
+	if active {
+		card.Border(1.5, t.Accent.Alpha(0.75))
+	} else {
+		card.Border(1, t.Border)
 	}
 	if !moved || a.library.move.settling {
 		if active {
-			card.Shadow(0, 6, 18, 0, black.Alpha(0.18))
+			card.Shadow(0, 2, 10, 0, black.Alpha(0.08))
 		} else {
-			card.Shadow(0, 2, 8, 0, black.Alpha(0.1))
+			card.Shadow(0, 1, 3, 0, black.Alpha(0.04))
 		}
 	}
 	card.Children(func() {
-		h := ui.Row(c.Key("head")).Height(34).PaddingX(8).Gap(8).Radius(9).AlignItems(ui.Center).
+		h := ui.Row(c.Key("head")).Height(36).PaddingX(8).Gap(8).Radius(8).AlignItems(ui.Center).
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("打开空间 ") + s.Name)
 		hovered := h.Hovered()
 		if hovered {
@@ -393,7 +386,11 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 		}
 		h.Children(func() {
 			a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, t.Accent)
-			ui.Text(c, s.Name).FontWeight(650).SingleLine().Grow(1).MinWidth(0)
+			ui.Text(c, s.Name).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
+			if active && !hovered {
+				ui.Text(c, i18n.T("当前")).FontSize(11).FontWeight(500).TextColor(t.Accent).
+					Background(t.Accent.Alpha(0.10)).Radius(4).Padding(1, 5).NoWrap()
+			}
 			edit := iconButton(c, "edit", iconPalette, i18n.T("编辑空间"), i18n.T("编辑空间"), false).Size(26, 26)
 			edit.Opacity(map[bool]float32{true: 1, false: 0}[hovered || edit.Hovered()])
 			if edit.Clicked() {
@@ -407,6 +404,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 				a.closeLibrary()
 			}
 		}
+		ui.Box(c).Height(1).Margin(0, 4).Background(t.Border.Alpha(0.6)).Shrink(0)
 		body := ui.Scroll(c.Key("body")).Grow(1).MinHeight(0).Gap(1)
 		body.Children(func() {
 			if err := a.library.errs[s.ID]; err != nil {
@@ -476,20 +474,24 @@ func (a *App) cardNodes(c *ui.Context, s *space.Space, nodes []*vault.Node, dept
 	}
 }
 
-// cardDoc is a document's row in a card; the open document is glass. A
-// click opens it in its space and closes the library.
+// cardDoc is a document's row in a card; the open document takes the
+// space's accent tint. A click opens it in its space and closes the library.
 func (a *App) cardDoc(c *ui.Context, s *space.Space, rel, title string, depth int) {
 	t := c.Theme()
 	chosen := a.doc != nil && a.doc.space == s && a.doc.rel == rel
 	row := a.cardRow(c, "doc:"+rel, title, depth).Role(ui.RoleTreeItem).Selected(chosen)
 	if chosen {
-		row.Background(glass(t)).Shadow(0, 1, 3, 0, black.Alpha(0.07))
+		row.Background(t.Accent.Alpha(0.11))
 	}
 	row.Children(func() {
-		docIcon(c, title, 15)
+		iconCol := t.TextMuted
+		if chosen {
+			iconCol = t.Accent
+		}
+		ui.Icon(c, iconFile).FontSize(15).TextColor(iconCol)
 		name := ui.Text(c, docName(title)).FontSize(13).TextColor(t.Text).SingleLine().Grow(1).MinWidth(0)
 		if chosen {
-			name.FontWeight(600)
+			name.FontWeight(500)
 		}
 	})
 	if row.Clicked() {
@@ -522,14 +524,16 @@ func (a *App) libraryPlugins(c *ui.Context) {
 // libraryEmpty is a page with nothing on it: a glyph, a title and a line
 // saying why.
 func libraryEmpty(c *ui.Context, icon *ui.SVG, title, detail string) {
-	ink := libraryInk(c.Theme())
-	ui.Column(c.Key("library-empty")).Grow(1).PaddingX(16).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Height(168).Shrink(0)
-		ui.Icon(c, icon).FontSize(30).TextColor(ink.Alpha(0.45))
+	t := c.Theme()
+	ui.Column(c.Key("library-empty")).Grow(1).PaddingX(24).AlignItems(ui.Center).Children(func() {
+		ui.Spacer(c)
+		ui.Icon(c, icon).FontSize(28).TextColor(t.TextMuted.Alpha(0.75))
 		ui.Box(c).Height(12)
-		ui.Text(c, title).FontSize(16).FontWeight(600).TextColor(ink.Alpha(0.9)).TextAlign(ui.Center)
-		ui.Box(c).Height(8)
-		ui.Text(c, detail).FontSize(14).TextColor(ink.Alpha(0.7)).TextAlign(ui.Center).MaxWidth(260)
+		ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(t.Text).TextAlign(ui.Center)
+		ui.Box(c).Height(6)
+		ui.Text(c, detail).FontSize(13).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(240)
+		ui.Spacer(c)
+		ui.Box(c).Height(32)
 	})
 }
 
@@ -539,16 +543,16 @@ func (a *App) libraryTrash(c *ui.Context) {
 	l := &a.library
 	t := c.Theme()
 	ink := libraryInk(t)
-	top := float32(10)
+	top := float32(12)
 	if bar := c.TitleBar(); !a.prefs.SidebarLeft && bar.Right > 0 {
 		top += bar.Height
 	}
-	ui.Row(c.Key("trash-search")).Height(36).Shrink(0).Margin(top, 8, 0, 8).Radius(controlRadius).PaddingX(12).Gap(8).
-		AlignItems(ui.Center).Background(librarySearch(t)).Children(func() {
-		ui.Icon(c, iconSearch).FontSize(14).TextColor(ink.Alpha(0.5))
+	ui.Row(c.Key("trash-search")).Height(34).Shrink(0).Margin(top, 12, 4, 12).Radius(controlRadius).PaddingX(10).Gap(8).
+		AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
 		ui.TextInput(c.Key("trash-query"), &l.query).Grow(1).MinWidth(0).Height(24).Padding(0).
-			Placeholder(i18n.T("搜索最近删除…")).Label(i18n.T("搜索最近删除")).TextColor(ink.Alpha(0.82)).
-			Background(ui.Transparent).Border(0, ui.Transparent).FontSize(14).AutoFocus()
+			Placeholder(i18n.T("搜索最近删除…")).Label(i18n.T("搜索最近删除")).TextColor(t.Text).
+			Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).AutoFocus()
 	})
 	switch {
 	case l.err != nil:
@@ -618,11 +622,11 @@ func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 		}
 		acted := false
 		card.Children(func() {
-			ui.Box(c).Size(24, 24).Shrink(0).Radius(6).Center().Background(ink.Alpha(0.04)).Children(func() {
+			ui.Box(c).Size(26, 26).Shrink(0).Radius(6).Center().Background(ink.Alpha(0.05)).Children(func() {
 				if it.Dir {
-					ui.Icon(c, iconFolder).FontSize(15).TextColor(ink.Alpha(0.55))
+					ui.Icon(c, iconFolder).FontSize(15).TextColor(t.Accent)
 				} else {
-					docIcon(c, title, 16)
+					ui.Icon(c, iconFile).FontSize(15).TextColor(t.TextMuted)
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {

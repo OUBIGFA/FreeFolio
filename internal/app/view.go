@@ -143,15 +143,15 @@ func (a *App) View(c *ui.Context) {
 				return
 			}
 			if a.library.open {
+				a.libraryView(c, inner)
 				if a.prefs.SidebarLeft {
-					// The library replaces the sidebar, so keep its brand
-					// in the same leading title-bar band.
+					// Keep the brand in the leading title-bar band while the
+					// library rail runs full height underneath without a seam.
 					bar := c.TitleBar()
-					ui.Row(c.Key("library-brand")).Height(max(bar.Height, 52)).Shrink(0).
-						Padding(0, 8, 0, bar.Left+8).AlignItems(ui.Center).DragWindow().
+					ui.Row(c.Key("library-brand")).Absolute().Top(0).Left(0).Height(max(bar.Height, 52)).
+						Padding(0, 8, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().
 						Children(func() { brand(c, "", true) })
 				}
-				a.libraryView(c, inner)
 				return
 			}
 			side := ui.Column(c.Key("side")).Width(a.sidebarW()).Grow(1)
@@ -641,10 +641,11 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		ui.Box(c).Width(8)
 	}
 	actions := func() {
-		ui.Box(c).Width(8)
+		ui.Box(c).Width(4)
 		// A narrow pane, as beside the library, keeps its room for the path.
-		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && toolbar.LayoutBounds().W >= 560 {
+		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && !a.library.open && toolbar.LayoutBounds().W >= 560 {
 			a.documentCorner(c, a.doc)
+			ui.Box(c).Size(1, 14).Margin(0, 2).Background(separator(c.Theme())).Shrink(0)
 		}
 		ask := iconButton(c, "ask", iconAsk, i18n.T("问答"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
 		if a.qa.open {
@@ -733,20 +734,21 @@ func (a *App) address(c *ui.Context) {
 			}
 			return
 		}
-		status, color := "", t.TextMuted
+		status, color, pill := "", t.TextMuted, ui.Transparent
 		switch {
 		case a.doc.saveErr != nil:
-			status, color = i18n.T("保存失败"), t.Danger
+			status, color, pill = i18n.T("保存失败"), t.Danger, t.Danger.Alpha(0.10)
 		case a.doc.dirty():
-			status = i18n.T("已修改")
+			status, color, pill = i18n.T("已修改"), t.TextMuted, t.Text.Alpha(0.06)
 		}
 		saveStatus := func() {
 			if status != "" {
-				ui.Text(c, status).FontSize(12).TextColor(color).NoWrap().Tooltip(errText(a.doc.saveErr))
+				ui.Text(c, status).FontSize(11).FontWeight(500).TextColor(color).
+					Background(pill).Radius(4).Padding(1, 5).NoWrap().Tooltip(errText(a.doc.saveErr))
 			}
 		}
-		ui.Column(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
+		ui.Column(c).MinWidth(0).Shrink(1).Gap(1).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
 				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
@@ -754,12 +756,12 @@ func (a *App) address(c *ui.Context) {
 			if a.prefs.SidebarLeft {
 				// Save status shares the breadcrumb line so it cannot shift
 				// the document name away from the page's center.
-				ui.Row(c).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
+				ui.Row(c).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, breadcrumb).FontSize(11.5).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
 					saveStatus()
 				})
 			} else {
-				ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				ui.Text(c, breadcrumb).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 			}
 		})
 		if !a.prefs.SidebarLeft {

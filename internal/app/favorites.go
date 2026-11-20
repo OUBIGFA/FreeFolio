@@ -21,10 +21,10 @@ import (
 
 // Favorite tile dimensions are shared by layout, painting and drag targets.
 const (
-	favoriteTileH  = 47
+	favoriteTileH  = 44
 	favoriteGap    = 8
 	favoriteCorner = controlRadius
-	favoriteIcon   = 20
+	favoriteIcon   = 18
 	// favoriteCardH is the empty card's fill; the list goes 4 DIPs below.
 	favoriteCardH = 93.5
 )
@@ -72,7 +72,7 @@ type favoriteGrid struct {
 }
 
 // favoriteWidth is the grid's width: the sidebar less its margins.
-func (a *App) favoriteWidth() float32 { return a.sidebarW() - 20 }
+func (a *App) favoriteWidth() float32 { return a.sidebarW() - 24 }
 
 func (a *App) gridOf(n int) favoriteGrid {
 	cols, w := favoriteLayout(n, a.favoriteWidth())
@@ -123,7 +123,7 @@ func (a *App) favorites(c *ui.Context) {
 		slots++
 	}
 	g := a.gridOf(slots)
-	col := ui.Column(c.Key("favorites")).PaddingX(10)
+	col := ui.Column(c.Key("favorites")).PaddingX(12)
 	a.tourMark("favorites", col)
 	col.Children(func() {
 		// The height the layout takes is the animated one, so the list

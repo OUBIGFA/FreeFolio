@@ -576,9 +576,6 @@ func (a *App) cloudSummary() string {
 	if s.broken {
 		return i18n.T("同步设置无法读取，原文件已保留")
 	}
-	if s.busy && s.message != "" {
-		return s.message
-	}
 	if !cfg.Enabled {
 		return i18n.T("已关闭 · 开启后可手动或自动同步选定空间")
 	}
@@ -595,6 +592,113 @@ func (a *App) cloudSummary() string {
 		return fmt.Sprintf(i18n.T("上次同步 %s · 已选 %d 个空间"), s.last.Format("15:04:05"), selected)
 	}
 	return fmt.Sprintf(i18n.T("已启用 · 已选 %d 个空间"), selected)
+}
+
+// sidebarCloudActions renders compact cloud-sync icons in the sidebar footer:
+// a direct sync/cancel button and a quick menu for toggling spaces and settings.
+func (a *App) sidebarCloudActions(c *ui.Context) {
+	t := c.Theme()
+	s := &a.cloud
+	cfg := &s.config
+	locked := s.busy || s.broken
+
+	// Direct Sync Now / Cancel Sync button.
+	syncLabel := i18n.T("立即同步")
+	syncTip := syncLabel
+	syncIcon := iconCloudSync
+	syncDisabled := !cfg.Enabled || s.broken
+	if s.busy {
+		syncLabel = i18n.T("取消同步")
+		syncTip = syncLabel
+		if s.message != "" {
+			syncTip += " · " + strings.SplitN(s.message, "\n", 2)[0]
+		}
+		syncIcon = iconX
+		syncDisabled = false
+	} else if syncDisabled {
+		syncTip = i18n.T("立即同步（未启用云端同步）")
+	} else if !s.last.IsZero() {
+		syncTip = fmt.Sprintf(i18n.T("立即同步 · 上次 %s"), s.last.Format("15:04:05"))
+	}
+	syncBtn := iconButton(c, "sidebar-cloud-sync", syncIcon, syncLabel, syncTip, syncDisabled).Size(28, 28)
+	if s.busy {
+		syncBtn.TextColor(t.Accent).Background(t.Accent.Alpha(0.10))
+	}
+	if syncBtn.Clicked() {
+		if s.busy {
+			a.cancelCloudSync()
+		} else {
+			a.startCloudSync(false, true)
+		}
+	}
+
+	// Cloud Sync quick menu: choose sync spaces, toggle enabled, test, or open settings.
+	cloudTip := i18n.T("云端同步") + " · " + a.cloudSummary()
+	if s.busy && s.message != "" {
+		cloudTip = i18n.T("云端同步") + " · " + strings.SplitN(s.message, "\n", 2)[0]
+	}
+	cloudBtn := iconButton(c, "sidebar-cloud-menu", settingsIcons["cloud"], i18n.T("云端同步"), cloudTip, false).
+		Size(28, 28).Role(ui.RoleMenuButton)
+	switch {
+	case s.failed || len(s.conflicts) > 0:
+		cloudBtn.TextColor(t.Danger)
+	case s.busy:
+		cloudBtn.TextColor(t.Accent)
+	case cfg.Enabled:
+		cloudBtn.TextColor(t.Accent)
+	}
+	cloudBtn.PopoverMenuButton(func(m *ui.Menu) {
+		if s.busy {
+			if m.Item(i18n.T("取消同步")).Chosen() {
+				a.cancelCloudSync()
+			}
+		} else {
+			if m.Item(i18n.T("立即同步")).Disabled(locked || !cfg.Enabled).Chosen() {
+				a.startCloudSync(false, true)
+			}
+		}
+		m.Submenu(i18n.T("选择同步空间"), func(sub *ui.Menu) {
+			shown := 0
+			for _, sp := range a.state.Spaces {
+				if sp.IsExternal() {
+					continue
+				}
+				shown++
+				_, on := cfg.Spaces[sp.ID]
+				if sub.Item(sp.Name).Checked(on).Disabled(locked).Chosen() {
+					if on {
+						delete(cfg.Spaces, sp.ID)
+					} else {
+						if cfg.Spaces == nil {
+							cfg.Spaces = map[string]string{}
+						}
+						cfg.Spaces[sp.ID] = sp.Name
+					}
+					a.saveCloudSync()
+				}
+			}
+			if shown == 0 {
+				sub.Item(i18n.T("暂无可同步的空间")).Disabled(true)
+			}
+		})
+		if m.Item(i18n.T("启用云端同步")).Checked(cfg.Enabled).Disabled(locked).Chosen() {
+			cfg.Enabled = !cfg.Enabled
+			a.saveCloudSync()
+		}
+		if m.Item(i18n.T("测试连接")).Disabled(locked).Chosen() {
+			a.startCloudSync(true, true)
+		}
+		if len(s.conflicts) > 0 {
+			m.Separator()
+			if m.Item(fmt.Sprintf(i18n.T("待处理冲突（%d）"), len(s.conflicts))).Chosen() {
+				a.openSettings(tabCloud)
+			}
+		}
+		m.Separator()
+		if m.Item(i18n.T("云端同步设置…")).Chosen() {
+			a.openSettings(tabCloud)
+		}
+	})
 }
 
 type cloudFieldSpec struct {

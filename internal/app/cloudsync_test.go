@@ -50,6 +50,18 @@ func TestCloudProgressAndManualCancellation(t *testing.T) {
 	if !strings.Contains(a.cloud.message, "正在检查云端目录") {
 		t.Errorf("progress=%q", a.cloud.message)
 	}
+	// Live sync progress must render once in the status bar, never duplicated in the switch summary.
+	a.cloud.message = "正在核对云端文件 · Personal · 1/3\nWelcome.md"
+	tt.Frame()
+	verifyCount := 0
+	for _, text := range tt.Texts() {
+		if strings.Contains(text, "正在核对云端文件") {
+			verifyCount++
+		}
+	}
+	if verifyCount != 1 {
+		t.Fatalf("expected progress message once, got %d copies: %q", verifyCount, tt.Texts())
+	}
 	if err := tt.Click("取消同步"); err != nil {
 		t.Fatal(err)
 	}
@@ -162,6 +174,39 @@ func TestCloudSaveDebouncesAndHistoryCloses(t *testing.T) {
 	tt.Frame()
 	if a.versions.for_ != nil || a.versions.doc != nil {
 		t.Fatal("closed history retains document")
+	}
+}
+
+func TestSidebarCloudSyncIcons(t *testing.T) {
+	a, tt := newTestApp(t)
+	settle(tt)
+	for _, label := range []string{"立即同步", "云端同步"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Fatalf("missing sidebar cloud sync icon %q", label)
+		}
+	}
+	// Open the sidebar cloud sync menu and toggle cloud sync + open settings.
+	if err := tt.Click("云端同步"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("启用云端同步"); err != nil {
+		t.Fatal(err, tt.Menu())
+	}
+	tt.Frame()
+	if !a.cloud.config.Enabled {
+		t.Fatal("sidebar cloud menu did not enable cloud sync")
+	}
+	if err := tt.Click("云端同步"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("云端同步设置…"); err != nil {
+		t.Fatal(err, tt.Menu())
+	}
+	tt.Frame()
+	if !a.settingsOpen || a.settingsTab != tabCloud {
+		t.Fatalf("settings not opened on cloud tab: open=%v tab=%q", a.settingsOpen, a.settingsTab)
 	}
 }
 

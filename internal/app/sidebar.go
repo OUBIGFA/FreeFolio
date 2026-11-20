@@ -44,18 +44,15 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 	col.HandleInput(a.pagerScroll)
 	col.Children(func() {
 		left, right := float32(12), float32(12)
-		height := max(bar.Height, 36)
+		height := max(bar.Height, 52)
+		if floating {
+			height = max(bar.Height, 40)
+		}
 		showBrand := a.prefs.SidebarLeft && !floating
 		if a.prefs.SidebarLeft {
 			left += bar.Left
 		} else {
 			right += bar.Right
-		}
-		if showBrand {
-			// Align with the document toolbar while keeping the brand at
-			// the window's leading edge, clear of native caption buttons.
-			height = max(bar.Height, 52)
-			left, right = bar.Left+8, 8
 		}
 		top := ui.Row(c.Key("windowbar")).Height(height).Padding(0, right, 0, left).AlignItems(ui.Center)
 		if !floating {
@@ -80,9 +77,9 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		// Document to its right; the history's arrows and the sort sit
 		// under them.
 		newDocHere := sp != nil && !(a.spaceForm.open && a.spaceForm.id == "")
-		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(6).AlignItems(ui.Center).Children(func() {
 			label := i18n.T("搜索或打开文档")
-			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).Grow(1).MinWidth(0)
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(0)
 			// A narrow field gives the shortcut's room to the label; the
 			// tooltip still names the shortcut.
 			wide := search.Bounds().W >= 190
@@ -104,9 +101,9 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		if sp == nil {
 			return
 		}
-		padded := func(key string, fn func()) { ui.Column(c.Key(key)).PaddingX(10).Children(fn) }
+		padded := func(key string, fn func()) { ui.Column(c.Key(key)).PaddingX(12).Children(fn) }
 		if f := &a.spaceForm; f.open && f.id == "" {
-			ui.Column(c.Key("space-form-pad")).Grow(1).MinHeight(0).PaddingX(10).Children(func() { a.spaceDraft(c, f) })
+			ui.Column(c.Key("space-form-pad")).Grow(1).MinHeight(0).PaddingX(12).Children(func() { a.spaceDraft(c, f) })
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
@@ -118,22 +115,23 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			a.sortButton(c, sp)
 		})
 		if len(a.state.Favorites) > 0 {
-			ui.Text(c, i18n.T("收藏文档")).PaddingStart(16).FontSize(13).FontWeight(600).TextColor(c.Theme().TextMuted)
+			ui.Text(c, i18n.T("收藏文档")).PaddingStart(14).FontSize(12).FontWeight(500).TextColor(c.Theme().TextMuted)
 		}
 		a.favorites(c)
 		a.pagerView(c)
 		a.updateBanner(c)
 		// The spaces sit at the foot, over the settings, as Arc's.
 		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
-		ui.Row(c.Key("sidebar-settings")).Padding(0, 12).Gap(4).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("sidebar-settings")).Padding(2, 12, 0, 12).Gap(2).AlignItems(ui.Center).Children(func() {
 			if shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).Clicked() {
 				a.openSettings(tabGeneral)
 			}
 			ui.Spacer(c)
-			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Clicked() {
+			a.sidebarCloudActions(c)
+			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Size(28, 28).Clicked() {
 				a.chooseExternalFiles()
 			}
-			if a.libraryFootButton(c).Clicked() {
+			if a.libraryFootButton(c).Size(28, 28).Clicked() {
 				a.toggleLibrary()
 			}
 		})
@@ -250,7 +248,7 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 					}
 				})
 				today := a.showsAny(sp, nodes) || live && a.slot.active && a.slot.parent != pinRoot
-				a.divider(c, live, today)
+				a.divider(c, live, today, len(pins) > 0 || live && a.listDragging)
 				rest := ui.Column(c.Key("today")).Gap(rowGap).Radius(10).Transition(sectionMove)
 				if highlight == sectionToday {
 					rest.Background(hoverFill(t))
@@ -282,22 +280,27 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 // their rows.
 var sectionMove = ui.ElementTransition{Animation: &listAnim, Position: true, Colors: true}
 
-// divider is Cra's line between the pinned and the rest: 18 DIPs with a
-// hairline 18 in from the sidebar's edges, while there is a rest to part.
-func (a *App) divider(c *ui.Context, live, shown bool) {
+// divider is the seam between the pinned section and the rest: it keeps a
+// hairline when pinned items or a drag are present, and stays a quiet 6-DIP
+// gap otherwise so a space without pins is not split arbitrarily.
+func (a *App) divider(c *ui.Context, live, shown, stroked bool) {
 	t := c.Theme()
 	h := float32(0)
 	if shown {
-		h = 18
+		if stroked {
+			h = 16
+		} else {
+			h = 6
+		}
 	}
 	line := ui.Box(c.Key("divider")).Height(h).Transition(sectionMove)
 	if live {
 		b := line.Bounds()
 		a.dividerY = b.Y + b.H/2
 	}
-	if shown {
+	if shown && stroked {
 		line.Draw(func(p *ui.Painter, r ui.Rect) {
-			inset := float32(18 - rowInset)
+			inset := float32(12 - rowInset)
 			p.Fill(ui.Rect{X: r.X + inset, Y: r.Y + (r.H-1)/2, W: r.W - 2*inset, H: 1}, separator(t), 0)
 		})
 	}
@@ -432,7 +435,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 				name.Label(sp.Name)
 			}
 			name.Children(func() {
-				ui.Text(c, sp.Name).FontSize(17).FontWeight(600).TextColor(ink).SingleLine().MinWidth(0)
+				ui.Text(c, sp.Name).FontSize(15).FontWeight(600).TextColor(ink).SingleLine().MinWidth(0)
 			})
 		}
 		more := iconButton(c, "space-more", iconEllipsis, i18n.T("空间菜单"), i18n.T("空间菜单"), false).Size(24, 24)
@@ -842,7 +845,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				ink = closedInk(t)
 			}
 			name := ui.Text(c, docName(n.Title())).FontSize(14).TextColor(ink).SingleLine().Grow(1).MinWidth(0)
-			if n.Dir {
+			if n.Dir || chosen {
 				name.FontWeight(500)
 			}
 			if n.Dir && !open && hovered {
@@ -1120,10 +1123,10 @@ func (a *App) spaceBar(c *ui.Context) {
 		a.spaceBarFor = active.ID
 	}
 	draft := a.spaceForm.open && a.spaceForm.id == ""
-	// The bar stands on a rounded white card of its own, apart from the
+	// The bar stands on a rounded surface card of its own, apart from the
 	// list above and the settings below; the chosen space is a tint on it.
-	foot := ui.Row(c.Key("spaces")).Height(40).PaddingX(3).Gap(2).AlignItems(ui.Center).
-		Radius(10).Background(t.Surface).Border(1, t.Border)
+	foot := ui.Row(c.Key("spaces")).Height(38).PaddingX(4).Gap(2).AlignItems(ui.Center).
+		Radius(8).Background(t.Surface).Border(1, t.Border.Alpha(0.85))
 	a.tourMark("spaces", foot)
 	foot.Children(func() {
 		list := ui.ScrollHorizontal(c.Key("space-list")).Grow(1).MinWidth(0).Height(34).
@@ -1285,14 +1288,14 @@ func (a *App) newDocRow(c *ui.Context) {
 			a.newDocPulse = time.Time{}
 		}
 	}
-	// As tall as the search field beside it, as wide as its label.
-	row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(10).Gap(6).Radius(controlRadius).Center().
+	// Match the exact 32-DIP height of the search field beside it.
+	row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(9).Gap(5).Radius(controlRadius).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip).
 		Background(ui.Transparent)
 	lit := row.Animate("lit", b2f(row.Hovered() || pulsing), 180*time.Millisecond)
 	fill, border := dashedSlotColors(t, lit)
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
-		fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 2.5, W: max(0, r.W-1), H: max(0, r.H-5)}
+		fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 0.5, W: max(0, r.W-1), H: max(0, r.H-1)}
 		if fill.A > 0 {
 			p.Fill(fr, fill, controlRadius)
 		}

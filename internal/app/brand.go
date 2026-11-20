@@ -17,12 +17,12 @@ var brandLogo = func() *ui.Bitmap {
 func brand(c *ui.Context, context string, compact bool) {
 	size := float32(32)
 	if compact {
-		size = 24
+		size = 22
 	}
-	ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Image(c, brandLogo).Size(size, size).Shrink(0)
 		ui.Column(c).Gap(1).Children(func() {
-			ui.Text(c, "FreeMD").FontSize(16).FontWeight(650).NoWrap()
+			ui.Text(c, "FreeMD").FontSize(15).FontWeight(600).NoWrap()
 			if context != "" {
 				ui.Text(c, context).FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
 			}
