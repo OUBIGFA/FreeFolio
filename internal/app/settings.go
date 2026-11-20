@@ -478,9 +478,9 @@ func (a *App) appearancePreview(c *ui.Context) {
 		column = 820
 	}
 	// The preview is laid out as the window is: the sidebar runs the full
-	// height with its toggle, history arrows and search at its top; the
-	// toolbar stands over the page only, the brand at its outer start and
-	// the document's name and space centered in it.
+	// height with its toggle, history arrows and search at its top. The
+	// brand leads the window, in the left sidebar's header or the page's
+	// toolbar, with the document's name and space above the page.
 	frame := ui.Row(c.Key("appearance-sample")).Height(300).Radius(panelRadius).Border(1, t.Border).
 		Background(t.Background).Clip().Label(i18n.T("外观预览")).Shadow(0, 2, 8, 0, black.Alpha(0.06)).
 		Padding(0, 8, 8, 8).Gap(8).AlignItems(ui.Stretch)
@@ -488,9 +488,22 @@ func (a *App) appearancePreview(c *ui.Context) {
 		frame.Reverse()
 	}
 	icon := func(svg *ui.SVG) { ui.Icon(c, svg).FontSize(10).TextColor(t.TextMuted) }
+	previewBrand := func() {
+		ui.Row(c.Key("preview-brand")).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
+			ui.Image(c, brandLogo).Size(14, 14)
+			ui.Text(c, "FreeMD").FontSize(10).FontWeight(600)
+		})
+	}
 	frame.Children(func() {
 		ui.Column(c.Key("preview-side")).Width(136).Shrink(0).Gap(6).Children(func() {
-			ui.Row(c).Height(26).AlignItems(ui.Center).Children(func() {
+			height := float32(26)
+			if a.prefs.SidebarLeft {
+				height = 30
+			}
+			ui.Row(c).Height(height).AlignItems(ui.Center).Children(func() {
+				if a.prefs.SidebarLeft {
+					previewBrand()
+				}
 				ui.Spacer(c)
 				icon(a.sidebarIcon())
 			})
@@ -519,16 +532,25 @@ func (a *App) appearancePreview(c *ui.Context) {
 		ui.Column(c.Key("preview-main")).Grow(1).MinWidth(0).Children(func() {
 			bar := ui.Row(c.Key("preview-bar")).Height(30).Shrink(0).Gap(6).AlignItems(ui.Center)
 			bar.Children(func() {
-				ui.Row(c).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
-					ui.Image(c, brandLogo).Size(14, 14)
-					ui.Text(c, "FreeMD").FontSize(10).FontWeight(600)
-				})
-				ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, title+".md").FontSize(11).FontWeight(600).SingleLine()
-					if sp := a.state.ActiveSpace(); sp != nil {
-						ui.Text(c, sp.Name).FontSize(10).TextColor(t.TextMuted).SingleLine()
-					}
-				})
+				caption := func() {
+					ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, title+".md").FontSize(11).FontWeight(600).SingleLine()
+						if sp := a.state.ActiveSpace(); sp != nil {
+							ui.Text(c, sp.Name).FontSize(10).TextColor(t.TextMuted).SingleLine()
+						}
+					})
+				}
+				if a.prefs.SidebarLeft {
+					start := ui.Row(c.Key("preview-start")).Width(0).Shrink(0)
+					end := ui.Row(c.Key("preview-end")).Gap(6).Shrink(0).AlignItems(ui.Center).MarginStart(ui.Auto).Children(func() {
+						icon(iconAsk)
+						icon(iconEllipsis)
+					})
+					centeredTitle(c, bar, start, end, caption)
+					return
+				}
+				previewBrand()
+				caption()
 				icon(iconAsk)
 				icon(iconEllipsis)
 			})

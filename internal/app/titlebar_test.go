@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"testing"
 	"time"
@@ -112,13 +113,16 @@ func TestWindowsTitleBarSnapshot(t *testing.T) {
 }
 
 func TestLongDocumentNameKeepsToolbarReachable(t *testing.T) {
-	a, tt := titleBarTestApp(t, "folded", 640, windowsTitleBar)
-	a.doc.rel = "这是一篇标题很长很长的文档用于检查窄窗口中的工具栏不会丢失任何操作按钮.arcmd"
-	settle(tt)
-	for _, label := range []string{"文档路径", "更多格式", "更多"} {
-		r, ok := tt.Find(label)
-		if !ok || r.W <= 0 || r.X+r.W > 640-windowsTitleBar.Right {
-			t.Fatalf("%s is unreachable: %+v", label, r)
+	for _, left := range []bool{false, true} {
+		a, tt := titleBarTestApp(t, "folded", 640, windowsTitleBar)
+		a.prefs.SidebarLeft = left
+		a.doc.rel = "这是一篇标题很长很长的文档用于检查窄窗口中的工具栏不会丢失任何操作按钮.arcmd"
+		settle(tt)
+		for _, label := range []string{"文档路径", "更多格式", "更多"} {
+			r, ok := tt.Find(label)
+			if !ok || r.W <= 0 || r.X+r.W > 640-windowsTitleBar.Right {
+				t.Fatalf("left=%v: %s is unreachable: %+v", left, label, r)
+			}
 		}
 	}
 }
@@ -167,7 +171,7 @@ func TestSidebarResizerTipStaysOffTheToolbar(t *testing.T) {
 	}
 }
 
-// The brand leads the toolbar; the history's buttons stand under the
+// The brand leads the window; the history's buttons stand under the
 // sidebar's search field while it is docked and return to the toolbar
 // when it folds; the toggle that unfolds it sits on the sidebar's side.
 func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
@@ -198,6 +202,118 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 		}
 		if left && show.X > back.X || !left && show.X < more.X {
 			t.Errorf("left=%v: the toggle %+v is not on the sidebar's side (back %+v, more %+v)", left, show, back, more)
+		}
+	}
+}
+
+// Moving the sidebar must not push the brand into the document's column,
+// duplicate it, or let it cover native controls or the sidebar toggle.
+func TestBrandStaysAtWindowStart(t *testing.T) {
+	for _, profile := range []struct {
+		name string
+		bar  ui.TitleBar
+	}{
+		{"windows", windowsTitleBar},
+		{"macos", ui.TitleBar{Height: 46, Left: 78}},
+	} {
+		for _, sidebarWidth := range []float32{220, 480} {
+			t.Run(fmt.Sprintf("%s/sidebar-%g", profile.name, sidebarWidth), func(t *testing.T) {
+				a, tt := titleBarTestApp(t, "normal", 1240, profile.bar)
+				a.prefs.SidebarWidth = sidebarWidth
+				for _, left := range []bool{true, false, true} {
+					a.prefs.SidebarLeft = left
+					for _, mode := range []string{"normal", "folded", "library"} {
+						folded := mode == "folded"
+						a.library.open = false
+						if mode == "library" {
+							a.openLibrary(libSpaces)
+						}
+						a.sidebarHidden = folded
+						settle(tt)
+						logo, ok := tt.Find("FreeMD")
+						if !ok || logo.X < profile.bar.Left || logo.X > profile.bar.Left+64 || logo.Y < 0 || logo.Y+logo.H > 52 {
+							t.Errorf("left=%v mode=%s: brand is not at the window start: %+v", left, mode, logo)
+						}
+						count := 0
+						for _, text := range tt.Texts() {
+							if text == "FreeMD" {
+								count++
+							}
+						}
+						if count != 1 {
+							t.Errorf("left=%v mode=%s: got %d brands, want one", left, mode, count)
+						}
+						if left && mode != "library" {
+							label := "收起侧边栏"
+							if folded {
+								label = "展开侧边栏"
+							}
+							toggle, found := tt.Find(label)
+							if !found || toggle.X < logo.X+logo.W || !folded && toggle.X+toggle.W > sidebarWidth {
+								t.Errorf("left=%v folded=%v: brand %+v overlaps or clips the sidebar toggle %+v", left, folded, logo, toggle)
+							}
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+// The title follows the page's center, independently of the width taken
+// by caption buttons and document actions; those actions hug the right.
+func TestLeftSidebarTitleCentersOverPage(t *testing.T) {
+	for _, profile := range []struct {
+		name string
+		bar  ui.TitleBar
+	}{
+		{"windows", windowsTitleBar},
+		{"macos", ui.TitleBar{Height: 46, Left: 78}},
+	} {
+		for _, width := range []int{980, 1240} {
+			t.Run(fmt.Sprintf("%s/%d", profile.name, width), func(t *testing.T) {
+				a, tt := titleBarTestApp(t, "normal", width, profile.bar)
+				a.prefs.SidebarLeft = true
+				for _, sidebarWidth := range []float32{220, 480} {
+					a.prefs.SidebarWidth = sidebarWidth
+					settle(tt)
+					title, found := tt.Find("Welcome.md")
+					center := (sidebarWidth + float32(width) - 8) / 2
+					if !found || math.Abs(float64(title.X+title.W/2-center)) > 1 {
+						t.Errorf("sidebar=%g: title %+v is not centered over the page at %g", sidebarWidth, title, center)
+					}
+					more, found := tt.Find("更多")
+					right := float32(width) - profile.bar.Right
+					if !found || more.X+more.W > right || right-(more.X+more.W) > 8.5 {
+						t.Errorf("sidebar=%g: toolbar actions %+v are not at the right edge before native controls at %g", sidebarWidth, more, right)
+					}
+					a.doc.ed.ReplaceText(nil, "editing ")
+					tt.Frame()
+					title, found = tt.Find("Welcome.md")
+					if !tt.HasText("已修改") || !found || math.Abs(float64(title.X+title.W/2-center)) > 1 {
+						t.Errorf("sidebar=%g: save status displaced the title %+v from %g", sidebarWidth, title, center)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestSidebarBrandSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render sidebar brand placement")
+	for _, side := range []string{"left", "right"} {
+		for _, mode := range []string{"normal", "folded", "library", "settings"} {
+			t.Run(side+"/"+mode, func(t *testing.T) {
+				a, tt := titleBarTestApp(t, mode, 1240, windowsTitleBar)
+				a.prefs.SidebarLeft = side == "left"
+				if mode == "library" {
+					a.openLibrary(libSpaces)
+				} else if mode == "settings" {
+					a.openSettings(tabAppearance)
+				}
+				settle(tt)
+				savePNG(t, filepath.Join(dir, "sidebar-brand-"+side+"-"+mode+".png"), tt)
+			})
 		}
 	}
 }

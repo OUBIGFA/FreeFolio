@@ -143,6 +143,14 @@ func (a *App) View(c *ui.Context) {
 				return
 			}
 			if a.library.open {
+				if a.prefs.SidebarLeft {
+					// The library replaces the sidebar, so keep its brand
+					// in the same leading title-bar band.
+					bar := c.TitleBar()
+					ui.Row(c.Key("library-brand")).Height(max(bar.Height, 52)).Shrink(0).
+						Padding(0, 8, 0, bar.Left+8).AlignItems(ui.Center).DragWindow().
+						Children(func() { brand(c, "", true) })
+				}
 				a.libraryView(c, inner)
 				return
 			}
@@ -602,6 +610,11 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		right = 0 // the question panel's header holds the window buttons' room
 	}
 	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, 52)).Padding(0, right+8, 0, left).Gap(2).AlignItems(ui.Center).DragWindow()
+	if a.prefs.SidebarLeft {
+		// Center the title over the entire page; the groups below own the
+		// caption reserves so those reserves cannot shift the title.
+		toolbar.Padding(0)
+	}
 	if a.qa.shown > 0.5 {
 		// A narrow document's controls must not paint or receive clicks over
 		// the question panel while it takes room beside the document.
@@ -613,8 +626,10 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.toggleSidebar()
 		}
 	}
-	toolbar.Children(func() {
-		ui.Row(c.Key("brand")).PaddingX(8).Shrink(0).Children(func() { brand(c, "", true) })
+	leading := func() {
+		if !a.prefs.SidebarLeft || docked < 0.5 {
+			ui.Row(c.Key("brand")).PaddingX(8).Shrink(0).Children(func() { brand(c, "", true) })
+		}
 		if a.prefs.SidebarLeft {
 			showSidebar()
 		}
@@ -624,7 +639,8 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.historyButtons(c)
 		}
 		ui.Box(c).Width(8)
-		a.address(c)
+	}
+	actions := func() {
 		ui.Box(c).Width(8)
 		// A narrow pane, as beside the library, keeps its room for the path.
 		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && toolbar.LayoutBounds().W >= 560 {
@@ -641,7 +657,49 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		if !a.prefs.SidebarLeft {
 			showSidebar()
 		}
+	}
+	toolbar.Children(func() {
+		if a.prefs.SidebarLeft {
+			start := ui.Row(c.Key("toolbar-start")).Shrink(0).Gap(2).AlignItems(ui.Center).PaddingStart(left).Children(leading)
+			// The page already has an 8-DIP outer inset; beside the question
+			// panel the toolbar supplies that inset itself.
+			if a.qa.shown > 0.5 {
+				right += 8
+			}
+			end := ui.Row(c.Key("toolbar-end")).Shrink(0).Gap(2).AlignItems(ui.Center).PaddingEnd(right).MarginStart(ui.Auto).Children(actions)
+			centeredTitle(c, toolbar, start, end, func() { a.address(c) })
+			return
+		}
+		leading()
+		a.address(c)
+		actions()
 	})
+}
+
+// centeredTitle aligns a caption with the full page, using symmetric space
+// clear of both control groups. In a narrow window whose controls cross the
+// center, the caption uses the remaining gap instead of covering buttons.
+func centeredTitle(c *ui.Context, bar, start, end ui.Element, content func()) {
+	b, l, r := bar.LayoutBounds(), start.LayoutBounds(), end.LayoutBounds()
+	from, to := l.X+l.W-b.X, r.X-b.X
+	clearance := min(b.W/2-from, to-b.W/2)
+	title := ui.Row(c.Key("centered-title")).Absolute().Top(0).Bottom(0).AlignItems(ui.Center).Clip()
+	if clearance >= 12 {
+		title.LeftPercent(50).TranslatePercent(-50, 0).Width(2 * clearance)
+	} else {
+		title.Left(from).Width(max(0, to-from))
+	}
+	title.Children(content)
+	// Bounds come from the previous frame. Relayout once when a group or
+	// the page changes size, including a word-count or sidebar-width change.
+	for _, element := range []ui.Element{bar, start, end} {
+		before := element.LayoutBounds()
+		element.Draw(func(_ *ui.Painter, now ui.Rect) {
+			if now != before {
+				c.AnimationFrame()
+			}
+		})
+	}
 }
 
 // historyButtons are the back, forward and reload buttons.
@@ -675,14 +733,6 @@ func (a *App) address(c *ui.Context) {
 			}
 			return
 		}
-		ui.Column(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
-			breadcrumb := a.doc.space.Name
-			if dir := path.Dir(a.doc.rel); dir != "." {
-				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
-			}
-			ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine()
-		})
 		status, color := "", t.TextMuted
 		switch {
 		case a.doc.saveErr != nil:
@@ -690,8 +740,30 @@ func (a *App) address(c *ui.Context) {
 		case a.doc.dirty():
 			status = i18n.T("已修改")
 		}
-		if status != "" {
-			ui.Text(c, status).FontSize(12).TextColor(color).NoWrap().Tooltip(errText(a.doc.saveErr))
+		saveStatus := func() {
+			if status != "" {
+				ui.Text(c, status).FontSize(12).TextColor(color).NoWrap().Tooltip(errText(a.doc.saveErr))
+			}
+		}
+		ui.Column(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
+			breadcrumb := a.doc.space.Name
+			if dir := path.Dir(a.doc.rel); dir != "." {
+				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
+			}
+			if a.prefs.SidebarLeft {
+				// Save status shares the breadcrumb line so it cannot shift
+				// the document name away from the page's center.
+				ui.Row(c).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
+					saveStatus()
+				})
+			} else {
+				ui.Text(c, breadcrumb).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			}
+		})
+		if !a.prefs.SidebarLeft {
+			saveStatus()
 		}
 	})
 }

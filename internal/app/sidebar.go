@@ -44,16 +44,27 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 	col.HandleInput(a.pagerScroll)
 	col.Children(func() {
 		left, right := float32(12), float32(12)
+		height := max(bar.Height, 36)
+		showBrand := a.prefs.SidebarLeft && !floating
 		if a.prefs.SidebarLeft {
 			left += bar.Left
 		} else {
 			right += bar.Right
 		}
-		top := ui.Row(c.Key("windowbar")).Height(max(bar.Height, 36)).Padding(0, right, 0, left).AlignItems(ui.Center)
+		if showBrand {
+			// Align with the document toolbar while keeping the brand at
+			// the window's leading edge, clear of native caption buttons.
+			height = max(bar.Height, 52)
+			left, right = bar.Left+8, 8
+		}
+		top := ui.Row(c.Key("windowbar")).Height(height).Padding(0, right, 0, left).AlignItems(ui.Center)
 		if !floating {
 			top.DragWindow()
 		}
 		top.Children(func() {
+			if showBrand {
+				brand(c, "", true)
+			}
 			ui.Spacer(c)
 			label := i18n.T("收起侧边栏")
 			if floating {

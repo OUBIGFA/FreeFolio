@@ -121,6 +121,46 @@ func TestSidebarPositionAndSettingsExit(t *testing.T) {
 	}
 }
 
+// The miniature window must keep its brand at the leading edge when the
+// selected sidebar position changes, just like the application window.
+func TestAppearancePreviewBrandStaysAtWindowStart(t *testing.T) {
+	a, _ := newTestApp(t)
+	tt := ui.NewTester(a.appearancePreview, 680, 350)
+	for _, left := range []bool{false, true, false} {
+		a.prefs.SidebarLeft = left
+		tt.Frame()
+		frame, ok := tt.Find("外观预览")
+		if !ok {
+			t.Fatal("appearance preview is missing")
+		}
+		logo, ok := tt.Find("FreeMD")
+		if !ok || logo.X < frame.X || logo.X > frame.X+40 || logo.Y < frame.Y || logo.Y+logo.H > frame.Y+30 {
+			t.Errorf("left=%v: preview brand %+v is not at the start of %+v", left, logo, frame)
+		}
+		count := 0
+		for _, text := range tt.Texts() {
+			if text == "FreeMD" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("left=%v: got %d preview brands, want one", left, count)
+		}
+	}
+}
+
+func TestAppearancePreviewTitleCentersOverPage(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.prefs.SidebarLeft = true
+	tt := ui.NewTester(a.appearancePreview, 680, 350)
+	title, found := tt.Find("留一点空白.md")
+	// 9-DIP frame inset, 136-DIP sidebar, 8-DIP gap and 9-DIP trailing inset.
+	center := float32((153 + 671) / 2)
+	if !found || math.Abs(float64(title.X+title.W/2-center)) > 1 {
+		t.Fatalf("preview title %+v is not centered over the page at %g", title, center)
+	}
+}
+
 func TestAppearanceFontAndPageWidth(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.SetSize(1500, 860)
