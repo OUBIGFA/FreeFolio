@@ -114,3 +114,11 @@ in `manifests/upstreams.json`. No FreeType input engine, dictionary, language
 model, or GPL reference implementation is included. Synchronization uses the Go
 standard library and the existing `golang.org/x/sys` dependency; it does not
 include ArcMD's WASM runtime or bundled Cloud Sync plugin.
+
+Cloud sync's connection idle timeout in `internal/cloudsync/timeout.go` adapts
+[rclone](https://github.com/rclone/rclone)'s `fs/fshttp/dialer.go` at
+`e982ff36668f5130d94b4f70409babb3d964df42` (v1.76.0), under the MIT License.
+The full notice is in `rclone/LICENSE`, with source evidence in
+`manifests/upstreams.json`. Its WebDAV property handling, cancellation checks and
+bisync no-change result also informed this repair. FreeMD retains its own guarded
+sync engine; no rclone executable, backend registry or module dependency is bundled.

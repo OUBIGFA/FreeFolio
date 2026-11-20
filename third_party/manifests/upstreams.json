@@ -20,6 +20,29 @@
         "bytes": 31016960,
         "sha256": "657cc2bb84025e10272cfdc3e978fde47770a334b097e340a5d4f2a4fda99aec"
       }
+    },
+    {
+      "name": "rclone",
+      "purpose": "Connection idle timeout adapted for FreeMD WebDAV/S3; incremental sync behavior references",
+      "sourceUrl": "https://github.com/rclone/rclone",
+      "tag": "v1.76.0",
+      "revision": "e982ff36668f5130d94b4f70409babb3d964df42",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/rclone/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/rclone/LICENSE",
+          "bytes": 1095,
+          "sha256": "8cd2e9e750b90a04b7d82dbbca3930c696ae0309d7c10464f90a44f45754cd04"
+        }
+      ],
+      "adaptedFiles": [
+        {
+          "path": "fs/fshttp/dialer.go",
+          "sha256": "994b3ff14a3db6d9f3dba5172b111d84be367bfc4405964472df69fb7a8e7cb6",
+          "destination": "internal/cloudsync/timeout.go"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

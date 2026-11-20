@@ -46,10 +46,11 @@ func TestSigV4MatchesAWSDocumentedExamples(t *testing.T) {
 }
 
 type fakeDAV struct {
-	mu    sync.Mutex
-	t     *testing.T
-	dirs  map[string]bool
-	files map[string][]byte
+	mu           sync.Mutex
+	t            *testing.T
+	dirs         map[string]bool
+	files        map[string][]byte
+	omitListETag bool
 }
 
 func (f *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +65,10 @@ func (f *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if data, ok := f.files[path]; ok {
 		tag := `"` + hashBytes(data) + `"`
 		w.Header().Set("ETag", tag)
+		if r.Method == http.MethodGet && r.Header.Get("If-None-Match") == tag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		if wanted := r.Header.Get("If-Match"); wanted != "" && wanted != tag {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			return
@@ -96,6 +101,7 @@ func (f *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			f.t.Error("上传没有带 Content-Length")
 		}
 		f.files[path], _ = io.ReadAll(r.Body)
+		w.Header().Set("ETag", `"`+hashBytes(f.files[path])+`"`)
 		w.WriteHeader(http.StatusCreated)
 	case http.MethodGet:
 		data, ok := f.files[path]
@@ -134,7 +140,11 @@ func (f *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			for file, data := range f.files {
 				if strings.HasPrefix(file, path+"/") && !strings.Contains(file[len(path)+1:], "/") {
-					fmt.Fprintf(&body, `<d:response><d:href>%s</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>%d</d:getcontentlength></d:prop></d:propstat></d:response>`, href(file, false), len(data))
+					tag := ""
+					if !f.omitListETag {
+						tag = "<d:getetag>\"" + hashBytes(data) + "\"</d:getetag>"
+					}
+					fmt.Fprintf(&body, `<d:response><d:href>%s</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>%d</d:getcontentlength>%s</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`, href(file, false), len(data), tag)
 				}
 			}
 		}
@@ -177,7 +187,7 @@ func TestWebDAVStoreCreatesFoldersListsOneLevelAndHandlesChineseFolders(t *testi
 		t.Fatal(err)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
-	if len(entries) != 2 || entries[0] != (remoteEntry{Name: "a", Dir: true}) || entries[1] != (remoteEntry{Name: "a.json", Size: 2}) {
+	if len(entries) != 2 || entries[0] != (remoteEntry{Name: "a", Dir: true}) || entries[1] != (remoteEntry{Name: "a.json", Size: 2, ETag: `"` + hashBytes([]byte("{}")) + `"`}) {
 		t.Fatalf("只应列出这一层的目录和文件：%+v", entries)
 	}
 	if missing, err := store.List("没有的目录"); err != nil || len(missing) != 0 {
@@ -206,9 +216,10 @@ func TestWebDAVStoreCreatesFoldersListsOneLevelAndHandlesChineseFolders(t *testi
 }
 
 type fakeS3 struct {
-	mu      sync.Mutex
-	t       *testing.T
-	objects map[string][]byte
+	mu           sync.Mutex
+	t            *testing.T
+	objects      map[string][]byte
+	omitListETag bool
 }
 
 func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -241,6 +252,10 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if data, ok := f.objects[key]; ok {
 		tag := `"` + hashBytes(data) + `"`
 		w.Header().Set("ETag", tag)
+		if r.Method == http.MethodGet && r.Header.Get("If-None-Match") == tag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		if wanted := r.Header.Get("If-Match"); wanted != "" && wanted != tag {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			return
@@ -255,6 +270,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		type content struct {
 			Key  string
 			Size int
+			ETag string `xml:"ETag,omitempty"`
 		}
 		type commonPrefix struct{ Prefix string }
 		var listing struct {
@@ -275,7 +291,11 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			listing.Contents = append(listing.Contents, content{name, len(data)})
+			tag := ""
+			if !f.omitListETag {
+				tag = `"` + hashBytes(data) + `"`
+			}
+			listing.Contents = append(listing.Contents, content{name, len(data), tag})
 		}
 		xml.NewEncoder(w).Encode(listing)
 	case r.Method == http.MethodPut:
@@ -284,6 +304,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.objects[key], _ = io.ReadAll(r.Body)
+		w.Header().Set("ETag", `"`+hashBytes(f.objects[key])+`"`)
 	case r.Method == http.MethodGet:
 		data, ok := f.objects[key]
 		if !ok {
@@ -328,7 +349,7 @@ func TestS3StoreSignsRequestsAndKeepsEverythingUnderThePrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
-	if len(entries) != 2 || entries[0] != (remoteEntry{Name: "a b", Dir: true}) || entries[1] != (remoteEntry{Name: "a.json", Size: 2}) {
+	if len(entries) != 2 || entries[0] != (remoteEntry{Name: "a b", Dir: true}) || entries[1] != (remoteEntry{Name: "a.json", Size: 2, ETag: `"` + hashBytes([]byte("{}")) + `"`}) {
 		t.Fatalf("只应列出这一层：%+v", entries)
 	}
 	var got bytes.Buffer

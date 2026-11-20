@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
@@ -32,6 +34,10 @@ type cloudConflict struct {
 	space, name string
 	detail      cloudsync.Conflict
 }
+type cloudProgress struct {
+	space  string
+	detail cloudsync.Progress
+}
 type cloudState struct {
 	config          cloudsync.Config
 	broken          bool
@@ -46,6 +52,7 @@ type cloudState struct {
 	started         bool
 	conflicts       []cloudConflict
 	resolve         map[string]map[string]cloudsync.Resolution
+	progress        *atomic.Pointer[cloudProgress]
 }
 
 func (a *App) loadCloudSync() {
@@ -109,7 +116,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 	}
 	s.done = make(chan cloudOutcome, 1)
 	s.guards = make(chan cloudGuard)
+	s.progress = &atomic.Pointer[cloudProgress]{}
 	done, guards := s.done, s.guards
+	progress := s.progress
 	resolutions := s.resolve
 	s.resolve = nil
 	stateDir := filepath.Join(a.cfg.ConfigDir, "sync-state")
@@ -121,6 +130,10 @@ func (a *App) startCloudSync(probe, manual bool) {
 	if !probe && !manual {
 		s.count++
 	}
+	if !probe {
+		// A manual run also satisfies startup sync; do not queue it again on completion.
+		s.started = true
+	}
 	go func() {
 		defer cancel()
 		out := cloudOutcome{probe: probe}
@@ -131,7 +144,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 		}
 		for _, sp := range spaces {
 			hooks := cloudsync.Hooks{
-				Resolve: resolutions[sp.ID],
+				// Keep the latest progress without making the worker wait for a frame.
+				Progress: func(p cloudsync.Progress) { progress.Store(&cloudProgress{sp.Name, p}) },
+				Resolve:  resolutions[sp.ID],
 				BeforeApply: func(rel string) error {
 					reply := make(chan error, 1)
 					select {
@@ -185,6 +200,32 @@ func (a *App) cloudTick(c *ui.Context) {
 	s := &a.cloud
 	now := c.Now()
 	if s.busy {
+		if s.progress != nil {
+			if p := s.progress.Swap(nil); p != nil {
+				phase := i18n.T("正在检查文件")
+				switch p.detail.Phase {
+				case "local":
+					phase = i18n.T("正在扫描本地文件")
+				case "list":
+					phase = i18n.T("正在检查云端目录")
+				case "verify":
+					phase = i18n.T("正在核对云端文件")
+				case "upload":
+					phase = i18n.T("正在上传文件")
+				case "download":
+					phase = i18n.T("正在应用云端更改")
+				case "delete":
+					phase = i18n.T("正在同步删除")
+				}
+				s.message = phase + " · " + p.space
+				if p.detail.Total > 0 {
+					s.message += fmt.Sprintf(" · %d/%d", p.detail.Checked, p.detail.Total)
+				}
+				if p.detail.Path != "" {
+					s.message += "\n" + p.detail.Path
+				}
+			}
+		}
 		select {
 		case g := <-s.guards:
 			var err error
@@ -198,12 +239,23 @@ func (a *App) cloudTick(c *ui.Context) {
 			}
 			s.busy = false
 			s.cancel = nil
-			s.last = now
+			s.progress = nil
+			if !out.probe && out.err == nil {
+				s.last = now
+			}
 			s.next = s.config.Next(now)
 			s.due = time.Time{}
-			s.failed = out.err != nil
-			if out.err != nil {
+			canceled := errors.Is(out.err, context.Canceled)
+			s.failed = out.err != nil && !canceled
+			if canceled {
+				s.message = i18n.T("已取消同步")
+				s.retries = 0
+			} else if out.err != nil {
 				s.message = fmt.Sprintf(i18n.T("同步失败：%v"), out.err)
+				var networkError net.Error
+				if errors.Is(out.err, context.DeadlineExceeded) || errors.As(out.err, &networkError) && networkError.Timeout() {
+					s.message = fmt.Sprintf(i18n.T("同步超时，请检查网络后重试：%v"), out.err)
+				}
 				if s.config.Automatic && s.retries < s.config.RetryLimit {
 					s.retries++
 					s.due = now.Add(time.Duration(s.retries) * time.Minute)
@@ -215,6 +267,9 @@ func (a *App) cloudTick(c *ui.Context) {
 				r := out.result
 				s.retries = 0
 				s.message = fmt.Sprintf(i18n.T("同步完成：上传 %d，下载 %d，删除 %d，冲突 %d"), r.Uploaded, r.Downloaded, r.Deleted, len(r.Conflicts))
+				if r.Uploaded == 0 && r.Downloaded == 0 && r.Deleted == 0 && len(r.Conflicts) == 0 && len(r.Skipped) == 0 {
+					s.message = i18n.T("无需同步：本地与云端内容一致")
+				}
 				if len(r.Conflicts) > 0 {
 					s.message += "\n" + i18n.T("已保留冲突副本：") + strings.Join(r.Conflicts, "、")
 				}
@@ -222,7 +277,7 @@ func (a *App) cloudTick(c *ui.Context) {
 					s.message += "\n" + i18n.T("已跳过正在编辑或只读的文件：") + strings.Join(r.Skipped, "、")
 				}
 			}
-			if !out.probe {
+			if !out.probe && (out.result.Downloaded > 0 || out.result.Deleted > 0 || len(out.result.Conflicts) > 0) {
 				a.invalidateResolvedImages()
 				a.refreshTree()
 				a.refreshSearch()

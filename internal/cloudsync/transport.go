@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -39,9 +40,22 @@ var errRemoteExists = errors.New("远端同名文件已存在")
 
 const remoteHeaderTimeout = 30 * time.Second
 
-func remoteClient(followRedirects bool) *http.Client {
+func remoteClient(followRedirects bool, timeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = remoteHeaderTimeout
+	transport.ResponseHeaderTimeout = timeout
+	dialer := &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		conn, err := dialer.DialContext(ctx, network, address)
+		if err != nil {
+			return nil, err
+		}
+		idle := &idleTimeoutConn{Conn: conn, timeout: timeout}
+		if err = idle.nudgeDeadline(); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return idle, nil
+	}
 	client := &http.Client{Transport: transport}
 	if !followRedirects {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -112,7 +126,7 @@ func newWebDAVStore(address, user, password string) (*webdavStore, error) {
 	}
 	base.Path = strings.TrimRight(base.Path, "/")
 	base.RawPath, base.RawQuery, base.Fragment = "", "", ""
-	return &webdavStore{ctx: context.Background(), base: base, user: user, password: password, client: remoteClient(false), made: map[string]bool{}}, nil
+	return &webdavStore{ctx: context.Background(), base: base, user: user, password: password, client: remoteClient(false, remoteHeaderTimeout), made: map[string]bool{}}, nil
 }
 
 func (w *webdavStore) address(parts []string, dir bool) string {
@@ -225,6 +239,7 @@ type davMultistatus struct {
 	Responses []struct {
 		Href  string `xml:"href"`
 		Props []struct {
+			Status     string    `xml:"status"`
 			Collection *struct{} `xml:"prop>resourcetype>collection"`
 			Length     string    `xml:"prop>getcontentlength"`
 			ETag       string    `xml:"prop>getetag"`
@@ -274,12 +289,29 @@ func (w *webdavStore) List(dir string) ([]remoteEntry, error) {
 			continue
 		}
 		entry := remoteEntry{Name: name}
+		valid := false
+		status := ""
 		for _, prop := range item.Props {
+			// WebDAV can return successful and failed property groups together.
+			// Do not let a missing property erase a valid ETag from another group.
+			if prop.Status != "" {
+				fields := strings.Fields(prop.Status)
+				if len(fields) < 2 || len(fields[1]) != 3 || fields[1][0] != '2' {
+					status = prop.Status
+					continue
+				}
+			}
+			valid = true
 			entry.Dir = entry.Dir || prop.Collection != nil
-			entry.ETag = prop.ETag
+			if prop.ETag != "" {
+				entry.ETag = prop.ETag
+			}
 			if prop.Length != "" {
 				fmt.Sscan(strings.TrimSpace(prop.Length), &entry.Size)
 			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("读取远端文件属性失败：%s %s", name, status)
 		}
 		entries = append(entries, entry)
 	}
@@ -361,7 +393,7 @@ func newS3Store(c Config) (*s3Store, error) {
 	return &s3Store{ctx: context.Background(),
 		endpoint: endpoint, region: region, bucket: bucket, prefix: cleanKey(c.S3Prefix),
 		accessKey: strings.TrimSpace(c.S3AccessKey), secretKey: c.S3SecretKey, pathStyle: c.S3PathStyle,
-		client: remoteClient(false), now: time.Now,
+		client: remoteClient(false, remoteHeaderTimeout), now: time.Now,
 	}, nil
 }
 
@@ -483,7 +515,7 @@ func (s *s3Store) do(method string, parts []string, query map[string]string, bod
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode/100 == 3 {
+	if resp.StatusCode/100 == 3 && resp.StatusCode != http.StatusNotModified {
 		defer resp.Body.Close()
 		hint := "区域或服务地址错误"
 		if region := resp.Header.Get("x-amz-bucket-region"); region != "" {

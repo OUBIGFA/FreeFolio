@@ -29,6 +29,21 @@ and deletions use conditional requests against that ETag. A service that cannot
 provide a strong ETag can receive new files, but existing files are not silently
 overwritten or deleted.
 
+The status shows the current scan, remote directory or file, and the number of
+files already checked. A completed check with no transfers, conflicts or skipped
+files shows **Up to date**. Sync still checks remote directory listings: it cannot
+assume another computer has made no changes. Upload response ETags are saved
+immediately. When a listing omits ETags, conditional GETs can validate cached
+content with a 304 response without downloading it again. A service without
+usable validators can still require full content reads.
+
+Canceling a run shows **Sync canceled** and does not schedule a failure retry.
+Confirmed files retain their baselines, so canceling a later check does not
+discard earlier verification work. Scheduled sync remains enabled. Connections
+time out after 30 seconds without traffic; the overall run is limited to ten
+minutes. These timeouts report a failure instead of leaving a stalled transfer
+indefinitely busy. Completed transfers and recovery copies remain in place.
+
 When both copies changed, the local original stays intact and the remote content
 is saved beside it as `name (同步冲突 <digest>).md` (or the attachment's extension).
 The settings page lists conflicts and offers **Keep local version** and

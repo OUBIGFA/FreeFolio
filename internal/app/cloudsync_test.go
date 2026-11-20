@@ -1,16 +1,105 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestCloudProgressAndManualCancellation(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.openSettings(tabCloud)
+	requested := make(chan struct{}, 1)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		requested <- struct{}{}
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer server.Close()
+	defer close(release)
+	a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
+	a.cloud.config.WebDAVURL = server.URL
+	a.cloud.config.Spaces[a.state.Active] = "Notes"
+	tt.Frame()
+	if err := tt.Click("立即同步"); err != nil {
+		t.Fatal(err)
+	}
+	done := a.cloud.done
+	defer a.cancelCloudSync()
+	select {
+	case <-requested:
+	case <-time.After(3 * time.Second):
+		t.Fatal("sync did not contact the local server")
+	}
+	tt.Advance(60 * time.Millisecond)
+	if !strings.Contains(a.cloud.message, "正在检查云端目录") {
+		t.Errorf("progress=%q", a.cloud.message)
+	}
+	if err := tt.Click("取消同步"); err != nil {
+		t.Fatal(err)
+	}
+	if a.cloud.busy {
+		select {
+		case out := <-done:
+			done <- out
+		case <-time.After(3 * time.Second):
+			t.Fatal("cancel did not release the worker")
+		}
+	}
+	tt.Advance(3 * time.Second)
+	if a.cloud.busy || a.cloud.failed || a.cloud.retries != 0 || !a.cloud.due.IsZero() || !tt.HasText("已取消同步") {
+		t.Fatalf("cancel outcome: busy=%v failed=%v retry=%d due=%v message=%q", a.cloud.busy, a.cloud.failed, a.cloud.retries, a.cloud.due, a.cloud.message)
+	}
+}
+
+func TestCloudUnchangedAndCanceledOutcomes(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unchanged", true: "canceled"}[canceled], func(t *testing.T) {
+			a, tt := newTestApp(t)
+			a.openSettings(tabCloud)
+			a.cloud.busy = true
+			a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
+			a.cloud.config.Spaces[a.state.Active] = "Notes"
+			a.cloud.done = make(chan cloudOutcome, 1)
+			a.cloud.guards = make(chan cloudGuard)
+			tt.Frame()
+			out := cloudOutcome{}
+			if canceled {
+				out.err = context.Canceled
+			}
+			a.cloud.done <- out
+			tt.Advance(60 * time.Millisecond)
+			if a.cloud.busy || a.cloud.failed {
+				t.Fatalf("busy=%v failed=%v", a.cloud.busy, a.cloud.failed)
+			}
+			want := "无需同步"
+			if canceled {
+				want = "已取消同步"
+			}
+			if !strings.Contains(a.cloud.message, want) || !tt.HasText(a.cloud.message) {
+				t.Fatalf("message=%q", a.cloud.message)
+			}
+			if a.cloud.retries != 0 || !a.cloud.due.IsZero() {
+				t.Fatal("unchanged or canceled operation scheduled a failure retry")
+			}
+		})
+	}
+}
 
 func TestCloudSettingsSaveAndProtectActiveEdits(t *testing.T) {
 	a, tt := newTestApp(t)

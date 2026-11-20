@@ -12,8 +12,9 @@ import (
 const maxFileBytes int64 = 64 << 20
 
 var (
-	errRemoteChanged = errors.New("远端文件已变化，请重新同步")
-	errRemoteMissing = errors.New("远端文件不存在")
+	errRemoteChanged     = errors.New("远端文件已变化，请重新同步")
+	errRemoteMissing     = errors.New("远端文件不存在")
+	errRemoteNotModified = errors.New("remote content not modified")
 )
 
 // Conditional writes combine FreeType's transports with ArcMD's incremental
@@ -50,12 +51,19 @@ func remoteRequest(s remoteStore, method, key string, data []byte, conditions ma
 	}
 }
 
-func readRemote(s remoteStore, key string) ([]byte, string, error) {
-	resp, err := remoteRequest(s, http.MethodGet, key, nil, nil)
+func readRemote(s remoteStore, key, validator string) ([]byte, string, error) {
+	conditions := map[string]string{}
+	if validator != "" {
+		conditions["If-None-Match"] = validator
+	}
+	resp, err := remoteRequest(s, http.MethodGet, key, nil, conditions)
 	if err != nil {
 		return nil, "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotModified && validator != "" {
+		return nil, validator, errRemoteNotModified
+	}
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, "", errRemoteMissing
 	}
@@ -72,11 +80,11 @@ func readRemote(s remoteStore, key string) ([]byte, string, error) {
 	return data, resp.Header.Get("ETag"), nil
 }
 
-func writeRemote(s remoteStore, key string, data []byte, etag string, exists bool) error {
+func writeRemote(s remoteStore, key string, data []byte, etag string, exists bool) (string, error) {
 	cond := map[string]string{"Content-Type": "application/octet-stream"}
 	if exists {
 		if etag == "" || strings.HasPrefix(etag, "W/") {
-			return errors.New("服务未提供可用于安全覆盖的 ETag")
+			return "", errors.New("服务未提供可用于安全覆盖的 ETag")
 		}
 		cond["If-Match"] = etag
 	} else {
@@ -84,16 +92,18 @@ func writeRemote(s remoteStore, key string, data []byte, etag string, exists boo
 	}
 	resp, err := remoteRequest(s, http.MethodPut, key, data, cond)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusPreconditionFailed || resp.StatusCode == http.StatusConflict {
-		return errRemoteChanged
+		return "", errRemoteChanged
 	}
 	if resp.StatusCode/100 != 2 {
-		return remoteError("上传", resp)
+		return "", remoteError("上传", resp)
 	}
-	return nil
+	// Only the upload response binds this validator to the bytes we sent.
+	// A subsequent HEAD could instead describe a concurrent remote edit.
+	return resp.Header.Get("ETag"), nil
 }
 
 func deleteRemote(s remoteStore, key, etag string) error {
@@ -115,13 +125,16 @@ func deleteRemote(s remoteStore, key, etag string) error {
 }
 
 // Remote traversal rejects path tricks, duplicate names and oversized inventories.
-func listRemote(s remoteStore, root string) (map[string]remoteEntry, error) {
+func listRemote(s remoteStore, root string, progress func(string)) (map[string]remoteEntry, error) {
 	out := map[string]remoteEntry{}
 	seen := map[string]bool{}
 	var walk func(string, int) error
 	walk = func(dir string, depth int) error {
 		if depth > 64 || len(seen) > 100000 {
 			return errors.New("远端目录层级或数量超过限制")
+		}
+		if progress != nil {
+			progress(dir)
 		}
 		entries, err := s.List(dir)
 		if err != nil {

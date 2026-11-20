@@ -28,6 +28,13 @@ type Result struct {
 	Details                       []Conflict
 }
 
+// Progress reports work before blocking I/O. Total is zero while the directory
+// inventory is still being built; Checked counts already examined files.
+type Progress struct {
+	Phase, Path    string
+	Checked, Total int
+}
+
 type Conflict struct {
 	Path, RemoteHash string
 	RemoteExists     bool
@@ -36,6 +43,7 @@ type Conflict struct {
 // Hooks lets the native app protect active edits and send user files to the
 // system recycle bin after the engine has saved a recovery copy.
 type Hooks struct {
+	Progress    func(Progress)
 	BeforeApply func(string) error
 	Trash       func(string) error
 	// Resolve names explicit user choices for this run. The remote digest
@@ -164,8 +172,7 @@ func listLocal(root string) (map[string]bool, error) {
 
 // Sync uses a per-file common baseline. Concurrent changes preserve the local
 // file and save the remote side as an excluded, visible conflict copy.
-func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Result, error) {
-	var result Result
+func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (result Result, err error) {
 	if !c.Enabled {
 		return result, errors.New("请先启用云端同步")
 	}
@@ -175,6 +182,12 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 	s, err := openStore(ctx, c)
 	if err != nil {
 		return result, err
+	}
+	checked, total := 0, 0
+	report := func(phase, rel string) {
+		if h.Progress != nil {
+			h.Progress(Progress{phase, rel, checked, total})
+		}
 	}
 	key := hashBytes([]byte(c.TargetID() + "\x00" + sp.ID + "\x00" + sp.Root + "\x00" + sp.Remote))[:32]
 	stateFile := filepath.Join(stateDir, key+".json")
@@ -189,11 +202,12 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return result, e
 	}
+	report("local", "")
 	local, err := listLocal(sp.Root)
 	if err != nil {
 		return result, err
 	}
-	remote, err := listRemote(s, sp.Remote)
+	remote, err := listRemote(s, sp.Remote, func(dir string) { report("list", dir) })
 	if err != nil {
 		return result, err
 	}
@@ -212,13 +226,35 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 		ordered = append(ordered, p)
 	}
 	slices.Sort(ordered)
+	total = len(ordered)
+	dirty := false
 	checkpoint := func() error {
+		if !dirty {
+			return nil
+		}
 		raw, e := json.Marshal(b)
 		if e != nil {
 			return e
 		}
-		return fsutil.WriteFileAtomic(stateFile, raw, 0o600)
+		if e = fsutil.WriteFileAtomic(stateFile, raw, 0o600); e != nil {
+			return e
+		}
+		dirty = false
+		return nil
 	}
+	// Retain already confirmed files even if a later request is canceled.
+	// Failed checks never advance their baseline; checkpoint failures stay visible.
+	defer func() {
+		if saveErr := checkpoint(); saveErr != nil {
+			// A failed checkpoint is a failure even when the network was canceled.
+			// Wrap the save error so the UI cannot classify it as a clean cancel.
+			if err != nil {
+				err = fmt.Errorf("保存同步进度失败：%w（同步结果：%v）", saveErr, err)
+			} else {
+				err = saveErr
+			}
+		}
+	}()
 	for _, rel := range ordered {
 		if err := ctx.Err(); err != nil {
 			return result, err
@@ -226,6 +262,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 		if !safeRelative(rel) || excluded(rel) {
 			return result, errors.New("同步基线包含无效路径")
 		}
+		report("check", rel)
 		l, lexists, err := readLocal(sp.Root, rel)
 		if err != nil {
 			return result, err
@@ -239,9 +276,18 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 		etag, rh := entry.ETag, ""
 		var raw, r []byte
 		loaded := false
-		load := func() error {
+		load := func(validate bool) error {
+			report("verify", rel)
 			var e error
-			raw, etag, e = readRemote(s, sp.Remote+"/"+rel)
+			validator := ""
+			if validate && known {
+				validator = old.RemoteETag
+			}
+			raw, etag, e = readRemote(s, sp.Remote+"/"+rel, validator)
+			if errors.Is(e, errRemoteNotModified) {
+				rexists, rh = true, old.Hash
+				return nil
+			}
 			if errors.Is(e, errRemoteMissing) {
 				rexists = false
 				rh = ""
@@ -266,14 +312,14 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 		if rexists && known && etag != "" && etag == old.RemoteETag {
 			rh = old.Hash
 		} else if rexists || known {
-			if err = load(); err != nil {
+			if err = load(true); err != nil {
 				return result, err
 			}
 		}
 
 		needEncrypt := c.Encrypt && lexists && rexists && (!known || !old.Encrypted)
 		if needEncrypt && !loaded {
-			if err = load(); err != nil {
+			if err = load(false); err != nil {
 				return result, err
 			}
 		}
@@ -283,10 +329,15 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 		}
 		if lh == rh && !needEncrypt {
 			if lexists {
-				b.Files[rel] = baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt || old.Encrypted}
+				row := baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt || old.Encrypted}
+				if !known || row != old {
+					b.Files[rel], dirty = row, true
+				}
 			} else {
 				delete(b.Files, rel)
+				dirty = dirty || known
 			}
+			checked++
 			continue
 		}
 		localChanged := !known || lh != old.Hash
@@ -319,12 +370,13 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 			}
 			result.Conflicts = append(result.Conflicts, rel)
 			result.Details = append(result.Details, Conflict{rel, rh, rexists})
+			checked++
 			continue // Keep the old baseline until the user resolves the conflict.
 		case localChanged:
 			if rexists {
 				if !loaded {
 					expected := etag
-					if err = load(); err != nil {
+					if err = load(false); err != nil {
 						return result, err
 					}
 					if !rexists || etag != expected {
@@ -336,12 +388,15 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 				}
 			}
 			if !lexists {
+				report("delete", rel)
 				if err = deleteRemote(s, sp.Remote+"/"+rel, etag); err != nil {
 					return result, err
 				}
 				delete(b.Files, rel)
+				dirty = true
 				result.Deleted++
 			} else {
+				report("upload", rel)
 				payload := l
 				if c.Encrypt {
 					payload, err = sealBackup(l, c.EncryptPassword)
@@ -349,16 +404,33 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 						return result, err
 					}
 				}
-				if err = writeRemote(s, sp.Remote+"/"+rel, payload, etag, rexists); err != nil {
+				if etag, err = writeRemote(s, sp.Remote+"/"+rel, payload, etag, rexists); err != nil {
 					return result, err
 				}
-				b.Files[rel] = baselineRow{Hash: lh, Encrypted: c.Encrypt}
+				b.Files[rel] = baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt}
+				dirty = true
 				result.Uploaded++
 			}
 		case remoteChanged:
+			// A resolution can choose an unchanged remote version. Conditional
+			// validation has no body, so fetch it before writing locally.
+			if rexists && !loaded {
+				expectedTag, expectedHash := etag, rh
+				if err = load(false); err != nil {
+					return result, err
+				}
+				if !rexists || etag != expectedTag || rh != expectedHash {
+					return result, errRemoteChanged
+				}
+			}
+			report("download", rel)
 			if h.BeforeApply != nil {
 				if err = h.BeforeApply(rel); err != nil {
+					if ctx.Err() != nil {
+						return result, ctx.Err()
+					}
 					result.Skipped = append(result.Skipped, rel)
+					checked++
 					continue
 				}
 			}
@@ -368,6 +440,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 			}
 			if exists != lexists || !bytes.Equal(current, l) {
 				result.Skipped = append(result.Skipped, rel)
+				checked++
 				continue
 			}
 			if lexists {
@@ -387,6 +460,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 					return result, err
 				}
 				delete(b.Files, rel)
+				dirty = true
 				result.Deleted++
 			} else {
 				if lexists {
@@ -398,14 +472,16 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (Re
 					return result, err
 				}
 				b.Files[rel] = baselineRow{Hash: rh, RemoteETag: etag, Encrypted: c.Encrypt}
+				dirty = true
 				result.Downloaded++
 			}
 		}
+		checked++
 		if err = checkpoint(); err != nil {
 			return result, err
 		}
 	}
-	return result, checkpoint()
+	return result, nil
 }
 
 func backupLocal(stateDir, key, rel string, data []byte, keep int) error {

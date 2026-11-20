@@ -33,13 +33,13 @@ func TestConditionalUploadDoesNotOverwriteAConcurrentRemoteEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = writeRemote(s, "note.md", []byte("local overwrite"), `"stale"`, true); !errors.Is(err, errRemoteChanged) {
+	if _, err = writeRemote(s, "note.md", []byte("local overwrite"), `"stale"`, true); !errors.Is(err, errRemoteChanged) {
 		t.Fatalf("stale overwrite: %v", err)
 	}
 	if string(data) != "new remote version" {
 		t.Fatal("concurrent content overwritten")
 	}
-	if err = writeRemote(s, "note.md", nil, "", true); err == nil {
+	if _, err = writeRemote(s, "note.md", nil, "", true); err == nil {
 		t.Fatal("missing validator accepted")
 	}
 }
@@ -95,7 +95,7 @@ func TestRemoteNamesAndMappingsCannotEscapeTheirSpace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = listRemote(s, "Notes"); err == nil {
+	if _, err = listRemote(s, "Notes", nil); err == nil {
 		t.Fatal("remote traversal accepted")
 	}
 	for _, endpoint := range []string{"https://user:password@example.com", "https://example.com/?token=secret", "http://example.com"} {
