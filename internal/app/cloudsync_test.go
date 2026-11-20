@@ -76,6 +76,64 @@ func TestCloudSaveDebouncesAndHistoryCloses(t *testing.T) {
 	}
 }
 
+func TestCloudSettingsUIStates(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.openSettings(tabCloud)
+	tt.Frame()
+
+	// Encryption password stays hidden while encryption is off.
+	if tt.HasText("内容加密密码") {
+		t.Fatal("encryption password should be hidden when encryption is off")
+	}
+	a.cloud.config.Encrypt = true
+	tt.Frame()
+	if !tt.HasText("内容加密密码") {
+		t.Fatal("encryption password missing when encryption is enabled")
+	}
+
+	// Switch to S3 and verify S3 fields replace WebDAV fields.
+	if err := tt.Click("S3"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.cloud.config.Provider != "s3" {
+		t.Fatalf("provider=%q, want s3", a.cloud.config.Provider)
+	}
+	if !tt.HasText("存储桶") || tt.HasText("WebDAV 地址") {
+		t.Fatal("S3 fields did not replace WebDAV fields")
+	}
+
+	// Automatic schedule expands and switches between interval and daily.
+	if tt.HasText("同步计划") {
+		t.Fatal("schedule should stay hidden when automatic sync is off")
+	}
+	a.cloud.config.Automatic = true
+	tt.Frame()
+	if !tt.HasText("间隔（分钟）") {
+		t.Fatal("interval input missing when automatic sync is enabled")
+	}
+	a.cloud.config.Schedule = "daily"
+	tt.Frame()
+	if !tt.HasText("每天同步时间") {
+		t.Fatal("daily time input missing in daily schedule mode")
+	}
+
+	// Conflicts and status messages render in the settings view.
+	a.cloud.failed = true
+	a.cloud.message = "同步失败：网络超时"
+	a.cloud.conflicts = []cloudConflict{{
+		space:  a.state.Active,
+		name:   "Personal",
+		detail: cloudsync.Conflict{Path: "Welcome.md", RemoteExists: true, RemoteHash: "abc"},
+	}}
+	tt.Frame()
+	for _, want := range []string{"同步失败：网络超时", "待处理冲突（1）", "保留本地版本", "采用云端版本"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in conflict/status UI", want)
+		}
+	}
+}
+
 func TestCloudSyncSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render cloud sync")
 	for _, dark := range []bool{false, true} {
@@ -103,6 +161,38 @@ func TestCloudSyncSnapshot(t *testing.T) {
 		if err = f.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	// Also capture an expanded S3 + conflict + status view for visual review.
+	a, tt := newTestApp(t)
+	tt.SetSize(1120, 1280)
+	a.cloud.config.Enabled = true
+	a.cloud.config.Provider = "s3"
+	a.cloud.config.S3Endpoint = "https://s3.example.com"
+	a.cloud.config.S3Region = "us-east-1"
+	a.cloud.config.S3Bucket = "freemd-notes"
+	a.cloud.config.Automatic = true
+	a.cloud.config.Encrypt = true
+	a.cloud.config.Spaces[a.state.Active] = "Personal"
+	a.cloud.message = "同步完成：上传 2，下载 1，删除 0，冲突 1"
+	a.cloud.conflicts = []cloudConflict{{
+		space:  a.state.Active,
+		name:   "Personal",
+		detail: cloudsync.Conflict{Path: "Notes/Plan.md", RemoteExists: true, RemoteHash: "h1"},
+	}}
+	a.openSettings(tabCloud)
+	for range 3 {
+		tt.Frame()
+	}
+	f, err := os.Create(filepath.Join(dir, "cloud-sync-s3-expanded.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = png.Encode(f, tt.Image()); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
