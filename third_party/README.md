@@ -96,3 +96,21 @@ FreeMD 基于上游 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT Li
 - 上游来源与提交摘要登记在 [upstreams.json](manifests/upstreams.json)；
 - Go 模块直接与传递依赖、哈希与许可登记在 [go-mod.json](manifests/go-mod.json)；
 - 当 `go.mod` 或 `go.sum` 变更时，需运行 `python -X utf8 tools/update_go_inventory.py` 重新核对依赖并同步更新清单。
+
+FreeMD additionally adopts selected fixes and native features from ArcMD
+`5b2a59ae6ac5bc06009a70ab2a26a1c625593d08` (v0.2.4): editor input,
+HTML comment preservation, document and image lifecycle, attachment folders,
+sidebar multi-selection, document mind maps, Mermaid viewing and equation tags.
+The original MIT notice remains in `LICENSE`. The selected scope is recorded in
+`manifests/upstreams.json`; this is not a wholesale replacement of the baseline.
+
+The WebDAV/S3 transport, Windows DPAPI credential protection and PBKDF2/AES-GCM
+content encryption in `internal/cloudsync` reuse BIGFA's implementation from
+[FreeType](https://github.com/OUBIGFA/FreeType) at
+`6cc7a6713c56e229b5bc0dbdb826282362d57195`. These are maintainer-authored Go files,
+adapted for FreeMD's per-space synchronization, conditional writes, conflict
+copies, credential separation and cancellation. Source file hashes are recorded
+in `manifests/upstreams.json`. No FreeType input engine, dictionary, language
+model, or GPL reference implementation is included. Synchronization uses the Go
+standard library and the existing `golang.org/x/sys` dependency; it does not
+include ArcMD's WASM runtime or bundled Cloud Sync plugin.

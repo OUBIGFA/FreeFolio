@@ -132,8 +132,12 @@ func (a *App) openPalette() {
 						continue
 					}
 					if sp := a.state.Get(res.id); sp != nil {
-						arrangeNodes(sp, "", res.nodes)
-						a.pageTrees[res.id] = pageTree{res.nodes, res.err}
+						nodes := res.nodes
+						if res.err == nil {
+							nodes = dropTreeFolder(nodes, attachmentFolder(sp))
+						}
+						arrangeNodes(sp, "", nodes)
+						a.pageTrees[res.id] = pageTree{nodes, res.err}
 					}
 				}
 			})
@@ -190,6 +194,50 @@ func (a *App) actions() []action {
 	danger := func(title, hint string, run func()) {
 		out = append(out, action{kind: i18n.T("命令"), title: title, hint: hint, run: run, danger: true})
 	}
+	if group := a.activePickedGroup(); len(group) > 1 {
+		sp := a.state.ActiveSpace()
+		raw := a.activePickedRaw()
+		anyDir := false
+		var docPaths []string
+		for _, p := range raw {
+			node := vault.Find(a.tree, p)
+			if node != nil && node.Dir {
+				anyDir = true
+			} else if vault.IsDocument(p) {
+				docPaths = append(docPaths, p)
+			}
+		}
+		if !sp.IsExternal() {
+			g := slices.Clone(group)
+			cmd(fmt.Sprintf(i18n.T("新建包含这 %d 项的文件夹"), len(g)), "", func() { a.newFolderWithGroup(g) })
+			for _, f := range collectFolders(a.tree) {
+				invalid := false
+				allThere := true
+				for _, p := range g {
+					if under(f.Path, p) {
+						invalid = true
+						break
+					}
+					if parentDir(p) != f.Path || sp.IsPinned(p) {
+						allThere = false
+					}
+				}
+				if !invalid && !allThere {
+					dst := f.Path
+					cmd(fmt.Sprintf(i18n.T("将已选 %d 项移到「%s」"), len(g), folderMenuLabel(dst)), "", func() {
+						a.placeEntries(g, dst, len(a.childrenOf(dst)))
+					})
+				}
+			}
+		}
+		if !anyDir && len(docPaths) >= 2 && len(docPaths) <= splitLimit {
+			docs := slices.Clone(docPaths)
+			cmd(i18n.T("在分屏中打开已选文档"), "", func() { a.openPickedInSplit(sp, docs) })
+		}
+		g := slices.Clone(group)
+		cmd(fmt.Sprintf(i18n.T("将已选 %d 项移到废纸篓"), len(g)), "", func() { a.trashGroup(g) })
+		cmd(i18n.T("取消侧边栏多选"), "Esc", func() { a.clearPicks("") })
+	}
 	if a.doc != nil {
 		cmd(i18n.T("添加分屏"), a.keyLabel("split-add"), a.addSplitPane)
 	}
@@ -218,6 +266,8 @@ func (a *App) actions() []action {
 		cmd(i18n.T("更改空间图标…"), "", func() { a.editSpaceProperty(active, "icon") })
 		if !active.IsExternal() {
 			cmd(i18n.T("重命名空间…"), "", func() { a.editSpaceProperty(active, "name") })
+			cmd(i18n.T("选择附件目录…"), "", func() { a.chooseAttachmentsFolder(active) })
+			cmd(i18n.T("恢复默认附件目录"), "", func() { a.setAttachmentsFolder(active, "") })
 		}
 	}
 	cmd(i18n.T("切换侧边栏"), a.keyLabel("sidebar"), a.toggleSidebar)
@@ -234,6 +284,41 @@ func (a *App) actions() []action {
 			outline = i18n.T("收起目录")
 		}
 		cmd(outline, a.keyLabel("outline"), a.toggleOutline)
+		mm := i18n.T("展开思维导图")
+		if a.doc.mindMap != nil {
+			mm = i18n.T("收起思维导图")
+		}
+		cmd(mm, a.keyLabel("mindmap"), a.toggleActiveDocumentMap)
+		if a.doc.mindMap != nil {
+			layoutCmd := i18n.T("思维导图：切换为双侧布局")
+			if a.prefs.MindMapBothSides {
+				layoutCmd = i18n.T("思维导图：切换为单侧布局")
+			}
+			cmd(layoutCmd, "", func() {
+				a.prefs.MindMapBothSides = !a.prefs.MindMapBothSides
+				a.savePrefs()
+			})
+			cmd(i18n.T("思维导图：居中并适应画布"), "", func() {
+				if a.doc != nil && a.doc.mindMap != nil {
+					a.doc.mindMap.CenterAndFit()
+				}
+			})
+			if a.doc.mindMap.HasFoldable() {
+				if a.doc.mindMap.HasFolded() {
+					cmd(i18n.T("思维导图：展开全部节点"), "", func() {
+						if a.doc != nil && a.doc.mindMap != nil {
+							a.doc.mindMap.UnfoldAll()
+						}
+					})
+				} else {
+					cmd(i18n.T("思维导图：折叠分支"), "", func() {
+						if a.doc != nil && a.doc.mindMap != nil {
+							a.doc.mindMap.CollapseBranches()
+						}
+					})
+				}
+			}
+		}
 	}
 	typewriter := i18n.T("开启打字机滚动")
 	if a.prefs.Typewriter {

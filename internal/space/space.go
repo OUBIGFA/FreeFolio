@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"path"
 	"slices"
 	"strings"
 )
@@ -81,11 +82,54 @@ type Space struct {
 	// LegacySort is the per-folder Sort of versions 8 to 12; migrate turns
 	// its root entry into SortBy and drops it.
 	LegacySort map[string]string `json:"sort,omitempty"`
+	// AttachmentsDir is the folder the space keeps attachments in, as a
+	// slash-separated path relative to Root (version 14). Empty keeps the
+	// older arrangement: an assets folder beside each document.
+	AttachmentsDir string `json:"attachmentsDir,omitempty"`
 }
 
 // Sorts are the ways a folder may sort, as menus offer them: its own order
 // (""), by name, or newest first.
 var Sorts = []string{"", "name", "modified"}
+
+// CleanAttachmentsDir normalizes a folder to keep a space's attachments in
+// and reports whether it stays inside the space. "" keeps the old
+// arrangement (an assets folder beside each document), and "." keeps them at
+// the space's root. Hidden folders (.git, .arcmd …) and node_modules are
+// refused: they hold no attachments and the sidebar never shows them.
+func CleanAttachmentsDir(dir string) (string, bool) {
+	dir = strings.TrimSpace(strings.ReplaceAll(dir, `\`, "/"))
+	if dir == "" {
+		return "", true
+	}
+	if path.IsAbs(dir) || strings.ContainsAny(dir, `:\`+"\x00") {
+		return "", false
+	}
+	clean := path.Clean(dir)
+	if clean == "." {
+		return ".", true
+	}
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", false
+	}
+	for seg := range strings.SplitSeq(clean, "/") {
+		if strings.HasPrefix(seg, ".") || seg == "node_modules" {
+			return "", false
+		}
+	}
+	return clean, true
+}
+
+// SetAttachmentsDir records the folder the space keeps attachments in. It
+// reports false for a path that leaves the space.
+func (s *Space) SetAttachmentsDir(dir string) bool {
+	clean, ok := CleanAttachmentsDir(dir)
+	if !ok {
+		return false
+	}
+	s.AttachmentsDir = clean
+	return true
+}
 
 // SetSort sorts every folder of the space so; anything but "name" or
 // "modified" is the order dragging leaves.
@@ -203,10 +247,13 @@ func renamer(from, to string) func(string) string {
 func under(p, rel string) bool { return p == rel || strings.HasPrefix(p, rel+"/") }
 
 // Renamed follows a file or folder moved from one path to another in the
-// open folders and LastOpen.
+// open folders, LastOpen and the attachment folder.
 func (s *Space) Renamed(from, to string) {
 	s.reorderRenamed(from, to)
 	re := renamer(from, to)
+	if s.AttachmentsDir != "" {
+		s.AttachmentsDir = re(s.AttachmentsDir)
+	}
 	for i, p := range s.Pins {
 		s.Pins[i] = re(p)
 	}
@@ -231,10 +278,13 @@ func (s *Space) Unpin(rel string) {
 	s.Pins = slices.DeleteFunc(s.Pins, func(p string) bool { return p == rel })
 }
 
-// Forget drops rel, and what is under it, from the open folders and
-// LastOpen, as after it is gone.
+// Forget drops rel, and what is under it, from the open folders, LastOpen
+// and the attachment folder, as after it is gone.
 func (s *Space) Forget(rel string) {
 	s.Pins = slices.DeleteFunc(s.Pins, func(p string) bool { return under(p, rel) })
+	if s.AttachmentsDir != "" && under(s.AttachmentsDir, rel) {
+		s.AttachmentsDir = ""
+	}
 	if dir, name := parentOf(rel); s.Order[dir] != nil {
 		s.Order[dir] = slices.DeleteFunc(s.Order[dir], func(n string) bool { return n == name })
 	}
@@ -364,6 +414,11 @@ func (st *State) migrate() {
 			s.SetSort(s.LegacySort[""])
 			s.LegacySort = nil
 		}
+		if clean, ok := CleanAttachmentsDir(s.AttachmentsDir); ok {
+			s.AttachmentsDir = clean
+		} else {
+			s.AttachmentsDir = ""
+		}
 		for _, rel := range s.Pinned {
 			if !st.IsFavorite(s.ID, rel) {
 				st.Favorites = append(st.Favorites, Favorite{s.ID, rel})
@@ -412,7 +467,8 @@ type State struct {
 // older state reads as read from the top.
 // Version 13 replaces the per-folder Sort with Space.SortBy, one sort for
 // the whole space; an older state keeps its root's sort.
-const CurrentVersion = 13
+// Version 14 adds an optional per-space attachment directory.
+const CurrentVersion = 14
 
 // ErrNotFound reports a space ID the state does not have.
 var ErrNotFound = errors.New("space: not found")

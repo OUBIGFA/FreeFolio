@@ -99,3 +99,17 @@ var (
 	iconSequence      = lucide(`<path d="M6 4v16"/><path d="M18 4v16"/><path d="M6 9h12"/><path d="m14 6 4 3-4 3"/><path d="M18 15H6"/><path d="m10 12-4 3 4 3"/>`)
 	iconPencil        = lucide(`<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>`)
 )
+
+var iconMaximize = lucide(`<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>`)
+
+var iconMapCenter = lucide(`<path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>`)
+
+var iconMapOneSide = lucide(`<rect x="2" y="9" width="5" height="6" rx="1.5"/><path d="M7 12h2c4 0 1-7 6-7h6M9 12c4 0 1 7 6 7h6"/>`)
+
+var iconMapBothSides = lucide(`<rect x="9.5" y="9" width="5" height="6" rx="1.5"/><path d="M9.5 12C6 12 8 5 4 5H2m7.5 7C6 12 8 19 4 19H2m12.5-7C18 12 16 5 20 5h2m-7.5 7C18 12 16 19 20 19h2"/>`)
+
+var iconMapCollapse = lucide(`<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>`)
+
+var iconMapExpand = lucide(`<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>`)
+
+var iconMinusLine = lucide(`<path d="M5 12h14"/>`)

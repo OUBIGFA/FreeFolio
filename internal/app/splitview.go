@@ -181,7 +181,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 			run(func() { a.openPalette(); a.palette.pane = pane })
 		}
 		if d != nil && full && width >= 480 && d.loadErr == nil && !d.source {
-			d.ed.Corner(c)
+			a.documentCorner(c, d)
 		}
 		if full {
 			options := iconButton(c, "options", iconSplit, fmt.Sprintf(i18n.T("分屏 %d 选项"), index+1), i18n.T("分屏选项"), false).Size(26, 26)
@@ -365,7 +365,13 @@ func (a *App) splitDropTargetFor(c *ui.Context, target ui.Element, index int) {
 	if !over && !ok {
 		return
 	}
-	if !vault.IsDocument(d.rel) {
+	var docRels []string
+	for _, rel := range a.rawGroupFor(d.space, d.rel) {
+		if vault.IsDocument(rel) {
+			docRels = append(docRels, rel)
+		}
+	}
+	if len(docRels) == 0 {
 		return
 	}
 	r := target.Bounds()
@@ -383,7 +389,16 @@ func (a *App) splitDropTargetFor(c *ui.Context, target ui.Element, index int) {
 		if index >= 0 {
 			a.focusPane(index, false)
 		}
-		a.openSplit(a.state.Get(d.space), d.rel, leading, vertical)
+		sp := a.state.Get(d.space)
+		for _, rel := range docRels {
+			if a.split != nil && len(a.split.panes) >= splitLimit {
+				break
+			}
+			a.openSplit(sp, rel, leading, vertical)
+		}
+		if len(docRels) > 1 {
+			a.clearPicks("")
+		}
 		return
 	}
 	fill, rim := splitDropColors(c.Theme())

@@ -17,6 +17,13 @@ cmd/freemd ──▶ internal/app ──▶ internal/space    spaces and spaces.
 The domain packages never import MyGo, so they test without a window and can
 serve a future CLI or plugin host.
 
+`internal/mindmap` computes the native document map. `internal/cloudsync` owns
+WebDAV/S3 transport, credentials, per-file baselines and guarded synchronization;
+`internal/app/cloudsync.go` provides the native settings and marshals active-edit
+checks back to the UI thread. Cloud sync is a built-in opt-in feature, independent
+of the inactive plugin runtime. See [Cloud sync](cloud-sync.md) for configuration,
+conflict behavior and recovery paths.
+
 ## The UI layer
 
 `internal/app` follows MyGo's immediate mode: `App` is the state, and

@@ -14,6 +14,7 @@ import (
 
 // Settings tabs.
 const (
+	tabCloud      = "cloud-sync"
 	tabGeneral    = "general"
 	tabAppearance = "appearance"
 	tabSpaces     = "spaces"
@@ -99,6 +100,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabFiles, i18n.T("文件浏览"), "files"},
 		{tabSpaces, i18n.T("空间"), "layers"},
 		{tabAI, i18n.T("AI 问答"), "ask"},
+		{tabCloud, i18n.T("云端同步"), "refresh"},
 		{tabShortcuts, i18n.T("快捷键"), "keyboard"},
 		{tabUpdates, i18n.T("更新"), "refresh"},
 		{tabAbout, i18n.T("关于"), "info"},
@@ -174,6 +176,8 @@ func (a *App) settingsView(c *ui.Context) {
 								a.settingsFiles(c)
 							case tabUpdates:
 								a.settingsUpdates(c)
+							case tabCloud:
+								a.settingsCloudSync(c)
 							case tabAI:
 								a.settingsAI(c)
 							case tabAbout:

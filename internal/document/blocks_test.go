@@ -136,7 +136,7 @@ func TestToggleFoldsItsContent(t *testing.T) {
 	if err != nil || !back.Blocks[0].Folded || back.Blocks[0].Kind != "toggle" {
 		t.Fatal("round trip", err)
 	}
-	if _, err := Decode(strings.Replace(s, `"version": 9`, `"version": 7`, 1)); err == nil {
+	if _, err := Decode(strings.Replace(s, `"version": 10`, `"version": 7`, 1)); err == nil {
 		t.Fatal("a v7 document has no toggles")
 	}
 	// Turned into a paragraph, it no longer folds.
@@ -180,7 +180,7 @@ func TestWordGoal(t *testing.T) {
 	if err != nil || !strings.Contains(s, `"goal": 1000`) {
 		t.Fatal(s, err)
 	}
-	if _, err := Decode(strings.Replace(s, `"version": 9`, `"version": 7`, 1)); err == nil {
+	if _, err := Decode(strings.Replace(s, `"version": 10`, `"version": 7`, 1)); err == nil {
 		t.Fatal("a v7 document has no goal")
 	}
 	e.SetGoal(-1)
@@ -205,7 +205,7 @@ func TestExactTextColorsRequireVersion9(t *testing.T) {
 	if back, err := Decode(s); err != nil || back.Blocks[0].Runs[0].Style != d.Blocks[0].Runs[0].Style {
 		t.Fatal("round trip", err)
 	}
-	if _, err := Decode(strings.Replace(s, `"version": 9`, `"version": 8`, 1)); err == nil {
+	if _, err := Decode(strings.Replace(s, `"version": 10`, `"version": 8`, 1)); err == nil {
 		t.Fatal("a v8 document has no exact colors")
 	}
 	d.Blocks[0].Runs[0].Style = Style{Color: "#XYZ"}

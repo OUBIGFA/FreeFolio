@@ -290,22 +290,26 @@ func favoriteRim(t *ui.Theme) ui.Color {
 // dragCardLook are the colors of a sidebar row lifted on its floating card
 // while dragged or settling back into place (treedrag.go).
 type dragCardLook struct {
-	fill, rim, shadow ui.Color
+	fill, rim, shadow, badgeFill, badgeText ui.Color
 }
 
 func dragCardColors(t *ui.Theme, l spaceLook) dragCardLook {
 	face := l.opaqueTop()
 	if t.Dark {
 		return dragCardLook{
-			fill:   face.Mix(white, 0.12).Alpha(0.96),
-			rim:    white.Alpha(0.16),
-			shadow: black.Alpha(0.42),
+			fill:      face.Mix(white, 0.12).Alpha(0.96),
+			rim:       white.Alpha(0.16),
+			shadow:    black.Alpha(0.42),
+			badgeFill: white.Alpha(0.15),
+			badgeText: t.Text,
 		}
 	}
 	return dragCardLook{
-		fill:   face.Mix(white, 0.86).Alpha(0.97),
-		rim:    black.Alpha(0.10),
-		shadow: black.Alpha(0.16),
+		fill:      face.Mix(white, 0.86).Alpha(0.97),
+		rim:       black.Alpha(0.10),
+		shadow:    black.Alpha(0.16),
+		badgeFill: black.Alpha(0.08),
+		badgeText: t.Text,
 	}
 }
 

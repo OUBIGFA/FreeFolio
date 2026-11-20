@@ -194,7 +194,7 @@ func (a *App) favoritesDrag(c *ui.Context, box ui.Element, resting []int) {
 		a.favDrop = &favDrop{from: d.index, slot: slotUnder()}
 		return
 	}
-	if d, ok := over.(dragged); isOver && ok && a.isDocOf(d) {
+	if d, ok := over.(dragged); isOver && ok && len(a.dragDocsOf(d)) > 0 {
 		from := a.state.FavoriteIndex(d.space, d.rel)
 		a.favDrop = &favDrop{from: from, rel: d.rel, slot: slotUnder()}
 		return
@@ -295,7 +295,14 @@ func (a *App) favoritesStrip(c *ui.Context, has bool) {
 		h = 6
 	}
 	strip := ui.Box(c.Key("favorites-strip")).Radius(10).Center()
-	accepts := func(d dragged) bool { return a.isDocOf(d) && !a.state.IsFavorite(d.space, d.rel) }
+	accepts := func(d dragged) bool {
+		for _, p := range a.dragDocsOf(d) {
+			if !a.state.IsFavorite(d.space, p) {
+				return true
+			}
+		}
+		return false
+	}
 	if d, ok := ui.Drop[dragged](strip); ok && accepts(d) {
 		a.pinAt(d, len(a.state.Favorites))
 		a.listDrop = nil
@@ -325,12 +332,12 @@ func (a *App) favoritesCard(c *ui.Context) {
 	a.tourMark("favorites", col)
 	col.Children(func() {
 		card := ui.Column(c.Key("favorites-card")).Height(favoriteCardH).Radius(12).AlignItems(ui.Center).Label(i18n.T("收藏"))
-		if d, ok := ui.Drop[dragged](card); ok && a.isDocOf(d) {
+		if d, ok := ui.Drop[dragged](card); ok && len(a.dragDocsOf(d)) > 0 {
 			a.pinAt(d, 0)
 			a.listDrop = nil
 		}
 		d, over := ui.DragOver[dragged](card)
-		targeted := over && a.isDocOf(d)
+		targeted := over && len(a.dragDocsOf(d)) > 0
 		ink := t.Text
 		text := t.Text
 		if t.Dark {
@@ -401,18 +408,38 @@ func (a *App) isDocOf(d dragged) bool {
 	return a.isDoc(d.rel)
 }
 
-// pinAt pins the dragged document d, of its own space, among the favorites
-// at index i, or moves it there when it is pinned already. Folders are not
-// pinned.
+// dragDocsOf returns every document in d's drag bundle (just d.rel, or all
+// picked documents when d is part of a multi-selection).
+func (a *App) dragDocsOf(d dragged) []string {
+	var docs []string
+	for _, p := range a.rawGroupFor(d.space, d.rel) {
+		if a.isDocOf(dragged{d.space, p}) {
+			docs = append(docs, p)
+		}
+	}
+	return docs
+}
+
+// pinAt pins the dragged document d (and any companion picked documents),
+// of its own space, among the favorites starting at index i, or moves it
+// there when it is pinned already. Folders are not pinned.
 func (a *App) pinAt(d dragged, i int) {
-	sp, rel := a.state.Get(d.space), d.rel
-	if sp == nil || !a.isDocOf(d) {
+	sp := a.state.Get(d.space)
+	docs := a.dragDocsOf(d)
+	if sp == nil || len(docs) == 0 {
 		return
 	}
-	if !a.state.IsFavorite(sp.ID, rel) {
-		a.state.ToggleFavorite(sp.ID, rel)
+	at := i
+	for _, rel := range docs {
+		if !a.state.IsFavorite(sp.ID, rel) {
+			a.state.ToggleFavorite(sp.ID, rel)
+		}
+		sp.Unpin(rel) // one item is pinned or a favorite, never both
+		a.state.MoveFavorite(a.state.FavoriteIndex(sp.ID, rel), at)
+		at = min(at+1, len(a.state.Favorites))
 	}
-	sp.Unpin(rel) // one item is pinned or a favorite, never both
-	a.state.MoveFavorite(a.state.FavoriteIndex(sp.ID, rel), i)
+	if len(docs) > 1 {
+		a.clearPicks("")
+	}
 	a.saveState()
 }

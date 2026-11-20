@@ -12,7 +12,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -29,8 +31,17 @@ const autosaveDelay = 700 * time.Millisecond
 
 // document owns a rich model, its persisted baseline and export preview.
 type document struct {
-	space *space.Space
-	rel   string
+	// Each document owns the map projection and its dock geometry.
+	mindMap                   *editor.MindMap
+	mapInitialized            bool
+	mapFraction, mapVFraction float32
+
+	closed atomic.Bool
+	// Save completion drives attachment invalidation and delayed cloud sync.
+	savedWrites uint64
+	justSaved   bool
+	space       *space.Space
+	rel         string
 	// named is the name this session gave the file from its title; the file
 	// keeps following the title while it has that name or 未命名's.
 	named            string
@@ -54,6 +65,7 @@ type document struct {
 	skeletonDirty       bool
 	textDirty           map[string]bool
 	baselineRuns        map[string][16]byte
+	baselineOrigRuns    map[string][]model.Run
 	loadErr             error
 	preview             string
 	previewScroll       ui.ScrollState
@@ -148,7 +160,7 @@ func (d *document) dirty() bool {
 				d.dirtyNow = true
 			} else if d.textDirtyKnown {
 				current := d.ed.Engine.LeafAt(change.Start).Block
-				if saved, exists := d.baselineRuns[change.ID]; exists && saved == model.RunsDigest(current.Runs) {
+				if saved, exists := d.baselineRuns[change.ID]; exists && saved == model.LeafDigest(current) {
 					delete(d.textDirty, change.ID)
 				} else {
 					if d.textDirty == nil {
@@ -170,8 +182,18 @@ func (d *document) dirty() bool {
 }
 
 func (d *document) recomputeDirtySlow() {
-	if d.baselinePending && d.ed.Revision() == d.dirtyRev {
-		d.dirtyNow = false
+	if d.baselinePending && !d.ed.Composing() {
+		clear(d.textDirty)
+		for id := range d.baselineOrigRuns {
+			leaf, ok := d.ed.Engine.LeafByID(id)
+			if !ok || model.LeafDigest(leaf.Block) != d.baselineRuns[id] {
+				if d.textDirty == nil {
+					d.textDirty = make(map[string]bool, max(1, len(d.baselineOrigRuns)))
+				}
+				d.textDirty[id] = true
+			}
+		}
+		d.dirtyNow = len(d.textDirty) != 0
 		d.skeletonDirty = false
 		d.textDirtyKnown = true
 		return
@@ -216,7 +238,7 @@ func (d *document) rebuildTextDirty(doc *model.Document) {
 				walk(block.Children, inner)
 				continue
 			}
-			if saved, ok := d.baselineRuns[block.ID]; !ok || saved != model.RunsDigest(block.Runs) {
+			if saved, ok := d.baselineRuns[block.ID]; !ok || saved != model.LeafDigest(block) {
 				d.textDirty[block.ID] = true
 			}
 		}
@@ -224,7 +246,7 @@ func (d *document) rebuildTextDirty(doc *model.Document) {
 	walk(doc.Blocks, nil)
 }
 
-func computeBaselineRuns(doc *model.Document, dst map[string][16]byte) map[string][16]byte {
+func computeBaselineRuns(doc *model.Document, overrides map[string][]model.Run, dst map[string][16]byte) map[string][16]byte {
 	if dst == nil {
 		dst = make(map[string][16]byte, max(16, len(doc.Blocks)))
 	} else {
@@ -244,7 +266,13 @@ func computeBaselineRuns(doc *model.Document, dst map[string][16]byte) map[strin
 				walk(block.Children, inner)
 				continue
 			}
-			dst[block.ID] = model.RunsDigest(block.Runs)
+			if len(overrides) > 0 {
+				if orig, ok := overrides[block.ID]; ok {
+					dst[block.ID] = model.RunsDigest(orig)
+					continue
+				}
+			}
+			dst[block.ID] = model.LeafDigest(block)
 		}
 	}
 	walk(doc.Blocks, nil)
@@ -258,30 +286,38 @@ func (d *document) initLazyBaseline() {
 	d.baseline = [32]byte{}
 	d.baselineSkeleton = [32]byte{}
 	clear(d.baselineRuns)
+	clear(d.baselineOrigRuns)
 	d.skeletonDirty = false
 	clear(d.textDirty)
 	d.textDirtyKnown = true
 	d.dirtyRev, d.dirtyKnown, d.dirtyNow = d.ed.Revision(), true, false
 	d.dirtyVersion = d.ed.Version()
 	d.ed.Engine.OnBeforeChange = func() { d.ensureBaseline() }
+	d.ed.Engine.OnBeforeLeafChange = d.recordLeafBaseline
 }
 
 func (d *document) ensureBaseline() [32]byte {
 	if d.baselinePending {
 		d.baselinePending = false
 		d.ed.Engine.OnBeforeChange = nil
-		d.baseline, _ = d.ed.Doc.Digest()
-		d.rememberBaseline(d.ed.Doc)
+		d.ed.Engine.OnBeforeLeafChange = nil
+		d.baseline, _ = d.ed.Doc.DigestWithLeafRuns(d.baselineOrigRuns)
+		d.baselineRuns = computeBaselineRuns(d.ed.Doc, d.baselineOrigRuns, d.baselineRuns)
+		d.baselineSkeleton = d.ed.Doc.SkeletonDigest()
+		clear(d.baselineOrigRuns)
 	}
 	return d.baseline
 }
 
 func (d *document) rememberBaseline(doc *model.Document) {
-	d.applyBaselineState(computeBaselineRuns(doc, d.baselineRuns), doc.SkeletonDigest())
+	d.applyBaselineState(computeBaselineRuns(doc, nil, d.baselineRuns), doc.SkeletonDigest())
 }
 
 func (d *document) applyBaselineState(runs map[string][16]byte, skeleton [32]byte) {
 	d.baselinePending = false
+	d.ed.Engine.OnBeforeChange = nil
+	d.ed.Engine.OnBeforeLeafChange = nil
+	clear(d.baselineOrigRuns)
 	d.baselineRuns = runs
 	d.baselineSkeleton = skeleton
 	d.skeletonDirty = false
@@ -310,19 +346,21 @@ type asyncSaveResult struct {
 }
 
 type cachedImage struct {
-	modNano  int64
-	size     int64
-	loading  bool
-	resource editor.ImageResource
+	pixelsReleased bool
+	modNano        int64
+	size           int64
+	loading        bool
+	resource       editor.ImageResource
 }
 
 // changed hashes the document and compares it with the saved baseline.
 func (d *document) changed() bool {
-	if d.baselinePending {
+	if d.baselinePending && len(d.baselineOrigRuns) == 0 {
 		return false
 	}
+	prev := d.ensureBaseline()
 	digest, err := d.ed.Committed().Digest()
-	return err != nil || digest != d.baseline
+	return err != nil || digest != prev
 }
 
 func (d *document) toggleMode() {
@@ -482,6 +520,8 @@ func (d *document) applyAsyncSave(res asyncSaveResult) {
 			}
 		}
 		d.diskText, d.baseline, d.saveErr = res.text, res.baseline, nil
+		d.savedWrites++
+		d.justSaved = true
 		if res.baselineRuns != nil {
 			d.baselineRuns = res.baselineRuns
 			d.baselineSkeleton = res.baselineSkeleton
@@ -522,19 +562,24 @@ func (d *document) write(force bool) error {
 			return errMissing
 		}
 	}
-	if !force && d.baselinePending {
-		d.saveErr = nil
-		return nil
-	}
-	prevBaseline := d.ensureBaseline()
-	// Fingerprint the committed model without full JSON serialization on clean
-	// checks; only .arcmd saves serialize JSON.
-	committed := d.ed.Committed()
-	baseline, digErr := committed.Digest()
-	changed := digErr != nil || baseline != prevBaseline
-	if !changed && !force {
-		d.saveErr = nil
-		return nil
+	var baseline [32]byte
+	if dirty, known := d.pendingDirtyState(); known {
+		if !dirty && !force {
+			d.saveErr = nil
+			return nil
+		}
+	} else {
+		prevBaseline := d.ensureBaseline()
+		// Fingerprint the committed model without full JSON serialization on clean
+		// checks; only .arcmd saves serialize JSON.
+		committed := d.ed.Committed()
+		var digErr error
+		baseline, digErr = committed.Digest()
+		changed := digErr != nil || baseline != prevBaseline
+		if !changed && !force {
+			d.saveErr = nil
+			return nil
+		}
 	}
 	if !force {
 		disk, err := readFile(d.space, d.rel)
@@ -550,11 +595,15 @@ func (d *document) write(force bool) error {
 			return errConflict
 		}
 	}
+	committed := d.ed.Committed()
 	var text string
 	var err error
 	arcmd := strings.EqualFold(path.Ext(d.rel), ".arcmd")
 	if arcmd {
 		text, err = committed.Encode()
+		if err == nil && d.baselinePending {
+			baseline, _ = committed.Digest()
+		}
 	} else {
 		err = committed.Validate()
 		if err == nil {
@@ -577,12 +626,14 @@ func (d *document) write(force bool) error {
 		baseline, _ = committed.Digest()
 	}
 	d.diskText, d.baseline, d.saveErr = text, baseline, nil
+	d.savedWrites++
 	if d.source {
 		d.preview = d.text()
 	}
 	d.recordVersion(before)
 	d.conflict, d.missing, d.diskNow = false, false, ""
 	d.rememberBaseline(committed)
+	d.justSaved = true
 	return nil
 }
 
@@ -649,7 +700,7 @@ func (d *document) startAsyncAutosave(post func(func())) {
 			ch <- asyncSaveResult{
 				unchanged:        true,
 				baseline:         preBaseline,
-				baselineRuns:     computeBaselineRuns(snapshot, nil),
+				baselineRuns:     computeBaselineRuns(snapshot, nil, nil),
 				baselineSkeleton: snapshot.SkeletonDigest(),
 				committed:        committed,
 				version:          ver,
@@ -705,7 +756,7 @@ func (d *document) startAsyncAutosave(post func(func())) {
 			if wErr := writeFile(&spClone, rel, outText); wErr != nil {
 				res.err = wErr
 			} else {
-				res.baselineRuns = computeBaselineRuns(snapshot, nil)
+				res.baselineRuns = computeBaselineRuns(snapshot, nil, nil)
 				res.baselineSkeleton = snapshot.SkeletonDigest()
 				if !historyOff {
 					if needInitialHistory {
@@ -755,64 +806,7 @@ func (d *document) imageResourceWith(url string, post func(func())) editor.Image
 		}
 		return editor.ImageResource{Problem: problem}
 	}
-	if post == nil {
-		return decodeLocalImageSync(full)
-	}
-	info, err := os.Stat(full)
-	if err != nil {
-		problem := editor.ImageUnreadable
-		if errors.Is(err, os.ErrNotExist) {
-			problem = editor.ImageMissing
-		}
-		return editor.ImageResource{Problem: problem, Local: true}
-	}
-	modNano, size := info.ModTime().UnixNano(), info.Size()
-	if d.imgCache == nil {
-		d.imgCache = make(map[string]cachedImage)
-	}
-	if c, ok := d.imgCache[url]; ok && c.modNano == modNano && c.size == size {
-		return c.resource
-	}
-
-	w, h := 0, 0
-	if f, openErr := os.Open(full); openErr == nil {
-		if cfg, _, cfgErr := image.DecodeConfig(f); cfgErr == nil {
-			w, h = cfg.Width, cfg.Height
-		}
-		_ = f.Close()
-	}
-	placeholder := editor.ImageResource{
-		Width:   w,
-		Height:  h,
-		Loading: true,
-		Local:   true,
-	}
-	d.imgCache[url] = cachedImage{
-		modNano:  modNano,
-		size:     size,
-		loading:  true,
-		resource: placeholder,
-	}
-	go func() {
-		decoded := decodeLocalImageSync(full)
-		post(func() {
-			if decoded.Bitmap != nil {
-				decoded.LoadedAt = time.Now()
-			}
-			if d.imgCache == nil {
-				d.imgCache = make(map[string]cachedImage)
-			}
-			d.imgCache[url] = cachedImage{
-				modNano:  modNano,
-				size:     size,
-				resource: decoded,
-			}
-			if d.ed != nil {
-				d.ed.InvalidateImage(url)
-			}
-		})
-	}()
-	return placeholder
+	return d.imageResourceFrom(full, url, post)
 }
 
 func decodeLocalImageSync(full string) editor.ImageResource {
@@ -891,11 +885,21 @@ func resolveSpaceImage(sp *space.Space, rel, url string) (string, error) {
 	}
 	decoded := unescapeImagePath(url)
 	if hasParentSegment(decoded) {
+		if matches := attachmentMatches(sp, root, docRel, url); len(matches) > 0 {
+			if full, ok := existingFile(root, matches[0]); ok {
+				return full, nil
+			}
+		}
 		return direct, nil
 	}
 	if cand, rErr := vault.Resolve(root, decoded); rErr == nil {
 		if info, stErr := os.Stat(cand); stErr == nil && !info.IsDir() {
 			return cand, nil
+		}
+	}
+	if matches := attachmentMatches(sp, root, docRel, url); len(matches) > 0 {
+		if full, ok := existingFile(root, matches[0]); ok {
+			return full, nil
 		}
 	}
 	if !strings.Contains(decoded, "/") {
@@ -989,3 +993,201 @@ func (d *document) resolveLink(url string) (string, bool) {
 	}
 	return rel, true
 }
+
+func (d *document) recordLeafBaseline(id string, runs []model.Run) {
+	if !d.baselinePending {
+		return
+	}
+	if leaf, ok := d.ed.Engine.LeafByID(id); ok && len(leaf.Block.Comments) > 0 {
+		d.ensureBaseline()
+		return
+	}
+	if _, exists := d.baselineOrigRuns[id]; exists {
+		return
+	}
+	if d.baselineOrigRuns == nil {
+		d.baselineOrigRuns = make(map[string][]model.Run, 4)
+	}
+	if d.baselineRuns == nil {
+		d.baselineRuns = make(map[string][16]byte, 4)
+	}
+	cloned := slices.Clone(runs)
+	d.baselineOrigRuns[id] = cloned
+	d.baselineRuns[id] = model.RunsDigest(cloned)
+}
+
+func (d *document) pendingDirtyState() (dirty, known bool) {
+	if !d.baselinePending || d.ed.Composing() {
+		return false, false
+	}
+	for id, orig := range d.baselineOrigRuns {
+		leaf, ok := d.ed.Engine.LeafByID(id)
+		if !ok || !slices.Equal(leaf.Block.Runs, orig) {
+			return true, true
+		}
+	}
+	return false, true
+}
+
+func (d *document) close() {
+	if d == nil {
+		return
+	}
+	d.closed.Store(true)
+	clear(d.imgCache)
+	d.imgCache = nil
+	if d.ed != nil {
+		d.ed.ClearImages()
+	}
+}
+
+func (d *document) releaseShownImagePixels(now time.Time) {
+	if d == nil || len(d.imgCache) == 0 {
+		return
+	}
+	for url, c := range d.imgCache {
+		if c.pixelsReleased || c.loading || c.resource.Bitmap == nil || c.resource.LoadedAt.IsZero() {
+			continue
+		}
+		if now.Sub(c.resource.LoadedAt) >= 200*time.Millisecond {
+			c.resource.Bitmap.ReleasePixels()
+			for _, frame := range c.resource.Frames {
+				if frame != nil {
+					frame.ReleasePixels()
+				}
+			}
+			c.pixelsReleased = true
+			d.imgCache[url] = c
+		}
+	}
+}
+
+func (d *document) thumbImageResource(url string) editor.ImageResource {
+	full, err := d.localImage(url)
+	if err != nil {
+		problem := editor.ImageInvalid
+		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+			problem = editor.ImageRemote
+		}
+		return editor.ImageResource{Problem: problem}
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		problem := editor.ImageUnreadable
+		if errors.Is(err, os.ErrNotExist) {
+			problem = editor.ImageMissing
+		}
+		return editor.ImageResource{Problem: problem, Local: true}
+	}
+	modNano, size := info.ModTime().UnixNano(), info.Size()
+	if d.imgCache == nil {
+		d.imgCache = make(map[string]cachedImage)
+	}
+	if c, ok := d.imgCache[url]; ok && c.modNano == modNano && c.size == size {
+		return c.resource
+	}
+	res := decodeLocalImageThumb(full)
+	d.imgCache[url] = cachedImage{modNano: modNano, size: size, resource: res}
+	return res
+}
+
+func (d *document) imageResourceFrom(full, url string, post func(func())) editor.ImageResource {
+	if d == nil || d.closed.Load() {
+		return editor.ImageResource{}
+	}
+	if post == nil {
+		return decodeLocalImageSync(full)
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		problem := editor.ImageUnreadable
+		if errors.Is(err, os.ErrNotExist) {
+			problem = editor.ImageMissing
+		}
+		return editor.ImageResource{Problem: problem, Local: true}
+	}
+	modNano, size := info.ModTime().UnixNano(), info.Size()
+	if d.imgCache == nil {
+		d.imgCache = make(map[string]cachedImage)
+	}
+	if c, ok := d.imgCache[url]; ok && c.modNano == modNano && c.size == size {
+		return c.resource
+	}
+
+	w, h := 0, 0
+	if f, openErr := os.Open(full); openErr == nil {
+		if cfg, _, cfgErr := image.DecodeConfig(f); cfgErr == nil {
+			w, h = cfg.Width, cfg.Height
+		}
+		_ = f.Close()
+	}
+	placeholder := editor.ImageResource{
+		Width:   w,
+		Height:  h,
+		Loading: true,
+		Local:   true,
+	}
+	d.imgCache[url] = cachedImage{
+		modNano:  modNano,
+		size:     size,
+		loading:  true,
+		resource: placeholder,
+	}
+	activeImageDecodes.Add(1)
+	go func() {
+		defer activeImageDecodes.Add(-1)
+		if d.closed.Load() {
+			return
+		}
+		imageDecodeSem <- struct{}{}
+		if d.closed.Load() {
+			<-imageDecodeSem
+			return
+		}
+		decoded := decodeLocalImageSync(full)
+		<-imageDecodeSem
+		if d.closed.Load() {
+			return
+		}
+		post(func() {
+			if d.closed.Load() {
+				return
+			}
+			if decoded.Bitmap != nil {
+				decoded.LoadedAt = time.Now()
+			}
+			if d.imgCache == nil {
+				d.imgCache = make(map[string]cachedImage)
+			}
+			d.imgCache[url] = cachedImage{
+				modNano:  modNano,
+				size:     size,
+				resource: decoded,
+			}
+			if d.ed != nil {
+				d.ed.InvalidateImage(url)
+			}
+		})
+	}()
+	return placeholder
+}
+
+func decodeLocalImageThumb(full string) editor.ImageResource {
+	data, err := os.ReadFile(full)
+	if err != nil {
+		problem := editor.ImageUnreadable
+		if errors.Is(err, os.ErrNotExist) {
+			problem = editor.ImageMissing
+		}
+		return editor.ImageResource{Problem: problem, Local: true}
+	}
+	bmp, err := ui.DecodeBitmapScaled(data, 640)
+	if err != nil {
+		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: true}
+	}
+	w, h := bmp.Size()
+	return editor.ImageResource{Bitmap: bmp, Width: w, Height: h, Local: true}
+}
+
+var imageDecodeSem = make(chan struct{}, 4)
+var activeImageDecodes atomic.Int32

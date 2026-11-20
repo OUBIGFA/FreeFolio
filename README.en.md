@@ -23,6 +23,12 @@
 
 It builds on the pure Go + [MyGo](https://github.com/egoist/mygo) native UI stack with in-place `.md` storage and zero HTML, WebView, Electron, or cgo dependencies.
 
+Spaces support dedicated attachment folders with automatic relinking and sidebar
+multi-selection for batch organization. Documents offer navigable mind maps and
+hierarchical Select All. Optional WebDAV/S3 synchronization supports selected
+spaces, manual and scheduled runs, conflict copies and content encryption; it is
+disabled by default.
+
 ## Running and Verification
 
 ### Repository Hygiene Checks
@@ -48,6 +54,7 @@ FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
 ## Documentation and Boundaries
 
 - [Architecture Guide](docs/architecture.md)
+- [Cloud Sync, Conflicts and Recovery](docs/cloud-sync.md)
 - [Plugins and Marketplace Draft](docs/plugins.md)
 - [Repository Boundaries](references/repository-boundaries.md)
 - [Third-Party Attribution and Manifests](third_party/README.md)

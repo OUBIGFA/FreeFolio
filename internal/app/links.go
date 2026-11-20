@@ -483,16 +483,32 @@ func (a *App) previewWikiFor(source *document, name string) editor.WikiPreview {
 		return p
 	}
 	p.Location = sp.Name + " / " + rel
-	d := a.residentDocument(sp.ID, rel)
-	if d == nil {
-		d = a.thumbOf(sp, rel)
+	var plain string
+	if d := a.residentDocument(sp.ID, rel); d != nil {
+		if d.loadErr != nil {
+			p.Text = i18n.T("无法读取这篇笔记")
+			p.Missing = false
+			return p
+		}
+		plain = d.ed.Committed().PlainText()
+	} else if indexed, ok := a.liveIndex().TextOf(sp.ID, rel); ok {
+		plain = indexed
+	} else {
+		raw, err := readFile(sp, rel)
+		if err != nil {
+			p.Text = i18n.T("无法读取这篇笔记")
+			p.Missing = false
+			return p
+		}
+		extracted, err := extractText(rel, raw)
+		if err != nil {
+			p.Text = i18n.T("无法读取这篇笔记")
+			p.Missing = false
+			return p
+		}
+		plain = extracted.Text
 	}
-	if d == nil || d.loadErr != nil {
-		p.Text = i18n.T("无法读取这篇笔记")
-		p.Missing = false
-		return p
-	}
-	text := []rune(d.ed.Committed().PlainText())
+	text := []rune(plain)
 	if len(text) > 500 {
 		text = append(text[:500], '…')
 	}

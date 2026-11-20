@@ -755,3 +755,13 @@ func (e *Editor) embedNotice(c *ui.Context, key string, row row, o Options) {
 		close()
 	}
 }
+
+func (e *Editor) ClearImages() {
+	if e == nil || e.images == nil {
+		return
+	}
+	clear(e.images)
+	clear(e.htmls)
+	clear(e.cache)
+	e.images = nil
+}

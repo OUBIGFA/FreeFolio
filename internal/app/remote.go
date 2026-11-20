@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/editor"
@@ -38,6 +39,7 @@ func isRemoteImage(src string) bool {
 // without the network. The Markdown keeps its link. Its map is the main
 // thread's; fetches report back through the post they were given.
 type remoteImages struct {
+	order   []string
 	dir     string
 	client  *http.Client
 	entries map[string]*remoteImage
@@ -46,10 +48,12 @@ type remoteImages struct {
 }
 
 type remoteImage struct {
-	resource editor.ImageResource
-	loading  bool
+	retired        atomic.Bool
+	pixelsReleased bool
+	resource       editor.ImageResource
+	loading        bool
 	// waiting are the editors to redraw once the fetch ends.
-	waiting []func()
+	waiting map[string]func()
 }
 
 func newRemoteImages(dir string) *remoteImages {
@@ -66,10 +70,18 @@ func (r *remoteImages) cachePath(url string) string {
 // yet here is fetched on a goroutine and redraw runs once it arrives; it
 // shows as loading meanwhile. Without post, as for thumbnails and PDF
 // export, only what is already in memory or on disk shows.
-func (r *remoteImages) resource(url string, post func(func()), redraw func()) editor.ImageResource {
+func (r *remoteImages) resource(url string, post func(func()), redraw func(), owner ...string) editor.ImageResource {
+	r.touch(url)
+	key := "default"
+	if len(owner) > 0 {
+		key = owner[0]
+	}
 	if e := r.entries[url]; e != nil {
 		if e.loading && redraw != nil {
-			e.waiting = append(e.waiting, redraw)
+			if e.waiting == nil {
+				e.waiting = map[string]func(){}
+			}
+			e.waiting[key] = redraw
 		}
 		return e.resource
 	}
@@ -98,12 +110,32 @@ func (r *remoteImages) resource(url string, post func(func()), redraw func()) ed
 	}
 	e := &remoteImage{resource: editor.ImageResource{Loading: true}, loading: true}
 	if redraw != nil {
-		e.waiting = append(e.waiting, redraw)
+		if e.waiting == nil {
+			e.waiting = map[string]func(){}
+		}
+		e.waiting[key] = redraw
 	}
 	r.entries[url] = e
 	go func() {
+		// Share the local-image decode bound. Evicted jobs never resurrect an
+		// entry or retain editor callbacks after completing a stale request.
+		if e.retired.Load() {
+			return
+		}
+		imageDecodeSem <- struct{}{}
+		if e.retired.Load() {
+			<-imageDecodeSem
+			return
+		}
 		res := r.fetch(url)
+		<-imageDecodeSem
+		if e.retired.Load() {
+			return
+		}
 		post(func() {
+			if e.retired.Load() {
+				return
+			}
 			if res.Bitmap != nil {
 				res.LoadedAt = time.Now()
 			}
@@ -196,4 +228,40 @@ func decodeImageData(data []byte, local bool) editor.ImageResource {
 		res.Frames, res.Delays = frames, delays
 	}
 	return res
+}
+
+// touch bounds retained network bitmaps; live editors retain their own resources.
+func (r *remoteImages) touch(url string) {
+	for i, key := range r.order {
+		if key == url {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
+	r.order = append(r.order, url)
+	for len(r.order) > 64 {
+		old := r.order[0]
+		r.order = r.order[1:]
+		if entry := r.entries[old]; entry != nil {
+			entry.retired.Store(true)
+		}
+		delete(r.entries, old)
+	}
+}
+
+// Decoded network images retain compressed disk/source data for restoration.
+func (r *remoteImages) releasePixels(now time.Time) {
+	for _, entry := range r.entries {
+		res := entry.resource
+		if entry.loading || entry.pixelsReleased || res.Bitmap == nil || res.LoadedAt.IsZero() || now.Sub(res.LoadedAt) < 200*time.Millisecond {
+			continue
+		}
+		res.Bitmap.ReleasePixels()
+		for _, frame := range res.Frames {
+			if frame != nil {
+				frame.ReleasePixels()
+			}
+		}
+		entry.pixelsReleased = true
+	}
 }

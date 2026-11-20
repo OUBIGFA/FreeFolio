@@ -103,8 +103,9 @@ type preview struct {
 	selected int
 	extended bool
 	// thumbs are the documents the thumbnails draw, by space and path,
-	// with the time their file was changed.
-	thumbs map[string]thumb
+	// with the time their file was changed, bounded in LRU order.
+	thumbs     map[string]thumb
+	thumbOrder []string
 	// refocus gives the editor the keys back once the search field had
 	// them.
 	refocus bool
@@ -167,10 +168,12 @@ func (a *App) previewView(c *ui.Context) {
 		}
 	}
 	if p.shown == nil {
+		a.dropOpenThumbs("")
 		return
 	}
 	if p.closing && now.Sub(p.closingAt) >= previewFadeOut {
 		p.shown, p.closing = nil, false
+		a.dropOpenThumbs("")
 		return
 	}
 	a.previewCard(c)
@@ -249,7 +252,78 @@ func (a *App) folderItems(sp *space.Space, rel string) []previewItem {
 
 // thumbOf is the document a thumbnail of rel draws, read again when its
 // file changed.
-const previewMaxBlocks = 25
+const (
+	previewMaxBlocks = 25
+	maxPreviewThumbs = 8
+)
+
+func (a *App) touchThumb(key string) {
+	p := &a.preview
+	if idx := slices.Index(p.thumbOrder, key); idx >= 0 {
+		p.thumbOrder = slices.Delete(p.thumbOrder, idx, idx+1)
+	}
+	p.thumbOrder = append(p.thumbOrder, key)
+}
+
+func (a *App) dropOpenThumbs(keepKey string) {
+	p := &a.preview
+	if len(p.thumbs) == 0 {
+		return
+	}
+	removed := false
+	for k, th := range p.thumbs {
+		if strings.HasPrefix(k, "open/") && k != keepKey {
+			if th.doc != nil {
+				th.doc.close()
+			}
+			delete(p.thumbs, k)
+			if idx := slices.Index(p.thumbOrder, k); idx >= 0 {
+				p.thumbOrder = slices.Delete(p.thumbOrder, idx, idx+1)
+			}
+			removed = true
+		}
+	}
+	if removed && len(p.thumbs) == 0 {
+		p.thumbs = nil
+		p.thumbOrder = nil
+	}
+}
+
+func (a *App) putThumb(key string, th thumb) {
+	p := &a.preview
+	if p.thumbs == nil {
+		p.thumbs = make(map[string]thumb, maxPreviewThumbs)
+	}
+	if prev, ok := p.thumbs[key]; ok && prev.doc != nil && prev.doc != th.doc {
+		prev.doc.close()
+	}
+	p.thumbs[key] = th
+	a.touchThumb(key)
+	keepOpen := ""
+	if a.doc != nil && a.doc.space != nil {
+		keepOpen = "open/" + a.doc.space.ID + "/" + a.doc.rel
+	}
+	a.dropOpenThumbs(keepOpen)
+	evicted := false
+	for len(p.thumbs) > maxPreviewThumbs && len(p.thumbOrder) > 0 {
+		oldest := p.thumbOrder[0]
+		p.thumbOrder = p.thumbOrder[1:]
+		if old, ok := p.thumbs[oldest]; ok {
+			if old.doc != nil {
+				old.doc.close()
+			}
+			delete(p.thumbs, oldest)
+			evicted = true
+		}
+	}
+	if evicted {
+		compact := make(map[string]thumb, len(p.thumbs))
+		for k, v := range p.thumbs {
+			compact[k] = v
+		}
+		p.thumbs = compact
+	}
+}
 
 func clonePreviewPrefix(src *model.Document) *model.Document {
 	if src == nil {
@@ -299,14 +373,12 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 		key := "open/" + sp.ID + "/" + rel
 		rev := time.Unix(0, int64(a.doc.ed.Revision()))
 		if th, ok := p.thumbs[key]; ok && th.changed.Equal(rev) {
+			a.touchThumb(key)
 			return th.doc
 		}
 		cloned := clonePreviewPrefix(a.doc.ed.Committed())
-		if p.thumbs == nil {
-			p.thumbs = map[string]thumb{}
-		}
 		d := &document{space: sp, rel: rel, ed: editor.FromOwnedDocument(cloned)}
-		p.thumbs[key] = thumb{d, rev}
+		a.putThumb(key, thumb{d, rev})
 		return d
 	}
 	full, err := resolveFile(sp, rel)
@@ -319,6 +391,7 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 	}
 	key := sp.ID + "/" + rel
 	if th, ok := p.thumbs[key]; ok && th.changed.Equal(info.ModTime()) {
+		a.touchThumb(key)
 		return th.doc
 	}
 	text, err := readFile(sp, rel)
@@ -342,7 +415,7 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 		doc.Blocks = doc.Blocks[:previewMaxBlocks]
 	}
 	d := &document{space: sp, rel: rel, ed: editor.FromOwnedDocument(doc), loadErr: loadErr}
-	p.thumbs[key] = thumb{d, info.ModTime()}
+	a.putThumb(key, thumb{d, info.ModTime()})
 	return d
 }
 
@@ -546,7 +619,7 @@ func (a *App) docPreview(c *ui.Context) {
 				Width:     previewThumbW,
 				Theme:     dt,
 				Page:      pageStyle(a.paperDark),
-				LoadImage: a.cachedImageFor(d),
+				LoadImage: a.previewImageFor(d),
 			})
 		})
 	})

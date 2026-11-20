@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
@@ -32,6 +31,10 @@ func (a *App) Content() *ui.Content { return ui.View(a.View) }
 // View builds the window from the state, every frame.
 func (a *App) View(c *ui.Context) {
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
+	a.cloudTick(c)
+	if a.win != nil {
+		a.remote.releasePixels(c.Now())
+	}
 	if a.files != nil {
 		a.fileView(c)
 		return
@@ -44,6 +47,11 @@ func (a *App) View(c *ui.Context) {
 	a.splitResizing = false
 	a.qa.resizing = false
 	a.carried, a.carrying = a.carrying, nil
+	if a.carrying == nil && a.carried == nil && a.picksSpace != "" {
+		if sp := a.state.ActiveSpace(); sp == nil || a.picksSpace != sp.ID {
+			a.clearPicks("")
+		}
+	}
 	a.syncOpen()
 	a.overClosed, a.overClose = a.overClose, place{}
 	clear(a.tour.marks)
@@ -78,7 +86,10 @@ func (a *App) View(c *ui.Context) {
 	a.syncWatches()
 	post := a.asyncPost()
 	for _, d := range a.residentDocuments() {
-		a.withDocument(d, func() { d.autosaveWith(c, post); a.followTitle(); a.syncExcerpts(a.doc) })
+		if a.win != nil {
+			d.releaseShownImagePixels(c.Now())
+		}
+		a.withDocument(d, func() { d.autosaveWith(c, post); a.cloudSaved(d); a.followTitle(); a.syncExcerpts(a.doc) })
 	}
 	for _, n := range a.notices {
 		c.Toast(n)
@@ -296,6 +307,11 @@ var spaceKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, u
 
 // shortcuts handles the window's keys.
 func (a *App) shortcuts(c *ui.Context) {
+	if len(a.picks) > 0 && !a.modalOrOverlayBlocksEsc() && c.Shortcut(0, ui.KeyEscape) {
+		a.clearPicks("")
+		return
+	}
+
 	if a.settingsOpen || a.recording != "" || a.tour.open {
 		return // the settings take the next key, the tour its own
 	}
@@ -346,6 +362,8 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.toggleOverview()
 	case a.pressed(c, "library"):
 		a.toggleLibrary()
+	case a.pressed(c, "mindmap"):
+		a.toggleActiveDocumentMap()
 	case a.pressed(c, "outline"):
 		a.toggleOutline()
 	case a.pressed(c, "bookmark"):
@@ -563,7 +581,7 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 	}
 	page.Children(func() {
 		a.conflictBarFor(c, d)
-		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, cardWidth, false, d))
+		a.documentMapWorkspace(c, d, cardWidth)
 	})
 }
 
@@ -610,7 +628,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		ui.Box(c).Width(8)
 		// A narrow pane, as beside the library, keeps its room for the path.
 		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && toolbar.LayoutBounds().W >= 560 {
-			a.doc.ed.Corner(c)
+			a.documentCorner(c, a.doc)
 		}
 		ask := iconButton(c, "ask", iconAsk, i18n.T("问答"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
 		if a.qa.open {

@@ -77,6 +77,18 @@ type spaceSession struct {
 
 // App is FreeMD's state.
 type App struct {
+	cloud cloudState
+	// Sidebar selection belongs to one space and retains a range anchor.
+	picks      map[string]bool
+	picksSpace string
+	pickAnchor string
+
+	// Image locations and attachment scans are scoped to resident documents/spaces.
+	imgResolved       map[imageKey]resolvedImage
+	selfWrites        map[string]time.Time
+	attachmentRelinks map[string]*attachmentRelink
+	movingDoc         *document
+
 	// bookmarkGen counts changes to the bookmarks, which documents resolve
 	// again (bookmarks.go).
 	bookmarkGen uint64
@@ -304,6 +316,7 @@ func New(cfg Config) (*App, error) {
 	}
 	a.systemLanguage = "zh-Hans"
 	a.applyLanguage()
+	a.loadCloudSync()
 	st, err := a.store.Load()
 	if err != nil {
 		return nil, err
@@ -530,6 +543,7 @@ func (a *App) Run() error {
 				return
 			}
 			a.cancelPDF()
+			a.cancelCloudSync()
 		})
 	})
 	return mygo.App.Run()
@@ -678,7 +692,7 @@ func (a *App) asyncPost() func(func()) {
 }
 
 func (a *App) imageResourceFor(d *document, url string) editor.ImageResource {
-	if d == nil {
+	if d == nil || d.closed.Load() {
 		return editor.ImageResource{}
 	}
 	if !isRemoteImage(url) && isVideoFile(url) {
@@ -696,12 +710,31 @@ func (a *App) imageResourceFor(d *document, url string) editor.ImageResource {
 	}
 	if isRemoteImage(url) {
 		return a.remote.resource(url, a.asyncPost(), func() {
-			if d.ed != nil {
+			if d.ed != nil && !d.closed.Load() {
 				d.ed.InvalidateImage(url)
 			}
-		})
+		}, fmt.Sprintf("%p", d))
 	}
-	return d.imageResourceWith(url, a.asyncPost())
+	key := imageKey{doc: d, url: url}
+	res, ok := a.imgResolved[key]
+	if !ok {
+		full, err := d.localImage(url)
+		res = resolvedImage{full: full, err: err}
+		if a.documentContext > 0 || a.isResidentDocument(d) {
+			if a.imgResolved == nil {
+				a.imgResolved = map[imageKey]resolvedImage{}
+			}
+			a.imgResolved[key] = res
+		}
+	}
+	if res.err != nil {
+		problem := editor.ImageInvalid
+		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+			problem = editor.ImageRemote
+		}
+		return editor.ImageResource{Problem: problem}
+	}
+	return d.imageResourceFrom(res.full, url, a.asyncPost())
 }
 
 // cachedImageFor loads d's pictures at once, as thumbnails and PDF export
@@ -761,6 +794,7 @@ func (a *App) syncTree() {
 		}
 	}
 	walk(a.tree)
+	a.prunePicks(sp, a.tree)
 }
 
 // open shows the document at rel of the active space, adding it to the
@@ -771,6 +805,7 @@ func (a *App) open(rel string) { a.openIn(a.state.ActiveSpace(), rel) }
 // space, as Arc opens a favorite in any space.
 func (a *App) openFavorite(f space.Favorite) {
 	if sp := a.state.Get(f.Space); sp != nil && a.canEnter(sp.Root) {
+		a.clearPicks("")
 		a.openIn(sp, f.Path)
 	}
 }
@@ -855,6 +890,7 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 	if a.split != nil && a.doc != nil && !a.paneNavigation {
 		a.suspendSplit()
 	}
+	prev := a.doc
 	a.syncOpen() // the document left, if pinned, stays open
 	var cached *document
 	if restoring && active {
@@ -882,6 +918,14 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		preferSource := cached != nil && cached.rel == rel && cached.source
 		a.doc = openDocument(sp, rel, text, preferSource)
 	}
+	var oldSession *document
+	if activeSp := a.state.ActiveSpace(); activeSp != nil && a.documentContext == 0 {
+		if s := a.sessions[activeSp.ID]; s != nil {
+			oldSession = s.doc
+			s.doc = nil
+		}
+	}
+	a.retireClosedDocuments(prev, oldSession)
 	if a.paneNavigation {
 		a.doc.ed.RequestFocus = true
 	}
@@ -1250,6 +1294,7 @@ func (a *App) moveInto(rel, dir string) {
 // moved follows a file or folder of the space sp that moved from one path
 // to another.
 func (a *App) moved(sp *space.Space, from, to string) {
+	a.followPicks(sp.ID, from, to)
 	if a.files != nil && sp == a.files.locations {
 		if from == to {
 			return
@@ -1324,6 +1369,15 @@ func (a *App) switchSpace(id string) {
 // split, a favorite of another space it had open, or else its last
 // document.
 func (a *App) resumeSpace() {
+	defer func() {
+		if sp := a.state.ActiveSpace(); sp != nil {
+			if s := a.sessions[sp.ID]; s != nil {
+				old := s.doc
+				s.doc = nil
+				a.retireClosedDocuments(old)
+			}
+		}
+	}()
 	sp := a.state.ActiveSpace()
 	id := sp.ID
 	if session := a.session(id); session.splitShown && session.split != nil {
@@ -1538,5 +1592,86 @@ func (a *App) applyLanguage() {
 	}
 	if a.win != nil {
 		mygo.App.SetLocale(i18n.Language())
+	}
+}
+
+func (a *App) invalidateResolvedImages() { a.imgResolved = nil }
+
+func (a *App) isResidentDocument(d *document) bool {
+	if d == nil {
+		return false
+	}
+	if d == a.movingDoc {
+		return true
+	}
+	for _, r := range a.residentDocuments() {
+		if r == d {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) retireClosedDocuments(candidates ...*document) {
+	if a.documentContext > 0 {
+		return
+	}
+	resident := make(map[*document]bool, 8)
+	for _, d := range a.residentDocuments() {
+		resident[d] = true
+	}
+	if a.movingDoc != nil {
+		resident[a.movingDoc] = true
+	}
+	if a.versions.open && a.versions.for_ != nil {
+		resident[a.versions.for_] = true
+	}
+	for _, d := range candidates {
+		if d != nil && !resident[d] {
+			d.close()
+		}
+	}
+	if len(a.imgResolved) > 0 {
+		removed := 0
+		for k := range a.imgResolved {
+			if k.doc == nil || !resident[k.doc] {
+				if k.doc != nil {
+					k.doc.close()
+				}
+				delete(a.imgResolved, k)
+				removed++
+			}
+		}
+		if len(a.imgResolved) == 0 {
+			a.imgResolved = nil
+		} else if removed > 0 {
+			compact := make(map[imageKey]resolvedImage, len(a.imgResolved))
+			for k, v := range a.imgResolved {
+				compact[k] = v
+			}
+			a.imgResolved = compact
+		}
+	}
+	if a.search.hitsKey.doc != nil && !resident[a.search.hitsKey.doc] {
+		a.search.hitsKey = hitsKey{}
+		a.search.hits = nil
+	}
+	if len(a.search.liveDocs) > 0 {
+		for d := range a.search.liveDocs {
+			if !resident[d] {
+				delete(a.search.liveDocs, d)
+				a.search.overlayReady = false
+			}
+		}
+	}
+}
+
+// Preview loaders keep local thumbnails small and reuse only cached network data.
+func (a *App) previewImageFor(d *document) func(string) editor.ImageResource {
+	return func(url string) editor.ImageResource {
+		if isRemoteImage(url) {
+			return a.remote.resource(url, nil, nil)
+		}
+		return d.thumbImageResource(url)
 	}
 }

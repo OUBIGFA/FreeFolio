@@ -38,6 +38,7 @@ func sameLayoutPageKey(a, b layoutPageKey) bool {
 }
 
 type Editor struct {
+	spaceWidths   map[ui.Font]float32
 	notesDoc      *document.Document
 	notesRevision uint64
 	notesKey      string
@@ -137,6 +138,8 @@ type Editor struct {
 	linkText                  string
 	linkRange                 ui.TextInputRange
 	linkOpened                bool
+	pendingLink               linkSpan
+	pendingLinkDown           ui.Point
 	inlineEditing, laidInline string
 	notes                     map[string]noteTarget
 	noteReturn                int
@@ -178,7 +181,10 @@ type Editor struct {
 	footerH float32
 	// printing paints for paper: no caret, hints, controls or hover
 	// (print.go).
-	printing bool
+	printing        bool
+	printPageH      float32
+	mapTablePreview bool // compact cell metrics for read-only document map previews
+	mapMathPreview  bool // compact formula width (no full-column \tag stretch) in document map
 	// typewriter keeps the caret's line at the middle of the page; dim
 	// fades the blocks but the caret's, as focus mode does.
 	typewriter, dim bool
@@ -215,11 +221,12 @@ type Editor struct {
 	// codeOpen are the long code blocks opened from their fold; codeTall
 	// those whose text, as laid out or estimated, stands taller than the
 	// fold (codefold.go).
-	codeOpen    map[string]bool
-	codeTall    map[string]bool
-	codeScrollX map[string]float32
-	codeBarDrag string
-	codeBarGrab float32
+	codeOpen      map[string]bool
+	codeTall      map[string]bool
+	codeScrollX   map[string]float32
+	codeBarDrag   string
+	codeBarGrab   float32
+	mermaidViewer mermaidViewer
 	// bookmarks are the host's marks on the page (bookmarks.go).
 	bookmarks bookmarkState
 	// reserved are keys the host takes, which the page leaves alone.
@@ -520,9 +527,9 @@ type Options struct {
 	NoAutoPair           bool
 	CodeNoWrap           bool
 	FontSize, LineHeight float32
-	// FontFamily is the body text's family list, "" for the system's; Column
-	// is the text column's width, 0 for 820. Code keeps its monospace.
+	// Column is the text column's width, 0 for 820. Code keeps its monospace.
 	FontFamily   string
+	DocTitle     string
 	Column       float32
 	Width        float32
 	Theme        *ui.Theme
@@ -618,9 +625,15 @@ func newEditorWithBuffer(buf *Buffer) *Editor {
 }
 func (e *Editor) ReplaceText(r *ui.TextInputRange, text string) {
 	if e.ReadOnly {
+		if e.readOnlySpace && text == " " && r == nil {
+			e.readOnlySpace = false
+			return
+		}
+		e.readOnlySpace = false
 		e.refused = true
 		return
 	}
+	e.readOnlySpace = false
 	e.editImageCaption()
 	e.clearBlocks()
 	if e.autoSpace {
@@ -647,6 +660,7 @@ func (e *Editor) SetMarkedText(r *ui.TextInputRange, text string, selected ui.Te
 		e.cancelComposition()
 		return
 	}
+	e.readOnlySpace = false
 	e.editImageCaption()
 	e.Buffer.SetMarkedText(r, text, selected)
 	e.reveal = true
@@ -875,6 +889,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 		e.headerPopups(c, surface)
 	}
 	e.imagePreview(c)
+	e.mermaidPreview(c)
 	e.cropView(c)
 	e.wikiPreview(c, surface, o.PreviewWiki)
 	return pane
@@ -988,6 +1003,9 @@ func (e *Editor) layout(o Options) {
 	wantLazyY := e.shouldVirtualize()
 	for i, b := range e.Doc.Blocks {
 		if hidden[b.ID] != "" {
+			continue
+		}
+		if e.printing && b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
 			continue
 		}
 		start := len(e.rows)
@@ -1146,6 +1164,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 	caretLeaf := e.Engine.LeafAt(e.Caret)
 	var blockLayout func(*document.Block, float32, float32, float32) float32
 	blockLayout = func(b *document.Block, x, y, w float32) float32 {
+		if e.printing && b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
+			return 0
+		}
 		if b.Kind == "columns" {
 			return e.layoutColumns(b, x, y, w, hidden, blockLayout)
 		}
@@ -1239,6 +1260,8 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 					} else if b.Kind == "code" {
 						d.label, d.id = b.Language, b.ID
 						fit.mark(&d, b)
+					} else if b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
+						d.label = i18n.T("HTML 注释")
 					}
 					if b.Kind == "callout" {
 						d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1303,6 +1326,8 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			} else if b.Kind == "code" {
 				d.label, d.id = b.Language, b.ID
 				fit.mark(&d, b)
+			} else if b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
+				d.label = i18n.T("HTML 注释")
 			}
 			if b.Kind == "callout" {
 				d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
@@ -1488,7 +1513,8 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					e.paintLanguage(p, lb, d, t)
 					e.paintLineNumbers(p, ui.Rect{X: bounds.X + ddx, Y: bounds.Y + ddy, W: bounds.W, H: bounds.H}, d)
 				} else if d.label != "" {
-					p.Text(r.X+20, r.Y+10, d.label, 11, pg.Caption)
+					lw, _ := p.MeasureText(0, ui.Span{Text: d.label, Font: "system-ui", Size: 11})
+					p.Text(r.X+r.W-lw-14, r.Y+10, d.label, 11, pg.Caption)
 				}
 			case "mermaid":
 				e.paintMermaidDecoration(p, bounds, d, ddx, ddy, t)
@@ -1586,6 +1612,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 			}
 			e.paintMarker(p, bounds, r, t)
 			paintRowBody := func(scrollX float32) {
+				shiftedBounds := ui.Rect{X: bounds.X + dx - scrollX, Y: bounds.Y + dy, W: bounds.W, H: bounds.H}
 				if e.focused && len(e.blocks.ids) == 0 && selection.End > r.leaf.Start && selection.Start < r.leaf.End && e.inlineMath.blockID != r.leaf.Block.ID {
 					if r.mathHidden && r.math != nil {
 						w, h := r.math.W*r.mathScale, (r.math.Ascent+r.math.Descent)*r.mathScale
@@ -1614,10 +1641,11 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 				if e.paintMermaid(p, bounds, r, t) {
 					return
 				}
-				shiftedBounds := ui.Rect{X: bounds.X + dx - scrollX, Y: bounds.Y + dy, W: bounds.W, H: bounds.H}
 				e.paintAnnotations(p, shiftedBounds, r, true)
 				textColor := t.Text
 				if r.leaf.Block.Kind == "image" && e.imageCaptionID != r.leaf.Block.ID {
+					textColor = e.page.Caption
+				} else if r.leaf.Block.Kind == "raw" && isHTMLCommentBlock(r.leaf.Block.Text()) {
 					textColor = e.page.Caption
 				}
 				if !e.printing && !e.reduceMotion && e.motion.foldFade != nil {
@@ -1875,6 +1903,8 @@ func (e *Editor) hoverControl(x, y float32) bool {
 			e.langOpen = !(e.langOpen && e.langID == d.id)
 			e.langID, e.langAt = d.id, mermaidLanguageButton(d)
 			return true
+		case d.kind == "mermaid" && d.id != "" && d.mermaidHidden && in(mermaidZoomButton(d, e.ReadOnly)) && e.hovered(d.rect, 0):
+			return e.openMermaidPreview(d.id)
 		case d.kind == "mermaid" && d.id != "" && d.mermaidHidden && in(mermaidEditButton(d)) && e.hovered(d.rect, 0):
 			return e.focusBlockStart(d.id)
 		case d.kind == "mermaid" && d.id != "" && in(mermaidCopyButton(d)) && e.hovered(d.rect, 0):
@@ -2077,13 +2107,8 @@ func (e *Editor) insertAfter(id string) {
 }
 
 func (e *Editor) linkAt(at int) string {
-	leaf := e.Engine.LeafAt(at)
-	offset := leaf.Start
-	for _, run := range leaf.Block.Runs {
-		offset += document.Len(run.Text)
-		if at <= offset {
-			return run.Style.Link
-		}
+	if span, ok := e.linkSpanAt(at); ok {
+		return span.url
 	}
 	return ""
 }
@@ -2140,9 +2165,15 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 					continue
 				}
 				if d.kind == "mermaid" {
+					if d.mermaidHidden && in(mermaidZoomButton(d, true)) && e.hovered(d.rect, 0) {
+						return e.openMermaidPreview(d.id)
+					}
 					if in(mermaidCopyButton(d)) && e.hovered(d.rect, 0) {
 						e.copyBlock(d.id)
 						return true
+					}
+					if d.mermaidHidden && ev.Clicks >= 2 && in(d.rect) {
+						return e.openMermaidPreview(d.id)
 					}
 					continue
 				}

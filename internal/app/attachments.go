@@ -188,12 +188,24 @@ func (a *App) copyAsset(dir, src string) (string, []byte, error) {
 // dir as a new file named for name, numbered when the name is taken, and
 // returns its URL from them. It never replaces a file.
 func (a *App) writeAsset(dir, name string, data []byte) (string, error) {
-	root, nameOnDisk, err := fileLocation(a.doc.space, a.doc.rel)
+	return a.writeAssetFor(a.doc, dir, name, data)
+}
+
+func (a *App) writeAssetFor(d *document, dir, name string, data []byte) (string, error) {
+	root, nameOnDisk, err := fileLocation(d.space, d.rel)
 	if err != nil {
 		return "", err
 	}
-	if a.doc.space.IsExternal() {
-		dir = path.Dir(nameOnDisk)
+	// Attachments go beside the document unless the space names a folder of
+	// its own; an external space always keeps them beside the open file.
+	// The URL is relative to the document, so the Markdown also shows the
+	// picture in GitHub, VS Code and the HTML export.
+	writeDir, urlDir := path.Join(dir, assetsDir), assetsDir
+	folderMode := false
+	if d.space.IsExternal() {
+		writeDir = path.Join(path.Dir(nameOnDisk), assetsDir)
+	} else if folder := attachmentFolder(d.space); folder != "" {
+		writeDir, urlDir, folderMode = folder, folder, true
 	}
 	base := assetName(name)
 	ext := path.Ext(base)
@@ -203,8 +215,8 @@ func (a *App) writeAsset(dir, name string, data []byte) (string, error) {
 		if i > 1 {
 			name = fmt.Sprintf("%s-%d%s", stem, i, ext)
 		}
-		rel := path.Join(assetsDir, name)
-		full, err := vault.Resolve(root, path.Join(dir, rel))
+		rel := path.Join(urlDir, name)
+		full, err := vault.Resolve(root, path.Join(writeDir, name))
 		if err != nil {
 			return "", err
 		}
@@ -219,6 +231,10 @@ func (a *App) writeAsset(dir, name string, data []byte) (string, error) {
 				continue // taken meanwhile
 			}
 			return "", err
+		}
+		a.markSelfWrite(full)
+		if folderMode {
+			rel = docRelativeURL(dir, path.Join(urlDir, name))
 		}
 		return rel, nil
 	}

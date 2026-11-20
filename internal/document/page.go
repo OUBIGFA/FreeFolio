@@ -59,9 +59,7 @@ func (e *Engine) MapText(change func(string) string) bool {
 		var walk func([]*Block)
 		walk = func(blocks []*Block) {
 			for _, b := range blocks {
-				for i := range b.Runs {
-					b.Runs[i].Text = change(b.Runs[i].Text)
-				}
+				MapBlockRunText(b, nil, change)
 				walk(b.Children)
 			}
 		}
@@ -138,15 +136,12 @@ func (e *Engine) SetGoal(words int) {
 func (e *Engine) MapProse(change func(string) string) bool {
 	before := e.version
 	e.Edit(func() {
+		prose := func(r Run) bool { return !r.Style.Code }
 		var walk func([]*Block)
 		walk = func(blocks []*Block) {
 			for _, b := range blocks {
 				if !isVerbatim(b) {
-					for i := range b.Runs {
-						if !b.Runs[i].Style.Code {
-							b.Runs[i].Text = change(b.Runs[i].Text)
-						}
-					}
+					MapBlockRunText(b, prose, change)
 				}
 				walk(b.Children)
 			}

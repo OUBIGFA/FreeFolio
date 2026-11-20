@@ -200,5 +200,8 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		options.WikiSuggest = nil
 		options.OpenTag = nil
 	}
+	if d != nil {
+		options.DocTitle = d.title()
+	}
 	return options
 }

@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"path"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -190,6 +189,11 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 				a.slot, restingPins = a.computeSlot(sp, pins, over)
 				highlight = a.dropSection(a.listDrop)
 				tree.ContextMenu(func(m *ui.Menu) { a.listMenu(m, sp) })
+				if tree.FocusWithin() && a.renaming == "" && !c.FocusTakesText() && tree.Shortcut(ui.Cmd, ui.KeyBackspace) {
+					if group := a.activePickedGroup(); len(group) > 0 {
+						a.trashGroup(group)
+					}
+				}
 			}
 			tree.Children(func() {
 				if err != nil {
@@ -442,16 +446,30 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 func (a *App) dropZone(e ui.Element, dir string) bool {
 	if d, ok := ui.Drop[dragged](e); ok {
 		if a.foreign(d) {
-			a.moveAcross(d.space, d.rel, a.state.ActiveSpace().ID, dir)
+			a.moveGroupAcross(d.space, a.dragGroup(d.space, d.rel), a.state.ActiveSpace().ID, dir)
 		} else {
-			a.moveInto(d.rel, dir)
+			a.moveIntoGroup(d.rel, dir)
 		}
 	}
 	d, over := ui.DragOver[dragged](e)
-	if over && a.foreign(d) {
+	if !over {
+		return false
+	}
+	if a.foreign(d) {
 		return true
 	}
-	return over && d.rel != dir && path.Dir(d.rel) != dir && !(dir == "" && path.Dir(d.rel) == ".")
+	group := a.dragGroup(d.space, d.rel)
+	for _, m := range group {
+		if under(dir, m) {
+			return false
+		}
+	}
+	for _, m := range group {
+		if m != dir && parentDir(m) != dir {
+			return true
+		}
+	}
+	return false
 }
 
 // nodes builds the rows of folders and documents of the folder parent, the
@@ -551,6 +569,7 @@ func docCount(n *vault.Node) int {
 func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, parent string, index int, live bool, prev []rowFrame) {
 	t := c.Theme()
 	chosen := !n.Dir && a.doc != nil && a.doc.space == sp && a.doc.rel == n.Path
+	highlighted := a.rowHighlighted(sp, n.Path, chosen)
 	open := n.Dir && sp.IsExpanded(n.Path)
 	renaming := live && a.renameSpace == sp.ID && a.renaming == n.Path
 	pinned := !n.Dir && inPins(sp, n.Path)
@@ -569,6 +588,9 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		a.sees(dragged{sp.ID, n.Path})
 		px, py, _ := c.Root().PointerPosition()
 		if !a.dragGrab.active || a.dragGrab.space != sp.ID || a.dragGrab.rel != n.Path {
+			if a.picksSpace == sp.ID && len(a.picks) > 0 && !a.picks[n.Path] {
+				a.clearPicks("")
+			}
 			var rb ui.Rect
 			for _, pf := range prev {
 				if pf.rel == n.Path {
@@ -589,6 +611,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				active:     true,
 				space:      sp.ID,
 				rel:        n.Path,
+				count:      len(a.dragGroup(sp.ID, n.Path)),
 				dir:        n.Dir,
 				openFolder: open,
 				holdsOpen:  a.holdsOpen(sp, n.Path),
@@ -604,6 +627,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		} else {
 			a.dragGrab.x = px - a.dragGrab.grabX
 			a.dragGrab.y = py - a.dragGrab.grabY
+			a.dragGrab.count = len(a.dragGroup(sp.ID, n.Path))
 			a.dragGrab.openFolder = open
 			a.dragGrab.holdsOpen = a.holdsOpen(sp, n.Path)
 			a.dragGrab.dim = pinned && !opened
@@ -621,7 +645,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	row.Height(rowHeight).PaddingStart(float32(10 + depth*rowIndent)).PaddingEnd(8).
 		Gap(gap).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Label(n.Title())
 	if n.Dir {
-		row.Role(ui.RoleTreeItem).Expanded(open)
+		row.Role(ui.RoleTreeItem).Expanded(open).Selected(highlighted)
 		if live && !renaming {
 			// The context sees arrow keys claimed by a parent focus group before
 			// raw input. Register them on the active folder row.
@@ -631,7 +655,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 
 		}
 	} else {
-		row.Role(ui.RoleTreeItem).Selected(chosen)
+		row.Role(ui.RoleTreeItem).Selected(highlighted)
 	}
 	if sp.IsExternal() {
 		row.Tooltip(sp.ExternalFiles[n.Path])
@@ -644,6 +668,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				active:     true,
 				space:      sp.ID,
 				rel:        n.Path,
+				count:      max(1, a.dragGrab.count),
 				dir:        n.Dir,
 				openFolder: open,
 				holdsOpen:  a.holdsOpen(sp, n.Path),
@@ -752,7 +777,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	lifted := false
 	switch {
 	case settling:
-	case chosen:
+	case highlighted:
 		fill = t.Accent.Alpha(0.12)
 	case hovered:
 		fill = hoverFill(t)
@@ -826,6 +851,10 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				b.Draw(func(p *ui.Painter, r ui.Rect) { minusMark(p, r, ink) })
 				if b.Clicked() {
 					a.closeOpen(sp, n.Path)
+					delete(a.picks, n.Path)
+					if len(a.picks) == 0 {
+						a.picksSpace = ""
+					}
 					closed = true
 				}
 			case chosen && a.doc.dirty():
@@ -839,15 +868,26 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	if !live {
 		return
 	}
-	row.ContextMenu(func(m *ui.Menu) { a.nodeMenu(m, sp, n) })
+	row.ContextMenu(func(m *ui.Menu) {
+		if raw := a.rawGroupFor(sp.ID, n.Path); len(raw) > 1 {
+			a.pickedMenu(m, sp, raw)
+			return
+		}
+		a.nodeMenu(m, sp, n)
+	})
 	switch {
 	case renaming, closed:
 	case row.Clicked():
-		if n.Dir {
-			row.Focus()
-			a.toggleFolder(n.Path)
+		mods := row.ClickModifiers()
+		if mods&(ui.Cmd|ui.Shift) != 0 {
+			a.pickRow(sp, n.Path, mods&ui.Shift != 0)
 		} else {
-			a.open(n.Path)
+			a.clearPicks(n.Path)
+			if n.Dir {
+				a.toggleFolder(n.Path)
+			} else {
+				a.open(n.Path)
+			}
 		}
 	}
 }
@@ -889,6 +929,35 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(pin).Chosen() {
 			a.togglePin(sp, n.Path)
 		}
+		folders := collectFolders(a.tree)
+		hasTarget := parentDir(n.Path) != ""
+		for _, f := range folders {
+			if !under(f.Path, n.Path) {
+				hasTarget = true
+				break
+			}
+		}
+		if hasTarget && !sp.IsExternal() {
+			m.Separator()
+			m.Submenu(i18n.T("移到文件夹"), func(sub *ui.Menu) {
+				if parentDir(n.Path) != "" {
+					if sub.Item(i18n.T("根目录")).Chosen() {
+						a.placeEntry(n.Path, "", len(a.childrenOf("")))
+					}
+					if len(folders) > 0 {
+						sub.Separator()
+					}
+				}
+				for _, f := range folders {
+					if sub.Item(folderMenuLabel(f.Path)).Disabled(under(f.Path, n.Path) || parentDir(n.Path) == f.Path && !sp.IsPinned(n.Path)).Chosen() {
+						if sp.IsPinned(n.Path) {
+							sp.Unpin(n.Path)
+						}
+						a.placeEntry(n.Path, f.Path, len(a.childrenOf(f.Path)))
+					}
+				}
+			})
+		}
 	} else {
 		if m.Item(i18n.T("在分屏中打开")).Disabled(a.doc == nil && a.split == nil).Chosen() {
 			a.openSplit(sp, n.Path, false, false)
@@ -928,16 +997,25 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 			}
 			return
 		}
-		var folders []*vault.Node
-		for _, f := range a.tree {
-			if f.Dir {
-				folders = append(folders, f)
-			}
-		}
-		if len(folders) > 0 {
+		folders := collectFolders(a.tree)
+		if len(folders) > 0 || parentDir(n.Path) != "" {
 			m.Submenu(i18n.T("移到文件夹"), func(sub *ui.Menu) {
+				if parentDir(n.Path) != "" {
+					if sub.Item(i18n.T("根目录")).Chosen() {
+						if sp.IsPinned(n.Path) {
+							sp.Unpin(n.Path)
+						}
+						a.placeEntry(n.Path, "", len(a.childrenOf("")))
+					}
+					if len(folders) > 0 {
+						sub.Separator()
+					}
+				}
 				for _, f := range folders {
-					if sub.Item(f.Name).Disabled(parentDir(n.Path) == f.Path).Chosen() {
+					if sub.Item(folderMenuLabel(f.Path)).Disabled(parentDir(n.Path) == f.Path && !sp.IsPinned(n.Path)).Chosen() {
+						if sp.IsPinned(n.Path) {
+							sp.Unpin(n.Path)
+						}
 						a.placeEntry(n.Path, f.Path, len(a.childrenOf(f.Path)))
 					}
 				}
@@ -990,7 +1068,8 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 }
 
 // spaceEditMenu keeps the three independent editors available from both
-// the header and the space switcher's context menus.
+// the header and the space switcher's context menus, and the folder new
+// attachments go in.
 func (a *App) spaceEditMenu(m *ui.Menu, sp *space.Space) {
 	if m.Item(i18n.T("更改空间图标…")).Chosen() {
 		a.editSpaceProperty(sp, "icon")
@@ -1001,6 +1080,22 @@ func (a *App) spaceEditMenu(m *ui.Menu, sp *space.Space) {
 	if m.Item(i18n.T("编辑主题颜色…")).Chosen() {
 		a.editSpace(sp)
 	}
+	folder := attachmentFolder(sp)
+	label := folder
+	if label == "" {
+		label = i18n.T("文档旁的 assets")
+	}
+	attachments := m.Submenu(i18n.T("附件目录"), func(sub *ui.Menu) {
+		if sub.Item(i18n.T("文档旁的 assets（默认）")).Radio(folder == "").Chosen() {
+			a.setAttachmentsFolder(sp, "")
+		}
+		sub.Separator()
+		if sub.Item(i18n.T("选择文件夹…")).Chosen() {
+			a.chooseAttachmentsFolder(sp)
+		}
+	})
+	attachments.Subtitle(label)
+	attachments.Disabled(sp.IsExternal())
 }
 
 // spaceBar is the foot of the sidebar, as Arc's: the library at the left,

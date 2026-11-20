@@ -12,6 +12,7 @@ import (
 // smartRollback remembers the most recent automatic typography or inline
 // Markdown compilation so an immediate Backspace restores the literal text.
 type smartRollback struct {
+	prevComments []document.InlineComment
 	rev          uint64
 	blockID      string
 	start        int
@@ -66,6 +67,13 @@ func (e *Editor) trySmartInput(r *ui.TextInputRange, text string) bool {
 		return false
 	}
 
+	if inOpenHTMLComment(raw[:bytePos]) {
+		if text == ">" {
+			return e.tryLiveHTMLCommentClose(l, raw, lineStartByte, bytePos)
+		}
+		return false
+	}
+
 	switch text {
 	case "-":
 		return e.trySmartDash(l, lineBefore)
@@ -81,20 +89,7 @@ func (e *Editor) trySmartDash(l document.Leaf, lineBefore string) bool {
 	// Third hyphen right after an em-dash on an otherwise empty paragraph
 	// compiles "---" into a horizontal divider rule.
 	if l.Block.Kind == "paragraph" && l.Block.ID == l.Owner && l.Block.Text() == "—" && e.Caret == l.End {
-		e.smartBack = smartRollback{}
-		e.Engine.Edit(func() {
-			parent, index := l.Parent, l.Index
-			if parent == nil {
-				return
-			}
-			rule := document.NewBlock("rule", "")
-			next := document.NewBlock("paragraph", "")
-			*parent = append(append(append([]*document.Block(nil), (*parent)[:index]...), rule, next), (*parent)[index+1:]...)
-			e.Engine.FocusBlock(next.ID)
-		})
-		e.sync()
-		e.pairs = nil
-		return true
+		return e.promoteParagraphBlock(l, document.NewBlock("rule", ""))
 	}
 	// "--" → "—" when preceded by a single hyphen (not "---" or "<!-").
 	if !strings.HasSuffix(lineBefore, "-") || strings.HasSuffix(lineBefore, "--") || strings.HasSuffix(lineBefore, "<!-") {
@@ -420,6 +415,7 @@ func (e *Editor) promoteParagraphToMath(l document.Leaf, formula, literal string
 	e.smartBack = smartRollback{}
 	e.Engine.Edit(func() {
 		l.Block.Kind = "math"
+		l.Block.Comments = nil
 		if formula == "" {
 			l.Block.Runs = nil
 		} else {
@@ -524,7 +520,16 @@ func (e *Editor) rollbackSmartInput() bool {
 	e.smartBack = smartRollback{}
 	rep := ui.TextInputRange{Start: sb.start, End: sb.end}
 	e.shiftPairs(rep, document.Len(sb.literal))
-	if sb.clearMark != "" {
+	if sb.clearMark == "comment" {
+		runs := l.Block.Runs
+		a, z := sb.start-l.Start, sb.end-l.Start
+		total := l.End - l.Start
+		plain := document.Style{}
+		nextRuns := append(append(document.SliceRuns(runs, 0, a), document.Run{Text: sb.literal, Style: plain}), document.SliceRuns(runs, z, total)...)
+		pos := sb.restoreCaret
+		e.Engine.ReplaceBlockRunsAndComments(l.Block.ID, nextRuns, sb.prevComments, pos, pos, plain, true)
+		e.sync()
+	} else if sb.clearMark != "" {
 		runs := l.Block.Runs
 		a, z := sb.start-l.Start, sb.end-l.Start
 		total := l.End - l.Start
@@ -559,4 +564,113 @@ func (e *Editor) paintTabOutBadge(p *ui.Painter, frame ui.Rect, t *ui.Theme) {
 	p.Fill(pill, e.page.Popover, bh/2)
 	p.Stroke(pill, t.Accent.Alpha(0.4), bh/2, 1)
 	p.RichText(pill.X+(pill.W-tw)/2, pill.Y+(pill.H-th)/2, 0, span)
+}
+
+func inOpenHTMLComment(s string) bool {
+	idx := strings.LastIndex(s, "<!--")
+	return idx >= 0 && !strings.Contains(s[idx+4:], "-->")
+}
+
+func (e *Editor) tryLiveHTMLCommentClose(l document.Leaf, raw string, lineStartByte, caretByte int) bool {
+	if idx := strings.LastIndex(raw[:caretByte], "\u2028"); idx >= 0 && idx+len("\u2028") > lineStartByte {
+		lineStartByte = idx + len("\u2028")
+	}
+	line := raw[lineStartByte:caretByte]
+	if strings.HasSuffix(line, `\`) || !strings.HasSuffix(line, "--") {
+		return false
+	}
+	openIdx := strings.LastIndex(raw[:caretByte], "<!--")
+	if openIdx < 0 || caretByte-openIdx < 6 || strings.Contains(raw[openIdx+4:caretByte], "-->") {
+		return false
+	}
+	if openIdx > 0 && raw[openIdx-1] == '\\' {
+		return false
+	}
+	if l.Block.Kind == "paragraph" && l.Block.ID == l.Owner && e.Caret == l.End && strings.TrimSpace(raw[:openIdx]) == "" && len(l.Block.Comments) == 0 {
+		return e.promoteParagraphBlock(l, document.NewBlock("raw", strings.TrimLeft(raw, " \t")+">"))
+	}
+	if !document.AllowsInlineComments(l.Block.Kind) {
+		return false
+	}
+	commentText := raw[openIdx:caretByte] + ">"
+	if !document.ValidInlineComment(commentText) {
+		return false
+	}
+	blockOpenU16 := document.Len(raw[:openIdx])
+	blockCaretU16 := document.Len(raw[:caretByte])
+	if hasForbiddenSpan(document.SliceRuns(l.Block.Runs, blockOpenU16, blockCaretU16)) {
+		return false
+	}
+	for _, itok := range inlineTokens(raw) {
+		ta, tz := document.Len(raw[:itok.start]), document.Len(raw[:itok.end])
+		if blockOpenU16 < tz && blockCaretU16 > ta {
+			return false
+		}
+	}
+	prevComments := append([]document.InlineComment(nil), l.Block.Comments...)
+	docOpen := l.Start + blockOpenU16
+	docCaret := l.Start + blockCaretU16
+	baseTyping := e.CurrentStyle()
+	e.shiftPairs(ui.TextInputRange{Start: docOpen, End: docCaret}, 0)
+	totalU16 := l.End - l.Start
+	runs := l.Block.Runs
+	nextRuns := append(document.SliceRuns(runs, 0, blockOpenU16), document.SliceRuns(runs, blockCaretU16, totalU16)...)
+	shifted := document.ShiftComments(prevComments, blockOpenU16, blockCaretU16, 0, runsU16Len(nextRuns))
+	nextComments := insertLiveInlineComment(shifted, blockOpenU16, commentText)
+	e.Engine.ReplaceBlockRunsAndComments(l.Block.ID, nextRuns, nextComments, docOpen, docOpen, baseTyping, true)
+	e.sync()
+	e.pairRevision = e.Revision()
+	e.smartBack = smartRollback{
+		rev:          e.Revision(),
+		blockID:      l.Block.ID,
+		start:        docOpen,
+		end:          docOpen,
+		caret:        docOpen,
+		restoreCaret: docOpen + document.Len(commentText),
+		literal:      commentText,
+		clearMark:    "comment",
+		prevComments: prevComments,
+	}
+	return true
+}
+
+func insertLiveInlineComment(comments []document.InlineComment, offset int, text string) []document.InlineComment {
+	out := make([]document.InlineComment, 0, len(comments)+1)
+	inserted := false
+	for _, c := range comments {
+		if !inserted && c.Offset > offset {
+			out = append(out, document.InlineComment{Offset: offset, Text: text})
+			inserted = true
+		}
+		out = append(out, c)
+	}
+	if !inserted {
+		out = append(out, document.InlineComment{Offset: offset, Text: text})
+	}
+	return out
+}
+
+func (e *Editor) promoteParagraphBlock(l document.Leaf, first *document.Block) bool {
+	e.smartBack = smartRollback{}
+	e.Engine.Edit(func() {
+		parent, index := l.Parent, l.Index
+		if parent == nil {
+			return
+		}
+		next := document.NewBlock("paragraph", "")
+		*parent = append(append(append([]*document.Block(nil), (*parent)[:index]...), first, next), (*parent)[index+1:]...)
+		e.Engine.FocusBlock(next.ID)
+	})
+	e.sync()
+	e.pairs = nil
+	return true
+}
+
+func hasForbiddenSpan(runs []document.Run) bool {
+	for _, r := range runs {
+		if r.Style.Code || r.Style.Link != "" {
+			return true
+		}
+	}
+	return false
 }

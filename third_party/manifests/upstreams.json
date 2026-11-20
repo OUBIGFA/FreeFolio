@@ -21,5 +21,37 @@
         "sha256": "657cc2bb84025e10272cfdc3e978fde47770a334b097e340a5d4f2a4fda99aec"
       }
     }
+  ],
+  "adoptedUpdates": [
+    {
+      "name": "ArcMD",
+      "sourceUrl": "https://github.com/Ciao1019/ArcMD",
+      "revision": "5b2a59ae6ac5bc06009a70ab2a26a1c625593d08",
+      "tag": "v0.2.4",
+      "scope": "Selected editing and lifecycle fixes; attachments; sidebar multi-selection; document mind map; hierarchical selection. Excludes whiteboards, WASM plugins, keycaps, Git merge UI and upstream publishing."
+    }
+  ],
+  "maintainerCodeReuse": [
+    {
+      "name": "FreeType synchronization",
+      "sourceUrl": "https://github.com/OUBIGFA/FreeType",
+      "revision": "6cc7a6713c56e229b5bc0dbdb826282362d57195",
+      "author": "BIGFA",
+      "scope": "Maintainer-authored WebDAV, S3 SigV4, Windows DPAPI and password encryption code, adapted into internal/cloudsync. No input engine, dictionary, model, GPL reference implementation or third-party data copied.",
+      "files": [
+        {
+          "path": "windows/app/sync_store.go",
+          "sha256": "c7aa46eaa39dffb14ff64d9cfe9be58e516fdd5be3999c425367f068ffbf42e0"
+        },
+        {
+          "path": "windows/app/sync_windows.go",
+          "sha256": "282c9a2fec0daebbc6e63154af4a36c057cd6aa9b4ce59086bb39d5ae0bb22dc"
+        },
+        {
+          "path": "windows/app/backup_crypto.go",
+          "sha256": "e368173411c830856ba52d845462ab68d7dfae30ef9dba449387787d1e5fb391"
+        }
+      ]
+    }
   ]
 }

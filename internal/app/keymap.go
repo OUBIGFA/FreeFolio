@@ -53,6 +53,7 @@ var bindings = []binding{
 	{id: "split-close", label: "关闭此分屏", defaults: []editor.Combo{combo(ui.Ctrl|ui.Shift, ui.KeyMinus)}},
 	{id: "split-next", label: "下一个分屏", defaults: []editor.Combo{combo(ui.Ctrl|ui.Shift, ui.KeyTab)}},
 	{id: "save", label: "立即保存", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyS)}},
+	{id: "mindmap", label: "思维导图", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyM)}},
 	{id: "outline", label: "展开/收起目录", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyO)}},
 	{id: "bookmark", label: "添加/移除书签", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyD)}},
 	{id: "bookmarks", label: "书签列表", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyD)}},
@@ -184,6 +185,7 @@ func (a *App) ensureKeyCache() {
 		res = append(res, a.combos(id)...)
 	}
 	res = append(res, a.combos("ask")...)
+	res = append(res, a.combos("mindmap")...)
 	a.cachedEditorBindings = eb
 	a.cachedReserved = res
 	a.cachedBookmarkKey = a.shortKey("bookmark")

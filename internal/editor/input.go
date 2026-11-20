@@ -37,6 +37,7 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 		if ev.Button != 0 {
 			return false
 		}
+		e.pendingLink = linkSpan{}
 		e.UnmarkText()
 		e.clearBlocks()
 		at, ok := e.IndexForPoint(ui.Point{X: ev.X, Y: ev.Y})
@@ -44,15 +45,15 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 			return false
 		}
 		if ev.Mods&ui.Cmd != 0 {
-			if link := e.linkAt(at); link != "" && open != nil {
-				open(link)
+			if span, ok := e.linkAtPoint(ev.X, ev.Y, false); ok && open != nil {
+				open(span.url)
 				return true
 			}
-			if name := e.wikiAt(at); name != "" && e.openWiki != nil {
+			if name := e.wikiAtPoint(ev.X, ev.Y); name != "" && e.openWiki != nil {
 				e.openWiki(name)
 				return true
 			}
-			if tag := e.tagAt(at); tag != "" && e.openTag != nil {
+			if tag := e.tagAtPoint(ev.X, ev.Y); tag != "" && e.openTag != nil {
 				e.openTag(tag)
 				return true
 			}
@@ -60,17 +61,20 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 		if e.inlineClick(ev.X, ev.Y) {
 			return true
 		}
-		if !e.ReadOnly && ev.Mods == 0 && ev.Clicks < 2 && e.linkAt(at) != "" {
-			e.SetSelection(at, at)
-			e.EditLink()
-			return true
-		}
 		if e.toggleTask(at, ev.X) {
 			return true
 		}
+		if !e.ReadOnly && ev.Mods == 0 && ev.Clicks < 2 {
+			if span, ok := e.linkAtPoint(ev.X, ev.Y, true); ok {
+				e.pendingLink = span
+				e.pendingLinkDown = ui.Point{X: ev.X, Y: ev.Y}
+			}
+		}
 		e.markPop = markPopover{}
 		if ev.Mods == 0 && ev.Clicks < 2 {
-			e.openMarkPopover(at)
+			if run, ok := e.annotationAt(at); ok && e.pointInTextRange(ev.X, ev.Y, run.start, run.end) {
+				e.openMarkPopover(at)
+			}
 		}
 		e.dragging, e.reveal = true, false
 		e.selectionDrag = selectionDrag{scrollY: e.Scroll.Y, at: ev.Time}
@@ -97,13 +101,28 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 			e.selectionDrag.at = ev.Time
 		}
 		e.selectionDrag.moved = true
+		dx, dy := ev.X-e.pendingLinkDown.X, ev.Y-e.pendingLinkDown.Y
+		if dx*dx+dy*dy > 9 {
+			e.pendingLink = linkSpan{}
+		}
 		e.extendSelection(ev.X, min(max(ev.Y, e.Scroll.Y), e.Scroll.Y+e.viewport))
+		if e.Anchor != e.Caret {
+			e.pendingLink = linkSpan{}
+		}
 		return true
 	case ui.InputPointerUp:
 		if !e.dragging {
 			return false
 		}
 		e.dragging = false
+		if span := e.pendingLink; span.url != "" {
+			e.pendingLink = linkSpan{}
+			if !e.ReadOnly && e.Anchor == e.Caret {
+				if hit, ok := e.linkAtPoint(ev.X, ev.Y, true); ok && hit == span {
+					e.openLinkSpan(span)
+				}
+			}
+		}
 		return true
 	case ui.InputSelect:
 		runes := []rune(e.displayText())
@@ -139,10 +158,17 @@ func (e *Editor) command(command string, read func() string, write func(string))
 		}
 		return true
 	}
+	if command == "selectAll" {
+		if len(e.blocks.ids) > 0 {
+			e.SelectAllBlocks()
+			return true
+		}
+		e.selectAll()
+		e.vertical = false
+		return true
+	}
 	e.reveal, e.vertical = true, false
 	switch command {
-	case "selectAll":
-		e.SetSelection(0, e.Len())
 	case "cut":
 		e.copySelection(write)
 		e.ReplaceText(nil, "")
@@ -172,6 +198,7 @@ func (e *Editor) command(command string, read func() string, write func(string))
 
 func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) bool {
 	mods, key := ev.Mods, ev.Key
+	e.readOnlySpace = false
 	for _, r := range e.reserved {
 		if r.Mods == mods && r.Key == key {
 			return false
@@ -222,6 +249,22 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 	}
 	if _, composing := e.MarkedRange(); !composing && key == ui.KeyEscape && mods == 0 && e.focused && e.SelectCaretBlock() {
 		// Escape with nothing open selects the caret's block, as Notion's.
+		return true
+	}
+	// TextInput supplies the space (or an IME commit). Consume its key here
+	// so MyGo does not also interpret Space/Shift+Space as page scrolling;
+	// in read-only mode, page the viewport instead of refusing a space edit.
+	if key == ui.KeySpace && mods & ^ui.Shift == 0 {
+		if e.ReadOnly {
+			dy := max(e.viewport-40, e.viewport/2)
+			if mods == ui.Shift {
+				dy = -dy
+			}
+			e.scrollGlide = scrollGlideState{}
+			e.outlineState.jump = outlineJump{}
+			e.Scroll.Y = min(e.outlineState.scrollMax, max(0, e.Scroll.Y+dy))
+			e.readOnlySpace = true
+		}
 		return true
 	}
 	if _, composing := e.MarkedRange(); composing {
@@ -290,6 +333,26 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 			direction = 1
 		}
 		selection := e.Selection().Range
+		if !shift && !word && !line && selection.Start == selection.End {
+			l := e.LeafAt(position)
+			if direction < 0 && position == l.Start {
+				if next, changed := exitCapsuleMarks(e.Engine.CurrentStyle(), document.Style{}); changed {
+					e.Engine.Typing, e.Engine.Explicit = next, true
+					e.reveal = true
+					return true
+				}
+			} else if direction > 0 {
+				var nextAt document.Style
+				if position < l.End {
+					nextAt = runStyleAfter(l, position)
+				}
+				if next, changed := exitCapsuleMarks(e.Engine.CurrentStyle(), nextAt); changed {
+					e.Engine.Typing, e.Engine.Explicit = next, true
+					e.reveal = true
+					return true
+				}
+			}
+		}
 		switch {
 		case !shift && selection.Start != selection.End:
 			position = selection.Start
@@ -379,11 +442,11 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 		if mods & ^ui.Shift == 0 && e.columnTab(shift) {
 			return true
 		}
-		if shift || e.Anchor != e.Caret {
-			e.indent(shift)
-		} else {
-			e.ReplaceText(nil, "    ")
+		if e.ReadOnly {
+			e.refused = true
+			return true
 		}
+		e.tab(shift)
 		e.reveal = true
 		return true
 	default:
@@ -436,6 +499,151 @@ func (e *Editor) indent(remove bool) {
 		delta = -1
 	}
 	e.Engine.Indent(delta)
+	e.sync()
+}
+
+func (e *Editor) tab(shift bool) {
+	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
+	first := e.Engine.LeafAt(a)
+	last := e.Engine.LeafAt(z)
+	if (first.Block.Kind == "code" || first.Block.Kind == "raw") && first.Block.ID == last.Block.ID {
+		if shift || (a < z && strings.ContainsRune(e.slice(a, z), '\n')) {
+			if e.Engine.IndentCode(shift) {
+				e.sync()
+			}
+			return
+		}
+		e.ReplaceText(nil, "\t")
+		return
+	}
+	if a == z {
+		switch first.Block.Kind {
+		case "bullet", "numbered", "task", "toggle":
+			e.indent(shift)
+			return
+		}
+		if !shift {
+			e.ReplaceText(nil, "\t")
+			return
+		}
+		if first.Block.Indent > 0 {
+			e.indent(true)
+			return
+		}
+		if a > first.Start && e.slice(a-1, a) == "\t" {
+			r := ui.TextInputRange{Start: a - 1, End: a}
+			e.ReplaceText(&r, "")
+			return
+		}
+		ls, _ := e.lineRange(a)
+		if ls < first.End && e.slice(ls, ls+1) == "\t" {
+			r := ui.TextInputRange{Start: ls, End: ls + 1}
+			e.ReplaceText(&r, "")
+			next := max(ls, a-1)
+			e.SetSelection(next, next)
+		}
+		return
+	}
+	e.indent(shift)
+}
+
+func blockContainsID(b *document.Block, id string) bool {
+	if b.ID == id {
+		return true
+	}
+	for _, c := range b.Children {
+		if blockContainsID(c, id) {
+			return true
+		}
+	}
+	return false
+}
+
+// selectAll widens the selection step by step: inline math formula, current
+// leaf block, enclosing column or table, and finally the entire document.
+func (e *Editor) selectAll() {
+	total := e.Len()
+	if total == 0 {
+		e.SetSelection(0, 0)
+		return
+	}
+	sel := e.Selection().Range
+	var candidates []ui.TextInputRange
+
+	if e.inlineEditing != "" && e.inlineMath.blockID != "" {
+		if l, ok := e.Engine.LeafByID(e.inlineMath.blockID); ok {
+			bodyStart := l.Start + e.inlineMath.start + 1
+			bodyEnd := l.Start + e.inlineMath.end - 1
+			if bodyStart < bodyEnd && sel.Start >= l.Start+e.inlineMath.start && sel.End <= l.Start+e.inlineMath.end {
+				candidates = append(candidates, ui.TextInputRange{Start: bodyStart, End: bodyEnd})
+			}
+		}
+	}
+
+	first := e.Engine.LeafAt(sel.Start)
+	last := e.Engine.LeafAt(sel.End)
+	if first.Block.ID == last.Block.ID && first.Start < first.End {
+		b := first.Block
+		editable := !(b.Kind == "image" && !e.captionVisible(b)) && !(e.ReadOnly && (b.Kind == "math" || isMermaidBlock(b)))
+		if editable {
+			candidates = append(candidates, ui.TextInputRange{Start: first.Start, End: first.End})
+		}
+	}
+
+	if first.Owner != "" && first.Owner == last.Owner {
+		var owner *document.Block
+		for _, b := range e.Doc.Blocks {
+			if b.ID == first.Owner {
+				owner = b
+				break
+			}
+		}
+		if owner != nil {
+			switch owner.Kind {
+			case "columns":
+				for _, col := range owner.Children {
+					if !blockContainsID(col, first.Block.ID) || !blockContainsID(col, last.Block.ID) {
+						continue
+					}
+					colStart, colEnd := -1, -1
+					for _, leaf := range e.Doc.Leaves() {
+						if leaf.Owner == owner.ID && blockContainsID(col, leaf.Block.ID) {
+							if colStart < 0 {
+								colStart = leaf.Start
+							}
+							colEnd = leaf.End
+						}
+					}
+					if colStart >= 0 && colStart < colEnd {
+						candidates = append(candidates, ui.TextInputRange{Start: colStart, End: colEnd})
+					}
+					break
+				}
+			case "table":
+				tableStart, tableEnd := -1, -1
+				for _, leaf := range e.Doc.Leaves() {
+					if leaf.Owner == owner.ID {
+						if tableStart < 0 {
+							tableStart = leaf.Start
+						}
+						tableEnd = leaf.End
+					}
+				}
+				if tableStart >= 0 && tableStart < tableEnd {
+					candidates = append(candidates, ui.TextInputRange{Start: tableStart, End: tableEnd})
+				}
+			}
+		}
+	}
+
+	candidates = append(candidates, ui.TextInputRange{Start: 0, End: total})
+	for _, c := range candidates {
+		if c.Start <= sel.Start && c.End >= sel.End && (c.Start < sel.Start || c.End > sel.End) {
+			e.SetSelection(c.Start, c.End)
+			return
+		}
+	}
+	e.SetSelection(0, total)
 }
 
 func (e *Editor) selectWord(at int) {
@@ -465,4 +673,34 @@ func (e *Editor) selectWord(at int) {
 		end += n
 	}
 	e.SetSelection(a+ui.UTF16Len(text[:start]), a+ui.UTF16Len(text[:end]))
+}
+
+func runStyleAfter(l document.Leaf, docPos int) document.Style {
+	local := docPos - l.Start
+	at := 0
+	for _, r := range l.Block.Runs {
+		n := document.Len(r.Text)
+		if at+n > local {
+			return r.Style
+		}
+		at += n
+	}
+	return document.Style{}
+}
+
+func exitCapsuleMarks(cur, nextAfter document.Style) (document.Style, bool) {
+	changed := false
+	if cur.Code && !nextAfter.Code {
+		cur.Code = false
+		changed = true
+	}
+	if cur.Script != "" && nextAfter.Script == "" {
+		cur.Script = ""
+		changed = true
+	}
+	if cur.Link != "" && nextAfter.Link != cur.Link {
+		cur.Link = ""
+		changed = true
+	}
+	return cur, changed
 }

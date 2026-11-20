@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // CurrentVersion is the format this FreeMD writes. Version 2 added the color
@@ -27,8 +28,8 @@ import (
 // blocks and the word goal, version 9 exact text colors (#rrggbb in
 // Style.Color) and text sizes, as HTML within Markdown writes them. Older
 // documents are read and migrated in memory, and written back as the
-// current version only when edited.
-const CurrentVersion = 9
+// current version only when edited. Version 10 adds preserved inline HTML comments.
+const CurrentVersion = 10
 
 // CoverGradients are the covers drawn rather than pictured, as
 // "gradient:name" in Document.Cover.
@@ -98,19 +99,36 @@ type Run struct {
 	Style Style  `json:"style,omitempty"`
 }
 
+// ListPlacement retains view-only Markdown container information when the
+// editor flattens a list. Native documents retain the original ImportSource.
+type ListPlacement struct {
+	Depth int
+	Item  bool // an otherwise empty item represented by its content block
+}
+
+// InlineComment preserves an inline HTML comment ("<!-- ... -->") hidden from
+// rendered prose at UTF-16 Offset within a leaf block's text so edits elsewhere
+// in the block never drop the comment on Markdown export (version 10).
+type InlineComment struct {
+	Offset int    `json:"offset"`
+	Text   string `json:"text"`
+}
+
 type Block struct {
-	ImageWidth float32   `json:"imageWidth,omitempty"` // Preferred DIP width; zero is natural.
-	NoteLabel  string    `json:"noteLabel,omitempty"`  // Footnote definition label (version 6).
-	ID         string    `json:"id"`
-	Kind       string    `json:"kind"`
-	Runs       []Run     `json:"runs,omitempty"`
-	Level      int       `json:"level,omitempty"`
-	Indent     int       `json:"indent,omitempty"`
-	Checked    bool      `json:"checked,omitempty"`
-	Language   string    `json:"language,omitempty"`
-	URL        string    `json:"url,omitempty"`
-	Align      string    `json:"align,omitempty"`
-	Widths     []float32 `json:"widths,omitempty"`
+	MapList    *ListPlacement  `json:"-"`
+	ImageWidth float32         `json:"imageWidth,omitempty"` // Preferred DIP width; zero is natural.
+	NoteLabel  string          `json:"noteLabel,omitempty"`  // Footnote definition label (version 6).
+	ID         string          `json:"id"`
+	Kind       string          `json:"kind"`
+	Runs       []Run           `json:"runs,omitempty"`
+	Comments   []InlineComment `json:"comments,omitempty"` // Preserved inline HTML comments (version 10).
+	Level      int             `json:"level,omitempty"`
+	Indent     int             `json:"indent,omitempty"`
+	Checked    bool            `json:"checked,omitempty"`
+	Language   string          `json:"language,omitempty"`
+	URL        string          `json:"url,omitempty"`
+	Align      string          `json:"align,omitempty"`
+	Widths     []float32       `json:"widths,omitempty"`
 	// Color is a callout's color, one of CalloutColors (version 2).
 	Color string `json:"color,omitempty"`
 	// Folded hides what a heading or list item holds (version 4).
@@ -194,6 +212,7 @@ func (b *Block) Text() string {
 func (b *Block) Clone() *Block {
 	out := *b
 	out.Runs = append([]Run(nil), b.Runs...)
+	out.Comments = append([]InlineComment(nil), b.Comments...)
 	out.Widths = append([]float32(nil), b.Widths...)
 	if b.Children != nil {
 		out.Children = make([]*Block, len(b.Children))
@@ -383,7 +402,7 @@ func (d *Document) migrate() error {
 		}
 		return false
 	}
-	if v9(d.Blocks) {
+	if d.Version < 9 && v9(d.Blocks) {
 		return errors.New("document: exact text colors and sizes require version 9")
 	}
 	d.Version = CurrentVersion
@@ -402,117 +421,85 @@ func (d *Document) Encode() (string, error) {
 	return out.String(), err
 }
 
-// RunsDigest returns a 128-bit fingerprint of a block's styled runs without
-// allocating or cloning run slices.
-func RunsDigest(runs []Run) [16]byte {
-	var h [32]byte
-	d := sha256.New()
-	var buf [64]byte
-	hashRuns(d, &buf, runs)
-	sum := d.Sum(h[:0])
-	var out [16]byte
-	copy(out[:], sum[:16])
-	return out
+// docHasher serializes document fields into a pooled SHA-256 digest without
+// heap-allocating string copies or per-leaf hash state.
+type docHasher struct {
+	h   hash.Hash
+	buf [256]byte
 }
 
-// Digest validates the document and computes a SHA-256 fingerprint over all
-// persisted document, block, and run fields without serializing JSON.
-func (d *Document) Digest() ([32]byte, error) {
-	if err := d.Validate(); err != nil {
-		return [32]byte{}, err
-	}
-	h := sha256.New()
-	var buf [64]byte
-	hashDocHeader(h, &buf, d)
-	for _, b := range d.Blocks {
-		hashBlock(h, &buf, b)
-	}
-	var out [32]byte
-	h.Sum(out[:0])
-	return out, nil
+var docHasherPool = sync.Pool{
+	New: func() any { return &docHasher{h: sha256.New()} },
 }
 
-// SkeletonDigest hashes the document's structure and metadata while omitting
-// leaf blocks' Runs, matching the exact subset of fields that text-only edits
-// cannot change. Thus Digest(a) == Digest(b) implies identical SkeletonDigests.
-func (d *Document) SkeletonDigest() [32]byte {
-	h := sha256.New()
-	var buf [64]byte
-	hashDocHeader(h, &buf, d)
-	for _, b := range d.Blocks {
-		hashBlockSkeleton(h, &buf, b)
-	}
-	var out [32]byte
-	h.Sum(out[:0])
-	return out
+func acquireHasher() *docHasher {
+	dh := docHasherPool.Get().(*docHasher)
+	dh.h.Reset()
+	return dh
 }
 
-func hashDocHeader(h hash.Hash, buf *[64]byte, d *Document) {
-	hashString(h, buf, d.Format)
-	hashUint64(h, buf, uint64(d.Version))
-	hashString(h, buf, d.Icon)
-	hashString(h, buf, d.Cover)
-	hashFloat64(h, buf, d.CoverY)
-	hashUint64(h, buf, uint64(d.Goal))
-	hashString(h, buf, d.Frontmatter)
-	hashString(h, buf, d.ImportSource)
-	hashUint64(h, buf, uint64(len(d.Blocks)))
+func releaseHasher(dh *docHasher) {
+	docHasherPool.Put(dh)
 }
 
-func hashUint64(h hash.Hash, buf *[64]byte, v uint64) {
-	binary.LittleEndian.PutUint64(buf[:8], v)
-	_, _ = h.Write(buf[:8])
+func (dh *docHasher) uint64(v uint64) {
+	binary.LittleEndian.PutUint64(dh.buf[:8], v)
+	_, _ = dh.h.Write(dh.buf[:8])
 }
 
-func hashFloat32(h hash.Hash, buf *[64]byte, v float32) {
+func (dh *docHasher) float32(v float32) {
 	if v == 0 {
 		v = 0
 	}
-	binary.LittleEndian.PutUint32(buf[:4], math.Float32bits(v))
-	_, _ = h.Write(buf[:4])
+	binary.LittleEndian.PutUint32(dh.buf[:4], math.Float32bits(v))
+	_, _ = dh.h.Write(dh.buf[:4])
 }
 
-func hashFloat64(h hash.Hash, buf *[64]byte, v float64) {
+func (dh *docHasher) float64(v float64) {
 	if v == 0 {
 		v = 0
 	}
-	binary.LittleEndian.PutUint64(buf[:8], math.Float64bits(v))
-	_, _ = h.Write(buf[:8])
+	binary.LittleEndian.PutUint64(dh.buf[:8], math.Float64bits(v))
+	_, _ = dh.h.Write(dh.buf[:8])
 }
 
-func hashBool(h hash.Hash, buf *[64]byte, v bool) {
+func (dh *docHasher) bool(v bool) {
 	if v {
-		buf[0] = 1
+		dh.buf[0] = 1
 	} else {
-		buf[0] = 0
+		dh.buf[0] = 0
 	}
-	_, _ = h.Write(buf[:1])
+	_, _ = dh.h.Write(dh.buf[:1])
 }
 
-func hashString(h hash.Hash, buf *[64]byte, s string) {
-	hashUint64(h, buf, uint64(len(s)))
-	_, _ = io.WriteString(h, s)
+func (dh *docHasher) str(s string) {
+	dh.uint64(uint64(len(s)))
+	for len(s) > 0 {
+		n := copy(dh.buf[:], s)
+		_, _ = dh.h.Write(dh.buf[:n])
+		s = s[n:]
+	}
 }
 
-func hashRuns(h hash.Hash, buf *[64]byte, runs []Run) {
-	hashUint64(h, buf, uint64(len(runs)))
+func (dh *docHasher) runs(runs []Run) {
+	dh.uint64(uint64(len(runs)))
 	for i := range runs {
 		r := &runs[i]
-		hashString(h, buf, r.Text)
+		dh.str(r.Text)
 		st := &r.Style
-		hashBool(h, buf, st.NoMath)
-		hashString(h, buf, st.Script)
-		hashBool(h, buf, st.Bold)
-		hashBool(h, buf, st.Italic)
-		hashBool(h, buf, st.Underline)
-		hashBool(h, buf, st.Strike)
-		hashBool(h, buf, st.Code)
-		hashString(h, buf, st.Link)
-		hashString(h, buf, st.Color)
-		hashString(h, buf, st.Highlight)
-		hashString(h, buf, st.Annotation)
-		hashString(h, buf, st.AnnotationColor)
-		hashFloat32(h, buf, st.Size)
+		dh.bool(st.NoMath)
+		dh.str(st.Script)
+		dh.bool(st.Bold)
+		dh.bool(st.Italic)
+		dh.bool(st.Underline)
+		dh.bool(st.Strike)
+		dh.bool(st.Code)
+		dh.str(st.Link)
+		dh.str(st.Color)
+		dh.str(st.Highlight)
+		dh.str(st.Annotation)
+		dh.str(st.AnnotationColor)
+		dh.float32(st.Size)
 	}
 }
 
@@ -536,47 +523,142 @@ func IsHexColor(s string) bool {
 	return true
 }
 
-func hashBlock(h hash.Hash, buf *[64]byte, b *Block) {
-	hashBlockWithRuns(h, buf, b, true)
+func (dh *docHasher) comments(comments []InlineComment) {
+	dh.uint64(uint64(len(comments)))
+	for i := range comments {
+		dh.uint64(uint64(comments[i].Offset))
+		dh.str(comments[i].Text)
+	}
 }
 
-func hashBlockSkeleton(h hash.Hash, buf *[64]byte, b *Block) {
-	hashBlockWithRuns(h, buf, b, false)
+func (dh *docHasher) docHeader(d *Document) {
+	dh.str(d.Format)
+	dh.uint64(uint64(d.Version))
+	dh.str(d.Icon)
+	dh.str(d.Cover)
+	dh.float64(d.CoverY)
+	dh.uint64(uint64(d.Goal))
+	dh.str(d.Frontmatter)
+	dh.str(d.ImportSource)
+	dh.uint64(uint64(len(d.Blocks)))
 }
 
-func hashBlockWithRuns(h hash.Hash, buf *[64]byte, b *Block, includeLeafRuns bool) {
+func (dh *docHasher) block(b *Block, includeLeafRuns bool, leafOverrides map[string][]Run) {
 	if b == nil {
-		hashBool(h, buf, false)
+		dh.bool(false)
 		return
 	}
-	hashBool(h, buf, true)
-	hashFloat32(h, buf, b.ImageWidth)
-	hashString(h, buf, b.NoteLabel)
-	hashString(h, buf, b.ID)
-	hashString(h, buf, b.Kind)
-	if includeLeafRuns || len(b.Children) > 0 {
-		hashRuns(h, buf, b.Runs)
+	dh.bool(true)
+	dh.float32(b.ImageWidth)
+	dh.str(b.NoteLabel)
+	dh.str(b.ID)
+	dh.str(b.Kind)
+	if len(b.Children) > 0 {
+		dh.runs(b.Runs)
+		if len(b.Comments) > 0 {
+			dh.comments(b.Comments)
+		}
+	} else if includeLeafRuns {
+		runs := b.Runs
+		if len(leafOverrides) > 0 {
+			if orig, ok := leafOverrides[b.ID]; ok {
+				runs = orig
+			}
+		}
+		dh.runs(runs)
+		if len(b.Comments) > 0 {
+			dh.comments(b.Comments)
+		}
 	}
-	hashUint64(h, buf, uint64(b.Level))
-	hashUint64(h, buf, uint64(b.Indent))
-	hashBool(h, buf, b.Checked)
-	hashString(h, buf, b.Language)
-	hashString(h, buf, b.URL)
-	hashString(h, buf, b.Align)
-	hashUint64(h, buf, uint64(len(b.Widths)))
+	dh.uint64(uint64(b.Level))
+	dh.uint64(uint64(b.Indent))
+	dh.bool(b.Checked)
+	dh.str(b.Language)
+	dh.str(b.URL)
+	dh.str(b.Align)
+	dh.uint64(uint64(len(b.Widths)))
 	for _, w := range b.Widths {
-		hashFloat32(h, buf, w)
+		dh.float32(w)
 	}
-	hashString(h, buf, b.Color)
-	hashBool(h, buf, b.Folded)
-	hashString(h, buf, b.Background)
-	hashUint64(h, buf, uint64(b.ColSpan))
-	hashUint64(h, buf, uint64(b.RowSpan))
-	hashString(h, buf, b.Emoji)
-	hashUint64(h, buf, uint64(len(b.Children)))
+	dh.str(b.Color)
+	dh.bool(b.Folded)
+	dh.str(b.Background)
+	dh.uint64(uint64(b.ColSpan))
+	dh.uint64(uint64(b.RowSpan))
+	dh.str(b.Emoji)
+	dh.uint64(uint64(len(b.Children)))
 	for _, child := range b.Children {
-		hashBlockWithRuns(h, buf, child, includeLeafRuns)
+		dh.block(child, includeLeafRuns, leafOverrides)
 	}
+}
+
+// RunsDigest returns a 128-bit fingerprint of a block's styled runs without
+// allocating or cloning run slices.
+func RunsDigest(runs []Run) [16]byte {
+	dh := acquireHasher()
+	dh.runs(runs)
+	sum := dh.h.Sum(dh.buf[:0])
+	var out [16]byte
+	copy(out[:], sum[:16])
+	releaseHasher(dh)
+	return out
+}
+
+// LeafDigest returns a 128-bit fingerprint of a leaf block's editable content
+// (styled runs and inline comments), matching RunsDigest when the block has no
+// inline comments.
+func LeafDigest(b *Block) [16]byte {
+	dh := acquireHasher()
+	if b != nil {
+		dh.runs(b.Runs)
+		if len(b.Comments) > 0 {
+			dh.comments(b.Comments)
+		}
+	}
+	sum := dh.h.Sum(dh.buf[:0])
+	var out [16]byte
+	copy(out[:], sum[:16])
+	releaseHasher(dh)
+	return out
+}
+
+// Digest validates the document and computes a SHA-256 fingerprint over all
+// persisted document, block, and run fields without serializing JSON.
+func (d *Document) Digest() ([32]byte, error) {
+	return d.DigestWithLeafRuns(nil)
+}
+
+// DigestWithLeafRuns validates and hashes the document while substituting any
+// leaf block runs supplied in leafOverrides, reconstructing pre-edit baselines
+// without cloning the document tree.
+func (d *Document) DigestWithLeafRuns(leafOverrides map[string][]Run) ([32]byte, error) {
+	if err := d.validateWithLeafRuns(leafOverrides); err != nil {
+		return [32]byte{}, err
+	}
+	dh := acquireHasher()
+	dh.docHeader(d)
+	for _, b := range d.Blocks {
+		dh.block(b, true, leafOverrides)
+	}
+	var out [32]byte
+	dh.h.Sum(out[:0])
+	releaseHasher(dh)
+	return out, nil
+}
+
+// SkeletonDigest hashes the document's structure and metadata while omitting
+// leaf blocks' Runs, matching the exact subset of fields that text-only edits
+// cannot change. Thus Digest(a) == Digest(b) implies identical SkeletonDigests.
+func (d *Document) SkeletonDigest() [32]byte {
+	dh := acquireHasher()
+	dh.docHeader(d)
+	for _, b := range d.Blocks {
+		dh.block(b, false, nil)
+	}
+	var out [32]byte
+	dh.h.Sum(out[:0])
+	releaseHasher(dh)
+	return out
 }
 
 // SameDocument reports whether a and b hold identical document metadata and
@@ -619,10 +701,10 @@ func SameBlock(a, b *Block) bool {
 		a.Background != b.Background || a.ColSpan != b.ColSpan ||
 		a.RowSpan != b.RowSpan || a.Emoji != b.Emoji ||
 		len(a.Widths) != len(b.Widths) || len(a.Runs) != len(b.Runs) ||
-		len(a.Children) != len(b.Children) {
+		len(a.Comments) != len(b.Comments) || len(a.Children) != len(b.Children) {
 		return false
 	}
-	if !slices.Equal(a.Widths, b.Widths) || !slices.Equal(a.Runs, b.Runs) {
+	if !slices.Equal(a.Widths, b.Widths) || !slices.Equal(a.Runs, b.Runs) || !slices.Equal(a.Comments, b.Comments) {
 		return false
 	}
 	for i := range a.Children {
@@ -633,7 +715,31 @@ func SameBlock(a, b *Block) bool {
 	return true
 }
 
+func countBlocks(blocks []*Block) int {
+	n := 0
+	for _, b := range blocks {
+		if b == nil {
+			continue
+		}
+		n += 1 + countBlocks(b.Children)
+	}
+	return n
+}
+
+func runsHasText(runs []Run) bool {
+	for i := range runs {
+		if runs[i].Text != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) Validate() error {
+	return d.validateWithLeafRuns(nil)
+}
+
+func (d *Document) validateWithLeafRuns(leafOverrides map[string][]Run) error {
 	if d.Format != "arcmd" || d.Version != CurrentVersion {
 		return fmt.Errorf("document: unsupported format %q version %d", d.Format, d.Version)
 	}
@@ -649,16 +755,19 @@ func (d *Document) Validate() error {
 	if d.Goal < 0 || d.Goal > 1000000 {
 		return errors.New("document: invalid word goal")
 	}
-	ids := make(map[string]bool)
+	ids := make(map[string]struct{}, countBlocks(d.Blocks))
 	var visit func(*Block, string, int) error
 	visit = func(b *Block, parent string, depth int) error {
 		if b == nil || depth > 24 {
 			return errors.New("document: invalid block nesting")
 		}
-		if b.ID == "" || ids[b.ID] {
+		if b.ID == "" {
 			return errors.New("document: missing or duplicate block ID")
 		}
-		ids[b.ID] = true
+		if _, dup := ids[b.ID]; dup {
+			return errors.New("document: missing or duplicate block ID")
+		}
+		ids[b.ID] = struct{}{}
 		if b.Level < 0 || b.Level > 6 || b.Indent < 0 || b.Indent > 12 {
 			return errors.New("document: invalid block attributes")
 		}
@@ -689,7 +798,13 @@ func (d *Document) Validate() error {
 		if b.Kind == "footnote" && (b.NoteLabel == "" || len(b.NoteLabel) > 1000 || strings.ContainsAny(b.NoteLabel, "[]\n\r\t ")) || b.Kind != "footnote" && b.NoteLabel != "" {
 			return errors.New("document: invalid footnote label")
 		}
-		for _, r := range b.Runs {
+		runs := b.Runs
+		if len(leafOverrides) > 0 && len(b.Children) == 0 {
+			if orig, ok := leafOverrides[b.ID]; ok {
+				runs = orig
+			}
+		}
+		for _, r := range runs {
 			if r.Style.Script != "" && r.Style.Script != "sup" && r.Style.Script != "sub" {
 				return errors.New("document: invalid script")
 			}
@@ -702,6 +817,17 @@ func (d *Document) Validate() error {
 			if r.Style.Annotation != "" && !oneOf(r.Style.Annotation, Annotations) ||
 				r.Style.AnnotationColor != "" && (r.Style.Annotation == "" || !oneOf(r.Style.AnnotationColor, TextColors)) {
 				return errors.New("document: invalid annotation")
+			}
+		}
+		if len(b.Comments) > 0 {
+			if len(b.Children) > 0 || !AllowsInlineComments(b.Kind) {
+				return errors.New("document: invalid inline comments")
+			}
+			textLen := Len(blockText(runs))
+			for _, c := range b.Comments {
+				if c.Offset < 0 || c.Offset > textLen || !ValidInlineComment(c.Text) {
+					return errors.New("document: invalid inline comment")
+				}
 			}
 		}
 		switch b.Kind {
@@ -771,7 +897,7 @@ func (d *Document) Validate() error {
 		}
 		// Span checks dereference cells, so validate their structure first.
 		if b.Kind == "table" {
-			return validSpans(b)
+			return validSpansWithOverrides(b, leafOverrides)
 		}
 		return nil
 	}
@@ -1034,11 +1160,36 @@ func CoveredCells(table *Block) map[*Block]bool {
 // validSpans checks a table's merged cells: inside the table, not
 // overlapping, and the cells they cover empty.
 func validSpans(table *Block) error {
-	taken := map[[2]int]bool{}
+	return validSpansWithOverrides(table, nil)
+}
+
+func validSpansWithOverrides(table *Block, leafOverrides map[string][]Run) error {
+	hasMerged := false
+	for _, row := range table.Children {
+		for _, cell := range row.Children {
+			if cell.ColSpan > 1 || cell.RowSpan > 1 {
+				hasMerged = true
+				break
+			}
+		}
+		if hasMerged {
+			break
+		}
+	}
+	if !hasMerged {
+		return nil
+	}
+	taken := make(map[[2]int]struct{})
 	for r, row := range table.Children {
 		for c, cell := range row.Children {
-			if taken[[2]int{r, c}] {
-				if cell.ColSpan > 1 || cell.RowSpan > 1 || cell.Text() != "" {
+			if _, ok := taken[[2]int{r, c}]; ok {
+				cellRuns := cell.Runs
+				if len(leafOverrides) > 0 {
+					if orig, has := leafOverrides[cell.ID]; has {
+						cellRuns = orig
+					}
+				}
+				if cell.ColSpan > 1 || cell.RowSpan > 1 || runsHasText(cellRuns) {
 					return errors.New("document: merged cell over content")
 				}
 				continue
@@ -1049,13 +1200,222 @@ func validSpans(table *Block) error {
 			}
 			for rr := r; rr < r+rows; rr++ {
 				for cc := c; cc < c+cols; cc++ {
-					if (rr != r || cc != c) && taken[[2]int{rr, cc}] {
-						return errors.New("document: overlapping merged cells")
+					key := [2]int{rr, cc}
+					if rr != r || cc != c {
+						if _, ok := taken[key]; ok {
+							return errors.New("document: overlapping merged cells")
+						}
 					}
-					taken[[2]int{rr, cc}] = true
+					taken[key] = struct{}{}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// AllowsInlineComments reports whether a leaf block of the given kind can carry
+// preserved inline HTML comments.
+func AllowsInlineComments(kind string) bool {
+	switch kind {
+	case "code", "raw", "math", "rule", "image", "table", "row", "columns", "column":
+		return false
+	default:
+		return true
+	}
+}
+
+// ValidInlineComment reports whether s is a single well-formed HTML comment
+// ("<!-- ... -->") with no embedded closing delimiter.
+func ValidInlineComment(s string) bool {
+	return len(s) >= 7 && strings.HasPrefix(s, "<!--") && strings.HasSuffix(s, "-->") && !strings.Contains(s[4:len(s)-3], "-->")
+}
+
+// SplitCommentsAt partitions inline comments at local UTF-16 offset split
+// without duplicating comments on the boundary: offsets <= split stay in left,
+// and offsets > split move to right (rebased so split becomes 0).
+func SplitCommentsAt(comments []InlineComment, split int) (left, right []InlineComment) {
+	if len(comments) == 0 {
+		return nil, nil
+	}
+	for _, c := range comments {
+		if c.Offset <= split {
+			left = append(left, c)
+		} else {
+			right = append(right, InlineComment{Offset: c.Offset - split, Text: c.Text})
+		}
+	}
+	return left, right
+}
+
+func runeU16Len(r rune) int {
+	if r >= 0x10000 {
+		return 2
+	}
+	return 1
+}
+
+func commonPrefixSuffixU16(before, after string) (prefU16, suffU16 int) {
+	bi, ai := 0, 0
+	for bi < len(before) && ai < len(after) {
+		br, bn := utf8.DecodeRuneInString(before[bi:])
+		ar, an := utf8.DecodeRuneInString(after[ai:])
+		if br != ar {
+			break
+		}
+		bi += bn
+		ai += an
+		prefU16 += runeU16Len(br)
+	}
+	bEnd, aEnd := len(before), len(after)
+	for bEnd > bi && aEnd > ai {
+		br, bn := utf8.DecodeLastRuneInString(before[bi:bEnd])
+		ar, an := utf8.DecodeLastRuneInString(after[ai:aEnd])
+		if br != ar {
+			break
+		}
+		bEnd -= bn
+		aEnd -= an
+		suffU16 += runeU16Len(br)
+	}
+	return prefU16, suffU16
+}
+
+// MapBlockRunText applies change to each run of b for which filter returns true
+// (or all runs when filter is nil) and shifts b.Comments so every inline
+// comment stays anchored and within valid UTF-16 bounds.
+func MapBlockRunText(b *Block, filter func(Run) bool, change func(string) string) {
+	if b == nil {
+		return
+	}
+	runStart := 0
+	changed := false
+	for i := range b.Runs {
+		oldText := b.Runs[i].Text
+		oldLen := Len(oldText)
+		if filter != nil && !filter(b.Runs[i]) {
+			runStart += oldLen
+			continue
+		}
+		newText := change(oldText)
+		if newText == oldText {
+			runStart += oldLen
+			continue
+		}
+		changed = true
+		newLen := Len(newText)
+		b.Runs[i].Text = newText
+		if len(b.Comments) > 0 {
+			delta := newLen - oldLen
+			pre, suf := commonPrefixSuffixU16(oldText, newText)
+			a, z := pre, oldLen-suf
+			for ci := range b.Comments {
+				off := b.Comments[ci].Offset
+				switch {
+				case off <= runStart+a:
+				case off >= runStart+z:
+					b.Comments[ci].Offset = off + delta
+				default:
+					localOff := off - runStart
+					prefixText := oldText[:ByteOffset(oldText, localOff)]
+					mapped := Len(change(prefixText))
+					b.Comments[ci].Offset = runStart + max(0, min(newLen, mapped))
+				}
+			}
+		}
+		runStart += newLen
+	}
+	if changed && len(b.Comments) > 0 {
+		totalLen := Len(b.Text())
+		for ci := range b.Comments {
+			b.Comments[ci].Offset = max(0, min(totalLen, b.Comments[ci].Offset))
+		}
+	}
+}
+
+// ShiftComments updates inline comment offsets when local UTF-16 range [a, z)
+// is replaced by inserted UTF-16 code units, producing a block of maxLen units.
+func ShiftComments(comments []InlineComment, a, z, inserted, maxLen int) []InlineComment {
+	if len(comments) == 0 {
+		return nil
+	}
+	delta := inserted - (z - a)
+	var out []InlineComment
+	for _, c := range comments {
+		if z > a && c.Offset > a && c.Offset < z {
+			continue
+		}
+		if c.Offset > a || (z > a && c.Offset >= z) {
+			c.Offset += delta
+		}
+		c.Offset = max(0, min(maxLen, c.Offset))
+		out = append(out, c)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// SliceComments returns inline comments inside local UTF-16 range [a, z],
+// rebased so offset a becomes 0.
+func SliceComments(comments []InlineComment, a, z int) []InlineComment {
+	if len(comments) == 0 || z < a {
+		return nil
+	}
+	var out []InlineComment
+	for _, c := range comments {
+		if c.Offset >= a && c.Offset <= z {
+			out = append(out, InlineComment{Offset: c.Offset - a, Text: c.Text})
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// MergeComments appends right's comments shifted by leftLen onto left.
+func MergeComments(left []InlineComment, leftLen int, right []InlineComment) []InlineComment {
+	if len(left) == 0 && len(right) == 0 {
+		return nil
+	}
+	out := make([]InlineComment, 0, len(left)+len(right))
+	out = append(out, left...)
+	for _, c := range right {
+		out = append(out, InlineComment{Offset: c.Offset + leftLen, Text: c.Text})
+	}
+	return out
+}
+
+// SplitCommentsByNewline distributes inline comments across '\n'-separated
+// lines of text, rebasing each comment to its destination line's start.
+func SplitCommentsByNewline(text string, comments []InlineComment) [][]InlineComment {
+	type seg struct{ start, end int }
+	var segs []seg
+	pos := 0
+	for {
+		nl := strings.IndexByte(text, '\n')
+		if nl < 0 {
+			segs = append(segs, seg{pos, pos + Len(text)})
+			break
+		}
+		end := pos + Len(text[:nl])
+		segs = append(segs, seg{pos, end})
+		pos = end + 1
+		text = text[nl+1:]
+	}
+	out := make([][]InlineComment, len(segs))
+	for _, c := range comments {
+		idx := len(segs) - 1
+		for i, s := range segs {
+			if c.Offset <= s.end {
+				idx = i
+				break
+			}
+		}
+		off := max(0, min(segs[idx].end-segs[idx].start, c.Offset-segs[idx].start))
+		out[idx] = append(out[idx], InlineComment{Offset: off, Text: c.Text})
+	}
+	return out
 }

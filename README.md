@@ -23,6 +23,8 @@
 
 FreeMD 使用 MyGo v0.10.0 原生界面。打开已登记文件夹中的文档会进入所属空间。打开其他 Markdown 文件会进入文件浏览模式，可编辑、保存和另存为。临时打开的路径只保留在当前会话中。
 
+空间支持独立附件目录、自动更新图片引用、侧边栏多选与批量整理。文档支持可导航的思维导图，以及从当前块逐步扩展到整篇文档的全选。设置中的云端同步可将选定空间的笔记和附件同步到 WebDAV 或 S3，支持手动、定时、冲突副本和可选内容加密，默认关闭。
+
 ## 从源码运行与验证
 
 ### 仓库边界检查
@@ -48,6 +50,7 @@ FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
 ## 文档与仓库边界
 
 - [架构说明（英文）](docs/architecture.md)
+- [云端同步、冲突处理与恢复（英文）](docs/cloud-sync.md)
 - [插件契约与路线图（英文）](docs/plugins.md)
 - [仓库边界与交付约定](references/repository-boundaries.md)
 - [第三方来源、上游基线与许可清单](third_party/README.md)

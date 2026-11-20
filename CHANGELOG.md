@@ -2,6 +2,12 @@
 
 ## FreeMD 0.0.1
 
+- Add per-space attachment folders with guarded relinking, sidebar multi-selection and batch actions, a navigable native document mind map, and hierarchical Select All.
+- Add opt-in WebDAV and S3 cloud synchronization with per-file baselines, conditional writes, conflict copies and explicit resolution, recovery backups, local credential protection, optional content encryption, and manual or scheduled sync.
+- Fix code and list indentation, code paste recovery, link boundary input, HTML comment preservation, read-only Space paging, document/preview image retention, and first-edit baseline work on large documents.
+- Improve tall Mermaid sequence diagrams with phase shading and a vector zoom viewer; add display equation tags in the editor and PDF output.
+- Advance document format to 10, spaces configuration to 14, and preferences to 6 while preserving FreeMD's existing fields. Existing supported files migrate in memory and write the current format when edited.
+
 - Dock the workspace sidebar on the right by default. Choose either edge in Settings → Appearance.
 - Place the document outline on the right and show the drag cursor over block handles.
 - Group search and file opening, improve favorite label contrast, and keep the settings exit in the navigation footer.

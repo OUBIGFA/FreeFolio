@@ -69,7 +69,9 @@ func (a *App) openLooseFile(full string) bool {
 	if shown != "" {
 		f.readOnly[shown] = a.doc.ed.ReadOnly
 	}
+	old := a.doc
 	a.doc = openDocument(f.locations, name, text, false)
+	a.retireClosedDocuments(old)
 	readOnly, seen := f.readOnly[name]
 	if !seen {
 		readOnly = a.prefs.Files.ReadOnly
@@ -113,8 +115,10 @@ func (a *App) leaveFileMode() bool {
 	if !a.flushCurrent() {
 		return false
 	}
+	old := a.doc
 	a.doc, a.split = a.files.previous, a.files.split
 	a.files = nil
+	a.retireClosedDocuments(old)
 	return true
 }
 
@@ -140,7 +144,9 @@ func (a *App) closeFileTab(rel string) {
 	if !shown {
 		return
 	}
+	old := a.doc
 	a.doc = nil
+	defer a.retireClosedDocuments(old)
 	if len(f.order) > 0 {
 		a.openLooseFile(f.locations.ExternalFiles[f.order[min(i, len(f.order)-1)]])
 		return
@@ -357,7 +363,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		ui.Spacer(c)
 		d := a.doc
 		if d != nil && !d.source && d.loadErr == nil {
-			d.ed.Corner(c)
+			a.documentCorner(c, d)
 		}
 		a.fileMenu(c, f)
 		if shellAction(c, "return", iconBack, i18n.T("返回空间")).Clicked() {

@@ -181,6 +181,9 @@ func (e *Editor) exportVectorDecorations(
 		if d.rect.Y+d.rect.H < top-2 || d.rect.Y > bottom+2 {
 			continue
 		}
+		if d.kind == "raw" && e.isCommentRawID(d.id) {
+			continue
+		}
 		x, y, w, h := px(d.rect.X), py(d.rect.Y), pw(d.rect.W), ph(d.rect.H)
 		switch d.kind {
 		case "code", "raw":
@@ -395,6 +398,9 @@ func (e *Editor) exportVectorRows(
 		if r.rect.Y+r.rect.H <= top || r.rect.Y >= bottom {
 			continue
 		}
+		if r.leaf.Block != nil && r.leaf.Block.Kind == "raw" && isHTMLCommentBlock(r.leaf.Block.Text()) {
+			continue
+		}
 		if r.picture != nil {
 			e.exportVectorImage(vp, o, t, pg, r, sx, sy, sc, px, py, pw, ph)
 			if !e.captionVisible(r.leaf.Block) {
@@ -442,6 +448,15 @@ func (e *Editor) exportVectorRows(
 }
 
 func i18nErrorText(_ *ui.TextLayout, msg string) string { return msg }
+
+func (e *Editor) isCommentRawID(id string) bool {
+	if idx, ok := e.rowIDs[id]; ok {
+		if b := e.indexedRow(idx).leaf.Block; b != nil && b.Kind == "raw" {
+			return isHTMLCommentBlock(b.Text())
+		}
+	}
+	return false
+}
 
 func (e *Editor) exportVectorImage(
 	vp *pdf.VectorPage, o Options, t *ui.Theme, pg Page, r row,
@@ -566,7 +581,7 @@ func (e *Editor) exportVectorMermaid(
 	vp *pdf.VectorPage, diag mermaid.Diagram, docX, docY, scale float32,
 	sx, sy, sc float64, top, paperMargin float32, t *ui.Theme, pg Page,
 ) {
-	blue := pg.Callouts["blue"]
+	blue := mermaidBlueCallout(pg)
 	yellow := pg.Callouts["yellow"]
 	px := func(x float32) float64 { return float64(docX+x*scale) * sx }
 	py := func(y float32) float64 { return float64(docY+y*scale-top+paperMargin) * sy }
@@ -609,32 +624,13 @@ func (e *Editor) exportVectorMermaid(
 	}
 }
 
-func mermaidColorsFor(role mermaid.Role, kind mermaid.ShapeKind, t *ui.Theme, pg Page, blue, yellow Callout) (fill, border ui.Color, strokeW float32) {
-	strokeW = 1.25
-	switch role {
-	case mermaid.RoleSubgraph, mermaid.RoleFragment:
-		if kind == mermaid.ShapePentagon {
-			return pg.CodeHover.Alpha(0.28), pg.CodeBorder, 1
-		}
-		return pg.CodeFill.Alpha(0.50), pg.CodeBorder, 1
-	case mermaid.RoleActor:
-		return blue.Fill, blue.Border, strokeW
-	case mermaid.RoleNote:
-		return yellow.Fill, yellow.Border, strokeW
-	case mermaid.RoleActivation:
-		return t.Accent.Alpha(0.18), t.Accent.Alpha(0.68), 1
-	default:
-		return pg.CodeFill, t.Accent.Alpha(0.45), strokeW
-	}
-}
-
 func exportMermaidShape(
 	vp *pdf.VectorPage, s mermaid.ShapeOp,
 	px, py func(float32) float64,
 	sx, sy, sc float64,
 	t *ui.Theme, pg Page, blue, yellow Callout,
 ) {
-	fill, border, sw := mermaidColorsFor(s.Role, s.Kind, t, pg, blue, yellow)
+	fill, border, sw := mermaidShapeColors(s, t, pg, blue, yellow)
 	fc, bc := pdfRGBA(fill), pdfRGBA(border)
 	lw := float64(sw) * sc
 	x, y, w, h := px(s.X), py(s.Y), float64(s.W)*sx, float64(s.H)*sy
@@ -1128,7 +1124,7 @@ func splitEmojiSubranges(blockText string, uStart, uEnd int) []textChunk {
 	if sub == "" {
 		return nil
 	}
-	if !containsColorEmoji(sub) {
+	if !containsColorEmoji(sub) && !strings.ContainsRune(sub, '\t') {
 		return []textChunk{{start: uStart, end: uEnd}}
 	}
 	var out []textChunk
@@ -1138,6 +1134,15 @@ func splitEmojiSubranges(blockText string, uStart, uEnd int) []textChunk {
 	first := true
 	for _, r := range sub {
 		n := document.Len(string(r))
+		if r == '\t' {
+			if !first && pos > curStart {
+				out = append(out, textChunk{start: curStart, end: pos, emoji: curEmoji})
+			}
+			pos += n
+			curStart = pos
+			first = true
+			continue
+		}
 		em := isColorEmojiRune(r)
 		if first {
 			curEmoji = em
@@ -1152,7 +1157,7 @@ func splitEmojiSubranges(blockText string, uStart, uEnd int) []textChunk {
 		}
 		pos += n
 	}
-	if pos > curStart {
+	if !first && pos > curStart {
 		out = append(out, textChunk{start: curStart, end: pos, emoji: curEmoji})
 	}
 	return out

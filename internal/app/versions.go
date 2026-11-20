@@ -220,11 +220,13 @@ func versionTime(at, now time.Time) string {
 // versionsView is the history window.
 func (a *App) versionsView(c *ui.Context) {
 	v := &a.versions
-	if !v.open {
-		return
-	}
-	if v.for_ != a.doc {
+	if v.open && v.for_ != a.doc {
 		v.open = false
+	}
+	if !v.open {
+		old := v.for_
+		*v = versionsState{}
+		a.retireClosedDocuments(old)
 		return
 	}
 	t := c.Theme()

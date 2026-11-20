@@ -355,6 +355,10 @@ func (e *Editor) blockMetrics(b *document.Block, w float32, header bool) blockMe
 	}
 	if b.Kind == "cell" {
 		m.font.Size, m.font.LineHeight = 14, 22.0/14
+		if e.mapTablePreview {
+			m.font.Size, m.font.LineHeight = mapCellFont, 1.25
+			m.bottom, m.gap = 0, 0
+		}
 	}
 	switch b.Kind {
 	case "heading":

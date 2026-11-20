@@ -1,0 +1,157 @@
+package cloudsync
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+)
+
+const maxFileBytes int64 = 64 << 20
+
+var (
+	errRemoteChanged = errors.New("远端文件已变化，请重新同步")
+	errRemoteMissing = errors.New("远端文件不存在")
+)
+
+// Conditional writes combine FreeType's transports with ArcMD's incremental
+// synchronization semantics. An absent ETag never becomes an unsafe overwrite.
+func remoteRequest(s remoteStore, method, key string, data []byte, conditions map[string]string) (*http.Response, error) {
+	if !safeRelative(key) {
+		return nil, errors.New("invalid remote path")
+	}
+	switch v := s.(type) {
+	case *webdavStore:
+		if method == http.MethodPut {
+			parts := cleanKey(key)
+			if err := v.ensureDirs(parts[:len(parts)-1]); err != nil {
+				return nil, err
+			}
+		}
+		var body io.Reader
+		if data != nil {
+			body = bytes.NewReader(data)
+		}
+		return v.do(method, v.address(cleanKey(key), false), body, int64(len(data)), conditions)
+	case *s3Store:
+		var body io.ReadSeeker
+		if data != nil {
+			body = bytes.NewReader(data)
+		}
+		lower := map[string]string{}
+		for k, value := range conditions {
+			lower[strings.ToLower(k)] = value
+		}
+		return v.do(method, v.object(key), nil, body, int64(len(data)), lower)
+	default:
+		return nil, errors.New("unsupported sync transport")
+	}
+}
+
+func readRemote(s remoteStore, key string) ([]byte, string, error) {
+	resp, err := remoteRequest(s, http.MethodGet, key, nil, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, "", errRemoteMissing
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", remoteError("下载", resp)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFileBytes*2+1))
+	if err != nil {
+		return nil, "", err
+	}
+	if int64(len(data)) > maxFileBytes*2 {
+		return nil, "", errors.New("远端文件超过同步大小限制")
+	}
+	return data, resp.Header.Get("ETag"), nil
+}
+
+func writeRemote(s remoteStore, key string, data []byte, etag string, exists bool) error {
+	cond := map[string]string{"Content-Type": "application/octet-stream"}
+	if exists {
+		if etag == "" || strings.HasPrefix(etag, "W/") {
+			return errors.New("服务未提供可用于安全覆盖的 ETag")
+		}
+		cond["If-Match"] = etag
+	} else {
+		cond["If-None-Match"] = "*"
+	}
+	resp, err := remoteRequest(s, http.MethodPut, key, data, cond)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusPreconditionFailed || resp.StatusCode == http.StatusConflict {
+		return errRemoteChanged
+	}
+	if resp.StatusCode/100 != 2 {
+		return remoteError("上传", resp)
+	}
+	return nil
+}
+
+func deleteRemote(s remoteStore, key, etag string) error {
+	if etag == "" || strings.HasPrefix(etag, "W/") {
+		return errors.New("服务未提供可用于安全删除的 ETag")
+	}
+	resp, err := remoteRequest(s, http.MethodDelete, key, nil, map[string]string{"If-Match": etag})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		return errRemoteChanged
+	}
+	if resp.StatusCode/100 != 2 && resp.StatusCode != http.StatusNotFound {
+		return remoteError("删除", resp)
+	}
+	return nil
+}
+
+// Remote traversal rejects path tricks, duplicate names and oversized inventories.
+func listRemote(s remoteStore, root string) (map[string]remoteEntry, error) {
+	out := map[string]remoteEntry{}
+	seen := map[string]bool{}
+	var walk func(string, int) error
+	walk = func(dir string, depth int) error {
+		if depth > 64 || len(seen) > 100000 {
+			return errors.New("远端目录层级或数量超过限制")
+		}
+		entries, err := s.List(dir)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if !safeRelative(e.Name) || strings.Contains(e.Name, "/") {
+				return fmt.Errorf("invalid remote name %q", e.Name)
+			}
+			key := dir + "/" + e.Name
+			if seen[key] {
+				return errors.New("远端目录返回重复路径")
+			}
+			seen[key] = true
+			rel := strings.TrimPrefix(key, root+"/")
+			if excluded(rel) {
+				continue
+			}
+			if e.Dir {
+				if err := walk(key, depth+1); err != nil {
+					return err
+				}
+				continue
+			}
+			if e.Size < 0 || e.Size > maxFileBytes*2 {
+				return fmt.Errorf("文件过大：%s", rel)
+			}
+			out[rel] = e
+		}
+		return nil
+	}
+	return out, walk(root, 0)
+}

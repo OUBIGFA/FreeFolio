@@ -18,10 +18,13 @@ import (
 // the defaults, so version 3 migrates unchanged. Version 5 adds
 // StartAtHome, whose zero value is the default, so version 4 migrates
 // unchanged.
-const CurrentVersion = 5
+// Version 6 adds document mind-map visibility and layout choices.
+const CurrentVersion = 6
 
 // Prefs are the preferences.
 type Prefs struct {
+	MindMapOpen      bool `json:"mindMapOpen,omitempty"`
+	MindMapBothSides bool `json:"mindMapBothSides,omitempty"`
 	// SidebarLeft opts out of the default right-hand workspace sidebar.
 	SidebarLeft bool `json:"sidebarLeft,omitempty"`
 	// SidebarWidth is the docked sidebar's width as dragged; 0 is the

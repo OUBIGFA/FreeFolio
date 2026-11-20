@@ -33,13 +33,23 @@ type Engine struct {
 	hidden               map[string]string
 	textChange           TextChange
 	OnBeforeChange       func()
+	OnBeforeLeafChange   func(id string, runs []Run)
 }
 
 func (e *Engine) notifyBeforeChange() {
+	e.OnBeforeLeafChange = nil
 	if fn := e.OnBeforeChange; fn != nil {
 		e.OnBeforeChange = nil
 		fn()
 	}
+}
+
+func (e *Engine) notifyBeforeLeafChange(id string, runs []Run) {
+	if fn := e.OnBeforeLeafChange; fn != nil {
+		fn(id, runs)
+		return
+	}
+	e.notifyBeforeChange()
 }
 
 func NewEngine(doc *Document) *Engine { return &Engine{Doc: doc.Clone()} }
@@ -114,6 +124,9 @@ func dropStrayColors(blocks []*Block) {
 		if b.Kind == "table" {
 			normalizeSpans(b)
 		}
+		if len(b.Comments) > 0 && (len(b.Children) > 0 || b.Kind == "code" || b.Kind == "raw" || b.Kind == "math" || b.Kind == "rule" || b.Kind == "image") {
+			b.Comments = nil
+		}
 		dropStrayColors(b.Children)
 	}
 }
@@ -180,19 +193,33 @@ func (e *Engine) Redo() {
 	e.version++
 }
 
+func styleAtRange(runs []Run, start, a, z int) Style {
+	at := min(a, z)
+	position := start
+	for i, run := range runs {
+		runStart := position
+		position += Len(run.Text)
+		if position > at || a == z && position == z {
+			s := run.Style
+			if a == z && s.Link != "" {
+				atLinkStart := at == runStart && (i == 0 || runs[i-1].Style.Link != s.Link)
+				atLinkEnd := at == position && (i+1 >= len(runs) || runs[i+1].Style.Link != s.Link)
+				if atLinkStart || atLinkEnd {
+					s.Link = ""
+				}
+			}
+			return s
+		}
+	}
+	return Style{}
+}
+
 func (e *Engine) CurrentStyle() Style {
 	if e.Explicit {
 		return e.Typing
 	}
 	leaf := e.LeafAt(min(e.Anchor, e.Caret))
-	position := leaf.Start
-	for _, run := range leaf.Block.Runs {
-		position += Len(run.Text)
-		if position > min(e.Anchor, e.Caret) || e.Anchor == e.Caret && position == e.Caret {
-			return run.Style
-		}
-	}
-	return Style{}
+	return styleAtRange(leaf.Block.Runs, leaf.Start, e.Anchor, e.Caret)
 }
 
 func (e *Engine) Replace(a, z int, text string) {
@@ -235,15 +262,7 @@ func (e *Engine) currentStyleIn(leaf Leaf, a, z int) Style {
 	if e.Explicit {
 		return e.Typing
 	}
-	at := min(a, z)
-	position := leaf.Start
-	for _, run := range leaf.Block.Runs {
-		position += Len(run.Text)
-		if position > at || a == z && position == z {
-			return run.Style
-		}
-	}
-	return Style{}
+	return styleAtRange(leaf.Block.Runs, leaf.Start, a, z)
 }
 
 func (e *Engine) replace(a, z int, text string) {
@@ -260,11 +279,20 @@ func (e *Engine) replace(a, z int, text string) {
 	before := SliceRuns(first.Block.Runs, 0, a-first.Start)
 	after := SliceRuns(last.Block.Runs, z-last.Start, last.End-last.Start)
 	runs := Compact(append(append(before, Run{Text: normText, Style: style}), after...))
+	var mergedComments []InlineComment
+	if first.Block == last.Block {
+		mergedComments = ShiftComments(first.Block.Comments, a-first.Start, z-first.Start, Len(normText), Len(blockText(runs)))
+	} else {
+		leftC := SliceComments(first.Block.Comments, 0, a-first.Start)
+		rightC := SliceComments(last.Block.Comments, z-last.Start, last.End-last.Start)
+		mergedComments = MergeComments(leftC, (a-first.Start)+Len(normText), rightC)
+	}
 	if first.Parent != last.Parent || first.Block != last.Block && first.Block.Kind == "cell" {
 		if a == 0 && z == max(0, e.unitIndex.prefix(len(e.leaves))-1) {
 			e.Doc.Blocks = []*Block{NewBlock("paragraph", "")}
 			first = e.Doc.Leaves()[0]
 			first.Block.Runs = runs
+			first.Block.Comments = mergedComments
 		} else {
 			e.replaceAcross(a, z, normText, style)
 			return
@@ -276,13 +304,20 @@ func (e *Engine) replace(a, z int, text string) {
 			first.Block.Kind, first.Block.URL = "paragraph", ""
 		}
 		first.Block.Runs = runs
+		first.Block.Comments = mergedComments
 		*first.Parent = append((*first.Parent)[:first.Index+1], (*first.Parent)[last.Index+1:]...)
 	}
+	splitBlocks := false
 	// Code, preserved source and cells retain internal newlines. Paragraph
 	// separators split blocks and carry the marks on each side of the caret.
 	if first.Block.Kind != "code" && first.Block.Kind != "cell" && first.Block.Kind != "raw" && first.Block.Kind != "math" {
 		split := splitRunsByNewline(runs)
 		if len(split) > 1 {
+			splitBlocks = true
+			var splitComments [][]InlineComment
+			if len(mergedComments) > 0 {
+				splitComments = SplitCommentsByNewline(blockText(runs), mergedComments)
+			}
 			blocks := make([]*Block, 0, len(split))
 			for i, lineRuns := range split {
 				block := first.Block.Clone()
@@ -294,6 +329,11 @@ func (e *Engine) replace(a, z int, text string) {
 					}
 				}
 				block.Runs = lineRuns
+				if i < len(splitComments) {
+					block.Comments = splitComments[i]
+				} else {
+					block.Comments = nil
+				}
 				blocks = append(blocks, block)
 			}
 			parent, index := e.find(first.Block.ID)
@@ -304,7 +344,44 @@ func (e *Engine) replace(a, z int, text string) {
 	}
 	caret := a + Len(normText)
 	e.Anchor, e.Caret = caret, caret
-	e.Typing, e.Explicit = style, true
+	e.applyTypingAfterReplace(normText, style, splitBlocks)
+}
+
+func (e *Engine) applyTypingAfterReplace(text string, style Style, splitBlocks bool) {
+	switch {
+	case text == "":
+		e.Typing, e.Explicit = Style{}, false
+	case splitBlocks || strings.HasSuffix(text, "\n") || strings.HasSuffix(text, "\u2028"):
+		next := exitCapsuleStyle(style)
+		if next == (Style{}) {
+			e.Typing, e.Explicit = Style{}, false
+		} else {
+			e.Typing, e.Explicit = next, true
+		}
+	default:
+		e.Typing, e.Explicit = style, true
+	}
+}
+
+func exitCapsuleStyle(s Style) Style {
+	s.Code = false
+	s.Script = ""
+	s.Link = ""
+	return s
+}
+
+func insertCommentsAt(existing []InlineComment, at int, inserted []InlineComment) []InlineComment {
+	out := make([]InlineComment, 0, len(existing)+len(inserted))
+	i := 0
+	for i < len(existing) && existing[i].Offset <= at {
+		out = append(out, existing[i])
+		i++
+	}
+	for _, c := range inserted {
+		out = append(out, InlineComment{Offset: c.Offset + at, Text: c.Text})
+	}
+	out = append(out, existing[i:]...)
+	return out
 }
 
 // splitRunsByNewline splits a compacted run slice on '\n' in a single O(N) pass,
@@ -421,6 +498,11 @@ func (e *Engine) autoformat(inserted string) {
 			rest = nil
 		}
 	}
+	if !AllowsInlineComments(kind) {
+		b.Comments = nil
+	} else {
+		b.Comments = SliceComments(b.Comments, prefixUnits, leaf.End-leaf.Start)
+	}
 	b.Kind, b.Level, b.Checked, b.Runs = kind, level, checked, rest
 	e.Anchor, e.Caret = leaf.Start, leaf.Start
 }
@@ -431,7 +513,7 @@ func (e *Engine) Enter(soft bool) {
 		return
 	}
 	leaf := e.LeafAt(e.Caret)
-	if e.enterMath(leaf) || e.enterCodeFence(leaf) || e.enterMermaidExit(leaf) || e.enterPipeTable(leaf) {
+	if e.enterMath(leaf) || e.enterCodeFence(leaf) || e.enterMermaidExit(leaf) || e.enterRawExit(leaf) || e.enterPipeTable(leaf) {
 		return
 	}
 	if leaf.Block.Kind == "image" && leaf.Parent != nil {
@@ -444,6 +526,10 @@ func (e *Engine) Enter(soft bool) {
 		return
 	}
 	if !soft && e.Anchor == e.Caret && leaf.Block.Text() == "" && (leaf.Block.Kind == "bullet" || leaf.Block.Kind == "numbered" || leaf.Block.Kind == "task" || leaf.Block.Kind == "quote" || leaf.Block.Kind == "toggle") {
+		if (leaf.Block.Kind == "bullet" || leaf.Block.Kind == "numbered" || leaf.Block.Kind == "task") && leaf.Block.Indent > 0 {
+			e.Indent(-1)
+			return
+		}
 		e.SetKind("paragraph", 0)
 		return
 	}
@@ -451,7 +537,29 @@ func (e *Engine) Enter(soft bool) {
 		e.enterToggle(b)
 		return
 	}
-	e.Replace(min(e.Anchor, e.Caret), max(e.Anchor, e.Caret), "\n")
+	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
+	first := e.LeafAt(a)
+	if first.Block.Kind == "code" && e.LeafAt(z).Block.ID == first.Block.ID {
+		text := first.Block.Text()
+		ba := ByteOffset(text, a-first.Start)
+		bz := ByteOffset(text, z-first.Start)
+		lineStart := 0
+		if nl := strings.LastIndexByte(text[:ba], '\n'); nl >= 0 {
+			lineStart = nl + 1
+		}
+		indentEnd := lineStart
+		for indentEnd < ba && (text[indentEnd] == ' ' || text[indentEnd] == '\t') {
+			indentEnd++
+		}
+		indent := text[lineStart:indentEnd]
+		replaceFrom := a
+		if indentEnd == ba && indent != "" && (bz == len(text) || text[bz] == '\n' || text[bz] == '\r') {
+			replaceFrom = first.Start + Len(text[:lineStart])
+		}
+		e.Replace(replaceFrom, z, "\n"+indent)
+		return
+	}
+	e.Replace(a, z, "\n")
 }
 
 // OpenToggle gives the toggle id an empty line of content, indented under
@@ -534,6 +642,7 @@ func (e *Engine) Fragment() *Document {
 		}
 		b := leaf.Block.Clone()
 		b.Runs = SliceRuns(b.Runs, max(0, a-leaf.Start), min(z, leaf.End)-leaf.Start)
+		b.Comments = SliceComments(leaf.Block.Comments, max(0, a-leaf.Start), min(z, leaf.End)-leaf.Start)
 		if b.Kind == "cell" || a > leaf.Start || z < leaf.End {
 			b.Kind = "paragraph"
 			b.Level, b.NoteLabel, b.ImageWidth, b.URL = 0, "", 0, ""
@@ -557,6 +666,7 @@ func (e *Engine) Paste(fragment *Document) {
 		// A formula remains a block even when it is the only copied item.
 		if len(fragment.Blocks) == 1 && len(fragment.Blocks[0].Children) == 0 && (fragment.Blocks[0].Kind == "paragraph" || isVerbatim(leaf.Block) || leaf.Block.Kind == "cell") {
 			insert := fragment.Blocks[0]
+			replaceWhole := leaf.Block.Kind == "paragraph" && a == leaf.Start && z == leaf.End
 			e.replace(a, z, insert.Text())
 			for _, target := range e.Doc.Leaves() {
 				start, end := max(a, target.Start), min(a+Len(insert.Text()), target.End)
@@ -566,6 +676,15 @@ func (e *Engine) Paste(fragment *Document) {
 				runs := target.Block.Runs
 				middle := SliceRuns(insert.Runs, start-a, end-a)
 				target.Block.Runs = Compact(append(append(SliceRuns(runs, 0, start-target.Start), middle...), SliceRuns(runs, end-target.Start, target.End-target.Start)...))
+				if replaceWhole && insert.Align != "" && target.Block.Kind == "paragraph" {
+					target.Block.Align = insert.Align
+				}
+				if len(insert.Comments) > 0 {
+					midC := SliceComments(insert.Comments, start-a, end-a)
+					if len(midC) > 0 {
+						target.Block.Comments = insertCommentsAt(target.Block.Comments, start-target.Start, midC)
+					}
+				}
 			}
 			return
 		}
@@ -575,12 +694,22 @@ func (e *Engine) Paste(fragment *Document) {
 		}
 		e.replace(a, z, "")
 		leaf = e.LeafAt(e.Caret)
-		prefix := SliceRuns(leaf.Block.Runs, 0, e.Caret-leaf.Start)
-		suffix := SliceRuns(leaf.Block.Runs, e.Caret-leaf.Start, leaf.End-leaf.Start)
+		split := e.Caret - leaf.Start
+		prefix := SliceRuns(leaf.Block.Runs, 0, split)
+		suffix := SliceRuns(leaf.Block.Runs, split, leaf.End-leaf.Start)
+		var prefixComments, suffixComments []InlineComment
+		if len(prefix) > 0 && len(suffix) > 0 {
+			prefixComments, suffixComments = SplitCommentsAt(leaf.Block.Comments, split)
+		} else if len(prefix) > 0 {
+			prefixComments = SliceComments(leaf.Block.Comments, 0, split)
+		} else if len(suffix) > 0 {
+			suffixComments = SliceComments(leaf.Block.Comments, split, leaf.End-leaf.Start)
+		}
 		var blocks []*Block
 		if len(prefix) > 0 {
 			b := leaf.Block.Clone()
 			b.Runs = prefix
+			b.Comments = prefixComments
 			blocks = append(blocks, b)
 		}
 		var fresh func(*Block)
@@ -602,6 +731,7 @@ func (e *Engine) Paste(fragment *Document) {
 		if len(suffix) > 0 {
 			b := NewBlock("paragraph", "")
 			b.Runs = suffix
+			b.Comments = suffixComments
 			blocks = append(blocks, b)
 		}
 		parent, index := e.find(leaf.Block.ID)
@@ -624,6 +754,9 @@ func (e *Engine) SetKind(kind string, level int) {
 			}
 			leaf.Block.Kind, leaf.Block.Level = kind, level
 			leaf.Block.URL = ""
+			if !AllowsInlineComments(kind) {
+				leaf.Block.Comments = nil
+			}
 		}
 	})
 }
@@ -648,12 +781,15 @@ func (e *Engine) Toggle(mark string) {
 		}
 	}
 	on := !*get(&style)
+	apply := func(s *Style) {
+		*get(s) = on
+	}
 	if e.Anchor == e.Caret {
-		*get(&style) = on
+		apply(&style)
 		e.Typing, e.Explicit = style, true
 		return
 	}
-	e.applyFormat(func(s *Style) { *get(s) = on })
+	e.applyFormat(apply)
 }
 
 // SetTextColor colors the selection's text, or what is typed next at a
@@ -722,9 +858,9 @@ func (e *Engine) applyFormat(change func(*Style)) {
 				}
 				next := Compact(append(append(SliceRuns(runs, 0, localA), middle...), SliceRuns(runs, localZ, first.End-first.Start)...))
 				if !slices.Equal(runs, next) {
-					e.notifyBeforeChange()
+					e.notifyBeforeLeafChange(first.Block.ID, runs)
 					i := e.leafIDs[first.Block.ID]
-					entry := historyEntry{Snapshot{Anchor: e.Anchor, Caret: e.Caret, Typing: e.Typing, Explicit: e.Explicit}, first.Block.ID, slices.Clone(runs)}
+					entry := historyEntry{Snapshot{Anchor: e.Anchor, Caret: e.Caret, Typing: e.Typing, Explicit: e.Explicit}, first.Block.ID, slices.Clone(runs), slices.Clone(first.Block.Comments)}
 					first.Block.Runs = next
 					e.recordUndo(entry)
 					e.version++
@@ -872,7 +1008,134 @@ func (e *Engine) Align(align string) {
 }
 
 func (e *Engine) Indent(delta int) {
-	e.Edit(func() { b := e.LeafAt(e.Caret).Block; b.Indent = max(0, min(12, b.Indent+delta)) })
+	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
+	e.Edit(func() {
+		if a == z {
+			b := e.LeafAt(a).Block
+			if b.Kind != "cell" {
+				b.Indent = max(0, min(12, b.Indent+delta))
+			}
+			return
+		}
+		seen := map[string]bool{}
+		for _, leaf := range e.Doc.Leaves() {
+			if leaf.End < a || leaf.Start > z {
+				continue
+			}
+			if leaf.Start == z && leaf.Start > a {
+				continue
+			}
+			if leaf.Block.Kind == "cell" || seen[leaf.Block.ID] {
+				continue
+			}
+			seen[leaf.Block.ID] = true
+			leaf.Block.Indent = max(0, min(12, leaf.Block.Indent+delta))
+		}
+	})
+}
+
+// IndentCode indents or outdents lines within a single code or raw block.
+// Forward Tab only handles multi-line selections (returning false otherwise so
+// the caller inserts a literal tab); backward Shift+Tab handles both collapsed
+// carets and selections.
+func (e *Engine) IndentCode(remove bool) bool {
+	if e.ReadOnly {
+		return false
+	}
+	a, z := min(e.Anchor, e.Caret), max(e.Anchor, e.Caret)
+	leaf := e.LeafAt(a)
+	if (leaf.Block.Kind != "code" && leaf.Block.Kind != "raw") || e.LeafAt(z).Block.ID != leaf.Block.ID {
+		return false
+	}
+	text := leaf.Block.Text()
+	localA, localZ := a-leaf.Start, z-leaf.Start
+	ba, bz := ByteOffset(text, localA), ByteOffset(text, localZ)
+	if !remove && (a == z || !strings.ContainsRune(text[ba:bz], '\n')) {
+		return false
+	}
+	firstLineStart := 0
+	if nl := strings.LastIndexByte(text[:ba], '\n'); nl >= 0 {
+		firstLineStart = nl + 1
+	}
+	effectiveBZ := bz
+	if bz > ba && text[bz-1] == '\n' && bz-1 >= firstLineStart {
+		effectiveBZ = bz - 1
+	}
+
+	type lineEdit struct {
+		uLine int
+		rem   int
+	}
+	var edits []lineEdit
+	linePos := firstLineStart
+	for linePos <= effectiveBZ {
+		lineEnd := len(text)
+		if nl := strings.IndexByte(text[linePos:], '\n'); nl >= 0 {
+			lineEnd = linePos + nl
+		}
+		uLine := Len(text[:linePos])
+		if !remove {
+			edits = append(edits, lineEdit{uLine: uLine})
+		} else {
+			rem := 0
+			if strings.HasPrefix(text[linePos:lineEnd], "\t") {
+				rem = 1
+			} else {
+				for rem < 4 && linePos+rem < lineEnd && text[linePos+rem] == ' ' {
+					rem++
+				}
+			}
+			if rem > 0 {
+				edits = append(edits, lineEdit{uLine: uLine, rem: rem})
+			}
+		}
+		if lineEnd >= len(text) {
+			break
+		}
+		linePos = lineEnd + 1
+	}
+	if len(edits) == 0 {
+		return true
+	}
+
+	runs := leaf.Block.Runs
+	blockLen := leaf.End - leaf.Start
+	var out []Run
+	prev := 0
+	newA, newZ := localA, localZ
+	for _, ed := range edits {
+		if ed.uLine > prev {
+			out = append(out, SliceRuns(runs, prev, ed.uLine)...)
+		}
+		if !remove {
+			out = append(out, Run{Text: "\t"})
+			if localA > ed.uLine {
+				newA++
+			}
+			if localZ > ed.uLine {
+				newZ++
+			}
+			prev = ed.uLine
+		} else {
+			newA -= min(ed.rem, max(0, localA-ed.uLine))
+			newZ -= min(ed.rem, max(0, localZ-ed.uLine))
+			prev = ed.uLine + ed.rem
+		}
+	}
+	if prev < blockLen {
+		out = append(out, SliceRuns(runs, prev, blockLen)...)
+	}
+
+	newAnchor, newCaret := leaf.Start+newA, leaf.Start+newZ
+	if e.Anchor > e.Caret {
+		newAnchor, newCaret = newCaret, newAnchor
+	}
+	if e.depth > 0 {
+		leaf.Block.Runs = Compact(out)
+		e.Anchor, e.Caret = newAnchor, newCaret
+		return true
+	}
+	return e.ReplaceBlockRuns(leaf.Block.ID, out, newAnchor, newCaret, e.Typing, e.Explicit)
 }
 
 func (e *Engine) ResizeTable(rows bool, delta int) {

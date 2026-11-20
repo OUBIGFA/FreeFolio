@@ -18,6 +18,8 @@ func TestMultilinePasteCaretAndContinuedTyping(t *testing.T) {
 				e, tt := newTester(first + "\n\n" + last)
 				tt.SetSize(width, 650)
 				focus(e, tt)
+				// Selection now expands from the current block to the full document.
+				tt.Key(ui.Cmd, ui.KeyA)
 				tt.Key(ui.Cmd, ui.KeyA)
 				selection := e.Selection()
 				tt.Key(ui.Cmd, ui.KeyC)
