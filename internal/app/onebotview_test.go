@@ -40,7 +40,7 @@ func TestOneBotReviewUIKeepsSelectionAfterFocusAndApplies(t *testing.T) {
 
 func TestOneBotSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect OneBot")
-	for _, mode := range []string{"review", "settings", "review-dark", "review-narrow", "review-diff", "alternatives"} {
+	for _, mode := range []string{"review", "settings", "review-dark", "review-narrow", "review-diff", "alternatives", "review-wide"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			setupOneBot(a, "key")
@@ -82,6 +82,9 @@ func TestOneBotSnapshot(t *testing.T) {
 				a.attachOneBotTask(task)
 				if mode == "review-dark" {
 					tt.SetDark(true)
+				}
+				if mode == "review-wide" {
+					a.prefs.OneBotWidth = 560
 				}
 				if mode == "review-narrow" {
 					tt.SetSize(760, 620)

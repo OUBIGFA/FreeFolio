@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// qaWidth is the panel's width, Arc's side panel's.
+// qaWidth is the initial width; the divider lets the user resize it.
 const qaWidth = 380
 
 var (
@@ -50,7 +50,7 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 		if !a.prefs.SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}
-		ui.Column(c.Key("qa")).Width(qaWidth).Grow(1).MinHeight(0).Padding(0, 8, 8, 0).Children(func() {
+		ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0).Children(func() {
 			s := a.qaSession(sp.ID)
 			ui.Row(c.Key("qa-head")).Height(max(bar.Height, 46)).Padding(0, bar.Right, 0, 6).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
 				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Text.Alpha(0.72))

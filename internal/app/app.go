@@ -458,8 +458,8 @@ func (a *App) Run() error {
 			// Started again without a document, as from the pinned
 			// taskbar button, the window comes back as it was left, or
 			// at the space's home page if the preference says so.
-			if len(files) == 0 && a.prefs.StartAtHome {
-				a.win.Update(func() { a.showSpaceHome() })
+			if len(files) == 0 {
+				a.win.Update(a.prepareWindowReopen)
 			}
 			a.win.Show()
 			a.win.Focus()
@@ -565,9 +565,7 @@ func (a *App) syncTray() {
 	// The tray icon brings the window back as it was left, or at the
 	// space's home page, as a launch does.
 	show := func() {
-		if a.prefs.StartAtHome {
-			a.win.Update(func() { a.showSpaceHome() })
-		}
+		a.win.Update(a.prepareWindowReopen)
 		if a.win.IsMinimized() {
 			a.win.Restore()
 		}

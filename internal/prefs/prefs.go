@@ -19,7 +19,9 @@ import (
 // StartAtHome, whose zero value is the default, so version 4 migrates
 // unchanged.
 // Version 6 adds document mind-map visibility and layout choices.
-const CurrentVersion = 7
+// Version 7 replaces legacy AI preferences with OneBot connections.
+// Version 8 adds OneBotWidth; zero keeps the standard panel width.
+const CurrentVersion = 8
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -30,6 +32,9 @@ type Prefs struct {
 	// SidebarWidth is the docked sidebar's width as dragged; 0 is the
 	// standard width.
 	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
+	// OneBotWidth remembers the user's preferred panel width. Window-size
+	// limits are applied by the view without overwriting this preference.
+	OneBotWidth float32 `json:"oneBotWidth,omitempty"`
 	// KeepRunningOff quits FreeMD when its window closes instead of
 	// hiding it in the notification area, which the zero value keeps.
 	KeepRunningOff bool `json:"keepRunningOff,omitempty"`

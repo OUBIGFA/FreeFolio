@@ -485,26 +485,29 @@ func (a *App) peekSidebar(c *ui.Context) {
 func (a *App) main(c *ui.Context, docked float32) {
 	t := c.Theme()
 	main := ui.Row(c.Key("main")).Grow(1).MinWidth(0).AlignItems(ui.Stretch)
-	target := float32(0)
-	if a.qa.open && a.state.ActiveSpace() != nil && (!a.spaceForm.open || a.spaceForm.id != "") {
-		target = qaWidth
-	}
-	// Resolve the panel before the document: both must use this frame's
-	// width, and offscreen paragraphs can keep their shaping while it moves.
-	a.qa.shown = main.Animate("qa-width", target, slide)
-	a.qa.resizing = a.qa.shown != target
-	left := float32(8)
-	if docked > 0.5 && a.prefs.SidebarLeft {
-		left = 0
-	}
-	// The question panel, when open, stands right of the document and its
-	// toolbar, which then leaves the window buttons' room to it.
-	panel := a.qa.shown
-	right := float32(8)
-	if panel > 0.5 || docked > 0.5 && !a.prefs.SidebarLeft {
-		right = 0
-	}
 	main.Children(func() {
+		a.oneBotResizer(c, docked)
+		target := float32(0)
+		if a.qa.open && a.state.ActiveSpace() != nil && (!a.spaceForm.open || a.spaceForm.id != "") {
+			target = a.oneBotWidth(docked)
+		}
+		// Resolve resize input before both panels; only opening/closing animates.
+		motion := slide
+		if a.qa.dragging || a.qa.resizing {
+			motion = 0
+		}
+		a.qa.shown = main.Animate("qa-width", target, motion)
+		a.qa.resizing = a.qa.resizing || a.qa.dragging || a.qa.shown != target
+		left := float32(8)
+		if docked > 0.5 && a.prefs.SidebarLeft {
+			left = 0
+		}
+		panel := a.qa.shown
+		right := float32(8)
+		if panel < 0.5 && docked > 0.5 && !a.prefs.SidebarLeft {
+			right = 0
+		}
+
 		ui.Column(c).Grow(1).MinWidth(0).Padding(0, right, 8, left).Children(func() {
 			if a.split != nil && !(a.spaceForm.open && a.spaceForm.id == "") {
 				a.splitView(c)

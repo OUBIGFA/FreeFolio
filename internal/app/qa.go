@@ -63,8 +63,10 @@ type qaState struct {
 	// focusInput puts the caret in the question field next frame.
 	focusInput bool
 	// shown is the panel's width as last drawn, sliding open or closed.
-	shown    float32
-	resizing bool
+	shown     float32
+	resizing  bool
+	dragging  bool
+	dragWidth float32
 
 	secrets secretStore
 	// key is the API key read from the store, keyRead once it was asked.

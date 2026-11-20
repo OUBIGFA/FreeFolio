@@ -2,6 +2,8 @@ package i18n
 
 // en translates the interface's messages into English, by their Chinese.
 var en = map[string]string{
+	"调整 OneBot 宽度": "Resize OneBot",
+	"拖动调整宽度；双击恢复默认；方向键微调": "Drag to resize; double-click to reset; arrow keys to adjust",
 	"没有产生修改":          "No changes were produced",
 	"%d 个文件 · %d 处修改": "%d files · %d changes",
 	"OneBot 菜单":       "OneBot menu",

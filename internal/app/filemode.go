@@ -122,6 +122,18 @@ func (a *App) leaveFileMode() bool {
 	return true
 }
 
+// Reopening a tray-resident window should not resurrect an empty file browser.
+// Live tabs keep their existing behavior; the user's home preference still wins.
+func (a *App) prepareWindowReopen() {
+	if a.prefs.StartAtHome {
+		a.showSpaceHome()
+		return
+	}
+	if a.files != nil && len(a.files.order) == 0 {
+		a.leaveFileMode()
+	}
+}
+
 // closeFileTab closes the tab of rel, showing its right neighbor, else its
 // left, when it was shown. The last tab takes the window with it unless the
 // user keeps the empty browser; it never returns to the spaces.

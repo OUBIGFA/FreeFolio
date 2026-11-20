@@ -40,3 +40,22 @@ func TestOneBotRejectsDuplicateConnectionIdentity(t *testing.T) {
 		t.Fatal("duplicate credential identities accepted")
 	}
 }
+
+func TestOneBotWidthMigratesAndPersists(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(s.Path, []byte(`{"version":7,"fontSize":19,"ai":{"active":"a","connections":[{"id":"a","name":"Local","protocol":"ollama","baseURL":"http://localhost:11434"}]}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.Load()
+	if err != nil || p.Version != CurrentVersion || p.OneBotWidth != 0 || p.FontSize != 19 || p.AI.Current() == nil {
+		t.Fatalf("migration %+v %v", p, err)
+	}
+	p.OneBotWidth = 560
+	if err = s.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Load()
+	if err != nil || q.OneBotWidth != 560 || q.AI.Current().ID != "a" {
+		t.Fatalf("round trip %+v %v", q, err)
+	}
+}
