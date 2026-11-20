@@ -120,5 +120,9 @@ Cloud sync's connection idle timeout in `internal/cloudsync/timeout.go` adapts
 `e982ff36668f5130d94b4f70409babb3d964df42` (v1.76.0), under the MIT License.
 The full notice is in `rclone/LICENSE`, with source evidence in
 `manifests/upstreams.json`. Its WebDAV property handling, cancellation checks and
-bisync no-change result also informed this repair. FreeMD retains its own guarded
+bisync no-change result also informed this repair. Remote inventory now adapts
+the bounded directory walking strategy in `fs/walk/walk.go` and recursive S3
+listing in `backend/s3/s3.go` from the same pinned revision. The adaptation uses
+four WebDAV workers with shared cancellation and S3 pagination without a delimiter;
+FreeMD's path, size, duplicate and completeness checks remain mandatory. FreeMD retains its own guarded
 sync engine; no rclone executable, backend registry or module dependency is bundled.

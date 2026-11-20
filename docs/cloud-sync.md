@@ -37,6 +37,17 @@ immediately. When a listing omits ETags, conditional GETs can validate cached
 content with a 304 response without downloading it again. A service without
 usable validators can still require full content reads.
 
+Remote inventories reuse the strategies in rclone v1.76.0: S3 lists the whole
+space prefix through paginated `ListObjectsV2` requests, without a delimiter;
+WebDAV lists up to four directories concurrently with `Depth: 1`. This reduces
+network round trips for S3 and overlaps waiting for independent WebDAV directories.
+It does not skip checking for changes made by other clients. An incomplete page,
+repeated pagination token, invalid path or failed directory stops the inventory
+before any file changes are applied. A WebDAV scan failure cancels its other
+requests. Local HTTP tests cover 64 S3 folders in one listing request and enforce
+the four-request WebDAV limit; these are request counts, not hosted-service
+speed measurements.
+
 Canceling a run shows **Sync canceled** and does not schedule a failure retry.
 Confirmed files retain their baselines, so canceling a later check does not
 discard earlier verification work. Scheduled sync remains enabled. Connections
@@ -77,3 +88,18 @@ The automated tests use local HTTP WebDAV/S3 servers, documented AWS signature
 vectors, two independent document directories, and encrypted fixtures. They do
 not certify every hosted service or replace testing an actual account's endpoint,
 permissions and ETag support.
+
+## Why not skip the remote inventory?
+
+An unchanged local folder or a client-maintained index cannot prove that another
+application has not edited, added or deleted remote files. Reliable change-only
+queries need the service to maintain a change history:
+
+| Approach | Benefit | Compatibility and decision |
+| --- | --- | --- |
+| [rclone recursive listing and parallel walking](https://github.com/rclone/rclone/tree/v1.76.0/fs/walk) | Fewer S3 listing calls; bounded parallel WebDAV requests | Adapted here; preserves ordinary WebDAV/S3 files and existing guarded writes. |
+| [WebDAV collection sync (RFC 6578)](https://datatracker.ietf.org/doc/html/rfc6578) | `sync-token` and `sync-collection` return changes since a prior cursor | Requires explicit server support, including coverage of child collections. Invalid tokens require rebuilding the inventory. Not enabled without capability support. |
+| [Joplin Server delta sync](https://joplinapp.org/help/dev/spec/server_delta_sync/) | Server-side change events, deletions and resumable cursors | Requires Joplin Server's API and data model; its [plain WebDAV driver](https://github.com/laurent22/joplin/blob/dev/packages/lib/file-api-driver-webdav.js) still inventories files. Not a replacement library for FreeMD's ordinary-file transport. |
+
+The current implementation adds no server, remote index file or metadata format
+and does not assume a directory's ETag covers changes to every descendant.

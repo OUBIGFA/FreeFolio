@@ -23,7 +23,7 @@
     },
     {
       "name": "rclone",
-      "purpose": "Connection idle timeout adapted for FreeMD WebDAV/S3; incremental sync behavior references",
+      "purpose": "Connection idle timeout, bounded WebDAV directory walking and recursive S3 listing adapted for FreeMD; incremental sync behavior references",
       "sourceUrl": "https://github.com/rclone/rclone",
       "tag": "v1.76.0",
       "revision": "e982ff36668f5130d94b4f70409babb3d964df42",
@@ -41,6 +41,16 @@
           "path": "fs/fshttp/dialer.go",
           "sha256": "994b3ff14a3db6d9f3dba5172b111d84be367bfc4405964472df69fb7a8e7cb6",
           "destination": "internal/cloudsync/timeout.go"
+        },
+        {
+          "path": "fs/walk/walk.go",
+          "sha256": "fa21e85d05d0559af4883d0e59012e5ad9a68976b92c88d49afb1ee94f91b052",
+          "destination": "internal/cloudsync/remote.go"
+        },
+        {
+          "path": "backend/s3/s3.go",
+          "sha256": "3aad01fe43d4d1f952bef03933fd352fbd72c3afce264762d6f6076b3a724a11",
+          "destination": "internal/cloudsync/transport.go"
         }
       ]
     }

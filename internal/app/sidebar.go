@@ -72,22 +72,27 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			}
 		})
 		t := c.Theme()
-		// The command bar, shown as MyGo's button faced like a search field,
-		// with its shortcut at the end as the reference apps do, and New
-		// Document to its right; the history's arrows and the sort sit
-		// under them.
+		// Keep navigation, search and document actions on one row. Compact
+		// labels give the search room without moving either edge's controls.
 		newDocHere := sp != nil && !(a.spaceForm.open && a.spaceForm.id == "")
-		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+			if newDocHere {
+				ui.Row(c.Key("history-bar")).Gap(2).Shrink(0).Children(func() { a.historyButtons(c) })
+			}
 			label := i18n.T("搜索或打开文档")
-			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(0)
-			// A narrow field gives the shortcut's room to the label; the
-			// tooltip still names the shortcut.
-			wide := search.Bounds().W >= 190
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(32)
+			width := search.Bounds().W
 			search.Children(func() {
 				ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
-				ui.Text(c, label).FontSize(13).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+				if width >= 62 {
+					text := label
+					if width < 150 {
+						text = i18n.T("搜索")
+					}
+					ui.Text(c, text).FontSize(13).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+				}
 				ui.Spacer(c)
-				if wide {
+				if width >= 190 {
 					ui.Text(c, a.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
 				}
 			})
@@ -96,6 +101,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			}
 			if newDocHere {
 				a.newDocRow(c)
+				a.sortButton(c, sp)
 			}
 		})
 		if sp == nil {
@@ -107,13 +113,6 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
-		// Under the search: the history's arrows, and the space's sort at
-		// the end.
-		ui.Row(c.Key("history-bar")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
-			a.historyButtons(c)
-			ui.Spacer(c)
-			a.sortButton(c, sp)
-		})
 		if len(a.state.Favorites) > 0 {
 			ui.Text(c, i18n.T("收藏文档")).PaddingStart(14).FontSize(12).FontWeight(500).TextColor(c.Theme().TextMuted)
 		}
@@ -1304,7 +1303,9 @@ func (a *App) newDocRow(c *ui.Context) {
 	alpha := 0.75 + 0.20*lit
 	row.Children(func() {
 		ui.Icon(c, iconPlus).FontSize(14).TextColor(t.Text.Alpha(alpha))
-		ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()
+		if a.sidebarW() >= 400 {
+			ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()
+		}
 	})
 	if row.Clicked() {
 		if open {

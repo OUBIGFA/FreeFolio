@@ -42,6 +42,8 @@ const remoteHeaderTimeout = 30 * time.Second
 
 func remoteClient(followRedirects bool, timeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// Retain one connection per listing worker across directory batches.
+	transport.MaxIdleConnsPerHost = remoteListConcurrency
 	transport.ResponseHeaderTimeout = timeout
 	dialer := &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -573,6 +575,7 @@ func (s *s3Store) Get(key string, out io.Writer) error {
 }
 
 type s3Listing struct {
+	XMLName  xml.Name `xml:"ListBucketResult"`
 	Contents []struct {
 		Key  string `xml:"Key"`
 		ETag string `xml:"ETag"`
@@ -585,15 +588,21 @@ type s3Listing struct {
 	Next        string `xml:"NextContinuationToken"`
 }
 
-func (s *s3Store) list(dir string, limit int) ([]remoteEntry, error) {
+// Recursive listing follows rclone's S3 ListR strategy: omit delimiter entirely
+// so the service returns descendants in pages instead of one request per folder.
+func (s *s3Store) list(dir string, limit int, recursive bool) ([]remoteEntry, error) {
 	prefix := strings.Join(s.object(dir), "/")
 	if prefix != "" {
 		prefix += "/"
 	}
 	var entries []remoteEntry
 	token := ""
+	seenTokens := map[string]bool{}
 	for {
-		query := map[string]string{"list-type": "2", "prefix": prefix, "delimiter": "/"}
+		query := map[string]string{"list-type": "2", "prefix": prefix}
+		if !recursive {
+			query["delimiter"] = "/"
+		}
 		if limit > 0 {
 			query["max-keys"] = fmt.Sprint(limit)
 		}
@@ -615,24 +624,50 @@ func (s *s3Store) list(dir string, limit int) ([]remoteEntry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("无法解析远端目录响应：%w", err)
 		}
+		if recursive && len(page.CommonPrefixes) != 0 {
+			return nil, errors.New("远端未返回完整的递归文件列表")
+		}
 		for _, item := range page.Contents {
-			if name := strings.TrimPrefix(item.Key, prefix); name != "" && !strings.Contains(name, "/") {
-				entries = append(entries, remoteEntry{Name: name, Size: item.Size, ETag: item.ETag})
+			name, ok := strings.CutPrefix(item.Key, prefix)
+			if !ok {
+				return nil, errors.New("远端文件超出所选目录")
 			}
+			if name == "" {
+				continue // The selected directory's own S3 marker.
+			}
+			marker := strings.HasSuffix(name, "/") && item.Size == 0
+			if marker {
+				name = strings.TrimSuffix(name, "/")
+			}
+			if !safeRelative(name) || !recursive && strings.Contains(name, "/") {
+				return nil, fmt.Errorf("invalid remote name %q", name)
+			}
+			entries = append(entries, remoteEntry{Name: name, Size: item.Size, ETag: item.ETag, Dir: marker})
 		}
 		for _, item := range page.CommonPrefixes {
-			if name := strings.Trim(strings.TrimPrefix(item.Prefix, prefix), "/"); name != "" {
-				entries = append(entries, remoteEntry{Name: name, Dir: true})
+			name, ok := strings.CutPrefix(item.Prefix, prefix)
+			name = strings.TrimSuffix(name, "/")
+			if !ok || !safeRelative(name) || strings.Contains(name, "/") {
+				return nil, fmt.Errorf("invalid remote directory %q", item.Prefix)
 			}
+			entries = append(entries, remoteEntry{Name: name, Dir: true})
 		}
-		if !page.IsTruncated || page.Next == "" || limit > 0 {
+		if len(entries) > 100000 {
+			return nil, errors.New("远端目录层级或数量超过限制")
+		}
+		if !page.IsTruncated || limit > 0 {
 			return entries, nil
 		}
+		// A truncated or looping inventory cannot establish absence safely.
+		if page.Next == "" || seenTokens[page.Next] {
+			return nil, errors.New("远端文件列表分页标记缺失或重复")
+		}
+		seenTokens[page.Next] = true
 		token = page.Next
 	}
 }
 
-func (s *s3Store) List(dir string) ([]remoteEntry, error) { return s.list(dir, 0) }
+func (s *s3Store) List(dir string) ([]remoteEntry, error) { return s.list(dir, 0, false) }
 
 func (s *s3Store) Delete(key string) error {
 	resp, err := s.do(http.MethodDelete, s.object(key), nil, nil, 0)
@@ -647,7 +682,7 @@ func (s *s3Store) Delete(key string) error {
 }
 
 func (s *s3Store) Probe() error {
-	if _, err := s.list("", 1); err != nil {
+	if _, err := s.list("", 1, false); err != nil {
 		return fmt.Errorf("连接失败：%s", strings.TrimPrefix(err.Error(), "读取远端目录失败："))
 	}
 	probe := []byte("FreeMD")

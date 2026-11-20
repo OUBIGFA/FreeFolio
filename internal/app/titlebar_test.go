@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -171,8 +172,8 @@ func TestSidebarResizerTipStaysOffTheToolbar(t *testing.T) {
 	}
 }
 
-// The brand leads the window; the history's buttons stand under the
-// sidebar's search field while it is docked and return to the toolbar
+// The brand leads the window; the history's buttons share the sidebar's
+// search row while it is docked and return to the toolbar
 // when it folds; the toggle that unfolds it sits on the sidebar's side.
 func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 	for _, left := range []bool{true, false} {
@@ -182,8 +183,9 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 		search, _ := tt.Find("搜索或打开文档")
 		back, _ := tt.Find("后退")
 		reload, _ := tt.Find("重新载入")
-		if back.Y < search.Y+search.H || back.X < search.X-4 || reload.X+reload.W > search.X+search.W {
-			t.Errorf("left=%v: history %+v..%+v not under the search field %+v", left, back, reload, search)
+		sort, _ := tt.Find("排序方式")
+		if math.Abs(float64(back.Y+back.H/2-search.Y-search.H/2)) > 1 || reload.X+reload.W > search.X || sort.X < search.X+search.W {
+			t.Errorf("left=%v: history %+v..%+v and sort %+v do not flank the search field %+v", left, back, reload, sort, search)
 		}
 		path, _ := tt.Find("文档路径")
 		logo, ok := tt.Find("FreeMD")
@@ -202,6 +204,40 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 		}
 		if left && show.X > back.X || !left && show.X < more.X {
 			t.Errorf("left=%v: the toggle %+v is not on the sidebar's side (back %+v, more %+v)", left, show, back, more)
+		}
+	}
+}
+
+// Compact controls must remain usable at the minimum width on either side.
+func TestSidebarActionRowFitsAtEveryWidth(t *testing.T) {
+	t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
+	for _, width := range []float32{sidebarMin, sidebarWidth, sidebarMax} {
+		for _, left := range []bool{true, false} {
+			for _, language := range []string{"zh-Hans", "en"} {
+				a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
+				a.prefs.SidebarWidth, a.prefs.SidebarLeft = width, left
+				a.prefs.Language = language
+				a.applyLanguage()
+				settle(tt)
+				start := float32(1240) - width
+				if left {
+					start = 0
+				}
+				last, center := start, float32(0)
+				for _, label := range []string{"后退", "前进", "重新载入", "搜索或打开文档", "新建文档", "排序方式"} {
+					r, ok := tt.Find(i18n.T(label))
+					if !ok || r.W < 28 || r.H < 28 || r.X < last || r.X+r.W > start+width {
+						t.Fatalf("width=%g left=%v: %s is clipped or overlaps: %+v (previous right=%g)", width, left, label, r, last)
+					}
+					if center != 0 && math.Abs(float64(r.Y+r.H/2-center)) > 1 {
+						t.Fatalf("width=%g left=%v: %s is on another row: %+v", width, left, label, r)
+					}
+					last, center = r.X+r.W, r.Y+r.H/2
+				}
+				if err := tt.Click(i18n.T("搜索或打开文档")); err != nil || !a.palette.open {
+					t.Fatalf("compact search is unusable: %v", err)
+				}
+			}
 		}
 	}
 }

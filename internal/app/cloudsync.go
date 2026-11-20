@@ -251,7 +251,7 @@ func (a *App) cloudTick(c *ui.Context) {
 				s.message = i18n.T("已取消同步")
 				s.retries = 0
 			} else if out.err != nil {
-				s.message = fmt.Sprintf(i18n.T("同步失败：%v"), out.err)
+				s.message = fmt.Sprintf(i18n.T("同步失败：%v"), errText(out.err))
 				var networkError net.Error
 				if errors.Is(out.err, context.DeadlineExceeded) || errors.As(out.err, &networkError) && networkError.Timeout() {
 					s.message = fmt.Sprintf(i18n.T("同步超时，请检查网络后重试：%v"), out.err)

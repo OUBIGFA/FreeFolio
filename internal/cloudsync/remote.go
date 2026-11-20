@@ -2,14 +2,19 @@ package cloudsync
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
 
-const maxFileBytes int64 = 64 << 20
+const (
+	maxFileBytes          int64 = 64 << 20
+	remoteListConcurrency       = 4
+)
 
 var (
 	errRemoteChanged     = errors.New("远端文件已变化，请重新同步")
@@ -124,47 +129,101 @@ func deleteRemote(s remoteStore, key, etag string) error {
 	return nil
 }
 
-// Remote traversal rejects path tricks, duplicate names and oversized inventories.
+// Remote inventory adapts rclone's ListR / bounded directory walk strategy.
+// It rejects incomplete results before the sync engine can apply any changes.
 func listRemote(s remoteStore, root string, progress func(string)) (map[string]remoteEntry, error) {
 	out := map[string]remoteEntry{}
 	seen := map[string]bool{}
-	var walk func(string, int) error
-	walk = func(dir string, depth int) error {
-		if depth > 64 || len(seen) > 100000 {
+	add := func(rel string, e remoteEntry) error {
+		if !safeRelative(rel) {
+			return fmt.Errorf("invalid remote name %q", rel)
+		}
+		depth := strings.Count(rel, "/")
+		if e.Dir {
+			depth++
+		}
+		if depth > 64 || len(seen) >= 100000 {
 			return errors.New("远端目录层级或数量超过限制")
 		}
-		if progress != nil {
-			progress(dir)
+		if seen[rel] {
+			return errors.New("远端目录返回重复路径")
 		}
-		entries, err := s.List(dir)
-		if err != nil {
-			return err
+		seen[rel] = true
+		if excluded(rel) || e.Dir {
+			return nil
 		}
-		for _, e := range entries {
-			if !safeRelative(e.Name) || strings.Contains(e.Name, "/") {
-				return fmt.Errorf("invalid remote name %q", e.Name)
-			}
-			key := dir + "/" + e.Name
-			if seen[key] {
-				return errors.New("远端目录返回重复路径")
-			}
-			seen[key] = true
-			rel := strings.TrimPrefix(key, root+"/")
-			if excluded(rel) {
-				continue
-			}
-			if e.Dir {
-				if err := walk(key, depth+1); err != nil {
-					return err
-				}
-				continue
-			}
-			if e.Size < 0 || e.Size > maxFileBytes*2 {
-				return fmt.Errorf("文件过大：%s", rel)
-			}
-			out[rel] = e
+		if e.Size < 0 || e.Size > maxFileBytes*2 {
+			return fmt.Errorf("文件过大：%s", rel)
 		}
+		out[rel] = e
 		return nil
 	}
-	return out, walk(root, 0)
+	if bucket, ok := s.(*s3Store); ok {
+		if progress != nil {
+			progress(root)
+		}
+		entries, err := bucket.list(root, 0, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			if err := add(e.Name, e); err != nil {
+				return nil, err
+			}
+		}
+		return out, nil
+	}
+	dav, ok := s.(*webdavStore)
+	if !ok {
+		return nil, errors.New("unsupported sync transport")
+	}
+	// The scan owns cancellation, so a failed directory stops its peers without
+	// canceling the caller's context. Progress and map updates stay serial.
+	ctx, cancel := context.WithCancelCause(dav.ctx)
+	defer cancel(nil)
+	scan := *dav
+	scan.ctx = ctx
+	pending := []string{root}
+	for len(pending) > 0 {
+		if err := context.Cause(ctx); err != nil {
+			return nil, err
+		}
+		batch := pending[:min(remoteListConcurrency, len(pending))]
+		pending = pending[len(batch):]
+		results := make([][]remoteEntry, len(batch))
+		var workers sync.WaitGroup
+		for i, dir := range batch {
+			if progress != nil {
+				progress(dir)
+			}
+			workers.Go(func() {
+				entries, err := scan.List(dir)
+				if err != nil {
+					cancel(err)
+					return
+				}
+				results[i] = entries
+			})
+		}
+		workers.Wait()
+		if err := context.Cause(ctx); err != nil {
+			return nil, err
+		}
+		for i, entries := range results {
+			for _, e := range entries {
+				if !safeRelative(e.Name) || strings.Contains(e.Name, "/") {
+					return nil, fmt.Errorf("invalid remote name %q", e.Name)
+				}
+				key := batch[i] + "/" + e.Name
+				rel := strings.TrimPrefix(key, root+"/")
+				if err := add(rel, e); err != nil {
+					return nil, err
+				}
+				if e.Dir && !excluded(rel) {
+					pending = append(pending, key)
+				}
+			}
+		}
+	}
+	return out, nil
 }

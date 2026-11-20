@@ -139,8 +139,7 @@ func TestNewestFirstReachesSubfoldersAndFollowsWrites(t *testing.T) {
 	}
 }
 
-// New Document stands right of the search; the sort button, under them
-// with the history, sorts the space.
+// New Document stands right of the search; the final button sorts the space.
 func TestSidebarSortButtonSortsRoot(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.Frame()
@@ -151,14 +150,13 @@ func TestSidebarSortButtonSortsRoot(t *testing.T) {
 	if !ok1 || !ok2 || !ok3 {
 		t.Fatal("sidebar parts missing")
 	}
-	// New Document stands right of the search on its row; the history's
-	// arrows sit under them, above the tree.
+	// All actions share a row above the tree, with navigation at the left.
 	if newDoc.X < search.X+search.W || newDoc.Y+newDoc.H <= search.Y || newDoc.Y >= search.Y+search.H {
 		t.Fatal("New Document sits right of the search", search, newDoc)
 	}
 	back, ok := tt.Find("后退")
-	if !ok || back.Y < search.Y+search.H || back.Y+back.H > tree.Y {
-		t.Fatal("back sits under the search, above the tree", back, search, tree)
+	if !ok || back.X+back.W > search.X || back.Y+back.H <= search.Y || back.Y >= search.Y+search.H || back.Y+back.H > tree.Y {
+		t.Fatal("back must sit left of the search, above the tree", back, search, tree)
 	}
 	if err := tt.Click("排序方式"); err != nil {
 		t.Fatal(err)

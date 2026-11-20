@@ -284,7 +284,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				continue
 			}
-			if i := strings.Index(rest, "/"); i >= 0 {
+			if i := strings.Index(rest, "/"); i >= 0 && r.URL.Query().Get("delimiter") == "/" {
 				if dir := prefix + rest[:i+1]; !seen[dir] {
 					seen[dir] = true
 					listing.CommonPrefixes = append(listing.CommonPrefixes, commonPrefix{dir})
