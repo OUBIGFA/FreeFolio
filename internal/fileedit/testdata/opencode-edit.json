@@ -1,0 +1,320 @@
+[
+  {
+    "name": "exact",
+    "source": "before\nrest\n",
+    "oldString": "before",
+    "newString": "after",
+    "replaceAll": false,
+    "result": "after\nrest\n",
+    "count": 1
+  },
+  {
+    "name": "no-op",
+    "source": "same same",
+    "oldString": "same",
+    "newString": "same",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "empty",
+    "source": "same same",
+    "oldString": "",
+    "newString": "after",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "miss",
+    "source": "same same",
+    "oldString": "missing",
+    "newString": "after",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "ambiguous",
+    "source": "same same",
+    "oldString": "same",
+    "newString": "after",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "all",
+    "source": "same same",
+    "oldString": "same",
+    "newString": "after",
+    "replaceAll": true,
+    "result": "after after",
+    "count": 2
+  },
+  {
+    "name": "typography",
+    "source": "it’s here\n",
+    "oldString": "it's here",
+    "newString": "there",
+    "replaceAll": false,
+    "result": "there\n",
+    "count": 1
+  },
+  {
+    "name": "exact first",
+    "source": "it’s here\nit's here\n",
+    "oldString": "it's here",
+    "newString": "there",
+    "replaceAll": false,
+    "result": "it’s here\nthere\n",
+    "count": 1
+  },
+  {
+    "name": "trailing",
+    "source": "one  \ntwo\t\nkeep\t\n",
+    "oldString": "one\ntwo\n",
+    "newString": "changed\n",
+    "replaceAll": false,
+    "result": "changed\nkeep\t\n",
+    "count": 1
+  },
+  {
+    "name": "overlap",
+    "source": "a  \na  \na  \n",
+    "oldString": "a\na\n",
+    "newString": "x\n",
+    "replaceAll": true,
+    "result": "x\na  \n",
+    "count": 1
+  },
+  {
+    "name": "windows trailing",
+    "source": "a  \r\na  \r\n",
+    "oldString": "a\na\n",
+    "newString": "x\n",
+    "replaceAll": true,
+    "result": "x\r\n",
+    "count": 1
+  },
+  {
+    "name": "bom crlf",
+    "source": "﻿before\r\nrest\r\n",
+    "oldString": "before\nrest",
+    "newString": "after\nrest",
+    "replaceAll": false,
+    "result": "﻿after\r\nrest\r\n",
+    "count": 1
+  },
+  {
+    "name": "mixed inline",
+    "source": "head\r\nAAA OLD BBB\ntail\n",
+    "oldString": "AAA OLD BBB",
+    "newString": "AAA NEW\nLINE2",
+    "replaceAll": false,
+    "result": "head\r\nAAA NEW\nLINE2\ntail\n",
+    "count": 1
+  },
+  {
+    "name": "mixed spanning",
+    "source": "head\r\nAAA NEW\nLINE2\ntail\n",
+    "oldString": "LINE2\ntail",
+    "newString": "LINE2\nTAIL",
+    "replaceAll": false,
+    "result": "head\r\nAAA NEW\nLINE2\nTAIL\n",
+    "count": 1
+  },
+  {
+    "name": "mixed crossing",
+    "source": "one\r\ntwo\r\nthree\nfour\r\n",
+    "oldString": "o\nthree\nfo",
+    "newString": "O\nTHREE\nFO",
+    "replaceAll": false,
+    "result": "one\r\ntwO\r\nTHREE\nFOur\r\n",
+    "count": 1
+  },
+  {
+    "name": "mixed add",
+    "source": "one\r\ntwO\r\nTHREE\nFOur\r\n",
+    "oldString": "one",
+    "newString": "ONE\nUNO",
+    "replaceAll": false,
+    "result": "ONE\r\nUNO\r\ntwO\r\nTHREE\nFOur\r\n",
+    "count": 1
+  },
+  {
+    "name": "align context",
+    "source": "All(item.Sku);\r\n\r\nFind(sku);\r\n\r\nvoid Add()\n{\n  _items[item.Sku] = item;\n}\r\n",
+    "oldString": "All(item.Sku);\n\nFind(sku);\n\nvoid Add()\n{\n  _items[item.Sku] = item;\n}",
+    "newString": "All(item.Code);\n\nFind(code);\n\nvoid Add()\n{\n  _items[item.Code] = item;\n}\n\nbool Remove(string code)\n{\n}",
+    "replaceAll": false,
+    "result": "All(item.Code);\r\n\r\nFind(code);\r\n\r\nvoid Add()\n{\n  _items[item.Code] = item;\n}\r\n\r\nbool Remove(string code)\r\n{\r\n}\r\n",
+    "count": 1
+  },
+  {
+    "name": "strip cr",
+    "source": "a\r\nb\r\n",
+    "oldString": "\r",
+    "newString": "",
+    "replaceAll": true,
+    "result": "a\nb\n",
+    "count": 2
+  },
+  {
+    "name": "convert whole",
+    "source": "x\r\ny\r\n",
+    "oldString": "x\r\ny\r\n",
+    "newString": "x\ny\n",
+    "replaceAll": false,
+    "result": "x\ny\n",
+    "count": 1
+  },
+  {
+    "name": "add cr",
+    "source": "p\nq\n",
+    "oldString": "p\nq",
+    "newString": "p\r\nq",
+    "replaceAll": false,
+    "result": "p\r\nq\n",
+    "count": 1
+  },
+  {
+    "name": "repeat add cr",
+    "source": "p\r\nq\n",
+    "oldString": "p\nq",
+    "newString": "p\r\nq",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "typographic no-op",
+    "source": "it’s here\n",
+    "oldString": "it's here",
+    "newString": "it’s here",
+    "replaceAll": false,
+    "error": true
+  },
+  {
+    "name": "Unicode space 0xa0",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2002",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2003",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2004",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2005",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2006",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2007",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2008",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x2009",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x200a",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x202f",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x205f",
+    "source": "hello world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "Unicode space 0x3000",
+    "source": "hello　world\n",
+    "oldString": "hello world",
+    "newString": "hello there",
+    "replaceAll": false,
+    "result": "hello there\n",
+    "count": 1
+  },
+  {
+    "name": "CJK and emoji",
+    "source": "前😀“你好”\r\n后",
+    "oldString": "前😀\"你好\"\n后",
+    "newString": "前😀再见\n后",
+    "replaceAll": false,
+    "result": "前😀再见\r\n后",
+    "count": 1
+  }
+]

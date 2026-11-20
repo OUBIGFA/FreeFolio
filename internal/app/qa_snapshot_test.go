@@ -140,7 +140,7 @@ func TestQASnapshot(t *testing.T) {
 			os.MkdirAll(filepath.Join(root(a), "项目"), 0o755)
 			os.WriteFile(filepath.Join(root(a), "项目/周报.md"), []byte("# 周报\n\n## 进展\n\npayments 支付回调已联调通过。\n"), 0o644)
 			if name == "unset" {
-				a.prefs.AI.Model = ""
+				a.prefs.AI.Current().Model = ""
 			}
 			a.toggleQA()
 			tt.Frame()
@@ -171,13 +171,15 @@ func TestQASnapshot(t *testing.T) {
 			case "settings":
 				a.openSettings(tabAI)
 			case "settings-empty":
-				a.prefs.AI = prefs.AI{Provider: agent.Custom}
+				a.prefs.AI = prefs.AI{}
 				a.qa.key = ""
 				a.openSettings(tabAI)
 			case "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en":
-				a.prefs.AI = prefs.AI{Provider: "deepseek", BaseURL: "https://api.deepseek.com"}
-				a.qa.listModels = func(agent.Settings) ([]string, error) {
-					return []string{"deepseek-flash", "deepseek-v4-pro"}, nil
+				setupOneBot(a, "sk-test")
+				a.prefs.AI.Current().Vendor = "deepseek"
+				a.prefs.AI.Current().BaseURL = "https://api.deepseek.com"
+				a.qa.listModels = func(agent.Settings) ([]agent.ModelInfo, error) {
+					return []agent.ModelInfo{{ID: "deepseek-flash"}, {ID: "deepseek-v4-pro"}}, nil
 				}
 				a.openSettings(tabAI)
 				tt.Frame()

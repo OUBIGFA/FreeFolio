@@ -53,6 +53,63 @@
           "destination": "internal/cloudsync/transport.go"
         }
       ]
+    },
+    {
+      "name": "OpenCode",
+      "purpose": "Native file editing tool algorithms, patch grammar and compatibility fixtures for OneBot",
+      "sourceUrl": "https://github.com/anomalyco/opencode",
+      "revision": "85951cb08614dfe6443905552cae49d59d2d6615",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/opencode/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/opencode/LICENSE",
+          "bytes": 1065,
+          "sha256": "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b"
+        }
+      ],
+      "adaptedFiles": [
+        {
+          "path": "packages/core/src/tool/plugin/edit.ts",
+          "sha256": "0d80b789560436611eebce1cfb952adffa3ea8e1ee820ef7266ee4d5774b4740",
+          "destination": "internal/fileedit/edit.go"
+        },
+        {
+          "path": "packages/util/src/patch.ts",
+          "sha256": "c09f7aa9a15d6dd7ff854741b81a92bcd786306abb73daa7e93d01fc34446c52",
+          "destination": "internal/fileedit/patch.go"
+        },
+        {
+          "path": "packages/core/src/tool/plugin/patch.ts",
+          "sha256": "e6562ab996c5e129b895dbbf4e8fc184c0aebb19d56de9794cab0f1048e2f35b",
+          "destination": "internal/agent/edit.go"
+        },
+        {
+          "path": "packages/core/src/tool/plugin/read.ts",
+          "sha256": "e587499b90a12955296b02c7b61834e418832477b54a978e50b0eb35fb73ef71",
+          "destination": "internal/agent/edit.go"
+        },
+        {
+          "path": "packages/core/src/tool/plugin/write.ts",
+          "sha256": "3d3fcfabf2bd5e40e784c652720a42f18b8fb78dada6e8d6ba9e38c0dfa9a62a",
+          "destination": "internal/agent/edit.go"
+        },
+        {
+          "path": "packages/core/src/tool/patch.txt",
+          "sha256": "6decf236ce2c7399b02c222c3c081d034434d3eaa7f3b6dccda4ddef65182142",
+          "destination": "internal/agent/edit.go"
+        },
+        {
+          "path": "packages/core/test/patch.test.ts",
+          "sha256": "b9926ea98f63a8c9f4d4c162ff369ab5a113829485109b342053cb11d26b2c38",
+          "destination": "internal/fileedit/testdata/opencode-patch.json"
+        },
+        {
+          "path": "packages/core/test/tool-edit.test.ts",
+          "sha256": "7de5985ac4c40dc549bc6278b2b6f65c78b50391bd90884aabaf8998eb1f7e37",
+          "destination": "internal/fileedit/testdata/opencode-edit.json"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

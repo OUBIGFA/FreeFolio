@@ -12,7 +12,6 @@ import (
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -47,7 +46,11 @@ func (s *scripted) Complete(_ context.Context, req agent.Request, onDelta func(a
 	if m.Text != "" {
 		onDelta(agent.Delta{Text: m.Text})
 	}
-	return agent.Response{Message: m}, nil
+	finish := "stop"
+	if len(m.Calls) > 0 {
+		finish = "tool_calls"
+	}
+	return agent.Response{Message: m, FinishReason: finish}, nil
 }
 
 func call(name, args string) func(agent.Request) agent.Message {
@@ -63,8 +66,7 @@ func reply(text string) func(agent.Request) agent.Message {
 // qaApp is a test app with a model set up and the given model.
 func qaApp(t *testing.T, model *scripted) (*App, *ui.Tester) {
 	a, tt := newTestApp(t)
-	a.prefs.AI = prefs.AI{Provider: "openai", Model: "test-model"}
-	a.qa.secrets = memSecrets{apiKeySecret: []byte("sk-test")}
+	setupOneBot(a, "sk-test")
 	a.qa.sync = true
 	a.qa.provider = func(s agent.Settings) agent.Provider {
 		if s.APIKey != "sk-test" || s.Model != "test-model" || s.BaseURL != "https://api.openai.com/v1" {
@@ -85,7 +87,7 @@ func TestQAPanelOpensAndAsksToSetUp(t *testing.T) {
 	if !a.qa.open {
 		t.Fatal("⌘J did not open the panel")
 	}
-	if !tt.HasText("向「Personal」提问") || !tt.HasText("设置模型…") || !tt.HasText("还没有设置 API Key") {
+	if !tt.HasText("向「Personal」提问") || !tt.HasText("设置模型…") || !tt.HasText("请先添加供应商") {
 		t.Fatalf("panel: %q", tt.Texts())
 	}
 	if !tt.Focused("问题") {
@@ -95,14 +97,14 @@ func TestQAPanelOpensAndAsksToSetUp(t *testing.T) {
 	tt.Type("什么？")
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if !tt.HasText("还没有设置 API Key") || !tt.HasText("重试") {
+	if !tt.HasText("请先添加供应商") || !tt.HasText("重试") {
 		t.Fatalf("unset key: %q", tt.Texts())
 	}
 	if err := tt.Click("设置模型…"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.settingsOpen || a.settingsTab != tabAI || !tt.HasText("服务地址") {
+	if !a.settingsOpen || a.settingsTab != tabAI || !tt.HasText("添加供应商") {
 		t.Fatalf("settings: %q", tt.Texts())
 	}
 }
@@ -349,92 +351,11 @@ func TestQAStopAndRetry(t *testing.T) {
 	}
 }
 
-func TestQASettingsKeepTheKeyInTheStore(t *testing.T) {
-	a, tt := newTestApp(t)
-	a.openSettings(tabAI)
-	tt.Frame()
-	if !tt.HasText("保存在本机配置目录") {
-		t.Fatal("settings do not describe local key storage")
-	}
-	// Base URL, then API key, then model, top to bottom.
-	addr, _ := tt.Find("服务地址")
-	key, _ := tt.Find("粘贴 API Key")
-	model, _ := tt.Find("输入模型名称")
-	if !(addr.Y < key.Y && key.Y < model.Y) {
-		t.Fatalf("order: address %v, key %v, model %v", addr.Y, key.Y, model.Y)
-	}
-	// A preset fills the address.
-	tt.Click("常用服务")
-	tt.Frame()
-	if err := tt.ChooseMenuItem("DeepSeek"); err != nil {
-		t.Fatalf("%v: %q", err, tt.Menu())
-	}
-	tt.Frame()
-	if a.prefs.AI.Provider != "deepseek" || a.prefs.AI.BaseURL != "https://api.deepseek.com" {
-		t.Fatalf("preset %+v", a.prefs.AI)
-	}
-	tt.Click("输入模型名称")
-	tt.Type("deepseek-v4-pro")
-	tt.Click("粘贴 API Key")
-	tt.Type("sk-secret-1234")
-	tt.Key(0, ui.KeyEnter)
-	tt.Frame()
-	storedKey, err := a.qa.secrets.Get(apiKeySecret)
-	if err != nil || string(storedKey) != "sk-secret-1234" || !tt.HasText("已保存 ••••1234") || !tt.HasText("可以提问了。") {
-		t.Fatalf("saving key failed: %v, texts %q", err, tt.Texts())
-	}
-	saved, err := prefs.Store{Path: a.prefStore.Path}.Load()
-	if err != nil || saved.AI.Model != "deepseek-v4-pro" {
-		t.Fatalf("prefs %+v %v", saved, err)
-	}
-	data, _ := os.ReadFile(a.prefStore.Path)
-	if strings.Contains(string(data), "sk-secret") {
-		t.Fatal("the key was written to prefs.json")
-	}
-	reopened, err := New(a.cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reopened.qaSettings().APIKey != "sk-secret-1234" || reopened.qaReady() != nil {
-		t.Fatal("the saved key was not available after restarting")
-	}
-	isolated, _ := newTestApp(t)
-	if isolated.qaSettings().APIKey != "" {
-		t.Fatal("the key escaped its configuration directory")
-	}
-	tt.Click("移除")
-	tt.Frame()
-	if _, err := a.qa.secrets.Get(apiKeySecret); !errors.Is(err, os.ErrNotExist) || !tt.HasText("还没有设置 API Key") {
-		t.Fatalf("removed: %q", tt.Texts())
-	}
-	reopened, err = New(a.cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reopened.qaSettings().APIKey != "" {
-		t.Fatal("the removed key returned after restarting")
-	}
-	// Typing an address of its own makes it a custom service.
-	tt.Click("服务地址")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type("http://example.com/v1")
-	tt.Frame()
-	if a.prefs.AI.Provider != agent.Custom || a.prefs.AI.BaseURL != "http://example.com/v1" {
-		t.Fatalf("custom %+v", a.prefs.AI)
-	}
-	if err := a.qaReady(); err == nil || !strings.Contains(err.Error(), "https://") {
-		t.Fatalf("http allowed: %v", err)
-	}
-	a.prefs.AI.BaseURL = "http://localhost:11434/v1"
-	if err := a.qaReady(); err != nil {
-		t.Fatalf("local: %v", err)
-	}
-}
-
 func TestQAKeyStoreErrorIsShown(t *testing.T) {
 	a, _ := newTestApp(t)
+	setupOneBot(a, "")
 	a.qa.secrets = failingSecrets{}
-	a.prefs.AI = prefs.AI{Provider: "openai", Model: "m"}
+	a.qa.keyRead = false
 	if err := a.qaReady(); err == nil || !strings.Contains(err.Error(), "无法读取 API Key") {
 		t.Fatalf("%v", err)
 	}
@@ -442,8 +363,8 @@ func TestQAKeyStoreErrorIsShown(t *testing.T) {
 
 func TestQAKeyRemovalFailureKeepsSavedKey(t *testing.T) {
 	a, tt := newTestApp(t)
+	setupOneBot(a, "sk-test-1234")
 	a.qa.secrets = failingSecrets{}
-	a.qa.key, a.qa.keyRead = "sk-test-1234", true
 	a.openSettings(tabAI)
 	tt.Frame()
 	if err := tt.Click("移除"); err != nil {
@@ -486,166 +407,3 @@ func TestQAPageMapsBlocks(t *testing.T) {
 
 // The model list comes when asked for, with the address and key set (a
 // key typed but not saved is saved first), and a name can still be typed.
-func TestQASettingsListModels(t *testing.T) {
-	a, tt := newTestApp(t)
-	store := memSecrets{}
-	a.qa.secrets = store
-	var asked []agent.Settings
-	fail := false
-	a.qa.listModels = func(s agent.Settings) ([]string, error) {
-		asked = append(asked, s)
-		if fail {
-			return nil, &agent.APIError{Status: 401, Message: "bad key"}
-		}
-		return []string{"deepseek-flash", "deepseek-v4-pro"}, nil
-	}
-	a.prefs.AI = prefs.AI{Provider: "deepseek", BaseURL: "https://api.deepseek.com"}
-	a.openSettings(tabAI)
-	tt.Frame()
-	if !tt.HasText("先填写 Base URL 和 API Key，再获取模型") {
-		t.Fatalf("note: %q", tt.Texts())
-	}
-	// Without a key the button is disabled and asks nothing.
-	tt.Click("获取模型")
-	tt.Frame()
-	if len(asked) != 0 || a.qa.modelsErr != nil {
-		t.Fatalf("no key: %d %q", len(asked), tt.Texts())
-	}
-	tt.Click("粘贴 API Key")
-	tt.Type("sk-1")
-	tt.Frame()
-	if len(asked) != 0 || !tt.HasText("点「获取模型」选择，或直接输入") {
-		t.Fatalf("typing should not fetch: %d %q", len(asked), tt.Texts())
-	}
-	tt.Click("获取模型")
-	tt.Frame()
-	if len(asked) != 1 || asked[0].APIKey != "sk-1" || string(store[apiKeySecret]) != "sk-1" || !tt.HasText("共 2 个可用模型") {
-		t.Fatalf("list: %d %q", len(asked), tt.Texts())
-	}
-	// Frames do not ask again.
-	tt.Frame()
-	if len(asked) != 1 {
-		t.Fatalf("asked %d times", len(asked))
-	}
-	tt.Click("选择模型")
-	tt.Frame()
-	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyEnter)
-	tt.Frame()
-	if a.prefs.AI.Model != "deepseek-v4-pro" || !tt.HasText("可以提问了。") {
-		t.Fatalf("model %q", a.prefs.AI.Model)
-	}
-	saved, _ := prefs.Store{Path: a.prefStore.Path}.Load()
-	if saved.AI.Model != "deepseek-v4-pro" {
-		t.Fatalf("saved %+v", saved.AI)
-	}
-	// Typing a name the list lacks.
-	tt.Click("手动输入")
-	tt.Frame()
-	tt.Click("输入模型名称")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type("my-model")
-	tt.Frame()
-	if a.prefs.AI.Model != "my-model" {
-		t.Fatalf("typed %q", a.prefs.AI.Model)
-	}
-	// Changing the address clears the list without fetching automatically.
-	tt.Click("服务地址")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type("https://example.com/v1")
-	tt.Frame()
-	if len(a.qa.models) != 0 || len(asked) != 1 {
-		t.Fatalf("address change: models %v, requests %d", a.qa.models, len(asked))
-	}
-	// Another key forgets the list; a key the service refuses says so.
-	fail = true
-	tt.Click("移除")
-	tt.Frame()
-	if tt.HasText("共 2 个可用模型") {
-		t.Fatal("the list outlived its key")
-	}
-	tt.Click("粘贴 API Key")
-	tt.Type("sk-bad")
-	tt.Click("获取模型")
-	tt.Frame()
-	if !tt.HasText("没有拿到列表，可手动输入") || !tt.HasText("获取模型列表失败：API Key 无效或没有权限（401）：bad key") || !tt.HasText("模型名称") {
-		t.Fatalf("failure: %q", tt.Texts())
-	}
-}
-
-func TestQASettingsModelListRequirements(t *testing.T) {
-	for _, tc := range []struct {
-		name, base, key string
-		wantRequest     bool
-	}{
-		{"empty address", "", "sk-test", false},
-		{"invalid address", "not-a-url", "sk-test", false},
-		{"remote http", "http://example.com/v1", "sk-test", false},
-		{"missing key", "https://example.com/v1", "", false},
-		{"blank key", "https://example.com/v1", "   ", false},
-		{"ready without model", "https://example.com/v1", "sk-test", true},
-		{"local without key", "http://localhost:11434/v1", "", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			a, tt := newTestApp(t)
-			a.prefs.AI = prefs.AI{Provider: agent.Custom, BaseURL: tc.base}
-			a.qa.secrets = memSecrets{}
-			a.qa.keyInput = tc.key
-			requests := 0
-			a.qa.listModels = func(agent.Settings) ([]string, error) {
-				requests++
-				return nil, nil
-			}
-			a.openSettings(tabAI)
-			tt.Frame()
-			if requests != 0 {
-				t.Fatal("opening settings fetched models")
-			}
-			if err := tt.Click("获取模型"); err != nil {
-				t.Fatal(err)
-			}
-			tt.Frame()
-			if (requests == 1) != tc.wantRequest {
-				t.Fatalf("requests = %d, want request %v", requests, tc.wantRequest)
-			}
-			if tc.wantRequest && !tt.HasText("服务没有列出模型，请手动输入") {
-				t.Fatalf("empty list: %q", tt.Texts())
-			}
-		})
-	}
-}
-
-func TestQASettingsModelListKeySaveFailure(t *testing.T) {
-	a, tt := newTestApp(t)
-	a.prefs.AI = prefs.AI{Provider: "deepseek"}
-	a.qa.secrets = failingSecrets{}
-	a.qa.listModels = func(agent.Settings) ([]string, error) {
-		t.Fatal("requested models after the key failed to save")
-		return nil, nil
-	}
-	a.openSettings(tabAI)
-	tt.Frame()
-	tt.Click("粘贴 API Key")
-	tt.Type("sk-new")
-	tt.Click("获取模型")
-	tt.Frame()
-	if a.qa.keyInput != "sk-new" || !tt.HasText("获取模型列表失败：无法保存 API Key：locked") {
-		t.Fatalf("failed save lost the key or its error: %q", tt.Texts())
-	}
-}
-
-func TestQAModelListIgnoresChangedService(t *testing.T) {
-	a, _ := newTestApp(t)
-	a.prefs.AI = prefs.AI{Provider: "deepseek", BaseURL: "https://api.deepseek.com"}
-	a.qa.secrets = memSecrets{apiKeySecret: []byte("sk-test")}
-	a.qa.listModels = func(agent.Settings) ([]string, error) {
-		// The address changes before the response reaches the UI thread.
-		a.prefs.AI.BaseURL = "https://example.com/v1"
-		return []string{"old-model"}, nil
-	}
-	a.fetchModels()
-	if len(a.qa.models) != 0 || a.qa.modelsBusy || a.qa.modelsFor != "" {
-		t.Fatalf("accepted a list for the previous service: %v", a.qa.models)
-	}
-}

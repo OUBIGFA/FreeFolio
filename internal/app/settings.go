@@ -99,7 +99,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabAppearance, i18n.T("外观"), "palette"},
 		{tabFiles, i18n.T("文件浏览"), "files"},
 		{tabSpaces, i18n.T("空间"), "layers"},
-		{tabAI, i18n.T("AI 问答"), "ask"},
+		{tabAI, i18n.T("OneBot"), "ask"},
 		{tabCloud, i18n.T("云端同步"), "cloud"},
 		{tabShortcuts, i18n.T("快捷键"), "keyboard"},
 		{tabUpdates, i18n.T("更新"), "refresh"},

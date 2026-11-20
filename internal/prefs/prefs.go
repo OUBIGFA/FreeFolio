@@ -19,7 +19,7 @@ import (
 // StartAtHome, whose zero value is the default, so version 4 migrates
 // unchanged.
 // Version 6 adds document mind-map visibility and layout choices.
-const CurrentVersion = 6
+const CurrentVersion = 7
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -106,14 +106,6 @@ type Files struct {
 	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
-// AI is a model service speaking the Chat Completions format.
-type AI struct {
-	// Provider is a preset's ID (agent.Presets), "custom" for another.
-	Provider string `json:"provider,omitempty"`
-	BaseURL  string `json:"baseURL,omitempty"`
-	Model    string `json:"model,omitempty"`
-}
-
 // Store reads and writes prefs.json.
 type Store struct{ Path string }
 
@@ -141,12 +133,18 @@ func (s Store) Load() (*Prefs, error) {
 	// Version 2 had no file browser choices; their zero values are the
 	// defaults, so it migrates unchanged.
 	p.Version = CurrentVersion
+	if err := p.AI.Validate(); err != nil {
+		return nil, err
+	}
 	p.normalizeReading()
 	return &p, nil
 }
 
 // Save writes the preferences.
 func (s Store) Save(p *Prefs) error {
+	if err := p.AI.Validate(); err != nil {
+		return err
+	}
 	p.normalizeReading()
 	p.Version = CurrentVersion
 	data, err := json.MarshalIndent(p, "", "  ")

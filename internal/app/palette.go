@@ -338,11 +338,14 @@ func (a *App) actions() []action {
 	cmd(i18n.T("外观设置…"), "", func() { a.openSettings(tabAppearance) })
 	ask := i18n.T("向当前空间提问")
 	if a.qa.open {
-		ask = i18n.T("关闭问答")
+		ask = i18n.T("关闭 OneBot")
 	}
 	cmd(ask, a.keyLabel("ask"), a.toggleQA)
-	cmd(i18n.T("问答：新对话"), "", func() { a.qa.open = true; a.clearQA() })
-	cmd(i18n.T("AI 问答设置…"), "", func() { a.openSettings(tabAI) })
+	cmd(i18n.T("OneBot：新对话"), "", func() { a.qa.open = true; a.clearQA() })
+	cmd(i18n.T("OneBot 设置…"), "", func() { a.openSettings(tabAI) })
+	cmd(i18n.T("OneBot：修改选区"), "", func() { a.beginOneBotEdit("selection") })
+	cmd(i18n.T("OneBot：修改当前章节"), "", func() { a.beginOneBotEdit("section") })
+	cmd(i18n.T("OneBot：修改整篇文档"), "", func() { a.beginOneBotEdit("document") })
 	cmd(i18n.T("书签…"), a.keyLabel("bookmarks"), a.openBookmarks)
 	cmd(i18n.T("按标签浏览"), "#", func() { a.openPalette(); a.palette.query = "#" })
 	cmd(i18n.T("最近删除…"), "", a.openTrash)

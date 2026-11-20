@@ -151,6 +151,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		}
 	}
 	options := editor.Options{
+		EditWithAI:      func() { run(func() { a.beginOneBotEdit("selection") }) },
 		FontSize:        a.prefs.ReadingSize(),
 		LineHeight:      a.prefs.ReadingLine(),
 		FontFamily:      a.prefs.BodyFamily(),

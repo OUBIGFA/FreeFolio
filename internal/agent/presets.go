@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -13,19 +14,29 @@ import (
 type Preset struct {
 	ID, Name string
 	BaseURL  string
+	Protocol string
 	// Local services need no API key.
 	Local bool
 	// Example is a model name to show as the field's placeholder.
 	Example string
 }
 
-// Presets are the services offered, then Custom for any other speaking
-// the Chat Completions format.
+// Presets supply official endpoints. Model IDs and capabilities are discovered
+// from the service and models.dev instead of being guessed from their names.
 var Presets = []Preset{
-	{ID: "openai", Name: "OpenAI", BaseURL: "https://api.openai.com/v1"},
+	{ID: "openai", Name: "OpenAI", BaseURL: "https://api.openai.com/v1", Protocol: Responses},
+	{ID: "anthropic", Name: "Anthropic", BaseURL: "https://api.anthropic.com/v1", Protocol: Anthropic},
+	{ID: "google", Name: "Google Gemini", BaseURL: "https://generativelanguage.googleapis.com/v1beta", Protocol: Gemini},
 	{ID: "deepseek", Name: "DeepSeek", BaseURL: "https://api.deepseek.com", Example: "deepseek-v4-pro"},
 	{ID: "openrouter", Name: "OpenRouter", BaseURL: "https://openrouter.ai/api/v1"},
-	{ID: "ollama", Name: "Ollama", BaseURL: "http://localhost:11434/v1", Local: true},
+	{ID: "mistral", Name: "Mistral", BaseURL: "https://api.mistral.ai/v1"},
+	{ID: "groq", Name: "Groq", BaseURL: "https://api.groq.com/openai/v1"},
+	{ID: "xai", Name: "xAI", BaseURL: "https://api.x.ai/v1"},
+	{ID: "moonshotai", Name: "Moonshot", BaseURL: "https://api.moonshot.ai/v1"},
+	{ID: "alibaba", Name: "Alibaba Model Studio", BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
+	{ID: "zai", Name: "Z.AI", BaseURL: "https://api.z.ai/api/paas/v4"},
+	{ID: "ollama", Name: "Ollama", BaseURL: "http://localhost:11434", Protocol: Ollama, Local: true},
+	{ID: "lmstudio", Name: "LM Studio", BaseURL: "http://127.0.0.1:1234/v1", Local: true},
 	{ID: Custom, Name: "自定义"},
 }
 
@@ -45,6 +56,12 @@ func PresetOf(id string) Preset {
 // Settings are what is needed to ask a model.
 type Settings struct {
 	BaseURL, Model, APIKey string
+	ConnectionID           string
+	Protocol               string
+	Vendor                 string
+	Parameters             Parameters
+	Capabilities           Capabilities
+	Client                 *http.Client
 }
 
 // Errors of settings that cannot be used.
@@ -85,7 +102,7 @@ func (s Settings) Check() error {
 // whatever the model: enough to list its models.
 func (s Settings) CheckService() error {
 	u, err := url.Parse(strings.TrimSpace(s.BaseURL))
-	if err != nil || u.Host == "" || (u.Scheme != "https" && !(u.Scheme == "http" && IsLocal(s.BaseURL))) {
+	if err != nil || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || (u.Scheme != "https" && !(u.Scheme == "http" && IsLocal(s.BaseURL))) {
 		return ErrBadAddress
 	}
 	if strings.TrimSpace(s.APIKey) == "" && !IsLocal(s.BaseURL) {
@@ -99,5 +116,5 @@ func (s Settings) CheckService() error {
 func (s Settings) Provider() *ChatCompletions {
 	u, _ := url.Parse(strings.TrimSpace(s.BaseURL))
 	replay := u != nil && (u.Hostname() == "api.deepseek.com" || strings.HasSuffix(u.Hostname(), ".deepseek.com"))
-	return &ChatCompletions{BaseURL: strings.TrimSpace(s.BaseURL), Model: strings.TrimSpace(s.Model), APIKey: strings.TrimSpace(s.APIKey), ReplayReasoning: replay}
+	return &ChatCompletions{BaseURL: strings.TrimSpace(s.BaseURL), Model: strings.TrimSpace(s.Model), APIKey: strings.TrimSpace(s.APIKey), ReplayReasoning: replay, Client: s.Client, Parameters: s.Parameters, Capabilities: s.Capabilities, Vendor: s.Vendor}
 }

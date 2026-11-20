@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
 	model "github.com/OUBIGFA/FreeMD/internal/document"
@@ -42,8 +40,21 @@ type secretStore interface {
 }
 
 type qaState struct {
-	open  bool
-	input string
+	editOptionsOpen   bool
+	attachments       []agent.ContentPart
+	editMode          bool
+	editScope         string
+	editPaths         []string
+	editTask          *oneBotTask
+	editHistory       []*oneBotTask
+	editHistoryOpen   bool
+	editFollow        bool
+	editCount         int
+	editNewPath       string
+	editDocumentsOpen bool
+	editDocQuery      string
+	open              bool
+	input             string
 	// sessions are the conversations by space ID.
 	sessions map[string]*qaSession
 	// spaces are the read-only views of the spaces, by ID, kept so their
@@ -57,22 +68,30 @@ type qaState struct {
 
 	secrets secretStore
 	// key is the API key read from the store, keyRead once it was asked.
-	key     string
-	keyRead bool
-	keyErr  error
+	key             string
+	keyRead         bool
+	keyID           string
+	manualName      string
+	modelSearch     string
+	capabilityModel string
+	modelsEpoch     uint64
+	modelsCancel    context.CancelFunc
+	catalogErr      error
+	keyErr          error
 	// keyInput is the settings' field; a saved key is never shown.
 	keyInput string
 
 	// models are the service's models, listed for modelsFor (its address
 	// and key) so a change of either discards the list; another list is
 	// fetched only on request. manualModel types a name instead of choosing one.
-	models      []string
+	models      []agent.ModelInfo
 	modelsFor   string
 	modelsBusy  bool
 	modelsErr   error
 	manualModel bool
+	modelsList  ui.ListState
 	// listModels lists a service's models; tests replace it.
-	listModels func(agent.Settings) ([]string, error)
+	listModels func(agent.Settings) ([]agent.ModelInfo, error)
 
 	// provider makes the model service of the settings; tests replace it.
 	provider func(agent.Settings) agent.Provider
@@ -82,6 +101,7 @@ type qaState struct {
 
 // qaSession is one space's conversation.
 type qaSession struct {
+	source   string
 	history  []agent.Message
 	turns    []*qaTurn
 	cancel   context.CancelFunc
@@ -97,7 +117,9 @@ func (s *qaSession) running() bool {
 
 // qaTurn is a question and what was done to answer it.
 type qaTurn struct {
-	question string
+	edit         *oneBotTask
+	finishReason string
+	question     string
 	// start is the length of the history before the question, to which a
 	// retry rolls it back.
 	start    int
@@ -153,33 +175,13 @@ type qaStepHit struct {
 	text string
 }
 
-// qaSettings are the model settings, the key read from the store once.
-func (a *App) qaSettings() agent.Settings {
-	q := &a.qa
-	if !q.keyRead {
-		q.keyRead = true
-		if q.secrets != nil {
-			v, err := q.secrets.Get(apiKeySecret)
-			switch {
-			case err == nil:
-				q.key = string(v)
-			case !errors.Is(err, os.ErrNotExist):
-				q.keyErr = err
-			}
-		}
-	}
-	ai := a.prefs.AI
-	base := ai.BaseURL
-	if base == "" {
-		base = aiPreset(ai.Provider).BaseURL
-	}
-	return agent.Settings{BaseURL: base, Model: ai.Model, APIKey: q.key}
-}
-
 // qaReady reports whether a question can be asked, and why not.
 func (a *App) qaReady() error {
 	if a.prefs == nil {
 		return errors.New(i18n.T("无法读取设置"))
+	}
+	if a.prefs.AI.Current() == nil {
+		return errors.New(i18n.T("请先添加供应商"))
 	}
 	settings := a.qaSettings()
 	switch err := settings.Check(); {
@@ -234,12 +236,13 @@ func QAPage(name, content string) (*spacefs.Page, error) {
 }
 
 func pageOfDocument(name string, doc *model.Document) *spacefs.Page {
-	parts := editor.ExportMarkdownParts(doc)
-	out := make([]spacefs.Part, len(parts))
-	for i, p := range parts {
-		out[i] = spacefs.Part{Block: p.Block, Text: p.Text}
+	text, spans := editor.MarkdownSourceSpans(doc)
+	page := spacefs.PageOf(name, []spacefs.Part{{Text: text}})
+	page.Spans = nil
+	for _, span := range spans {
+		page.Spans = append(page.Spans, spacefs.Span{Block: span.Block, Index: span.Index, From: span.From, To: span.To})
 	}
-	return spacefs.PageOf(name, out)
+	return page
 }
 
 // qaSpace is the space's read-only view, with the unsaved text of its
@@ -268,7 +271,7 @@ func (a *App) qaSpace(spaceID string) *spacefs.FS {
 	live := map[string]*spacefs.Page{}
 	for _, d := range a.residentDocuments() {
 		if d.space == sp && d.loadErr == nil && d.dirty() {
-			live[d.rel] = pageOfDocument(d.rel, d.ed.Doc)
+			live[d.rel] = pageOfDocument(d.rel, d.ed.Committed())
 		}
 	}
 	fs.SetLive(live)
@@ -286,6 +289,71 @@ func (a *App) askQA() {
 	text := strings.TrimSpace(a.qa.input)
 	sp := a.state.ActiveSpace()
 	if text == "" || sp == nil || a.qaSession(sp.ID).running() {
+		return
+	}
+	if a.qa.editMode {
+		task := a.qa.editTask
+		if task != nil && !task.Running && !task.Applying {
+			applied := false
+			for _, candidate := range task.Candidates {
+				for _, ch := range candidate.Changes {
+					if ch.Status == "saved" || ch.Status == "applied" {
+						applied = true
+					}
+				}
+			}
+			if applied {
+				next, err := a.continueOneBotTask(task)
+				if err != nil {
+					task.Error = err.Error()
+					return
+				}
+				a.keepOneBotTask(task)
+				task = next
+				a.qa.editTask = next
+				a.qa.editFollow = false
+			} else if len(task.Candidates) > 0 {
+				a.keepOneBotTask(task)
+				next := *task
+				next.ID = model.NewID()
+				next.Targets = append([]oneBotTarget(nil), task.Targets...)
+				next.Receipts = nil
+				next.cancel = nil
+				task = &next
+				a.qa.editTask = task
+			}
+		}
+		if task == nil {
+			scope := a.qa.editScope
+			if scope == "" {
+				scope = "document"
+			}
+			var err error
+			task, err = a.captureOneBotTask(scope)
+			if err != nil {
+				a.notify("%s", err.Error())
+				return
+			}
+			a.qa.editTask = task
+		}
+		if task.Running || task.Applying {
+			return
+		}
+		if task.Scope == "new" {
+			task.NewPath = strings.TrimSpace(a.qa.editNewPath)
+		}
+		task.Direct = a.prefs.AI.Direct
+		count := a.qa.editCount
+		if count < 1 {
+			count = 1
+		}
+		a.qa.input = ""
+		s := a.qaSession(task.SpaceID)
+		turn := &qaTurn{question: text, edit: task}
+		s.turns = append(s.turns, turn)
+		s.list.ScrollToEnd()
+		a.runOneBotEdit(task, text, count, a.qa.editFollow)
+		a.qa.editFollow = false
 		return
 	}
 	a.qa.input = ""
@@ -309,7 +377,7 @@ func (a *App) ask(spaceID, question string) {
 		return
 	}
 	settings := a.qaSettings()
-	var provider agent.Provider = settings.Provider()
+	var provider agent.Provider = settings.NewProvider()
 	if a.qa.provider != nil {
 		provider = a.qa.provider(settings)
 	}
@@ -319,7 +387,12 @@ func (a *App) ask(spaceID, question string) {
 	}
 	name := a.state.Get(spaceID).Name
 	now := a.now
-	s.history = append(s.history, agent.Message{Role: agent.User, Text: question})
+	if s.source != "" && s.source != settings.Signature() {
+		s.history = agent.NeutralHistory(s.history)
+	}
+	s.source = settings.Signature()
+	s.history = append(s.history, agent.Message{Role: agent.User, Text: question, Parts: a.qa.attachments})
+	a.qa.attachments = nil
 	history := append([]agent.Message(nil), s.history...)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -327,16 +400,68 @@ func (a *App) ask(spaceID, question string) {
 	if !a.qa.sync && a.win != nil {
 		deliver = func(f func()) { a.win.Update(f) }
 	}
+	var editTask *oneBotTask
+	if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
+		editTask, _ = a.captureOneBotTask("document")
+	}
 	run := func() {
 		overview, _ := fs.Overview(6000)
+		tools := agent.SpaceTools(fs)
+		if settings.Capabilities.Tools == agent.Unsupported {
+			tools = nil
+			if open != "" {
+				if text, err := fs.Read(open, 1, 200); err == nil {
+					overview += "\nCurrent document excerpt (read-only):\n" + text
+				}
+			}
+		}
+		system := agent.Prompt(agent.Context{Space: name, Overview: overview, Open: open, Now: now})
+		var workspace *agent.EditWorkspace
+		if editTask != nil && settings.Capabilities.Tools != agent.Unsupported {
+			workspace, _ = agent.NewEditWorkspace(oneBotEditFiles(editTask), nil)
+			if workspace != nil {
+				system += "\n" + agent.EditSystem + "\nWritable paths: " + strings.Join(workspace.Paths(), ", ") + "\nUse offset/limit for read. The tool results describe review snapshots, not saved files."
+				tools = workspace.Tools(tools)
+			}
+		}
 		ag := &agent.Agent{
 			Provider: provider,
-			System:   agent.Prompt(agent.Context{Space: name, Overview: overview, Open: open, Now: now}),
-			Tools:    agent.SpaceTools(fs),
+			System:   system,
+			Tools:    tools,
 			Retries:  2,
 		}
-		added, err := ag.Run(ctx, history, func(e agent.Event) { deliver(func() { turn.apply(e) }) })
-		deliver(func() { a.finishQA(s, turn, added, err) })
+		steps := 0
+		added, err := ag.Run(ctx, history, func(e agent.Event) {
+			if e.Kind == agent.StepDone {
+				steps++
+			}
+			deliver(func() { turn.apply(e) })
+		})
+		if err == nil && ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		if err == nil && workspace != nil && len(workspace.Changes()) > 0 && steps >= agent.DefaultMaxSteps {
+			err = agent.ErrIncomplete
+		}
+		deliver(func() {
+			a.finishQA(s, turn, added, err)
+			if err == nil && !turn.stopped && a.qa.sessions[spaceID] == s && workspace != nil && len(workspace.Changes()) > 0 && turn.finishReason == "stop" {
+				candidate, e := a.prepareOneBotFileCandidate(editTask, agent.FileDraft{Summary: turn.answer, Changes: workspace.Changes()})
+				if e != nil {
+					turn.err = e
+					return
+				}
+				editTask.Instruction = question
+				editTask.Candidates = []*oneBotCandidate{candidate}
+				turn.edit = editTask
+				a.keepOneBotTask(editTask)
+				if editTask.Direct {
+					if e := a.applyOneBotCandidate(editTask, 0, -1); e != nil {
+						turn.err = e
+					}
+				}
+			}
+		})
 	}
 	if a.qa.sync || a.win == nil {
 		run()
@@ -361,6 +486,7 @@ func (t *qaTurn) apply(e agent.Event) {
 			t.revealing = true
 		}
 	case agent.StepDone:
+		t.finishReason = e.FinishReason
 		t.retrying = false
 		t.thinking = false
 		if len(e.Message.Calls) > 0 {
@@ -452,8 +578,18 @@ func (a *App) clearQA() {
 	if s.cancel != nil {
 		s.cancel()
 	}
+	if len(s.turns) > 0 && s.turns[len(s.turns)-1].running {
+		s.turns[len(s.turns)-1].stopped = true
+	}
 	a.qa.sessions[sp.ID] = &qaSession{list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
 	a.qa.focusInput = true
+	if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
+		a.stopOneBotEdit()
+	}
+	a.qa.editTask = nil
+	a.qa.editMode = false
+	a.qa.editFollow = false
+	a.qa.attachments = nil
 }
 
 // openCitation opens the cited document of the space at the cited block.
@@ -491,34 +627,6 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 	}
 }
 
-// saveAIKey keeps the API key in the local credential store; the
-// address and model are in prefs.json.
-func (a *App) saveAIKey() error {
-	key := strings.TrimSpace(a.qa.keyInput)
-	if key == "" {
-		return nil
-	}
-	if a.qa.secrets == nil {
-		return fmt.Errorf(i18n.T("无法保存 API Key：%s"), i18n.T("本地凭据存储不可用"))
-	}
-	if err := a.qa.secrets.Set(apiKeySecret, []byte(key)); err != nil {
-		a.notify("无法保存 API Key：%s", err.Error())
-		return fmt.Errorf(i18n.T("无法保存 API Key：%s"), err.Error())
-	}
-	a.qa.key, a.qa.keyRead, a.qa.keyErr, a.qa.keyInput = key, true, nil, ""
-	return nil
-}
-
-func (a *App) removeAIKey() {
-	if a.qa.secrets != nil {
-		if err := a.qa.secrets.Delete(apiKeySecret); err != nil {
-			a.notify("无法移除 API Key：%s", err.Error())
-			return
-		}
-	}
-	a.qa.key, a.qa.keyRead, a.qa.keyErr = "", true, nil
-}
-
 // qaStepMeta breaks a tool call into structured UI parts for the timeline.
 type qaStepMeta struct {
 	verb    string
@@ -537,6 +645,8 @@ func stepMeta(call agent.ToolCall) qaStepMeta {
 		Path    string `json:"path"`
 		Start   int    `json:"start_line"`
 		End     int    `json:"end_line"`
+		Offset  int    `json:"offset"`
+		Limit   int    `json:"limit"`
 	}
 	_ = json.Unmarshal([]byte(call.Args), &args)
 	switch call.Name {
@@ -555,6 +665,12 @@ func stepMeta(call agent.ToolCall) qaStepMeta {
 			scope:   cleanScopeLabel(args.Path),
 		}
 	case agent.ToolRead:
+		if args.Offset > 0 {
+			args.Start = args.Offset
+			if args.Limit > 0 {
+				args.End = args.Offset + args.Limit - 1
+			}
+		}
 		title := vault.Title(args.Path)
 		scope := ""
 		from := max(args.Start, 1)
@@ -578,6 +694,8 @@ func stepMeta(call agent.ToolCall) qaStepMeta {
 			from:    from,
 			to:      to,
 		}
+	case "edit", "write", "patch":
+		return qaStepMeta{verb: i18n.T("修改"), active: i18n.T("正在准备修改"), subject: vault.Title(args.Path), docPath: args.Path}
 	case agent.ToolGlob:
 		sub := args.Pattern
 		if sub == "" {
@@ -850,80 +968,4 @@ func qaErrorText(err error) string {
 		return i18n.T("无法连接模型服务，请检查网络与服务地址")
 	}
 	return errText(err)
-}
-
-// modelsKey is what a model list is for: the service's address and key.
-func modelsKey(s agent.Settings) string {
-	return strings.TrimSpace(s.BaseURL) + "\x00" + s.APIKey
-}
-
-// modelListSettings includes a key still in the field, so getting the
-// models needs no separate Save step and never requires a model name.
-func (a *App) modelListSettings() agent.Settings {
-	s := a.qaSettings()
-	if key := strings.TrimSpace(a.qa.keyInput); key != "" {
-		s.APIKey = key
-	}
-	return s
-}
-
-// fetchModels lists the service's models when the user asks, on a
-// goroutine, after saving a key typed but not yet saved.
-func (a *App) fetchModels() {
-	q := &a.qa
-	if q.modelsBusy {
-		return
-	}
-	if strings.TrimSpace(q.keyInput) != "" {
-		if err := a.saveAIKey(); err != nil {
-			q.modelsErr = err
-			return
-		}
-	}
-	settings := a.qaSettings()
-	q.models, q.modelsFor = nil, ""
-	switch err := settings.CheckService(); {
-	case errors.Is(err, agent.ErrBadAddress):
-		q.modelsBusy, q.modelsErr = false, errors.New(i18n.T("服务地址须以 https:// 开头（本机服务可用 http://）"))
-		return
-	case err != nil:
-		q.modelsBusy, q.modelsErr = false, errors.New(i18n.T("还没有设置 API Key"))
-		return
-	}
-	key := modelsKey(settings)
-	q.modelsFor, q.modelsBusy, q.modelsErr = key, true, nil
-	list := q.listModels
-	if list == nil {
-		list = func(s agent.Settings) ([]string, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			return s.Provider().Models(ctx)
-		}
-	}
-	done := func(models []string, err error) {
-		a.dropStaleModels()
-		if q.modelsFor != key {
-			return // the address or key changed meanwhile
-		}
-		q.modelsBusy, q.modelsErr, q.models = false, err, models
-		if err == nil && len(models) > 0 {
-			q.manualModel = false
-		}
-	}
-	if q.sync || a.win == nil {
-		done(list(settings))
-		return
-	}
-	go func() {
-		models, err := list(settings)
-		a.win.Update(func() { done(models, err) })
-	}()
-}
-
-// dropStaleModels forgets a list listed for another address or key.
-func (a *App) dropStaleModels() {
-	q := &a.qa
-	if q.modelsFor != "" && q.modelsFor != modelsKey(a.qaSettings()) {
-		q.models, q.modelsFor, q.modelsBusy, q.modelsErr = nil, "", false, nil
-	}
 }

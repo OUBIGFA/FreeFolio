@@ -52,6 +52,19 @@ type Message struct {
 	CallID string
 	// IsError marks a tool message whose call failed.
 	IsError bool
+	// Parts carries user attachments; Native preserves signed thinking/tool
+	// records only for the exact service/model that produced them.
+	Parts  []ContentPart
+	Native json.RawMessage
+	Source string
+}
+
+type ContentPart struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Data string `json:"data,omitempty"`
+	MIME string `json:"mime,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // ToolSpec describes a tool to the model; Parameters is a JSON schema.
@@ -80,8 +93,9 @@ type Usage struct {
 
 // Response is a step's complete reply.
 type Response struct {
-	Message Message
-	Usage   Usage
+	Message      Message
+	Usage        Usage
+	FinishReason string
 }
 
 // Provider is a model service. Complete streams the reply's text through
@@ -96,6 +110,9 @@ type Provider interface {
 type Tool struct {
 	Spec ToolSpec
 	Run  func(ctx context.Context, args json.RawMessage) (string, error)
+	// Mutates orders a file mutation after earlier calls in the same model
+	// response. Independent read-only discovery still runs in parallel.
+	Mutates bool
 }
 
 // EventKind is what happened during a run.
@@ -116,13 +133,14 @@ const (
 
 // Event is something the user may be shown while the agent works.
 type Event struct {
-	Kind    EventKind
-	Text    string
-	Call    ToolCall
-	Result  string
-	IsError bool
-	Message Message
-	Usage   Usage
+	Kind         EventKind
+	Text         string
+	Call         ToolCall
+	Result       string
+	IsError      bool
+	Message      Message
+	Usage        Usage
+	FinishReason string
 }
 
 // Defaults of an Agent's budgets.
@@ -191,16 +209,17 @@ func (a *Agent) Run(ctx context.Context, history []Message, emit func(Event)) ([
 		msg := resp.Message
 		msg.Role = Assistant
 		added = append(added, msg)
-		send(Event{Kind: StepDone, Message: msg, Usage: resp.Usage})
+		send(Event{Kind: StepDone, Message: msg, Usage: resp.Usage, FinishReason: resp.FinishReason})
 		if len(msg.Calls) == 0 {
 			return added, nil
+		}
+		if step >= maxSteps {
+			return added, fmt.Errorf("tool step limit reached: %w", ErrIncomplete)
 		}
 		results := make([]Message, len(msg.Calls))
 		var wg sync.WaitGroup
 		for i, call := range msg.Calls {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			run := func() {
 				send(Event{Kind: ToolStart, Call: call})
 				out, err := runTool(ctx, byName, call)
 				res := Message{Role: ToolRole, CallID: call.ID, Text: out}
@@ -209,6 +228,16 @@ func (a *Agent) Run(ctx context.Context, history []Message, emit func(Event)) ([
 				}
 				results[i] = res
 				send(Event{Kind: ToolDone, Call: call, Result: res.Text, IsError: res.IsError})
+			}
+			if byName[call.Name].Mutates {
+				wg.Wait()
+				run()
+				continue
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				run()
 			}()
 		}
 		wg.Wait()

@@ -126,3 +126,9 @@ listing in `backend/s3/s3.go` from the same pinned revision. The adaptation uses
 four WebDAV workers with shared cancellation and S3 pagination without a delimiter;
 FreeMD's path, size, duplicate and completeness checks remain mandatory. FreeMD retains its own guarded
 sync engine; no rclone executable, backend registry or module dependency is bundled.
+
+OneBot's `read/edit/write/patch` tools port the MIT OpenCode implementation at
+`85951cb08614dfe6443905552cae49d59d2d6615`. The exact matching and patch parser are
+in `internal/fileedit`; provider-independent tool adapters are in
+`internal/agent/edit.go`. See [source mapping, compatibility fixtures and host
+adaptations](opencode/README.md) and [the MIT notice](opencode/LICENSE).

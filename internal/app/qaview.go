@@ -54,18 +54,21 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 			s := a.qaSession(sp.ID)
 			ui.Row(c.Key("qa-head")).Height(max(bar.Height, 46)).Padding(0, bar.Right, 0, 6).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
 				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Text.Alpha(0.72))
-				ui.Text(c, i18n.T("问答")).FontWeight(600).NoWrap()
+				ui.Text(c, i18n.T("OneBot")).FontWeight(600).NoWrap()
 				ui.Text(c, sp.Name).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
+				a.oneBotHeaderMenu(c)
 				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话"), len(s.turns) == 0).Clicked() {
 					a.clearQA()
 				}
-				if iconButton(c, "qa-close", iconX, i18n.T("关闭问答"), a.withKey(i18n.T("关闭问答"), "ask"), false).Clicked() {
+				if iconButton(c, "qa-close", iconX, i18n.T("关闭 OneBot"), a.withKey(i18n.T("关闭 OneBot"), "ask"), false).Clicked() {
 					a.qa.open = false
 				}
 			})
 			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(glass(t)).
-				Border(1, t.Border.Alpha(0.35)).Clip().Children(func() { a.qaBody(c, sp.ID, sp.Name, s) })
+				Border(1, t.Border.Alpha(0.35)).Clip().Children(func() {
+				a.qaBody(c, sp.ID, sp.Name, s)
+			})
 		})
 	})
 }
@@ -99,7 +102,7 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 	})
 	wrap.Children(func() {
 		list := ui.List(c.Key("qa-scroll-"+spaceID), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(14).
-			Label(i18n.T("问答")).ItemKey(func(i int) any { return rows[i] })
+			Label(i18n.T("OneBot")).ItemKey(func(i int) any { return rows[i] })
 		list.Rows(func(row ui.ListRow) {
 			c := row.Context
 			r := rows[row.Index]
@@ -121,6 +124,8 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 					a.qaSources(c, spaceID, r.turn)
 				case qaStatusRow:
 					a.qaStatus(c, spaceID, r.turn)
+				case qaEditRow:
+					a.oneBotReply(c, r.turn.edit)
 				}
 			})
 		})
@@ -159,27 +164,7 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 	s.finishCitationFrame(c)
 	a.qaCitationPreview(c, s)
 
-	ui.Box(c).Height(1).Background(separator(t))
-	ui.Row(c.Key("qa-input")).Padding(10).Gap(8).AlignItems(ui.Center).Children(func() {
-		in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Grow(1).MinWidth(0).Height(36).Radius(10).PaddingX(12).
-			Background(field(t)).Placeholder(fmt.Sprintf(i18n.T("询问「%s」…"), name)).Label(i18n.T("问题"))
-		if a.qa.focusInput {
-			a.qa.focusInput = false
-			in.Focus()
-		}
-		if in.Submitted() {
-			a.askQA()
-		}
-		if s.running() {
-			if qaRoundButton(c, "qa-stop", iconStop, i18n.T("停止"), false).Clicked() {
-				a.stopQA()
-			}
-			return
-		}
-		if qaRoundButton(c, "qa-send", iconArrowUp, i18n.T("发送 (Enter)"), strings.TrimSpace(a.qa.input) == "").Clicked() {
-			a.askQA()
-		}
-	})
+	a.oneBotComposer(c, s)
 }
 
 // qaRoundButton is the round send or stop button beside the field.

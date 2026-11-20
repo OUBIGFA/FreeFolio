@@ -16,6 +16,7 @@ const (
 	qaAnswerRow
 	qaSourcesRow
 	qaStatusRow
+	qaEditRow
 )
 
 // A row's identity belongs to its turn and block, so inserting tool results
@@ -94,6 +95,7 @@ type qaRowsState struct {
 	answer                 string
 	running                bool
 	steps, sources, status bool
+	edit                   bool
 }
 
 func (t *qaTurn) rowsState() qaRowsState {
@@ -108,6 +110,7 @@ func (t *qaTurn) rowsState() qaRowsState {
 		steps:   hasSteps,
 		sources: !active,
 		status:  (waiting && !hasSteps) || t.stopped || t.err != nil,
+		edit:    t.edit != nil,
 	}
 }
 
@@ -168,6 +171,9 @@ func (s *qaSession) visibleRowsWith(fs func() *spacefs.FS) []qaRow {
 		}
 		for i := range turn.view.blocks {
 			s.rows = append(s.rows, qaRow{turn: turn, kind: qaAnswerRow, index: i})
+		}
+		if turn.edit != nil {
+			s.rows = append(s.rows, qaRow{turn: turn, kind: qaEditRow})
 		}
 		if !active && len(turn.view.refs) > 0 {
 			s.rows = append(s.rows, qaRow{turn: turn, kind: qaSourcesRow})

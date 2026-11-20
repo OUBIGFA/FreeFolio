@@ -328,13 +328,13 @@ func TestSettingsCheck(t *testing.T) {
 		s   Settings
 		err error
 	}{
-		{Settings{"https://api.openai.com/v1", "m", "k"}, nil},
-		{Settings{"http://localhost:11434/v1", "llama", ""}, nil},
-		{Settings{"http://127.0.0.1:8080", "m", ""}, nil},
-		{Settings{"http://api.example.com/v1", "m", "k"}, ErrBadAddress},
-		{Settings{"api.openai.com", "m", "k"}, ErrBadAddress},
-		{Settings{"https://api.openai.com/v1", " ", "k"}, ErrNoModel},
-		{Settings{"https://api.openai.com/v1", "m", ""}, ErrNoKey},
+		{Settings{BaseURL: "https://api.openai.com/v1", Model: "m", APIKey: "k"}, nil},
+		{Settings{BaseURL: "http://localhost:11434/v1", Model: "llama", APIKey: ""}, nil},
+		{Settings{BaseURL: "http://127.0.0.1:8080", Model: "m", APIKey: ""}, nil},
+		{Settings{BaseURL: "http://api.example.com/v1", Model: "m", APIKey: "k"}, ErrBadAddress},
+		{Settings{BaseURL: "api.openai.com", Model: "m", APIKey: "k"}, ErrBadAddress},
+		{Settings{BaseURL: "https://api.openai.com/v1", Model: " ", APIKey: "k"}, ErrNoModel},
+		{Settings{BaseURL: "https://api.openai.com/v1", Model: "m", APIKey: ""}, ErrNoKey},
 	} {
 		if err := c.s.Check(); !errors.Is(err, c.err) {
 			t.Errorf("%+v: %v, want %v", c.s, err, c.err)

@@ -315,6 +315,24 @@ var spaceKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, u
 
 // shortcuts handles the window's keys.
 func (a *App) shortcuts(c *ui.Context) {
+	if a.qa.open && a.qa.editMode {
+		if task := a.qa.editTask; task != nil && (task.Running || task.Applying) && c.Shortcut(0, ui.KeyEscape) {
+			a.stopOneBotEdit()
+			return
+		}
+		if c.Shortcut(ui.Cmd, ui.KeyEnter) {
+			a.askQA()
+			return
+		}
+		if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter) {
+			if task := a.qa.editTask; task != nil {
+				if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
+					task.Error = err.Error()
+				}
+			}
+			return
+		}
+	}
 	if len(a.picks) > 0 && !a.modalOrOverlayBlocksEsc() && c.Shortcut(0, ui.KeyEscape) {
 		a.clearPicks("")
 		return
@@ -647,7 +665,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.documentCorner(c, a.doc)
 			ui.Box(c).Size(1, 14).Margin(0, 2).Background(separator(c.Theme())).Shrink(0)
 		}
-		ask := iconButton(c, "ask", iconAsk, i18n.T("问答"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
+		ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
 		if a.qa.open {
 			ask.Background(glass(c.Theme()))
 		}

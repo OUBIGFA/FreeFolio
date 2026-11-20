@@ -521,6 +521,8 @@ type cachedShape struct {
 }
 
 type Options struct {
+	// EditWithAI captures the selection before the assistant takes focus.
+	EditWithAI func()
 	// Resizing keeps offscreen shaping cached during an interactive resize.
 	// Hosts must clear it on release; the final layout is always exact.
 	Resizing             bool
@@ -844,6 +846,10 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					return e.input(ev, services.ReadClipboard, services.WriteClipboard, o.OpenLink)
 				})
 				surface.ContextMenu(func(menu *ui.Menu) {
+					if o.EditWithAI != nil && !e.ReadOnly {
+						menuAction(menu, i18n.T("用 OneBot 修改"), o.EditWithAI)
+						menu.Separator()
+					}
 					menuAction(menu, i18n.T("加粗"), func() { e.Wrap("**") })
 					menuAction(menu, i18n.T("斜体"), func() { e.Wrap("*") })
 					menuAction(menu, i18n.T("插入表格"), func() { e.Engine.Insert(document.Table(3, 3)); e.RequestFocus = true })

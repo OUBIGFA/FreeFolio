@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,9 @@ type ChatCompletions struct {
 	// tools are offered (a 400 otherwise). Other services may refuse the
 	// field, so it is off by default.
 	ReplayReasoning bool
+	Parameters      Parameters
+	Capabilities    Capabilities
+	Vendor          string
 }
 
 type chatMessage struct {
@@ -121,7 +125,96 @@ func (c *ChatCompletions) body(req Request) chatRequest {
 
 // Complete sends the request and reads the streamed reply.
 func (c *ChatCompletions) Complete(ctx context.Context, req Request, onDelta func(Delta)) (Response, error) {
+	if err := validateParameters(c.Parameters, c.Capabilities, req); err != nil {
+		return Response{}, err
+	}
 	payload, err := json.Marshal(c.body(req))
+	if err != nil {
+		return Response{}, err
+	}
+	var body map[string]any
+	if err = json.Unmarshal(payload, &body); err != nil {
+		return Response{}, err
+	}
+	if c.Parameters.MaxOutput > 0 {
+		key := "max_tokens"
+		if c.Vendor == "openai" || strings.Contains(c.BaseURL, "api.openai.com") {
+			key = "max_completion_tokens"
+		}
+		body[key] = c.Parameters.MaxOutput
+	}
+	if c.Parameters.Temperature != nil {
+		body["temperature"] = *c.Parameters.Temperature
+	}
+	if c.Parameters.Reasoning != "" {
+		effort := c.Parameters.Reasoning
+		switch c.Vendor {
+		case "deepseek":
+			if effort == "off" {
+				body["thinking"] = map[string]any{"type": "disabled"}
+			} else {
+				body["thinking"] = map[string]any{"type": "enabled"}
+				body["reasoning_effort"] = effort
+			}
+		case "openrouter":
+			if effort == "off" {
+				body["reasoning"] = map[string]any{"enabled": false}
+			} else if c.Parameters.ThinkingBudget > 0 {
+				body["reasoning"] = map[string]any{"max_tokens": c.Parameters.ThinkingBudget}
+			} else {
+				body["reasoning"] = map[string]any{"effort": effort}
+			}
+		default:
+			if effort == "off" {
+				effort = "none"
+			}
+			body["reasoning_effort"] = effort
+		}
+	}
+	// Attachment content uses the provider's multipart message shape without
+	// changing the plain-text wire type used by existing conversations.
+	if messages, ok := body["messages"].([]any); ok {
+		offset := 0
+		if req.System != "" {
+			offset = 1
+		}
+		for i, m := range req.Messages {
+			if len(m.Parts) == 0 {
+				continue
+			}
+			parts := []any{map[string]any{"type": "text", "text": m.Text}}
+			for _, p := range m.Parts {
+				switch p.Type {
+				case "text":
+					parts = append(parts, map[string]any{"type": "text", "text": p.Text})
+				case "image":
+					parts = append(parts, map[string]any{"type": "image_url", "image_url": map[string]any{"url": p.Data}})
+				case "audio":
+					mime, data, err := dataPart(p)
+					if err != nil {
+						return Response{}, err
+					}
+					format := ""
+					switch mime {
+					case "audio/wav", "audio/x-wav", "audio/vnd.wave":
+						format = "wav"
+					case "audio/mpeg":
+						format = "mp3"
+					}
+					if format == "" {
+						return Response{}, errors.New("audio input requires WAV or MP3")
+					}
+					parts = append(parts, map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": data, "format": format}})
+				default:
+					return Response{}, fmt.Errorf("Chat Completions cannot send attachment type %q", p.Type)
+				}
+			}
+			if i+offset < len(messages) {
+				object(messages[i+offset])["content"] = parts
+			}
+		}
+	}
+	payload, err = json.Marshal(body)
 	if err != nil {
 		return Response{}, err
 	}
@@ -148,14 +241,18 @@ func (c *ChatCompletions) Complete(ctx context.Context, req Request, onDelta fun
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Response{}, apiError(res)
+		return Response{}, apiError(res, c.APIKey)
 	}
-	return readChatStream(ctx, res.Body, onDelta)
+	response, err := readChatStream(ctx, res.Body, onDelta)
+	if err == nil {
+		err = completionError(response.FinishReason)
+	}
+	return response, err
 }
 
 // apiError reads a refusal's message from its body, in OpenAI's
 // {"error": {"message": …}} or as plain text.
-func apiError(res *http.Response) error {
+func apiError(res *http.Response, secrets ...string) error {
 	data, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	var body struct {
 		Error json.RawMessage `json:"error"`
@@ -170,6 +267,11 @@ func apiError(res *http.Response) error {
 			msg = e.Message
 		} else if json.Unmarshal(body.Error, &s) == nil {
 			msg = s
+		}
+	}
+	for _, secret := range secrets {
+		if secret != "" {
+			msg = strings.ReplaceAll(msg, secret, "[redacted]")
 		}
 	}
 	if len(msg) > 500 {
@@ -196,6 +298,9 @@ func readChatStream(ctx context.Context, r io.Reader, onDelta func(Delta)) (Resp
 		data = strings.TrimSpace(data)
 		if data == "[DONE]" {
 			finished = true
+			if resp.FinishReason == "" {
+				resp.FinishReason = "unknown"
+			}
 			break
 		}
 		var chunk chatChunk
@@ -239,6 +344,7 @@ func readChatStream(ctx context.Context, r io.Reader, onDelta func(Delta)) (Resp
 			}
 			if ch.FinishReason != nil && *ch.FinishReason != "" {
 				finished = true
+				resp.FinishReason = *ch.FinishReason
 			}
 		}
 	}
@@ -296,7 +402,7 @@ func (c *ChatCompletions) Models(ctx context.Context) ([]string, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, apiError(res)
+		return nil, apiError(res, c.APIKey)
 	}
 	var body struct {
 		Data []struct {
