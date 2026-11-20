@@ -53,14 +53,16 @@ func ask(args []string, cfg app.Config, stdout, stderr io.Writer) int {
 		return 1
 	}
 	settings := agent.Settings{BaseURL: *base, Model: *model, APIKey: os.Getenv("FREEMD_AI_KEY")}
-	if settings.BaseURL == "" {
-		settings.BaseURL = p.AI.BaseURL
+	// Flags override the selected OneBot connection; the key still comes only
+	// from the environment so the CLI never reads the GUI's secret store.
+	if c := p.AI.Current(); c != nil {
+		settings.ConnectionID, settings.Protocol, settings.Vendor, settings.Parameters = c.ID, c.Protocol, c.Vendor, c.Parameters
 		if settings.BaseURL == "" {
-			settings.BaseURL = agent.PresetOf(p.AI.Provider).BaseURL
+			settings.BaseURL = strings.TrimSpace(c.BaseURL)
 		}
-	}
-	if settings.Model == "" {
-		settings.Model = p.AI.Model
+		if settings.Model == "" {
+			settings.Model = c.Model
+		}
 	}
 	if err := settings.Check(); err != nil {
 		fmt.Fprintln(stderr, "freemd: cannot ask:", err, "(set them in Settings › AI, or with -base-url, -model and FREEMD_AI_KEY)")
