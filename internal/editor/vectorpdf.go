@@ -12,6 +12,7 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/mermaid"
 	"github.com/OUBIGFA/FreeMD/internal/pdf"
 	"github.com/OUBIGFA/FreeMD/internal/tex"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -399,6 +400,12 @@ func (e *Editor) exportVectorRows(
 			continue
 		}
 		if r.leaf.Block != nil && r.leaf.Block.Kind == "raw" && isHTMLCommentBlock(r.leaf.Block.Text()) {
+			continue
+		}
+		if r.board != nil && r.board.board != nil {
+			if err := ExportBoardVector(vp, r.board.board.Scene, whiteboard.Box{X: px(r.rect.X), Y: py(r.rect.Y + 8), W: pw(r.rect.W), H: ph(r.rect.H - 24)}, o.BoardOptions); err != nil {
+				e.exportErr = err
+			}
 			continue
 		}
 		if r.picture != nil {

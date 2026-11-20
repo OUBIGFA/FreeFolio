@@ -25,7 +25,13 @@ var Extensions = []string{".md", ".markdown", ".mdx"}
 
 // IsDocument includes native rich documents and Markdown import sources.
 func IsDocument(name string) bool {
-	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name)
+	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name) || IsWhiteboard(name)
+}
+
+// IsWhiteboard recognizes editable scenes without treating arbitrary SVGs as documents.
+func IsWhiteboard(name string) bool {
+	low := strings.ToLower(name)
+	return strings.HasSuffix(low, ".excalidraw") || strings.HasSuffix(low, ".excalidraw.svg")
 }
 
 // IsMarkdown reports whether name has one of Extensions.
@@ -53,6 +59,9 @@ func (d Doc) Title() string { return Title(d.Path) }
 // Title returns the name of the file at rel without its extension.
 func Title(rel string) string {
 	base := path.Base(rel)
+	if strings.HasSuffix(strings.ToLower(base), ".excalidraw.svg") {
+		return base[:len(base)-len(".excalidraw.svg")]
+	}
 	return strings.TrimSuffix(base, path.Ext(base))
 }
 
@@ -200,7 +209,7 @@ func List(root string) ([]Doc, error) {
 
 // CreateFile atomically chooses an unused document name and writes its content.
 func CreateFile(root, dir, title, extension, text string) (string, error) {
-	if extension != ".arcmd" && extension != ".md" {
+	if extension != ".arcmd" && extension != ".md" && extension != ".excalidraw" && extension != ".excalidraw.svg" {
 		return "", errors.New("vault: unsupported document extension")
 	}
 	title = sanitize(title)

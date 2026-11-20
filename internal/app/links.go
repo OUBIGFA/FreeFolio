@@ -434,7 +434,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 	resident := map[place]bool{}
 	for _, d := range a.residentDocuments() {
 		resident[place{d.space.ID, d.rel}] = true
-		if allowed[d.space.ID] && d.loadErr == nil && wiki.LinksTo(d.plainText(), from) && d.ed.Engine.MapText(rename) {
+		if allowed[d.space.ID] && d.loadErr == nil && wiki.LinksTo(d.plainText(), from) && a.mapDocumentText(d, rename) {
 			changed++
 		}
 	}
@@ -451,11 +451,11 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 		}
 		sp := a.state.Get(file.space)
 		text, err := readFile(sp, file.rel)
-		if err != nil || !wiki.LinksTo(text, from) {
+		if err != nil {
 			continue
 		}
 		d := openDocument(sp, file.rel, text, false)
-		if d.loadErr != nil || !d.ed.Engine.MapText(rename) {
+		if d.loadErr != nil || !wiki.LinksTo(d.plainText(), from) || !a.mapDocumentText(d, rename) {
 			continue
 		}
 		if err := d.save(); err != nil {
@@ -490,7 +490,7 @@ func (a *App) previewWikiFor(source *document, name string) editor.WikiPreview {
 			p.Missing = false
 			return p
 		}
-		plain = d.ed.Committed().PlainText()
+		plain = d.plainText()
 	} else if indexed, ok := a.liveIndex().TextOf(sp.ID, rel); ok {
 		plain = indexed
 	} else {

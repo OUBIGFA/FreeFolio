@@ -51,6 +51,9 @@ func ImportMarkdown(source string) *document.Document {
 // indexing without allocating unique block IDs, source chunks, or keeping ImportSource.
 func ExtractMarkdownText(source string) (text, icon string) {
 	doc := parseMarkdownSourceMode(source, true).doc
+	if strings.Contains(source, "excalidraw") || strings.Contains(source, "whiteboard") {
+		return SemanticDocumentText(doc), doc.Icon
+	}
 	return doc.PlainText(), doc.Icon
 }
 

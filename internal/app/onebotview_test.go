@@ -97,3 +97,20 @@ func TestOneBotSnapshot(t *testing.T) {
 		})
 	}
 }
+
+// Beside OneBot in a small window the document toolbar drops optional controls
+// instead of squeezing the OneBot and more buttons below their hit size.
+func TestNarrowToolbarKeepsOneBotButtons(t *testing.T) {
+	a, tt := newTestApp(t)
+	setupOneBot(a, "key")
+	a.qa.open = true
+	tt.SetSize(760, 620)
+	tt.Frame()
+	tt.Advance(slide)
+	tt.Frame()
+	for _, label := range []string{"更多", "OneBot"} {
+		if r, ok := tt.Find(label); !ok || r.W < 29 {
+			t.Fatalf("%s squeezed: %v found=%v", label, r, ok)
+		}
+	}
+}

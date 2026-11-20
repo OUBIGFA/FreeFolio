@@ -186,6 +186,21 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 	if d == nil || d.loadErr != nil {
 		return
 	}
+	if d.board != nil || d.boardOverlay != nil {
+		target := d
+		if d.boardOverlay != nil {
+			target = d.boardOverlay
+		}
+		board := d.board
+		if d.boardOverlay != nil {
+			board = d.boardOverlay.board
+		}
+		if iconButton(c, "board-readonly", iconLocked, i18n.T("只读"), i18n.T("切换白板只读状态"), false).Clicked() {
+			target.ed.ReadOnly = !target.ed.ReadOnly
+			board.ReadOnly = target.ed.ReadOnly
+		}
+		return
+	}
 	if !d.source {
 		b := iconButton(c, "document-map", iconListTree, i18n.T("思维导图"), a.withKey(i18n.T("思维导图"), "mindmap"), false)
 		if d.mindMap != nil {

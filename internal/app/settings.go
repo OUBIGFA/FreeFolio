@@ -35,7 +35,7 @@ func (a *App) openSettings(tab string) {
 // moreMenu keeps document actions at hand. Library and settings lead to
 // app-wide tools without repeating their individual pages here.
 func (a *App) moreMenu(c *ui.Context) {
-	b := iconButton(c, "more", iconEllipsis, i18n.T("更多"), i18n.T("更多"), false).Role(ui.RoleMenuButton)
+	b := iconButton(c, "more", iconEllipsis, i18n.T("更多"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Shrink(0)
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		noDoc := a.doc == nil || a.doc.loadErr != nil
 		if a.menuKey(m.Item(i18n.T("专注模式")), "focus").Checked(a.focus).Chosen() {

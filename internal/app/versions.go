@@ -12,6 +12,7 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/history"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -23,6 +24,7 @@ import (
 
 // versionsState is the history window's.
 type versionsState struct {
+	board    *editor.Board
 	open     bool
 	err      error
 	versions []history.Version
@@ -95,7 +97,19 @@ func (a *App) selectVersion(i int) {
 		return
 	}
 	v.shown, v.doc, v.diff, v.err = ver.File, nil, nil, nil
+	v.board = nil
 	text, err := history.Read(v.for_.space.Root, v.for_.rel, ver)
+	if err == nil && v.for_.board != nil {
+		scene, readErr := whiteboard.Decode(text)
+		if readErr != nil {
+			v.err = readErr
+			return
+		}
+		v.board = editor.NewBoard(scene)
+		v.doc = model.New()
+		v.diff = history.Diff(strings.Split(v.for_.board.Scene.PlainText(), "\n"), strings.Split(scene.PlainText(), "\n"))
+		return
+	}
 	if err == nil {
 		if strings.EqualFold(path.Ext(ver.File), ".arcmd") {
 			v.doc, err = model.Decode(text)
@@ -126,6 +140,12 @@ func (a *App) selectVersion(i int) {
 func (a *App) restoreVersion() {
 	v := &a.versions
 	if v.doc == nil || v.for_ != a.doc {
+		return
+	}
+	if v.board != nil && a.doc.board != nil {
+		a.doc.board.ReplaceScene(v.board.Scene)
+		a.boardChanged(a.doc)
+		v.open = false
 		return
 	}
 	at := v.versions[v.sel].Time
@@ -399,6 +419,10 @@ func (a *App) versionsView(c *ui.Context) {
 				})
 				ui.Box(c).Width(1).Background(t.Text.Alpha(0.08))
 				ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+					if v.board != nil {
+						editor.BoardView(c, v.board, editor.BoardOptions{ReadOnly: true, Theme: c.Theme()})
+						return
+					}
 					switch {
 					case v.err != nil:
 						ui.Text(c, i18n.T("无法读取这个版本。")+v.err.Error()).TextColor(t.Danger)

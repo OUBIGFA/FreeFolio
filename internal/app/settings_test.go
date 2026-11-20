@@ -223,6 +223,9 @@ func TestFixedSettingsFitMinimumWindow(t *testing.T) {
 	} {
 		t.Run(tab, func(t *testing.T) {
 			a, tt := newTestApp(t)
+			if tab == tabAI {
+				setupOneBot(a, "")
+			}
 			tt.SetSize(640, 420)
 			a.openSettings(tab)
 			tt.Frame()

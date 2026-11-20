@@ -110,6 +110,116 @@
           "destination": "internal/fileedit/testdata/opencode-edit.json"
         }
       ]
+    },
+    {
+      "name": "Quiet.md whiteboard",
+      "purpose": "Native Go whiteboard behavior and file model; rough.js, freehand, text wrapping and font-subset translations; upstream exchange fixtures, fonts and SVG icons",
+      "sourceUrl": "https://github.com/s1dashu/quiet-md",
+      "revision": "e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/quiet-md/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/quiet-md/LICENSE",
+          "bytes": 1064,
+          "sha256": "b8f39925b1c36ca531c5e663aeb7ba427f94a526495785b4d1b2797fae8f2546"
+        },
+        {
+          "path": "third_party/whiteboard/LICENSE",
+          "bytes": 1300,
+          "sha256": "bd12a8dcd895e682302d8fc7d0ada78eea46f394b1cd4b1da5b5222f9f380d95"
+        },
+        {
+          "path": "third_party/whiteboard/OFL.txt",
+          "bytes": 5443,
+          "sha256": "d8d8c58fb98aafccf173ad8e62ff102e668309c85fddd14fba9706bf082f6fbb"
+        },
+        {
+          "path": "third_party/whiteboard/LICENSE-ComicShanns.txt",
+          "bytes": 1364,
+          "sha256": "1f5a7333362962f727f1dcce03ea26e2465fb11a16150de67f4bc6e195bd5c57"
+        },
+        {
+          "path": "third_party/whiteboard/CC0.txt",
+          "bytes": 7048,
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+        },
+        {
+          "path": "third_party/whiteboard/FDLIBM-NOTICE.txt",
+          "bytes": 531,
+          "sha256": "cfc41af80d5505ffd6c4f6249716136d2ada89a565be0aa8e32a8fa9fc14d0ac"
+        }
+      ],
+      "adaptedFiles": [
+        {
+          "path": "crates/core/src/board/types.rs",
+          "sha256": "498026035e77ab004e12288452830c23514a82e9d62d853da13027a1372c86ab"
+        },
+        {
+          "path": "crates/core/src/board/json.rs",
+          "sha256": "261065e95e939b0a8a47edc6ecf6df2f735fac96120dee1d57cc0658be9f8694"
+        },
+        {
+          "path": "crates/core/src/board/restore.rs",
+          "sha256": "7f9e1175c33cc8d781b12b8f778b1cef377e0bb2b5c1189782e38e696c3dcec1"
+        },
+        {
+          "path": "crates/core/src/board/encode.rs",
+          "sha256": "f248481c2cb75c0b6f44bb2cc3561d6d0488fb73788b918a6cd1200f8e39fa46"
+        },
+        {
+          "path": "crates/core/src/board/clipboard.rs",
+          "sha256": "8c7124008111f8caa75337e9bbe4f15e5fc1a4d5160675c4ab23f6a35fd61bf5"
+        },
+        {
+          "path": "crates/core/src/board/freehand.rs",
+          "sha256": "02d9bd2c2363cbd3c6f3b0e751d7aa9ae1d91d3c7a4e95ddc723e88474f6b177"
+        },
+        {
+          "path": "crates/core/src/board/text_wrapping.rs",
+          "sha256": "069f7e0e9176cffd9df2f295bce4e4b28ca1b8b7c7d0ed8bc6dafc8ae7433a22"
+        },
+        {
+          "path": "crates/core/src/board/font_subset.rs",
+          "sha256": "fd1170c6568709fc25f0143799388aa03e7fe39193e89901f27a37ec3a834be4"
+        },
+        {
+          "path": "crates/core/src/board/fractional_index.rs",
+          "sha256": "1a2e343e157cca207f5f735af17e7bddf2275295b315280b6c43a90345e89aa8"
+        },
+        {
+          "path": "crates/core/tests/fixtures/board/all-elements.excalidraw",
+          "sha256": "f728b2379e44f2351f09d1a731f3feb4d45bf0f172d5c67ad62e8601ef14cff9"
+        },
+        {
+          "path": "crates/core/tests/fixtures/board/rough.json",
+          "sha256": "708374be410e30eede45fe370513091f94e5a10479d98ae1ed09b42e9700d5ed"
+        },
+        {
+          "path": "crates/core/src/board/rough/curve.rs",
+          "sha256": "f5bf354ee3b5b9b32f8aeb9d5423137fdf0a0ffc701d425d98f076fdead15ad1"
+        },
+        {
+          "path": "crates/core/src/board/rough/fillers.rs",
+          "sha256": "e4cbb5092fa34f919e122c018595b1e16fd40920a0573ac1f6dcd02c332f33c2"
+        },
+        {
+          "path": "crates/core/src/board/rough/generator.rs",
+          "sha256": "3ba4d7e2c50b3200e81b3384db1501b2b9ddcd2d97dd08a86f01275ef6fb36a1"
+        },
+        {
+          "path": "crates/core/src/board/rough/mod.rs",
+          "sha256": "46c041f15b102ed0012e6701745207918cde6a786b47a32b74761381128eed01"
+        },
+        {
+          "path": "crates/core/src/board/rough/path_data.rs",
+          "sha256": "d2941ad22fe568d58093d6ec66d9abdfaca8eab88bc4f911c500b7ee93eb4467"
+        },
+        {
+          "path": "crates/core/src/board/rough/renderer.rs",
+          "sha256": "b7f55afa3373021e11ae6b67f078a2ee64dce429e4430fe51776214074873d56"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

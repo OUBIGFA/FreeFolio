@@ -77,7 +77,8 @@ type spaceSession struct {
 
 // App is FreeMD's state.
 type App struct {
-	cloud cloudState
+	boardLibrary *boardLibraryState
+	cloud        cloudState
 	// Sidebar selection belongs to one space and retains a range anchor.
 	picks      map[string]bool
 	picksSpace string
@@ -664,6 +665,9 @@ func (a *App) flushCurrent() bool {
 		return true
 	}
 	a.doc.ed.UnmarkText()
+	if a.doc.board != nil {
+		a.doc.board.FinishEditing()
+	}
 	if err := a.doc.save(); err != nil {
 		if errors.Is(err, errConflict) || errors.Is(err, errMissing) {
 			a.notify("「%s」%v，请先在文档上方选择保留哪个版本。", a.doc.title(), err)
@@ -902,7 +906,7 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 	}
 	if resident := a.residentDocument(sp.ID, rel); resident != nil {
 		if !resident.dirty() && resident.diskText != text {
-			replacement := openDocument(sp, rel, text, resident.source)
+			replacement := a.openDocumentForView(sp, rel, text, resident.source)
 			replacement.ed.Scroll = resident.ed.Scroll
 			a.replaceReferences(resident, replacement)
 			resident = replacement
@@ -914,7 +918,7 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		a.doc = cached
 	} else {
 		preferSource := cached != nil && cached.rel == rel && cached.source
-		a.doc = openDocument(sp, rel, text, preferSource)
+		a.doc = a.openDocumentForView(sp, rel, text, preferSource)
 	}
 	var oldSession *document
 	if activeSp := a.state.ActiveSpace(); activeSp != nil && a.documentContext == 0 {
@@ -1562,6 +1566,10 @@ func (a *App) exportMarkdown() {
 	if a.doc == nil || a.doc.loadErr != nil {
 		return
 	}
+	if a.doc.board != nil {
+		a.exportBoardMarkdown(a.doc)
+		return
+	}
 	a.doc.ed.UnmarkText()
 	root, name, err := fileLocation(a.doc.space, a.doc.rel)
 	if err != nil {
@@ -1626,6 +1634,10 @@ func (a *App) retireClosedDocuments(candidates ...*document) {
 	}
 	for _, d := range candidates {
 		if d != nil && !resident[d] {
+			if child := d.boardOverlay; child != nil && !resident[child] {
+				child.close()
+				d.boardOverlay = nil
+			}
 			d.close()
 		}
 	}

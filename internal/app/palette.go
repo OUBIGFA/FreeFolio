@@ -253,6 +253,7 @@ func (a *App) actions() []action {
 	cmd(i18n.T("在所有文档中查找和替换…"), a.keyLabel("replace-all"), a.openReplaceAll)
 	if !active.IsExternal() {
 		cmd(i18n.T("新建文档"), a.keyLabel("new-doc"), func() { a.newDoc(dir) })
+		cmd(i18n.T("新建白板"), a.keyLabel("new-board"), func() { a.newWhiteboard(dir) })
 		cmd(i18n.T("新建文件夹"), a.keyLabel("new-folder"), func() { a.newFolder(dir) })
 		cmd(i18n.T("今日笔记"), a.keyLabel("daily"), a.openDaily)
 		for _, t := range a.spaceTemplates(a.state.ActiveSpace()) {

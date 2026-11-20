@@ -311,10 +311,12 @@ func (a *App) residentDocuments() []*document {
 	a.syncSplit()
 	seen := map[*document]bool{}
 	var out []*document
-	add := func(d *document) {
+	var add func(*document)
+	add = func(d *document) {
 		if d != nil && !seen[d] {
 			seen[d] = true
 			out = append(out, d)
+			add(d.boardOverlay)
 		}
 	}
 	add(a.doc)
@@ -398,6 +400,11 @@ func (a *App) withDocument(d *document, fn func()) {
 	for _, w := range a.windows {
 		if w.doc == d {
 			w.doc = replacement
+		}
+	}
+	for _, parent := range a.residentDocuments() {
+		if parent.boardOverlay == d {
+			parent.boardOverlay = replacement
 		}
 	}
 	if selected != d {
@@ -497,6 +504,11 @@ func (a *App) runPaletteAction(act action) {
 }
 
 func (a *App) replaceReferences(old, replacement *document) {
+	for _, parent := range a.residentDocuments() {
+		if parent.boardOverlay == old && old != nil {
+			parent.boardOverlay = replacement
+		}
+	}
 	if a.files != nil && old != nil && a.files.previous == old {
 		a.files.previous = replacement
 	}

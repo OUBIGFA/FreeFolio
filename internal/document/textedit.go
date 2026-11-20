@@ -29,6 +29,11 @@ type historyEntry struct {
 }
 
 func (e *Engine) recordUndo(entry historyEntry) {
+	if e.editGroup != "" && e.lastEditGroup == e.editGroup && len(e.undo) > 0 {
+		e.redo = nil
+		return
+	}
+	e.lastEditGroup = e.editGroup
 	e.undo = append(e.undo, entry)
 	if len(e.undo) > 200 {
 		e.undo[0] = historyEntry{}

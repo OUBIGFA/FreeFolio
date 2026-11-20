@@ -90,6 +90,25 @@ func (vp *VectorPage) setStrokeRGB(c [4]uint8) {
 func (vp *VectorPage) Save()    { vp.stream.WriteString("q\n") }
 func (vp *VectorPage) Restore() { vp.stream.WriteString("Q\n") }
 
+// Transform concatenates a top-down affine transform. Its translation is
+// converted to PDF's bottom-up page coordinates at the boundary.
+func (vp *VectorPage) Transform(a, b, c, d, e, f float64) {
+	fmt.Fprintf(&vp.stream, "%.9f %.9f %.9f %.9f %.9f %.9f cm\n", a, -b, -c, d, c*vp.Height+e, vp.Height-d*vp.Height-f)
+}
+
+// PushClipPolygon clips rotated frames without reducing them to an axis-aligned box.
+func (vp *VectorPage) PushClipPolygon(points [][2]float64) {
+	vp.Save()
+	if len(points) == 0 {
+		return
+	}
+	fmt.Fprintf(&vp.stream, "%.6f %.6f m\n", points[0][0], vp.py(points[0][1]))
+	for _, p := range points[1:] {
+		fmt.Fprintf(&vp.stream, "%.6f %.6f l\n", p[0], vp.py(p[1]))
+	}
+	vp.stream.WriteString("h W n\n")
+}
+
 func (vp *VectorPage) PushClip(x, y, w, h, radius float64) {
 	vp.stream.WriteString("q\n")
 	vp.appendRoundRectPath(x, y, w, h, radius)

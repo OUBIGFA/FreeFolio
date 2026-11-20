@@ -224,6 +224,9 @@ func (a *App) qaSession(spaceID string) *qaSession {
 // QAPage is a document file as the agent reads it: its Markdown, each
 // line knowing its top-level block.
 func QAPage(name, content string) (*spacefs.Page, error) {
+	if vault.IsWhiteboard(name) {
+		return whiteboardQAPage(name, content)
+	}
 	var doc *model.Document
 	if strings.EqualFold(path.Ext(name), ".arcmd") {
 		d, err := model.Decode(content)
@@ -273,7 +276,7 @@ func (a *App) qaSpace(spaceID string) *spacefs.FS {
 	live := map[string]*spacefs.Page{}
 	for _, d := range a.residentDocuments() {
 		if d.space == sp && d.loadErr == nil && d.dirty() {
-			live[d.rel] = pageOfDocument(d.rel, d.ed.Committed())
+			live[d.rel] = d.qaPage()
 		}
 	}
 	fs.SetLive(live)
@@ -610,6 +613,10 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 	}
 	at, ok := page.Locate(c.From)
 	if !ok {
+		return
+	}
+	if a.doc.board != nil {
+		a.doc.board.RevealElement(at.Block)
 		return
 	}
 	blocks := a.doc.ed.Doc.Blocks

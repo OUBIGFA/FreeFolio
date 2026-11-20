@@ -138,7 +138,7 @@ func (a *App) replaceEverywhere() {
 				skipped++
 				continue
 			}
-			if d.ed.Engine.MapText(change) {
+			if a.mapDocumentText(d, change) {
 				count, docs = count+n, docs+1
 				edited = append(edited, d)
 			}
@@ -150,7 +150,7 @@ func (a *App) replaceEverywhere() {
 			continue
 		}
 		d := openDocument(sp, h.Path, before, false)
-		if d.loadErr != nil || !d.ed.Engine.MapText(change) {
+		if d.loadErr != nil || !a.mapDocumentText(d, change) {
 			continue
 		}
 		if err := d.save(); err != nil {
@@ -185,7 +185,12 @@ func (a *App) replaceEverywhere() {
 // replace wrote.
 func (a *App) undoReplace(files []replacedFile, edited []*document) {
 	for _, d := range edited {
-		d.ed.Undo()
+		if d.board != nil {
+			d.board.Undo()
+			a.boardChanged(d)
+		} else {
+			d.ed.Undo()
+		}
 	}
 	kept := 0
 	for _, f := range files {

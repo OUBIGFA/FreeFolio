@@ -24,6 +24,7 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/history"
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -31,6 +32,14 @@ const autosaveDelay = 700 * time.Millisecond
 
 // document owns a rich model, its persisted baseline and export preview.
 type document struct {
+	board            *editor.Board
+	boardOverlay     *document
+	boardLoading     bool
+	boardGen         uint64
+	boardBase        [32]byte
+	boardDigestRev   uint64
+	boardDigestKnown bool
+	boardDigestValue [32]byte
 	// Each document owns the map projection and its dock geometry.
 	mindMap                   *editor.MindMap
 	mapInitialized            bool
@@ -107,7 +116,11 @@ type document struct {
 func openDocument(sp *space.Space, rel, text string, preferSource bool) *document {
 	d := &document{space: sp, rel: rel, historyOff: sp.IsExternal() && sp.Root == "", diskText: text, source: preferSource}
 	var doc *model.Document
-	if strings.EqualFold(path.Ext(rel), ".arcmd") {
+	if vault.IsWhiteboard(rel) {
+		doc = model.New()
+		d.loadWhiteboard(text)
+		d.source = false
+	} else if strings.EqualFold(path.Ext(rel), ".arcmd") {
 		var err error
 		doc, err = model.Decode(text)
 		if err != nil {
@@ -125,7 +138,12 @@ func openDocument(sp *space.Space, rel, text string, preferSource bool) *documen
 	return d
 }
 func (d *document) title() string { return vault.Title(d.rel) }
-func (d *document) text() string  { return editor.ExportMarkdown(d.ed.Committed()) }
+func (d *document) text() string {
+	if d.board != nil {
+		return d.board.Scene.PlainText()
+	}
+	return editor.ExportMarkdown(d.ed.Committed())
+}
 
 // ensureBodyParagraph gives a newly created heading-only Markdown page an
 // empty body paragraph below its title without marking the document dirty.
@@ -141,8 +159,11 @@ func (d *document) ensureBodyParagraph() {
 // already dirty); other changes re-evaluate against the baseline once and
 // re-arm leaf-level tracking when the skeleton matches.
 func (d *document) dirty() bool {
-	if d.loadErr != nil {
+	if d.loadErr != nil || d.boardLoading {
 		return false
+	}
+	if d.board != nil {
+		return d.whiteboardDirty()
 	}
 	if rev := d.ed.Revision(); !d.dirtyKnown || rev != d.dirtyRev {
 		// Preedit revisions update display indexes but leave committed content
@@ -328,6 +349,7 @@ func (d *document) applyBaselineState(runs map[string][16]byte, skeleton [32]byt
 }
 
 type asyncSaveResult struct {
+	whiteboard       bool
 	text             string
 	baseline         [32]byte
 	baselineSkeleton [32]byte
@@ -355,6 +377,9 @@ type cachedImage struct {
 
 // changed hashes the document and compares it with the saved baseline.
 func (d *document) changed() bool {
+	if d.board != nil {
+		return d.whiteboardDirty()
+	}
 	if d.baselinePending && len(d.baselineOrigRuns) == 0 {
 		return false
 	}
@@ -364,6 +389,9 @@ func (d *document) changed() bool {
 }
 
 func (d *document) toggleMode() {
+	if d.board != nil {
+		return
+	}
 	d.ed.UnmarkText()
 	d.modeSwitchPending = true
 	d.modeAt = time.Time{}
@@ -486,6 +514,10 @@ func (d *document) waitAsyncSave() {
 func (d *document) applyAsyncSave(res asyncSaveResult) {
 	d.saving = false
 	d.saveDone = nil
+	if res.whiteboard {
+		d.applyWhiteboardSave(res)
+		return
+	}
 	switch {
 	case res.unchanged:
 		d.saveErr = nil
@@ -553,6 +585,12 @@ func (d *document) write(force bool) error {
 	d.waitAsyncSave()
 	if d.loadErr != nil {
 		return d.loadErr
+	}
+	if d.boardLoading {
+		return nil
+	}
+	if d.board != nil {
+		return d.writeWhiteboard(force)
 	}
 	if !force {
 		if d.conflict {
@@ -647,7 +685,7 @@ func (d *document) autosave(c *ui.Context) { d.autosaveWith(c, nil) }
 
 func (d *document) autosaveWith(c *ui.Context, post func(func())) {
 	d.pollAsyncSave()
-	if version := d.ed.Version(); version != d.version {
+	if version := d.contentVersion(); version != d.version {
 		d.version, d.edited = version, c.Now()
 	}
 	if d.saving || d.conflict || d.missing || !d.dirty() || d.saveErr != nil && d.version == d.failedVersion {
@@ -668,6 +706,10 @@ func (d *document) autosaveWith(c *ui.Context, post func(func())) {
 
 func (d *document) startAsyncAutosave(post func(func())) {
 	if d.loadErr != nil {
+		return
+	}
+	if d.board != nil {
+		d.startWhiteboardSave(post)
 		return
 	}
 	committed := d.ed.Committed()
@@ -817,6 +859,17 @@ func decodeLocalImageSync(full string) editor.ImageResource {
 			problem = editor.ImageMissing
 		}
 		return editor.ImageResource{Problem: problem, Local: true}
+	}
+	if vault.IsWhiteboard(full) {
+		s, err := whiteboard.Decode(string(data))
+		if err != nil {
+			return editor.ImageResource{Problem: editor.ImageUnreadable, Local: true}
+		}
+		pngData, err := editor.BoardPNG(s, editor.BoardOptions{})
+		if err != nil {
+			return editor.ImageResource{Problem: editor.ImageUnreadable, Local: true}
+		}
+		return decodeImageData(pngData, true)
 	}
 	return decodeImageData(data, true)
 }
@@ -1017,6 +1070,9 @@ func (d *document) recordLeafBaseline(id string, runs []model.Run) {
 }
 
 func (d *document) pendingDirtyState() (dirty, known bool) {
+	if d.board != nil {
+		return d.dirty(), true
+	}
 	if !d.baselinePending || d.ed.Composing() {
 		return false, false
 	}
@@ -1034,6 +1090,9 @@ func (d *document) close() {
 		return
 	}
 	d.closed.Store(true)
+	if d.board != nil {
+		d.board.Close()
+	}
 	clear(d.imgCache)
 	d.imgCache = nil
 	if d.ed != nil {
@@ -1173,6 +1232,9 @@ func (d *document) imageResourceFrom(full, url string, post func(func())) editor
 }
 
 func decodeLocalImageThumb(full string) editor.ImageResource {
+	if vault.IsWhiteboard(full) {
+		return decodeLocalImageSync(full)
+	}
 	data, err := os.ReadFile(full)
 	if err != nil {
 		problem := editor.ImageUnreadable

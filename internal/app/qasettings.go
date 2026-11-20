@@ -64,15 +64,22 @@ func (a *App) settingsAI(c *ui.Context) {
 		return
 	}
 	row("protocol", "接口协议", func() {
-		ui.MenuButton(c.Key("field"), oneBotProtocolLabel(conn.Protocol), func(m *ui.Menu) {
-			for _, protocol := range []string{agent.Chat, agent.Responses, agent.Anthropic, agent.Gemini, agent.Ollama} {
-				if m.Item(oneBotProtocolLabel(protocol)).Checked(protocol == conn.Protocol).Chosen() {
-					conn.Protocol = protocol
-					a.cancelModelFetch()
-					a.savePrefs()
-				}
+		// A select lines up with the text fields beside it; a menu button
+		// centred its label and looked like an action rather than a value.
+		protocols := []string{agent.Chat, agent.Responses, agent.Anthropic, agent.Gemini, agent.Ollama}
+		labels := make([]string, len(protocols))
+		for i, p := range protocols {
+			labels[i] = oneBotProtocolLabel(p)
+		}
+		current := oneBotProtocolLabel(conn.Protocol)
+		ui.Select(c.Key("field"), &current, labels).Grow(1).Label(i18n.T("接口协议"))
+		for i, label := range labels {
+			if label == current && protocols[i] != conn.Protocol {
+				conn.Protocol = protocols[i]
+				a.cancelModelFetch()
+				a.savePrefs()
 			}
-		}).Grow(1).Label(i18n.T("接口协议"))
+		}
 	})
 	row("address", "服务地址", func() {
 		if ui.TextInput(c.Key("field"), &conn.BaseURL).Grow(1).Placeholder("https://api.example.com/v1").Label(i18n.T("服务地址")).Changed() {
@@ -156,7 +163,7 @@ func (a *App) settingsAI(c *ui.Context) {
 				}
 				a.savePrefs()
 			}
-			if ui.Button(c.Key("details"), i18n.T("能力")).Label(i18n.T("模型能力：") + model.ID).Clicked() {
+			if quietOneBotAction(c, "details", i18n.T("能力")).Label(i18n.T("模型能力：") + model.ID).Clicked() {
 				if a.qa.capabilityModel == model.ID {
 					a.qa.capabilityModel = ""
 				} else {

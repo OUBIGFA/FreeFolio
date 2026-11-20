@@ -935,6 +935,9 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("新建文档")).Chosen() {
 			a.newDoc(n.Path)
 		}
+		if m.Item(i18n.T("新建白板")).Chosen() {
+			a.newWhiteboard(n.Path)
+		}
 		a.templateMenu(m, n.Path)
 		if m.Item(i18n.T("在其中新建文件夹")).Chosen() {
 			a.newFolder(n.Path)
@@ -1062,6 +1065,9 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	}
 	if m.Item(i18n.T("新建文档")).Shortcut(ui.Cmd, ui.KeyN).Chosen() {
 		a.newDoc("")
+	}
+	if m.Item(i18n.T("新建白板")).Shortcut(ui.Cmd|ui.Alt, ui.KeyB).Chosen() {
+		a.newWhiteboard("")
 	}
 	a.templateMenu(m, "")
 	a.sortMenu(m, sp)

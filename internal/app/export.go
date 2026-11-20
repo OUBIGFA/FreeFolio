@@ -142,6 +142,14 @@ func (a *App) exportHTML() {
 	d.ed.UnmarkText()
 	doc := d.ed.Committed()
 	page := htmlPage(docName(d.title()), editor.ExportHTML(doc))
+	if d.board != nil {
+		svg, err := editor.BoardSVG(d.board.Scene, editor.BoardOptions{})
+		if err != nil {
+			a.notify("导出失败。%v", err)
+			return
+		}
+		page = htmlPage(d.title(), svg)
+	}
 	root, nameOnDisk, err := fileLocation(d.space, d.rel)
 	if err != nil {
 		a.notify("导出失败。%v", err)

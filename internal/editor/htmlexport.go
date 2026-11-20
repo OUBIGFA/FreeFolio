@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 )
 
 func isSafeLangClass(lang string) bool {
@@ -85,6 +86,14 @@ func ExportHTML(doc *document.Document) string {
 				i--
 				continue
 			case "code":
+				if isWhiteboardBlock(b) {
+					if scene, err := whiteboard.Decode(b.Text()); err == nil {
+						if svg, err := whiteboard.ExportSVG(scene, whiteboard.SVGOptions{EmbedScene: true}); err == nil {
+							out.WriteString(svg)
+							continue
+						}
+					}
+				}
 				classAttr := ""
 				if isSafeLangClass(b.Language) {
 					classAttr = ` class="language-` + html.EscapeString(strings.ToLower(strings.TrimSpace(b.Language))) + `"`

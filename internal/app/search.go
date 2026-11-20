@@ -10,6 +10,7 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/search"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 )
 
 // searchState is the command bar's full-text search: the index of every
@@ -48,6 +49,13 @@ type hitsKey struct {
 // blocks' text, a line each, as the editor's find box sees it, and its
 // page icon.
 func extractText(name, content string) (search.Extracted, error) {
+	if vault.IsWhiteboard(name) {
+		s, err := whiteboard.Decode(content)
+		if err != nil {
+			return search.Extracted{}, err
+		}
+		return search.Extracted{Text: s.PlainText()}, nil
+	}
 	if strings.EqualFold(path.Ext(name), ".arcmd") {
 		doc, err := model.Decode(content)
 		if err != nil {
@@ -134,8 +142,14 @@ const searchLimit = 5
 // plainText is the document's text as search sees it, kept for the
 // revision.
 func (d *document) plainText() string {
+	if d.board != nil {
+		return d.board.Scene.PlainText()
+	}
 	if rev := d.ed.Revision(); !d.plainKnown || rev != d.plainRev {
 		d.plain, d.plainRev, d.plainKnown = d.ed.Text(), rev, true
+		if editor.HasInlineWhiteboards(d.ed.Committed()) {
+			d.plain = editor.SemanticDocumentText(d.ed.Committed())
+		}
 	}
 	return d.plain
 }
@@ -172,6 +186,15 @@ func (a *App) openAtText(id, rel, query string) {
 
 func (a *App) openAtTextTerm(id, rel, query, term string) {
 	if !a.openAnywhere(id, rel) || a.doc.loadErr != nil {
+		return
+	}
+	if a.doc.board != nil {
+		for _, e := range a.doc.board.Scene.Elements {
+			if strings.Contains(strings.ToLower(e.OriginalText+e.Text+e.Name+e.Link), strings.ToLower(strings.TrimSpace(query))) {
+				a.doc.board.RevealElement(e.ID)
+				break
+			}
+		}
 		return
 	}
 	if a.doc.source {
@@ -234,7 +257,7 @@ func (a *App) liveIndex() *search.Index {
 			continue
 		}
 		docs = append(docs, d)
-		stamp := liveStamp{d.ed.Revision(), place{d.space.ID, d.rel}}
+		stamp := liveStamp{d.contentRevision(), place{d.space.ID, d.rel}}
 		if previous, ok := s.liveDocs[d]; !ok || previous != stamp {
 			unchanged = false
 		}
@@ -245,7 +268,7 @@ func (a *App) liveIndex() *search.Index {
 	s.liveDocs = make(map[*document]liveStamp, len(docs))
 	live := make([]search.Live, 0, len(docs))
 	for _, d := range docs {
-		s.liveDocs[d] = liveStamp{d.ed.Revision(), place{d.space.ID, d.rel}}
+		s.liveDocs[d] = liveStamp{d.contentRevision(), place{d.space.ID, d.rel}}
 		if a.files != nil && d.space == a.files.locations {
 			continue
 		}

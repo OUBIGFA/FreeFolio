@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
@@ -358,6 +359,8 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.cyclePane()
 	case a.pressed(c, "new-doc"):
 		a.newDoc(a.currentDir())
+	case a.pressed(c, "new-board"):
+		a.newWhiteboard(a.currentDir())
 	case a.pressed(c, "new-folder"):
 		a.newFolder(a.currentDir())
 	case a.pressed(c, "daily"):
@@ -536,6 +539,10 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		a.emptyState(c)
 		return
 	}
+	if d.boardLoading {
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, i18n.T("正在加载白板…")).FontSize(14) })
+		return
+	}
 	if d.loadErr != nil {
 		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 			ui.Text(c, i18n.T("文档无法打开")).FontSize(20)
@@ -545,6 +552,17 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 				a.reload()
 			}
 		})
+		return
+	}
+	if d.boardOverlay != nil {
+		child := d.boardOverlay
+		o := a.boardOptions(c, child)
+		o.Done = func() { a.closeBoardOverlay(d) }
+		editor.BoardView(c, child.board, o)
+		return
+	}
+	if d.board != nil {
+		a.whiteboardView(c, d)
 		return
 	}
 	applyModeFade := func(el ui.Element) {
@@ -656,7 +674,10 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		}
 		// The history's arrows live beside the sidebar's search field; with
 		// the sidebar folded away they come back here to stay reachable.
-		if docked < 0.5 {
+		// A pane too narrow for them (beside OneBot in a small window) drops
+		// them first: back/forward keep their shortcuts, while the OneBot and
+		// more buttons have no other place.
+		if docked < 0.5 && toolbar.LayoutBounds().W >= 440 {
 			a.historyButtons(c)
 		}
 		ui.Box(c).Width(8)
@@ -668,7 +689,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.documentCorner(c, a.doc)
 			ui.Box(c).Size(1, 14).Margin(0, 2).Background(separator(c.Theme())).Shrink(0)
 		}
-		ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil)
+		ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil).Shrink(0)
 		if a.qa.open {
 			ask.Background(glass(c.Theme()))
 		}
@@ -744,6 +765,14 @@ func (a *App) address(c *ui.Context) {
 	t := c.Theme()
 	f := ui.Row(c.Key("address")).Grow(1).MinWidth(0).Height(42).PaddingX(12).Gap(8).
 		AlignItems(ui.Center).Justify(ui.Center).Label(i18n.T("文档路径"))
+	// Too narrow for a readable name (as beside OneBot in a small window):
+	// show nothing rather than ellipses colliding with the buttons. The row
+	// keeps growing, so last frame's width stays a stable measure.
+	// centeredTitle already sizes the caption to the gap in the left-sidebar
+	// layout, where its tests expect the name to stay visible.
+	if w := f.LayoutBounds().W; !a.prefs.SidebarLeft && w > 0 && w < 96 {
+		return
+	}
 	f.Children(func() {
 		if a.spaceForm.open && a.spaceForm.id == "" {
 			ui.Text(c, i18n.T("新空间")).TextColor(t.TextMuted).NoWrap()
@@ -769,7 +798,7 @@ func (a *App) address(c *ui.Context) {
 			}
 		}
 		ui.Column(c).MinWidth(0).Shrink(1).Gap(1).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().Tooltip(a.doc.fullPath())
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.fullPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
 				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
@@ -782,7 +811,7 @@ func (a *App) address(c *ui.Context) {
 					saveStatus()
 				})
 			} else {
-				ui.Text(c, breadcrumb).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
+				ui.Text(c, breadcrumb).FontSize(11.5).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
 			}
 		})
 		if !a.prefs.SidebarLeft {

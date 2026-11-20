@@ -35,6 +35,8 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 			e.Engine.Insert(document.NewBlock("rule", ""))
 		case "image":
 			// The host picks the images and inserts it at the caret.
+		case "whiteboard":
+			// The host creates the editable image before inserting its reference.
 		case "wiki":
 			e.Engine.Replace(e.Caret, e.Caret, "[[")
 		case "mermaid-flow":
@@ -53,6 +55,9 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 	e.sync()
 	if item.kind == "image" && e.attach != nil {
 		e.attach()
+	}
+	if item.kind == "whiteboard" {
+		e.InsertWhiteboard()
 	}
 }
 

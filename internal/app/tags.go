@@ -59,12 +59,12 @@ func (a *App) renameTag(from, to string) {
 			continue
 		}
 		if d.ed.ReadOnly {
-			if strings.Contains(strings.ToLower(d.ed.Doc.PlainText()), "#"+strings.ToLower(from)) {
+			if strings.Contains(strings.ToLower(d.plainText()), "#"+strings.ToLower(from)) {
 				skipped++
 			}
 			continue
 		}
-		if d.ed.Engine.MapProse(change) {
+		if a.mapDocumentProse(d, change) {
 			edited = append(edited, d)
 		}
 	}
@@ -80,11 +80,11 @@ func (a *App) renameTag(from, to string) {
 		}
 		sp := a.state.Get(p.space)
 		before, err := readFile(sp, p.rel)
-		if err != nil || !strings.Contains(strings.ToLower(before), "#"+strings.ToLower(from)) {
+		if err != nil {
 			continue
 		}
 		d := openDocument(sp, p.rel, before, false)
-		if d.loadErr != nil || !d.ed.Engine.MapProse(change) {
+		if d.loadErr != nil || !a.mapDocumentProse(d, change) {
 			continue
 		}
 		if err := d.save(); err != nil {

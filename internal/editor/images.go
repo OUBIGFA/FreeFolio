@@ -552,6 +552,10 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 			return true
 		})
 		open := func() {
+			if isWhiteboardURL(src) && o.OpenWhiteboard != nil {
+				o.OpenWhiteboard(src)
+				return
+			}
 			e.imageViewer = imageViewer{
 				open:     true,
 				name:     f.name,

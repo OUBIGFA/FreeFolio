@@ -82,7 +82,7 @@ func (a *App) chooseExternalFiles() {
 	win := a.win
 	go func() {
 		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件…"), Multiple: true,
-			Filters: []mygo.FileFilter{{Name: "Markdown", Extensions: []string{"md", "markdown", "mdx", "arcmd"}}}})
+			Filters: []mygo.FileFilter{{Name: "FreeMD", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg"}}}})
 		if err != nil {
 			return
 		}

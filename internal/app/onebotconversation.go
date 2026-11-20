@@ -13,7 +13,7 @@ import (
 // selector, and expandable changes attached to assistant messages. See the
 // pinned source record in third_party/opencode/README.md.
 func (a *App) oneBotHeaderMenu(c *ui.Context) {
-	ui.MenuButton(c.Key("onebot-menu"), "⋯", func(m *ui.Menu) {
+	iconButton(c, "onebot-menu", iconEllipsis, i18n.T("OneBot 菜单"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 		if m.Item(i18n.T("OneBot 设置…")).Chosen() {
 			a.openSettings(tabAI)
 		}
@@ -31,7 +31,7 @@ func (a *App) oneBotHeaderMenu(c *ui.Context) {
 			a.qa.editTask = nil
 			a.qa.editFollow = false
 		}
-	}).Width(26).Height(26).Padding(0).Border(0, c.Theme().Border).Background(ui.Color{}).Label(i18n.T("OneBot 菜单"))
+	})
 }
 
 func quietOneBotAction(c *ui.Context, key, label string) ui.Element {
@@ -42,6 +42,19 @@ func quietOneBotAction(c *ui.Context, key, label string) ui.Element {
 		e.Background(c.Theme().Text.Alpha(0.04)).Radius(4)
 	}
 	e.Children(func() { ui.Text(c, label).FontSize(12).TextColor(ink).NoWrap() })
+	return e
+}
+
+// oneBotApplyButton is the one emphasised action in a review row: accent text
+// on a faint accent tint, so it reads as the next step without a heavy fill.
+func oneBotApplyButton(c *ui.Context, key, label string) ui.Element {
+	t := c.Theme()
+	e := ui.Row(c.Key(key)).Height(26).Padding(2, 9).Radius(5).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
+	fill := t.Accent.Alpha(0.1)
+	if e.Hovered() {
+		fill = t.Accent.Alpha(0.18)
+	}
+	e.Background(fill).Children(func() { ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(t.Accent).NoWrap() })
 	return e
 }
 
@@ -106,7 +119,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 				a.askQA()
 			}
 			ui.Row(c.Key("composer-toolbar")).Gap(5).AlignItems(ui.Center).Children(func() {
-				ui.MenuButton(c.Key("context-add"), "+", func(m *ui.Menu) {
+				iconButton(c, "context-add", iconPlus, i18n.T("添加上下文"), i18n.T("添加附件或编辑范围"), false).Size(26, 26).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 					if m.Item(i18n.T("添加附件")).Chosen() {
 						a.pickOneBotAttachments()
 					}
@@ -135,7 +148,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 					if m.Item(i18n.T("更多编辑选项…")).Chosen() {
 						a.qa.editOptionsOpen = true
 					}
-				}).Height(26).Width(26).Padding(0).Border(0, t.Border).Background(ui.Color{}).Label(i18n.T("添加上下文"))
+				})
 				a.oneBotCompactModel(c)
 				ui.Spacer(c)
 				busy := s.running()
@@ -302,13 +315,13 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 			}
 			ui.Spacer(c)
 			if pending > 0 {
-				if quietOneBotAction(c, "apply", i18n.T("应用修改")).TextColor(t.Accent).Clicked() {
+				if oneBotApplyButton(c, "apply", i18n.T("应用修改")).Clicked() {
 					if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
 						task.Error = err.Error()
 					}
 				}
 			}
-			ui.MenuButton(c.Key("more"), "⋯", func(m *ui.Menu) {
+			iconButton(c, "more", iconEllipsis, i18n.T("修改操作"), i18n.T("更多"), false).Size(26, 26).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 				if m.Item(i18n.T("继续调整方案")).Chosen() {
 					a.qa.editTask = task
 					a.qa.editMode = true
@@ -329,7 +342,7 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 				if m.Item(i18n.T("回退本方案")).Chosen() {
 					a.revertOneBotCandidate(task, candidate)
 				}
-			}).Height(24).Width(24).Padding(0).Border(0, t.Border).Background(ui.Color{}).Label(i18n.T("修改操作"))
+			})
 		})
 		if task.ShowDiff {
 			for i, ch := range candidate.Changes {

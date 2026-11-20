@@ -14,11 +14,14 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/pdf"
 	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 type pdfExport struct {
+	buildErr                        error
+	board                           *whiteboard.Scene
 	source                          *document
 	title                           string
 	ed                              *editor.Editor
@@ -68,6 +71,18 @@ func (a *App) startPDF(printing bool) {
 	}
 	a.pdfExport = &pdfExport{source: source, title: d.title(), ed: editor.FromDocument(d.ed.Committed()), file: file,
 		writer: w, open: true, printing: printing, next: a.now.Add(time.Millisecond)}
+	if d.board != nil {
+		a.pdfExport.board = d.board.Scene.Clone()
+		editor.RegisterBoardPDFFonts(w, a.pdfExport.board)
+	} else {
+		for _, leaf := range d.ed.Doc.Leaves() {
+			if leaf.Block.Kind == "code" && (leaf.Block.Language == "excalidraw" || leaf.Block.Language == "whiteboard") {
+				if s, err := whiteboard.Decode(leaf.Block.Text()); err == nil {
+					editor.RegisterBoardPDFFonts(w, s)
+				}
+			}
+		}
+	}
 }
 
 func (a *App) cancelPDF() {
@@ -123,6 +138,12 @@ func (a *App) pdfExportView(c *ui.Context) {
 	}
 	job.next = c.Now().Add(time.Millisecond)
 	if job.tops == nil {
+		if job.board != nil {
+			job.tops = []float32{0}
+			job.writer.ReservePages(1)
+			c.After(time.Millisecond)
+			return
+		}
 		job.opts = editor.Options{
 			Width:     paperWidth,
 			Theme:     documentTheme(false),
@@ -146,6 +167,12 @@ func (a *App) pdfExportView(c *ui.Context) {
 		return
 	}
 	vp := job.buildVectorPage()
+	if job.buildErr != nil {
+		err := job.buildErr
+		a.discardPDF(job)
+		a.notify("导出 PDF 失败。%v", err)
+		return
+	}
 	// Vector drawing stays on the UI thread for font/layout reads; zlib
 	// stream compression and disk IO run between frames.
 	job.busy = true
@@ -171,6 +198,11 @@ func (a *App) pdfExportView(c *ui.Context) {
 }
 
 func (job *pdfExport) buildVectorPage() *pdf.VectorPage {
+	if job.board != nil {
+		vp := job.writer.NewVectorPage(pdf.A4Width, pdf.A4Height)
+		job.buildErr = editor.ExportBoardVector(vp, job.board, whiteboard.Box{X: 36, Y: 36, W: pdf.A4Width - 72, H: pdf.A4Height - 72}, editor.BoardOptions{})
+		return vp
+	}
 	top := job.tops[job.page]
 	body := float32(paperHeight - 2*paperMargin)
 	bottom := top + body
@@ -179,6 +211,7 @@ func (job *pdfExport) buildVectorPage() *pdf.VectorPage {
 	}
 	vp := job.writer.NewVectorPage(pdf.A4Width, pdf.A4Height)
 	job.ed.ExportVectorPage(vp, job.opts, top, bottom, job.page, len(job.tops), job.tops, paperWidth, paperHeight, paperMargin)
+	job.buildErr = job.ed.ExportError()
 	return vp
 }
 

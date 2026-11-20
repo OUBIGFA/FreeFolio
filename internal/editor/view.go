@@ -38,20 +38,26 @@ func sameLayoutPageKey(a, b layoutPageKey) bool {
 }
 
 type Editor struct {
-	spaceWidths   map[ui.Font]float32
-	notesDoc      *document.Document
-	notesRevision uint64
-	notesKey      string
-	noteRefs      []noteReferences
-	noteOrder     []string
-	imageResize   imageResize
-	linkRevision  uint64
-	wikiHover     wikiHoverState
-	services      ui.Services
-	pairs         []autoPair
-	pairRevision  uint64
-	noAutoPair    bool
-	hoverID       string
+	exportErr        error
+	boardBlocks      map[string]*boardBlock
+	activeBoard      string
+	createWhiteboard func()
+	openWhiteboard   func(string)
+	boardHostOptions BoardOptions
+	spaceWidths      map[ui.Font]float32
+	notesDoc         *document.Document
+	notesRevision    uint64
+	notesKey         string
+	noteRefs         []noteReferences
+	noteOrder        []string
+	imageResize      imageResize
+	linkRevision     uint64
+	wikiHover        wikiHoverState
+	services         ui.Services
+	pairs            []autoPair
+	pairRevision     uint64
+	noAutoPair       bool
+	hoverID          string
 	*Buffer
 	Scroll                    ui.ScrollState
 	RequestFocus              bool
@@ -282,6 +288,7 @@ type row struct {
 	rect    ui.Rect
 	x, y    float32
 	picture *imageFigure
+	board   *boardBlock
 	// number is the position of a numbered item in its list, from 1.
 	number int
 	// size is the font size, which sizes the row's hand-drawn marks.
@@ -521,6 +528,9 @@ type cachedShape struct {
 }
 
 type Options struct {
+	CreateWhiteboard func()
+	OpenWhiteboard   func(string)
+	BoardOptions     BoardOptions
 	// EditWithAI captures the selection before the assistant takes focus.
 	EditWithAI func()
 	// Resizing keeps offscreen shaping cached during an interactive resize.
@@ -670,6 +680,10 @@ func (e *Editor) SetMarkedText(r *ui.TextInputRange, text string, selected ui.Te
 
 func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.services = c.Services()
+	e.createWhiteboard, e.openWhiteboard, e.boardHostOptions = o.CreateWhiteboard, o.OpenWhiteboard, o.BoardOptions
+	if el, ok := e.activeWhiteboardView(c, o); ok {
+		return el
+	}
 	// Native window drags do not go through a split divider or the host's
 	// panel animation. Detect them here, including in detached windows.
 	if e.windowResize.active(c) {
@@ -872,6 +886,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				}
 				e.propertiesView(c)
 				e.imageControls(c, o)
+				e.whiteboardControls(c, o)
 				e.videoControls(c)
 				e.bookmarkMarks(c)
 				if o.Footer != nil {
@@ -1204,6 +1219,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			counters = nil
 		}
 		leaf := leafOf(b.ID)
+		if isWhiteboardBlock(b) {
+			return e.layoutWhiteboardBlock(b, leaf, x, y, w, o)
+		}
 		key := e.blockShapeKey(b, font, header)
 		cached, ok := e.cache[b.ID]
 		sameShape := ok && cached.key == key && slices.Equal(cached.runs, b.Runs)
@@ -1610,6 +1628,10 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 				continue
 			}
 			dx, dy := e.visualOffset(r)
+			if r.board != nil {
+				e.paintWhiteboardBlock(p, bounds, r, t)
+				continue
+			}
 			if r.picture != nil {
 				e.paintImage(p, bounds, r, t)
 				if !e.captionVisible(r.leaf.Block) {

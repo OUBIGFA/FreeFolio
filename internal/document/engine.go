@@ -15,6 +15,8 @@ type Snapshot struct {
 // Engine applies structural changes atomically and owns one history for every
 // paragraph, table cell and column. Snapshots never alias mutable documents.
 type Engine struct {
+	editGroup            string
+	lastEditGroup        string
 	ReadOnly             bool // Session reading lock; does not change the stored document.
 	depth                int
 	Doc                  *Document
@@ -105,6 +107,16 @@ func (e *Engine) Edit(change func()) {
 	e.revision++
 }
 
+// EditGrouped publishes edits immediately while retaining one undo baseline
+// for consecutive changes in an embedded editor session. Any unrelated edit
+// or history navigation breaks the group, protecting asynchronous edits.
+func (e *Engine) EditGrouped(key string, change func()) {
+	previous := e.editGroup
+	e.editGroup = key
+	defer func() { e.editGroup = previous }()
+	e.Edit(change)
+}
+
 // dropStrayColors clears the color of blocks no longer callouts, as a
 // callout turned into another kind, so every edit leaves a valid document.
 func dropStrayColors(blocks []*Block) {
@@ -166,6 +178,7 @@ func (e *Engine) SetLanguage(id, language string) {
 }
 
 func (e *Engine) Undo() {
+	e.lastEditGroup = ""
 	if e.ReadOnly {
 		return
 	}
@@ -180,6 +193,7 @@ func (e *Engine) Undo() {
 }
 
 func (e *Engine) Redo() {
+	e.lastEditGroup = ""
 	if e.ReadOnly {
 		return
 	}

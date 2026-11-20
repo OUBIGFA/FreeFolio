@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,6 +18,7 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 )
 
 type movingDocument struct {
@@ -195,6 +197,17 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 		d.live.ed.RelocateImages(d.urls)
 		text, _ := relocateText(d.rel, d.original, d.urls)
 		d.live.diskText = text
+		if d.live.board != nil {
+			s, readErr := whiteboard.Decode(text)
+			if readErr != nil {
+				return to, copied, readErr
+			}
+			d.live.board.Scene = s
+			d.live.boardDigestKnown = false
+			canonical, _ := s.Encode()
+			d.live.boardBase = sha256.Sum256([]byte(canonical))
+			continue
+		}
 		d.live.baseline, _ = d.live.ed.Committed().Digest()
 		d.live.rememberBaseline(d.live.ed.Committed())
 		if d.live.source {
@@ -280,6 +293,22 @@ func (a *App) movingDocuments(sp *space.Space, rel string) ([]*movingDocument, e
 }
 
 func imageDocument(rel, text string) (*model.Document, error) {
+	if vault.IsWhiteboard(rel) {
+		s, err := whiteboard.Decode(text)
+		if err != nil {
+			return nil, err
+		}
+		doc := model.New()
+		doc.Blocks = nil
+		for _, file := range s.Files {
+			if file.Path != "" {
+				b := model.NewBlock("image", "")
+				b.URL = file.Path
+				doc.Blocks = append(doc.Blocks, b)
+			}
+		}
+		return doc, nil
+	}
 	if vault.IsMarkdown(rel) {
 		if strings.HasPrefix(strings.TrimSpace(text), "{") {
 			if doc, err := model.Decode(text); err == nil {
@@ -298,6 +327,18 @@ func relocateText(rel, text string, urls map[string]string) (string, error) {
 	}
 	if !changed {
 		return text, nil
+	}
+	if vault.IsWhiteboard(rel) {
+		s, err := whiteboard.Decode(text)
+		if err != nil {
+			return "", err
+		}
+		for _, file := range s.Files {
+			if next, ok := urls[file.Path]; ok {
+				file.Path = next
+			}
+		}
+		return encodeBoard(rel, s)
 	}
 	mapURLs := func(doc *model.Document) {
 		doc.MapImages(func(url string) string {

@@ -255,6 +255,95 @@
       "license": "OFL-1.1",
       "bytes": 31308,
       "sha256": "08ce98e51b04d58945a301e639e02b6998af29fdfd61a7b8afdd07bbfc479d4a"
+    },
+    {
+      "path": "internal/editor/boardfonts/Assistant-Bold.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Assistant-Bold.ttf",
+      "license": "OFL-1.1",
+      "bytes": 49304,
+      "sha256": "9486189482f88061d8254ac6d9144151c6d0040998fd729b14098c2e4f2557b5"
+    },
+    {
+      "path": "internal/editor/boardfonts/Assistant-Medium.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Assistant-Medium.ttf",
+      "license": "OFL-1.1",
+      "bytes": 49292,
+      "sha256": "fd4563a3226d8d458cebf94ec0b04ee3034339100c10374fdb58b3daef36366a"
+    },
+    {
+      "path": "internal/editor/boardfonts/Assistant-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Assistant-Regular.ttf",
+      "license": "OFL-1.1",
+      "bytes": 49348,
+      "sha256": "f8dc2911650ae49131d2130ae9172ed098cf0899cf14ccb6b5b1163854b9ac6a"
+    },
+    {
+      "path": "internal/editor/boardfonts/Assistant-SemiBold.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Assistant-SemiBold.ttf",
+      "license": "OFL-1.1",
+      "bytes": 49368,
+      "sha256": "a6ed3c96937f49b22c70b682a4bf844d6cd2c94da6f927504fc6102c68bdcc95"
+    },
+    {
+      "path": "internal/editor/boardfonts/CascadiaCode-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/CascadiaCode-Regular.ttf",
+      "license": "OFL-1.1",
+      "bytes": 221112,
+      "sha256": "427b94a13722314a42265e3aeb761fa18894443f216a5ab503ea457d04389199"
+    },
+    {
+      "path": "internal/editor/boardfonts/ComicShanns-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/ComicShanns-Regular.ttf",
+      "license": "MIT",
+      "bytes": 52428,
+      "sha256": "f1e5eca66998d5a15ddd7103670fbd0ad094613cfb63a81670081a7c9b59f8a3"
+    },
+    {
+      "path": "internal/editor/boardfonts/Excalifont-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Excalifont-Regular.ttf",
+      "license": "OFL-1.1",
+      "bytes": 162328,
+      "sha256": "15b352172051a7e0c0e81e6c8f9ead5b13abf3f34055d5b26fb435389f36f651"
+    },
+    {
+      "path": "internal/editor/boardfonts/LilitaOne-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/LilitaOne-Regular.ttf",
+      "license": "OFL-1.1",
+      "bytes": 25716,
+      "sha256": "aeb4f7fc0167fe8ea47bf40f7bb539a014d1b8d04f33c3fa36a35791fae41464"
+    },
+    {
+      "path": "internal/editor/boardfonts/Nunito-Medium.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Nunito-Medium.ttf",
+      "license": "OFL-1.1",
+      "bytes": 137520,
+      "sha256": "3832bc06253c183016a45101729dba6f9602e6e384d72acd91e1622ac79fe131"
+    },
+    {
+      "path": "internal/editor/boardfonts/Virgil-Regular.ttf",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Virgil-Regular.ttf",
+      "license": "OFL-1.1",
+      "bytes": 162684,
+      "sha256": "4e6726df0cff14feaef8845f166c3e1bc4d4132c487ac84b744387879a3c1a48"
+    },
+    {
+      "path": "internal/editor/boardfonts/Xiaolai-Regular.ttf.zlib",
+      "reason": "Unmodified Excalidraw-compatible board font from pinned Quiet.md source",
+      "source": "https://github.com/s1dashu/quiet-md/blob/e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a/assets/fonts/excalidraw/Xiaolai-Regular.ttf.zlib",
+      "license": "OFL-1.1",
+      "bytes": 14232970,
+      "sha256": "630ab9f0e12f6115c65af0b1681b09321769178e0847254457ca91a159049dc1",
+      "allowOversize": true
     }
   ]
 }
