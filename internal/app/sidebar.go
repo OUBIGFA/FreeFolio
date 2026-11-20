@@ -65,11 +65,12 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			}
 		})
 		t := c.Theme()
-		// The history's arrows lead the command bar, shown as MyGo's button
-		// faced like a search field, with its shortcut at the end as the
-		// reference apps do.
+		// The command bar, shown as MyGo's button faced like a search field,
+		// with its shortcut at the end as the reference apps do, and New
+		// Document to its right; the history's arrows and the sort sit
+		// under them.
+		newDocHere := sp != nil && !(a.spaceForm.open && a.spaceForm.id == "")
 		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
-			a.historyButtons(c)
 			label := i18n.T("搜索或打开文档")
 			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).Grow(1).MinWidth(0)
 			// A narrow field gives the shortcut's room to the label; the
@@ -86,6 +87,9 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			if search.Clicked() {
 				a.openPalette()
 			}
+			if newDocHere {
+				a.newDocRow(c)
+			}
 		})
 		if sp == nil {
 			return
@@ -96,9 +100,11 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
-		// New Document sits under the search, with the root's sort beside it.
-		ui.Row(c.Key("new-doc-bar")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
-			a.newDocRow(c)
+		// Under the search: the history's arrows, and the space's sort at
+		// the end.
+		ui.Row(c.Key("history-bar")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+			a.historyButtons(c)
+			ui.Spacer(c)
 			a.sortButton(c, sp)
 		})
 		if len(a.state.Favorites) > 0 {
@@ -883,7 +889,6 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(pin).Chosen() {
 			a.togglePin(sp, n.Path)
 		}
-		a.sortMenu(m, sp, n.Path)
 	} else {
 		if m.Item(i18n.T("在分屏中打开")).Disabled(a.doc == nil && a.split == nil).Chosen() {
 			a.openSplit(sp, n.Path, false, false)
@@ -961,14 +966,14 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 		if m.Item(i18n.T("打开文件…")).Chosen() {
 			a.chooseExternalFiles()
 		}
-		a.sortMenu(m, sp, "")
+		a.sortMenu(m, sp)
 		return
 	}
 	if m.Item(i18n.T("新建文档")).Shortcut(ui.Cmd, ui.KeyN).Chosen() {
 		a.newDoc("")
 	}
 	a.templateMenu(m, "")
-	a.sortMenu(m, sp, "")
+	a.sortMenu(m, sp)
 	if m.Item(i18n.T("今日笔记")).Shortcut(ui.Cmd|ui.Alt, ui.KeyT).Chosen() {
 		a.openDaily()
 	}
@@ -1155,8 +1160,8 @@ func (a *App) inlineNewDocRow(c *ui.Context, index int, seamY float32) {
 	}
 }
 
-// newDocRow is the dashed slot under the search making a document at the
-// root.
+// newDocRow is the dashed slot right of the search making a document at
+// the root.
 func (a *App) newDocRow(c *ui.Context) {
 	t := c.Theme()
 	label, tip := i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc")
@@ -1174,7 +1179,8 @@ func (a *App) newDocRow(c *ui.Context) {
 			a.newDocPulse = time.Time{}
 		}
 	}
-	row := ui.Row(c.Key("new-doc-row")).Height(rowHeight).Grow(1).MinWidth(0).PaddingX(10).Gap(6).Radius(controlRadius).Center().
+	// As tall as the search field beside it, as wide as its label.
+	row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(10).Gap(6).Radius(controlRadius).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip).
 		Background(ui.Transparent)
 	lit := row.Animate("lit", b2f(row.Hovered() || pulsing), 180*time.Millisecond)
@@ -1204,31 +1210,30 @@ func (a *App) newDocRow(c *ui.Context) {
 // sortNames name the ways a folder sorts, as its menu offers them.
 var sortNames = map[string]string{"": "手动排序", "name": "按名称", "modified": "按修改时间（新→旧）"}
 
-// sortMenu adds 排序方式 ▸ to a folder's menu: its own order, which
-// dragging leaves, by name, or newest first.
-func (a *App) sortMenu(m *ui.Menu, sp *space.Space, dir string) {
-	m.Submenu(i18n.T("排序方式"), func(sub *ui.Menu) { a.sortItems(sub, sp, dir) })
+// sortMenu adds 排序方式 ▸ to the list's menu: the space's one sort.
+func (a *App) sortMenu(m *ui.Menu, sp *space.Space) {
+	m.Submenu(i18n.T("排序方式"), func(sub *ui.Menu) { a.sortItems(sub, sp) })
 }
 
-// sortItems are the ways the folder dir of sp sorts, the current checked.
-func (a *App) sortItems(m *ui.Menu, sp *space.Space, dir string) {
+// sortItems are the ways the space sorts, the current checked.
+func (a *App) sortItems(m *ui.Menu, sp *space.Space) {
 	for _, mode := range space.Sorts {
-		if m.Item(i18n.T(sortNames[mode])).Checked(sp.SortOf(dir) == mode).Chosen() {
-			a.setSort(sp, dir, mode)
+		if m.Item(i18n.T(sortNames[mode])).Checked(sp.SortBy == mode).Chosen() {
+			a.setSort(sp, mode)
 		}
 	}
 }
 
-// sortButton opens the root's sorts from beside New Document.
+// sortButton opens the space's sorts from beside New Document.
 func (a *App) sortButton(c *ui.Context, sp *space.Space) {
 	label := i18n.T("排序方式")
 	iconButton(c, "sort-root", iconSort, label, label, false).Shrink(0).Role(ui.RoleMenuButton).
-		PopoverMenuButton(func(m *ui.Menu) { a.sortItems(m, sp, "") })
+		PopoverMenuButton(func(m *ui.Menu) { a.sortItems(m, sp) })
 }
 
-// setSort sorts the folder dir of sp so and keeps it.
-func (a *App) setSort(sp *space.Space, dir, mode string) {
-	sp.SetSort(dir, mode)
+// setSort sorts every folder of sp so and keeps it.
+func (a *App) setSort(sp *space.Space, mode string) {
+	sp.SetSort(mode)
 	a.saveState()
 	delete(a.pageTrees, sp.ID)
 	a.refreshTree()

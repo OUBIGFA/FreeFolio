@@ -192,7 +192,9 @@ func (r *remoteImages) cachedEmbed(url string) (editor.ImageResource, bool) {
 }
 
 // fetchEmbed resolves an embedded post on X to its poster and video and
-// keeps both, off the main thread.
+// keeps both, off the main thread. A post that is gone (X answers with a
+// tombstone and no media) or cannot be reached is ImageEmbed: the editor
+// shows a notice, not a picture to choose again.
 func (r *remoteImages) fetchEmbed(url string) editor.ImageResource {
 	if res, ok := r.cachedEmbed(url); ok {
 		return res
@@ -200,15 +202,15 @@ func (r *remoteImages) fetchEmbed(url string) editor.ImageResource {
 	id, nth, _ := tweetEmbed(url)
 	media, err := r.tweetMedia(id)
 	if err != nil {
-		return editor.ImageResource{Problem: editor.ImageRemote}
+		return editor.ImageResource{Problem: editor.ImageEmbed}
 	}
 	poster, video, err := pickTweetMedia(media, nth)
 	if err != nil {
-		return editor.ImageResource{Problem: editor.ImageRemote}
+		return editor.ImageResource{Problem: editor.ImageEmbed}
 	}
 	data, err := r.download(poster)
 	if err != nil {
-		return editor.ImageResource{Problem: editor.ImageRemote}
+		return editor.ImageResource{Problem: editor.ImageEmbed}
 	}
 	res := decodeImageData(data, false)
 	if res.Bitmap == nil {

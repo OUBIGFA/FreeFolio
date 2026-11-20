@@ -187,7 +187,7 @@ func (a *App) filesChanged(id string, events []mygo.FileEvent) {
 		}
 	}
 	// Sorted newest first, a write moves the file, and its folders, up.
-	if !structural && len(events) > 0 && sp.UsesSort("modified") {
+	if !structural && len(events) > 0 && sp.SortBy == "modified" {
 		structural = true
 	}
 	if structural {

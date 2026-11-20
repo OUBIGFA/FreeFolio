@@ -73,68 +73,27 @@ type Space struct {
 	// as dragging them leaves it. What a list leaves out follows it, in
 	// the folder's own order.
 	Order map[string][]string `json:"order,omitempty"`
-	// Sort is how a folder, by its path ("" for the root), sorts its files
-	// and folders instead of the order dragging leaves: "name", "modified"
-	// (newest first) or "manual" (version 8). A folder without an entry
-	// sorts as the nearest folder above it that has one (version 11), so
-	// sorting a folder sorts what it holds; "manual" keeps a folder in its
-	// own order under a sorted one.
-	Sort map[string]string `json:"sort,omitempty"`
+	// SortBy is how every folder of the space sorts in the sidebar: ""
+	// for the order dragging leaves, "name", or "modified" (newest first).
+	// One choice for the whole space (version 13), so no folder silently
+	// keeps an order of its own.
+	SortBy string `json:"sortBy,omitempty"`
+	// LegacySort is the per-folder Sort of versions 8 to 12; migrate turns
+	// its root entry into SortBy and drops it.
+	LegacySort map[string]string `json:"sort,omitempty"`
 }
 
 // Sorts are the ways a folder may sort, as menus offer them: its own order
 // (""), by name, or newest first.
 var Sorts = []string{"", "name", "modified"}
 
-// manualSort is stored for a folder that keeps its own order although a
-// folder above it sorts.
-const manualSort = "manual"
-
-// SortOf is how the folder dir sorts, its own choice or else the nearest
-// one above it: "" for the order dragging leaves.
-func (s *Space) SortOf(dir string) string {
-	for {
-		if mode, ok := s.Sort[dir]; ok {
-			if mode == manualSort {
-				return ""
-			}
-			return mode
-		}
-		if dir == "" {
-			return ""
-		}
-		dir, _ = parentOf(dir)
-	}
-}
-
-// SetSort sets how the folder dir sorts; "" is its own order. A choice the
-// folder would inherit anyway is not stored, so the folder goes on
-// following the folders above it.
-func (s *Space) SetSort(dir, mode string) {
+// SetSort sorts every folder of the space so; anything but "name" or
+// "modified" is the order dragging leaves.
+func (s *Space) SetSort(mode string) {
 	if mode != "name" && mode != "modified" {
 		mode = ""
 	}
-	delete(s.Sort, dir)
-	if mode == s.SortOf(dir) {
-		return
-	}
-	if mode == "" {
-		mode = manualSort
-	}
-	if s.Sort == nil {
-		s.Sort = map[string]string{}
-	}
-	s.Sort[dir] = mode
-}
-
-// UsesSort reports whether any folder of the space sorts so.
-func (s *Space) UsesSort(mode string) bool {
-	for _, m := range s.Sort {
-		if m == mode {
-			return true
-		}
-	}
-	return false
+	s.SortBy = mode
 }
 
 // Arrange orders the names of the folder dir's files and folders as the
@@ -170,9 +129,8 @@ func (s *Space) Arrange(dir string, names []string) []string {
 func (s *Space) Place(dir string, shown []string, name string, index int) {
 	list := slices.DeleteFunc(slices.Clone(shown), func(n string) bool { return n == name })
 	index = min(max(index, 0), len(list))
-	// Placing by hand is the folder's own order again, even under a
-	// sorted folder.
-	s.SetSort(dir, "")
+	// The order is kept for when the space sorts by hand again; a sorted
+	// space goes on sorting, so a drag never changes the sort unasked.
 	if s.Order == nil {
 		s.Order = map[string][]string{}
 	}
@@ -249,16 +207,6 @@ func under(p, rel string) bool { return p == rel || strings.HasPrefix(p, rel+"/"
 func (s *Space) Renamed(from, to string) {
 	s.reorderRenamed(from, to)
 	re := renamer(from, to)
-	// Re-keyed as stored: SetSort would compare with parents not yet
-	// renamed.
-	sorts := s.Sort
-	s.Sort = nil
-	for k, v := range sorts {
-		if s.Sort == nil {
-			s.Sort = map[string]string{}
-		}
-		s.Sort[re(k)] = v
-	}
 	for i, p := range s.Pins {
 		s.Pins[i] = re(p)
 	}
@@ -293,11 +241,6 @@ func (s *Space) Forget(rel string) {
 	for k := range s.Order {
 		if under(k, rel) {
 			delete(s.Order, k)
-		}
-	}
-	for k := range s.Sort {
-		if under(k, rel) {
-			delete(s.Sort, k)
 		}
 	}
 	s.Expanded = slices.DeleteFunc(s.Expanded, func(p string) bool { return under(p, rel) })
@@ -395,14 +338,6 @@ func (st *State) MovedAcross(fromID, from, toID, to string) {
 				dst.Order[re(k)] = slices.Clone(names)
 			}
 		}
-		for k, mode := range src.Sort {
-			if under(k, from) {
-				if dst.Sort == nil {
-					dst.Sort = map[string]string{}
-				}
-				dst.Sort[re(k)] = mode
-			}
-		}
 	}
 	if src != nil {
 		src.Forget(from)
@@ -420,9 +355,15 @@ func (st *State) MovedAcross(fromID, from, toID, to string) {
 }
 
 // migrate brings a state read from an older version up to date: version 3
-// kept pins in each space, which become the favorites in space order.
+// kept pins in each space, which become the favorites in space order;
+// versions 8 to 12 sorted each folder apart, of which the root's choice
+// becomes the space's ("manual" is the order dragging leaves).
 func (st *State) migrate() {
 	for _, s := range st.Spaces {
+		if s.LegacySort != nil {
+			s.SetSort(s.LegacySort[""])
+			s.LegacySort = nil
+		}
 		for _, rel := range s.Pinned {
 			if !st.IsFavorite(s.ID, rel) {
 				st.Favorites = append(st.Favorites, Favorite{s.ID, rel})
@@ -469,7 +410,9 @@ type State struct {
 // space's icon; older states read unchanged.
 // Version 12 adds Space.LastAt, where the last document was read to; an
 // older state reads as read from the top.
-const CurrentVersion = 12
+// Version 13 replaces the per-folder Sort with Space.SortBy, one sort for
+// the whole space; an older state keeps its root's sort.
+const CurrentVersion = 13
 
 // ErrNotFound reports a space ID the state does not have.
 var ErrNotFound = errors.New("space: not found")

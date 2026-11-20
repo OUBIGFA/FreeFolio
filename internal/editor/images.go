@@ -22,6 +22,9 @@ const (
 	ImageUnsupported
 	ImageUnreadable
 	ImageRemote
+	// ImageEmbed is an embedded post that is gone or cannot be reached: it
+	// shows as a quiet notice rather than a picture to choose again.
+	ImageEmbed
 )
 
 // ImageResource is a decoded picture, a picture whose header dimensions are
@@ -196,6 +199,8 @@ func (p ImageProblem) text() string {
 		return i18n.T("无法读取图片，请检查文件及访问权限。")
 	case ImageRemote:
 		return i18n.T("无法加载网络图片，请检查链接或网络。")
+	case ImageEmbed:
+		return i18n.T("嵌入的内容不存在或无法访问")
 	default:
 		return i18n.T("图片路径无效，请重新选择图片。")
 	}
@@ -255,6 +260,9 @@ func (e *Editor) layoutImage(r *row, o Options) float32 {
 		r.x, r.y = x, y+ph+8
 		r.rect.H = y + ph - r.rect.Y + 18
 		return r.rect.H
+	}
+	if f.resource.Problem == ImageEmbed && !e.printing {
+		return e.layoutEmbedNotice(r, f, x, y, w)
 	}
 	title := i18n.T("无法显示图片：") + f.name
 	if f.resource.Problem == ImageMissing {
@@ -373,6 +381,12 @@ func (e *Editor) paintImage(p *ui.Painter, bounds ui.Rect, row row, t *ui.Theme)
 			if ic >= 12 {
 				p.Icon(iconImage, ui.Rect{X: r.X + (r.W-ic)/2, Y: r.Y + (r.H-ic)/2, W: ic, H: ic}, e.page.Placeholder)
 			}
+		} else if f.resource.Problem == ImageEmbed && !e.printing {
+			// The notice: a hairline band, the icon over one line, centered.
+			p.Stroke(r, e.page.TableLine, 8, 1)
+			p.Icon(iconGone, ui.Rect{X: r.X + (r.W-18)/2, Y: r.Y + embedPadY, W: 18, H: 18}, t.Text)
+			tw, _ := f.reason.Size()
+			p.TextLayout(f.reason, r.X+(r.W-tw)/2, r.Y+f.reasonY, t.Text)
 		} else {
 			p.StrokeDashed(r, e.page.Caption, 8, 1)
 			p.Icon(iconImage, ui.Rect{X: r.X + 14, Y: r.Y + 12, W: 16, H: 16}, e.page.Caption)
@@ -484,6 +498,10 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 		// pictures in view.
 		key := "image:" + id
 		if f.resource.Loading {
+			continue
+		}
+		if f.resource.Problem == ImageEmbed {
+			e.embedNotice(c, key, row, o)
 			continue
 		}
 		if f.resource.Bitmap == nil {
@@ -646,4 +664,94 @@ func (e *Editor) imagePreview(c *ui.Context) {
 		})
 		e.imageCanvas(c, w-24, h-66)
 	})
+}
+
+// embedPadY is the room above the notice's icon and below its last line.
+const embedPadY = 18
+
+// layoutEmbedNotice lays out an embed that cannot show, as the reference
+// apps show a post that is gone: the icon over one line in a band the
+// width of the text. While its address is edited (embedEdit), an input
+// takes a line under the text.
+func (e *Editor) layoutEmbedNotice(r *row, f *imageFigure, x, y, w float32) float32 {
+	b := r.leaf.Block
+	f.reason = ui.ShapeText(f.resource.Problem.text(), ui.Font{Family: "system-ui", Size: 14, LineHeight: 1.45}, max(1, w-28))
+	_, th := f.reason.Size()
+	f.reasonY = embedPadY + 18 + 6
+	h := f.reasonY + th + embedPadY
+	if e.embedEdit.id == b.ID {
+		h += embedInputH + 10
+	}
+	f.bounds = ui.Rect{X: x, Y: y, W: w, H: h}
+	r.x, r.y = x, y+h+8
+	if e.captionVisible(b) {
+		_, ch := r.layout.Size()
+		r.rect.H = r.y + max(20, ch) - r.rect.Y + 18
+	} else {
+		r.rect.H = y + h - r.rect.Y + 18
+	}
+	return r.rect.H
+}
+
+// embedInputH is the height of the address input in an embed's notice.
+const embedInputH = 30
+
+// embedNotice makes an embed's notice act: a click, Enter or Space opens
+// its address for editing, so the block stays editable although nothing
+// shows; Backspace and Delete take the block out as for a picture. In the
+// input, Enter replaces the address and Escape or leaving it closes it.
+func (e *Editor) embedNotice(c *ui.Context, key string, row row, o Options) {
+	f := row.picture
+	id, src := row.leaf.Block.ID, row.leaf.Block.URL
+	r := f.bounds
+	label := f.resource.Problem.text() + "：" + src
+	notice := ui.Box(c.Key(key+":notice")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
+		Focusable().Role(ui.RoleButton).Label(label).Tooltip(src).Cursor(ui.CursorText)
+	editing := e.embedEdit.id == id && !e.ReadOnly
+	open := func() {
+		if e.ReadOnly {
+			return
+		}
+		e.FocusBlock(id)
+		e.embedEdit.id, e.embedEdit.draft, e.ready = id, src, false
+	}
+	if notice.Clicked() && !editing {
+		open()
+	}
+	notice.HandleInput(func(ev ui.InputEvent) bool {
+		if ev.Kind != ui.InputKeyDown || editing {
+			return false
+		}
+		switch ev.Key {
+		case ui.KeyEnter, ui.KeySpace:
+			open()
+		case ui.KeyBackspace, ui.KeyDelete:
+			if e.ReadOnly {
+				return false
+			}
+			e.DeleteBlock(id)
+			e.RequestFocus = true
+		default:
+			return false
+		}
+		return true
+	})
+	if notice.FocusVisible() {
+		notice.Border(2, c.Theme().Accent).Radius(8)
+	}
+	if !editing {
+		return
+	}
+	in := ui.TextInput(c.Key(key+":address"), &e.embedEdit.draft).Label(i18n.T("嵌入地址")).FontSize(13).
+		Absolute().Left(r.X+14).Top(r.Y+r.H-embedPadY-embedInputH).Size(r.W-28, embedInputH).AutoFocus()
+	close := func() { e.embedEdit.id, e.embedEdit.draft, e.ready = "", "", false }
+	switch {
+	case in.Submitted():
+		if next := strings.TrimSpace(e.embedEdit.draft); next != "" && next != src {
+			e.ReplaceImage(id, src, next)
+		}
+		close()
+	case in.Focused() && c.Shortcut(0, ui.KeyEscape), in.FocusLeft():
+		close()
+	}
 }

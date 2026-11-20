@@ -528,8 +528,7 @@ func (e *Editor) propertyValue(c *ui.Context, i int, p property, editable bool) 
 		case p.list:
 			ui.Row(c).Gap(4).Shrink(1).MinWidth(0).Clip().AlignItems(ui.Center).Children(func() {
 				for j, v := range p.values {
-					ui.Text(c.Key(j), v).FontSize(12).TextColor(t.Text).Background(pg.Hover).Radius(10).
-						Padding(2, 8).NoWrap().Shrink(0)
+					tagChip(c.Key(j), v, nil)
 				}
 			})
 		default:
@@ -539,12 +538,7 @@ func (e *Editor) propertyValue(c *ui.Context, i int, p property, editable bool) 
 	}
 	switch lower := strings.ToLower(value); {
 	case p.list:
-		tokens := slices.Clone(p.values)
-		field := ui.TokenField(c.Key("value-list"), &tokens, nil).Label(p.key).Padding(6, 10).Grow(1).MinWidth(0)
-		e.quietField(c, field, field.Focused(), 6, 10)
-		if field.Changed() {
-			e.setProperty(i, tokens, true)
-		}
+		e.tagList(c, i, p)
 	case lower == "true" || lower == "false":
 		on := lower == "true"
 		if ui.Checkbox(c.Key("value-check"), &on, "").Label(p.key).Changed() {
@@ -554,4 +548,93 @@ func (e *Editor) propertyValue(c *ui.Context, i int, p property, editable bool) 
 		e.propsField(c, "value:"+p.key, value, p.key, func(v string) { e.setProperty(i, []string{v}, false) }).
 			Placeholder(i18n.T("空"))
 	}
+}
+
+// tagList edits a list property as FreeMD's own chips before an input:
+// MyGo's TokenField paints its chips itself, darker than FreeMD's tags and
+// with the text off center, so the property builds them here. Enter, a
+// comma or leaving the input adds what was typed; a chip's × takes it out.
+// Only committed text is added: an input method's composition is not in
+// the draft.
+func (e *Editor) tagList(c *ui.Context, i int, p property) {
+	t := c.Theme()
+	ps := e.propsState()
+	id := "tags:" + p.key
+	draft := ps.drafts[id]
+	box := ui.Row(c.Key("value-list")).Wrap().Gap(4).AlignItems(ui.Center).Grow(1).MinWidth(0).Padding(4, 6).Radius(t.Radius)
+	var in ui.Element
+	box.Children(func() {
+		for _, v := range p.values {
+			tagChip(c.Key("tag:"+v), v, func() {
+				e.setProperty(i, slices.DeleteFunc(slices.Clone(p.values), func(x string) bool { return x == v }), true)
+			})
+		}
+		in = ui.TextInputBase(c.Key("tag-input"), &draft).Label(p.key).FontSize(13).Grow(1).MinWidth(60)
+	})
+	was, now := ps.focused[id], in.Focused()
+	ps.focused[id] = now
+	switch {
+	case now:
+		box.Draw(func(pt *ui.Painter, r ui.Rect) { pt.Stroke(r, t.Focus, t.Radius, 1) })
+	case box.Hovered():
+		box.Draw(func(pt *ui.Painter, r ui.Rect) { pt.Stroke(r, t.Border, t.Radius, 1) })
+	}
+	if now && c.Shortcut(0, ui.KeyEscape) {
+		draft = ""
+	}
+	// What precedes a comma is a tag at once, as in TokenField; Enter or
+	// leaving the input adds the rest.
+	pending, rest := "", draft
+	switch {
+	case in.Submitted() || was && !now:
+		pending, rest = draft, ""
+	case strings.Contains(draft, ","):
+		k := strings.LastIndex(draft, ",")
+		pending, rest = draft[:k], draft[k+1:]
+	}
+	ps.drafts[id] = rest
+	values := slices.Clone(p.values)
+	for _, v := range strings.Split(pending, ",") {
+		if v = strings.TrimSpace(v); v != "" && !slices.Contains(values, v) {
+			values = append(values, v)
+		}
+	}
+	if len(values) != len(p.values) {
+		e.setProperty(i, values, true)
+	}
+	if rest != draft {
+		c.Invalidate()
+	}
+}
+
+// tagChip shows a tag in a light pill; remove, when given, adds the ×
+// that takes it out. The line box leaves its glyphs low, so the pill's
+// padding is one DIP thinner on top: Chinese then sits centered and Latin
+// capitals within half a DIP of it (measured on the properties snapshot).
+func tagChip(c *ui.Context, text string, remove func()) {
+	t := c.Theme()
+	end := float32(8)
+	if remove != nil {
+		end = 3
+	}
+	ui.Row(c).AlignItems(ui.Center).Gap(2).Padding(1, end, 2, 8).Radius(10).Background(t.Text.Alpha(0.07)).Shrink(0).Children(func() {
+		ui.Text(c, text).FontSize(13).TextColor(t.Text).NoWrap()
+		if remove == nil {
+			return
+		}
+		label := i18n.T("移除标签") + " " + text
+		x := ui.ButtonBase(c.Key("remove")).Size(14, 14).Radius(7).Label(label).Tooltip(label).KeepFocus().Cursor(ui.CursorPointer)
+		x.Draw(func(p *ui.Painter, r ui.Rect) {
+			if x.Hovered() {
+				p.Fill(r, t.Text.Alpha(0.10), r.H/2)
+			}
+			k := r.W * 0.32
+			var path ui.Path
+			path.MoveTo(r.X+k, r.Y+k).LineTo(r.X+r.W-k, r.Y+r.H-k).MoveTo(r.X+r.W-k, r.Y+k).LineTo(r.X+k, r.Y+r.H-k)
+			p.StrokePath(&path, 1.25, t.TextMuted)
+		})
+		if x.Clicked() {
+			remove()
+		}
+	})
 }

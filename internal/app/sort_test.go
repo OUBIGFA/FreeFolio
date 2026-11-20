@@ -31,21 +31,22 @@ func TestFolderSortByNameAndTime(t *testing.T) {
 		return out
 	}
 	sp := a.state.ActiveSpace()
-	if err := tt.RightClick("Journal"); err != nil {
+	if err := tt.Click("排序方式"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("排序方式", "按修改时间（新→旧）"); err != nil {
+	tt.Frame()
+	if err := tt.Click("按修改时间（新→旧）"); err != nil {
 		t.Fatal(err, tt.Menu())
 	}
 	tt.Frame()
 	if names() != "c,a,b,Ideas," {
 		t.Fatal("newest first", names())
 	}
-	a.setSort(sp, "Journal", "name")
+	a.setSort(sp, "name")
 	if names() != "a,b,c,Ideas," {
 		t.Fatal("by name", names())
 	}
-	if sp.SortOf("Journal") != "name" {
+	if sp.SortBy != "name" {
 		t.Fatal("kept")
 	}
 }
@@ -109,7 +110,7 @@ func TestNewestFirstReachesSubfoldersAndFollowsWrites(t *testing.T) {
 	// date the folder.
 	os.Chtimes(filepath.Join(root(a), "Old"), base.Add(time.Hour), base.Add(time.Hour))
 	sp := a.state.ActiveSpace()
-	a.setSort(sp, "", "modified")
+	a.setSort(sp, "modified")
 	names := func(dir string) string {
 		out := ""
 		for _, n := range a.childrenOf(dir) {
@@ -123,19 +124,23 @@ func TestNewestFirstReachesSubfoldersAndFollowsWrites(t *testing.T) {
 	if got := names("Journal"); got != "new,Ideas," {
 		t.Fatal("the subfolder follows the root", got)
 	}
-	a.setSort(sp, "Journal", "")
-	if got := names("Journal"); got != "Ideas,new," || sp.SortOf("Journal") != "" {
-		t.Fatal("a subfolder may keep its own order", got, sp.Sort)
+	// An order left by dragging inside a folder does not take the folder
+	// out of the sort: a new document still comes first.
+	sp.Place("Journal", []string{"new.md", "Ideas.md"}, "Ideas.md", 0)
+	at("Journal/fresh.md", 10*time.Minute)
+	a.filesChanged(sp.ID, []mygo.FileEvent{{Op: mygo.FileCreate, Path: "Journal/fresh.md"}})
+	if got := names("Journal"); got != "fresh,new,Ideas," || sp.SortBy != "modified" {
+		t.Fatal("a drag leaves the sort", got, sp.SortBy)
 	}
-	a.setSort(sp, "Journal", "modified")
-	at("Journal/Ideas.md", 3*time.Minute)
+	at("Journal/Ideas.md", 20*time.Minute)
 	a.filesChanged(sp.ID, []mygo.FileEvent{{Op: mygo.FileWrite, Path: "Journal/Ideas.md"}})
-	if got := names("Journal"); got != "Ideas,new," {
+	if got := names("Journal"); got != "Ideas,fresh,new," {
 		t.Fatal("a write moves the file up", got)
 	}
 }
 
-// The sort button beside New Document, under the search, sorts the root.
+// New Document stands right of the search; the sort button, under them
+// with the history, sorts the space.
 func TestSidebarSortButtonSortsRoot(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.Frame()
@@ -146,8 +151,14 @@ func TestSidebarSortButtonSortsRoot(t *testing.T) {
 	if !ok1 || !ok2 || !ok3 {
 		t.Fatal("sidebar parts missing")
 	}
-	if !(search.Y < newDoc.Y && newDoc.Y < tree.Y) {
-		t.Fatal("New Document sits between the search and the tree", search, newDoc, tree)
+	// New Document stands right of the search on its row; the history's
+	// arrows sit under them, above the tree.
+	if newDoc.X < search.X+search.W || newDoc.Y+newDoc.H <= search.Y || newDoc.Y >= search.Y+search.H {
+		t.Fatal("New Document sits right of the search", search, newDoc)
+	}
+	back, ok := tt.Find("后退")
+	if !ok || back.Y < search.Y+search.H || back.Y+back.H > tree.Y {
+		t.Fatal("back sits under the search, above the tree", back, search, tree)
 	}
 	if err := tt.Click("排序方式"); err != nil {
 		t.Fatal(err)
@@ -157,7 +168,7 @@ func TestSidebarSortButtonSortsRoot(t *testing.T) {
 		t.Fatal(err, tt.Menu())
 	}
 	tt.Frame()
-	if sp.SortOf("") != "name" {
-		t.Fatal("root sorted by name", sp.SortOf(""))
+	if sp.SortBy != "name" {
+		t.Fatal("space sorted by name", sp.SortBy)
 	}
 }

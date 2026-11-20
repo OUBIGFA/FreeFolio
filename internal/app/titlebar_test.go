@@ -167,7 +167,7 @@ func TestSidebarResizerTipStaysOffTheToolbar(t *testing.T) {
 	}
 }
 
-// The brand leads the toolbar; the history's buttons stand beside the
+// The brand leads the toolbar; the history's buttons stand under the
 // sidebar's search field while it is docked and return to the toolbar
 // when it folds; the toggle that unfolds it sits on the sidebar's side.
 func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
@@ -178,8 +178,8 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 		search, _ := tt.Find("搜索或打开文档")
 		back, _ := tt.Find("后退")
 		reload, _ := tt.Find("重新载入")
-		if back.Y < search.Y-4 || back.Y > search.Y+search.H || reload.X+reload.W > search.X {
-			t.Errorf("left=%v: history %+v..%+v not left of the search field %+v", left, back, reload, search)
+		if back.Y < search.Y+search.H || back.X < search.X-4 || reload.X+reload.W > search.X+search.W {
+			t.Errorf("left=%v: history %+v..%+v not under the search field %+v", left, back, reload, search)
 		}
 		path, _ := tt.Find("文档路径")
 		logo, ok := tt.Find("FreeMD")

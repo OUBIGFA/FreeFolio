@@ -219,33 +219,33 @@ func TestMovedAcross(t *testing.T) {
 	}
 }
 
-func TestFolderSortFollowsAndClears(t *testing.T) {
+func TestSpaceSortIsOneChoice(t *testing.T) {
 	s := &Space{}
-	s.SetSort("Notes", "modified")
-	s.SetSort("", "name")
-	s.SetSort("x", "bogus")
-	// A folder without its own choice sorts as the folders above it, and
-	// one keeping its own order under a sorted folder says so.
-	if s.SortOf("Notes") != "modified" || s.SortOf("") != "name" || s.SortOf("x") != "" || s.Sort["x"] != "manual" {
-		t.Fatal(s.Sort)
-	}
-	if s.SortOf("Notes/Days/2024") != "modified" || s.SortOf("Other/Deep") != "name" {
-		t.Fatal("inherited", s.Sort)
-	}
-	s.SetSort("x", "name")
-	if _, own := s.Sort["x"]; own || s.SortOf("x") != "name" {
-		t.Fatal("a choice the folder inherits is not kept", s.Sort)
-	}
-	s.Renamed("Notes", "Journal")
-	if _, kept := s.Sort["Notes"]; s.SortOf("Journal") != "modified" || kept {
-		t.Fatal("renaming follows", s.Sort)
-	}
+	s.SetSort("modified")
+	// Placing by hand keeps the order for later but never ends the sort.
 	s.Place("", []string{"a", "b"}, "b", 0)
-	if s.SortOf("") != "" {
-		t.Fatal("placing by hand ends the sort")
+	if s.SortBy != "modified" || s.Order[""][0] != "b" {
+		t.Fatal("a drag leaves the sort", s.SortBy, s.Order)
 	}
-	s.Forget("Journal")
-	if len(s.Sort) != 0 {
-		t.Fatal("forgetting drops it", s.Sort)
+	s.SetSort("bogus")
+	if s.SortBy != "" {
+		t.Fatal("unknown sorts are the order dragging leaves", s.SortBy)
+	}
+}
+
+// A version 12 state sorted folder by folder: the root's sort becomes the
+// space's, and a subfolder kept "manual" no longer hides from it.
+func TestLegacyFolderSortMigrates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spaces.json")
+	raw := `{"version":12,"spaces":[{"id":"a","name":"A","root":"/a","sort":{"":"modified","writing":"manual"}},{"id":"b","name":"B","root":"/b","sort":{"":"manual"}}]}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, b := st.Spaces[0], st.Spaces[1]; a.SortBy != "modified" || a.LegacySort != nil || b.SortBy != "" || b.LegacySort != nil {
+		t.Fatalf("migrated %+v %+v", a, b)
 	}
 }

@@ -85,7 +85,7 @@ func (r *remoteImages) resource(url string, post func(func()), redraw func()) ed
 				r.entries[url] = &remoteImage{resource: res}
 				return res
 			}
-			return editor.ImageResource{Problem: editor.ImageRemote}
+			return editor.ImageResource{Problem: editor.ImageEmbed}
 		}
 		if data, err := os.ReadFile(r.cachePath(url)); err == nil {
 			res := decodeImageData(data, false)

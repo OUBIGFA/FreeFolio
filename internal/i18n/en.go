@@ -708,6 +708,7 @@ var en = map[string]string{
 	"移除":       "Remove",
 	"移除书签":     "Remove Bookmark",
 	"移除图标":     "Remove Icon",
+	"移除标签":     "Remove Tag",
 	"移除字数目标":   "Remove Word Goal",
 	"移除封面":     "Remove Cover",
 	"移除手绘标注":   "Remove Hand-drawn Mark",
@@ -1103,4 +1104,6 @@ var en = map[string]string{
 	"在浏览器中打开": "Open in Browser",
 	"无法播放视频":  "Can't play this video",
 	"播放视频":    "Play video",
+	"嵌入的内容不存在或无法访问": "This embed was not found or can't be reached",
+	"嵌入地址": "Embed address",
 }

@@ -89,7 +89,7 @@ func TestPropertiesSnapshot(t *testing.T) {
 	for _, name := range []string{"light", "dark", "adding"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
-			source := "---\ntitle: 读书笔记\ndate: 2026-11-19\npublished: false\ntags:\n  - 阅读\n  - 摘录\nsummary: |\n  多行内容\n---\n\n# 读书笔记\n\n| 书名 | 作者 |\n|---|---|\n| 瓦尔登湖 | 梭罗 |\n"
+			source := "---\ntitle: 读书笔记\ndate: 2026-11-19\npublished: false\ntags:\n  - 阅读\n  - 摘录\n  - Design\n  - prompt\n  - AI\nsummary: |\n  多行内容\n---\n\n# 读书笔记\n\n| 书名 | 作者 |\n|---|---|\n| 瓦尔登湖 | 梭罗 |\n"
 			if err := vault.Write(root(a), "Props.md", source); err != nil {
 				t.Fatal(err)
 			}

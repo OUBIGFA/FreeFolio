@@ -64,7 +64,8 @@ func arrangeNodes(sp *space.Space, dir string, nodes []*vault.Node) {
 	byName := func(x, y *vault.Node) int {
 		return strings.Compare(strings.ToLower(x.Title()), strings.ToLower(y.Title()))
 	}
-	switch sp.SortOf(dir) {
+	// One sort for the whole space: every folder follows it.
+	switch sp.SortBy {
 	case "name":
 		// Folders first, then documents, each by name as people read it.
 		slices.SortStableFunc(nodes, func(x, y *vault.Node) int {

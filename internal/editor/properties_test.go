@@ -165,3 +165,36 @@ func TestPropertiesEditInPlace(t *testing.T) {
 		t.Fatal("a locked page edits its properties")
 	}
 }
+
+// A list property edits as chips: Enter and a comma add what was typed,
+// a chip's × takes the tag out, and the input empties after each.
+func TestTagListAddsAndRemoves(t *testing.T) {
+	e, tt := newTester("---\ntags:\n  - Design\n---\n\nBody")
+	tt.Frame()
+	tt.Frame()
+	field, ok := tt.Find("tags")
+	if !ok {
+		t.Fatal("no input for the tags")
+	}
+	tt.ClickAt(field.X+field.W/2, field.Y+field.H/2)
+	tt.Frame()
+	tt.Type("AI")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	tt.Type("prompt,")
+	tt.Frame()
+	tt.Frame()
+	if got := parseProperties(e.Doc.Frontmatter); len(got) != 1 || strings.Join(got[0].values, "|") != "Design|AI|prompt" {
+		t.Fatalf("tags not added: %q", e.Doc.Frontmatter)
+	}
+	if e.propsEdit.drafts["tags:tags"] != "" {
+		t.Fatalf("input kept %q", e.propsEdit.drafts["tags:tags"])
+	}
+	if err := tt.Click("移除标签 AI"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := parseProperties(e.Doc.Frontmatter); strings.Join(got[0].values, "|") != "Design|prompt" {
+		t.Fatalf("tag not removed: %q", e.Doc.Frontmatter)
+	}
+}

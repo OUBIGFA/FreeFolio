@@ -52,25 +52,28 @@ type Editor struct {
 	noAutoPair    bool
 	hoverID       string
 	*Buffer
-	Scroll                           ui.ScrollState
-	RequestFocus                     bool
-	handleIDs, decorationIDs         map[string]int
-	rowIDs                           map[string]int
-	rowSpace, decorationSpace        spatialIndex
-	rowYOff, decYOff                 fenwick64
-	handleYOff, foldYOff             fenwick64
-	resizerYOff, outlineYOff         fenwick64
-	handleEnds                       []blockSliceEnd
-	hasLazyY                         bool
-	rows                             []row
-	decorations                      []decoration
-	handles                          []blockHandle
-	resizers                         []columnHandle
-	cache                            map[string]cachedShape
-	cacheClock                       uint64
-	heightHints                      map[string]heightHint
-	images                           map[string]ImageResource
-	imageCaptionID                   string
+	Scroll                    ui.ScrollState
+	RequestFocus              bool
+	handleIDs, decorationIDs  map[string]int
+	rowIDs                    map[string]int
+	rowSpace, decorationSpace spatialIndex
+	rowYOff, decYOff          fenwick64
+	handleYOff, foldYOff      fenwick64
+	resizerYOff, outlineYOff  fenwick64
+	handleEnds                []blockSliceEnd
+	hasLazyY                  bool
+	rows                      []row
+	decorations               []decoration
+	handles                   []blockHandle
+	resizers                  []columnHandle
+	cache                     map[string]cachedShape
+	cacheClock                uint64
+	heightHints               map[string]heightHint
+	images                    map[string]ImageResource
+	imageCaptionID            string
+	// embedEdit is the address of an embed that cannot show, as it is
+	// edited in its notice: the block's id and the draft (images.go).
+	embedEdit                        struct{ id, draft string }
 	imageViewer                      imageViewer
 	width, height, viewport, padding float32
 	cacheRevision                    uint64
