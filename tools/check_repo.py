@@ -17,6 +17,9 @@ from urllib.parse import unquote, urlsplit
 
 
 MAX_BYTES = 10 * 1024 * 1024
+# A registered binary may opt in with "allowOversize": true (e.g. a CJK font
+# that cannot be split); the hard ceiling still bounds clone size.
+OVERSIZE_MAX_BYTES = 20 * 1024 * 1024
 FORBIDDEN_FILE_NAMES = {"agents.md", "claude.md"}
 FORBIDDEN_DIRECTORY_NAMES = {".agents", ".claude", ".local", "output", "_temp"}
 LOCAL_PATHS = {
@@ -109,7 +112,7 @@ def staged_blobs(entries):
         if kind != "blob":
             raise RuntimeError("Index entry is not a blob")
         sizes[blob] = int(size)
-    selected = [blob for blob in objects if sizes[blob] <= MAX_BYTES]
+    selected = [blob for blob in objects if sizes[blob] <= OVERSIZE_MAX_BYTES]
     if not selected:
         return sizes, {}
     batch_input = "".join(blob + "\n" for blob in selected).encode("ascii")
@@ -165,6 +168,7 @@ def parse_exceptions(texts, errors):
                 or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
                 or type(item.get("bytes")) is not int
                 or item["bytes"] < 1
+                or type(item.get("allowOversize", False)) is not bool
             ):
                 raise ValueError("invalid binary registration")
             parsed["binaries"][path] = item
@@ -378,6 +382,7 @@ def check():
     texts = {}
     blobs = {}
     binary_paths = set()
+    oversize = set()
     case_names = {}
     paths = {entry[0] for entry in entries}
     targets = set(paths)
@@ -416,9 +421,11 @@ def check():
             continue
 
         size = sizes[blob]
-        if size > MAX_BYTES:
-            errors.append(f"{path}: exceeds 10 MiB file limit")
+        if size > OVERSIZE_MAX_BYTES:
+            errors.append(f"{path}: exceeds 20 MiB hard file limit")
             continue
+        if size > MAX_BYTES:
+            oversize.add(path)
         data = contents[blob]
         blobs[path] = data
         searchable = data.decode("utf-8", errors="ignore")
@@ -449,6 +456,9 @@ def check():
     for path in sorted(ignored):
         errors.append(f"{path}: ignored path is tracked")
 
+    for path in oversize:
+        if not exceptions["binaries"].get(path, {}).get("allowOversize", False):
+            errors.append(f"{path}: exceeds 10 MiB file limit")
     check_binaries(blobs, binary_paths, exceptions, errors)
     check_source_records(texts, blobs, errors)
     check_ignore_policy(root, paths, texts, errors)

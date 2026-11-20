@@ -58,7 +58,7 @@ class RepositoryCheckTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn(marker, result.stdout + result.stderr)
 
-    def register_binary(self, path, content):
+    def register_binary(self, path, content, **extra):
         self.write(
             "references/repository-exceptions.json",
             json.dumps(
@@ -71,6 +71,7 @@ class RepositoryCheckTests(unittest.TestCase):
                             "license": "CC0-1.0",
                             "bytes": len(content),
                             "sha256": hashlib.sha256(content).hexdigest(),
+                            **extra,
                         }
                     ]
                 }
@@ -299,6 +300,28 @@ class RepositoryCheckTests(unittest.TestCase):
         self.write("large.txt", b"x" * (10 * 1024 * 1024 + 1))
         self.git("add", "large.txt")
         self.assert_rejected("10 MiB")
+
+    def test_registered_binary_still_needs_oversize_opt_in(self):
+        content = bytes(1) * (10 * 1024 * 1024 + 1)
+        self.write("assets/font.bin", content)
+        self.git("add", "assets/font.bin")
+        self.register_binary("assets/font.bin", content)
+        self.assert_rejected("10 MiB")
+
+    def test_oversize_opt_in_allows_registered_binary(self):
+        content = bytes(1) * (10 * 1024 * 1024 + 1)
+        self.write("assets/font.bin", content)
+        self.git("add", "assets/font.bin")
+        self.register_binary("assets/font.bin", content, allowOversize=True)
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_oversize_opt_in_keeps_hard_ceiling(self):
+        content = bytes(1) * (20 * 1024 * 1024 + 1)
+        self.write("assets/font.bin", content)
+        self.git("add", "assets/font.bin")
+        self.register_binary("assets/font.bin", content, allowOversize=True)
+        self.assert_rejected("20 MiB")
 
     def test_case_conflict_is_rejected(self):
         blob = self.git("hash-object", "-w", "--stdin", data=b"fixture\n").decode().strip()

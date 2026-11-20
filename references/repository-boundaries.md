@@ -53,4 +53,6 @@ python -X utf8 -m unittest discover -s tests/repository -v
 
 当 `go.mod` 或 `go.sum` 变更时，需先运行 `python -X utf8 tools/update_go_inventory.py` 同步 [go-mod.json](../third_party/manifests/go-mod.json)。
 
+单个跟踪文件默认不超过 10 MiB。确实无法拆分的已登记二进制（如中文手绘字体）须在[例外清单](repository-exceptions.json)中设置 `"allowOversize": true`，硬上限为 20 MiB。
+
 仓库卫生检查仅验证 Git 暂存索引边界、忽略规则、编码/JSON、秘钥与本机路径模式、二进制登记及上游/依赖清单一致性；应用编译、全量 Go 测试与桌面界面验收须单独运行并如实报告覆盖范围。
