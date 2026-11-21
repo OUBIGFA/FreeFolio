@@ -358,37 +358,67 @@ func (a *App) fileView(c *ui.Context) {
 // the way back. Its free stretch drags the window; files dropped on it open.
 func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	bar := c.TitleBar()
-	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, 44)).Shrink(0).Padding(0, bar.Right+8, 0, bar.Left+10).Gap(6).AlignItems(ui.Center).DragWindow()
+	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, 44)).Shrink(0).Gap(6).AlignItems(ui.Center).DragWindow()
 	for _, file := range row.DroppedFiles() {
 		a.openSystemFile(file)
 	}
 	row.Children(func() {
-		ui.Image(c, brandLogo).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
-		strip := ui.ScrollHorizontal(c.Key("file-tabs")).Shrink(1).MinWidth(0).Role(ui.RoleTabList).Label(i18n.T("已打开的文件"))
-		strip.Children(func() {
-			ui.Row(c.Key("file-tab-row")).Gap(2).AlignItems(ui.Center).Children(func() {
-				for i, rel := range slices.Clone(f.order) {
-					if a.files != f {
-						return
-					}
-					a.fileTab(c, f, i, rel)
-				}
-			})
+		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
+			ui.Image(c, brandLogo).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
+			if iconButton(c, "open", iconPlus, i18n.T("打开文件…"), i18n.T("打开文件…")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Clicked() {
+				a.chooseExternalFiles()
+			}
+		})
+		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
+			if d := a.doc; d != nil && d.loadErr == nil {
+				a.documentCorner(c, d)
+			}
+			a.fileMenu(c, f)
+			if shellAction(c, "return", iconBack, i18n.T("返回空间")).Clicked() {
+				a.leaveFileMode()
+			}
 		})
 		if a.files != f {
 			return
 		}
-		if iconButton(c, "open", iconPlus, i18n.T("打开文件…"), i18n.T("打开文件…")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Clicked() {
-			a.chooseExternalFiles()
+		// Center the whole group only while it clears both sets of controls.
+		// Narrow windows and crowded tabs use the full gap, aligned left.
+		b, l, r := row.LayoutBounds(), start.LayoutBounds(), end.LayoutBounds()
+		from, to := l.X+l.W-b.X+12, r.X-b.X-12
+		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).AlignItems(ui.Center).Clip()
+		var strip, tabs ui.Element
+		area.Children(func() {
+			strip = ui.ScrollHorizontal(c.Key("file-tabs")).Shrink(1).MinWidth(0).Role(ui.RoleTabList).Label(i18n.T("已打开的文件"))
+			strip.Children(func() {
+				tabs = ui.Row(c.Key("file-tab-row")).Shrink(0).Gap(2).AlignItems(ui.Center).Children(func() {
+					for i, rel := range slices.Clone(f.order) {
+						if a.files != f {
+							return
+						}
+						a.fileTab(c, f, i, rel)
+					}
+				})
+			})
+		})
+		width := tabs.LayoutBounds().W
+		if width > 0 && width <= 2*min(b.W/2-from, to-b.W/2) {
+			area.LeftPercent(50).TranslatePercent(-50, 0).Width(width)
+		} else {
+			area.Left(from).Width(max(0, to-from))
 		}
-		ui.Spacer(c)
-		d := a.doc
-		if d != nil && d.loadErr == nil {
-			a.documentCorner(c, d)
-		}
-		a.fileMenu(c, f)
-		if shellAction(c, "return", iconBack, i18n.T("返回空间")).Clicked() {
-			a.leaveFileMode()
+		// Measured bounds arrive after building the view. Recheck placement
+		// and reveal the active tab when a resize changes its visible space.
+		for _, element := range []ui.Element{row, start, end, tabs, strip} {
+			before := element.LayoutBounds()
+			isStrip := element == strip
+			element.Draw(func(_ *ui.Painter, now ui.Rect) {
+				if now != before {
+					if isStrip && now.W != before.W {
+						f.revealed = ""
+					}
+					c.AnimationFrame()
+				}
+			})
 		}
 	})
 }

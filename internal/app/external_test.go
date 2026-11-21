@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -238,6 +240,83 @@ func TestFileTabsSwitchAndClose(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("关闭标签页 Two.md"); ok {
 		t.Fatal("the close button shows while hidden")
+	}
+}
+
+func TestFileTabsCenterAsAGroup(t *testing.T) {
+	for _, profile := range []struct {
+		name string
+		bar  ui.TitleBar
+	}{
+		{"windows", windowsTitleBar},
+		{"macos", ui.TitleBar{Height: 46, Left: 78}},
+	} {
+		t.Run(profile.name, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			tt.SetTitleBar(profile.bar)
+			tt.SetSize(1440, 760)
+			for i := range 9 {
+				name := fmt.Sprintf("Note-%d.md", i+1)
+				if !a.openSystemFile(externalFile(t, name, "# Note")) {
+					t.Fatal("open", name)
+				}
+				settle(tt)
+				strip, ok := tt.Find("已打开的文件")
+				if !ok || strip.W <= 0 {
+					t.Fatalf("%d tabs: missing tab strip", i+1)
+				}
+				first, _ := tt.Find("Note-1.md")
+				last, found := tt.Find(name)
+				if !found || last.X < strip.X-1 || last.X+last.W > strip.X+strip.W+1 {
+					t.Errorf("%d tabs: active tab %+v is outside strip %+v", i+1, last, strip)
+				}
+				// Short groups center their combined bounds, not each tab separately.
+				if i < 3 && math.Abs(float64((first.X+last.X+last.W)/2-720)) > 1 {
+					t.Errorf("%d tabs: group is not centered: first=%+v last=%+v", i+1, first, last)
+				}
+				if i == 8 {
+					open, _ := tt.Find("打开文件…")
+					if math.Abs(float64(strip.X-(open.X+open.W+12))) > 1 {
+						t.Errorf("crowded tabs did not align left: strip=%+v open=%+v", strip, open)
+					}
+				}
+			}
+			a.showFileTab(a.files.order[0])
+			settle(tt)
+			first, _ := tt.Find("Note-1.md")
+			strip, _ := tt.Find("已打开的文件")
+			if first.X < strip.X-1 || first.X+first.W > strip.X+strip.W+1 {
+				t.Fatalf("switching to first tab did not reveal it: tab=%+v strip=%+v", first, strip)
+			}
+			a.showFileTab(a.files.order[len(a.files.order)-1])
+			for _, width := range []int{1080, 640, 1440} {
+				tt.SetSize(width, 760)
+				settle(tt)
+				strip, _ = tt.Find("已打开的文件")
+				last, _ := tt.Find("Note-9.md")
+				if last.X+last.W > strip.X+strip.W+1 || last.X+last.W <= strip.X {
+					t.Errorf("width=%d: active tab is not visible: tab=%+v strip=%+v", width, last, strip)
+				}
+				open, _ := tt.Find("打开文件…")
+				actions, _ := tt.Find("Markdown 源码")
+				if strip.X < open.X+open.W+11 || strip.X+strip.W > actions.X-11 {
+					t.Errorf("width=%d: strip %+v overlaps controls: open=%+v actions=%+v", width, strip, open, actions)
+				}
+			}
+			a.closeOtherFileTabs(a.doc.rel, func(int, int) bool { return true })
+			settle(tt)
+			last, _ := tt.Find("Note-9.md")
+			if math.Abs(float64(last.X+last.W/2-720)) > 1 {
+				t.Errorf("closing other tabs did not recenter the remaining tab: %+v", last)
+			}
+			tt.SetSize(640, 760)
+			settle(tt)
+			last, _ = tt.Find("Note-9.md")
+			open, _ := tt.Find("打开文件…")
+			if math.Abs(float64(last.X-(open.X+open.W+12))) > 1 {
+				t.Errorf("narrow window did not align its single tab left: tab=%+v open=%+v", last, open)
+			}
+		})
 	}
 }
 

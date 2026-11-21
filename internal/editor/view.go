@@ -2227,9 +2227,8 @@ func (e *Editor) overText(x, y float32) bool {
 }
 
 // hoverCursor is the pointer shape over surface point x, y while nothing is
-// pressed: a hand where a press acts, the arrow off the text column or on a
-// code scrollbar, and false where the surface's I-beam stays. Each case asks
-// the same hit test its press runs, so the shape never promises another act.
+// pressed: a hand over links and active controls, the arrow off the text
+// column or on a code scrollbar, and false where the surface's I-beam stays.
 func (e *Editor) hoverCursor(mods ui.Modifiers, x, y float32) (ui.Cursor, bool) {
 	if !e.ReadOnly {
 		if h, add := e.blockControlAt(x, y); h != nil {
@@ -2262,9 +2261,8 @@ func (e *Editor) overTask(x, y float32) bool {
 	return e.taskBox(at, x) != nil
 }
 
-// overLink reports whether a press at x, y with mods follows a link: a
-// plain press on a link opens its editor while editing; with Cmd held a
-// link, [[wiki link]] or #tag opens where its handler is set.
+// overLink keeps a link's hover shape when the page is locked. Editing stays
+// guarded by the input handlers; Cmd-click still follows links in either mode.
 func (e *Editor) overLink(mods ui.Modifiers, x, y float32) bool {
 	if mods&ui.Cmd != 0 {
 		if _, ok := e.linkAtPoint(x, y, false); ok && e.openLink != nil {
@@ -2272,7 +2270,7 @@ func (e *Editor) overLink(mods ui.Modifiers, x, y float32) bool {
 		}
 		return e.openWiki != nil && e.wikiAtPoint(x, y) != "" || e.openTag != nil && e.tagAtPoint(x, y) != ""
 	}
-	if e.ReadOnly || mods != 0 {
+	if mods != 0 {
 		return false
 	}
 	_, ok := e.linkAtPoint(x, y, true)

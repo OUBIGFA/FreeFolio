@@ -1374,8 +1374,8 @@ func TestSlashAndCompletionMenusFollowArrowKeys(t *testing.T) {
 
 // A hand shows wherever a press acts instead of placing the caret: a task's
 // checkbox, a link while editing, a code block's buttons, and with Cmd held
-// a wiki link or tag. Plain text keeps the I-beam, and a read-only page shows
-// no hand over a link its plain press leaves alone.
+// a wiki link or tag. Plain text keeps the I-beam; locking the document
+// preserves the link's hand cursor without enabling its editing popover.
 func TestPointerShowsHandOverActiveControls(t *testing.T) {
 	for _, readOnly := range []bool{false, true} {
 		e := New("- [ ] todo\n\n[site](https://example.com) plain [[Note]] #tag\n\n```go\nx := 1\n```")
@@ -1408,12 +1408,15 @@ func TestPointerShowsHandOverActiveControls(t *testing.T) {
 			t.Fatalf("readOnly=%v task checkbox: %v", readOnly, got)
 		}
 		x, y := word(para, "site")
-		want := ui.CursorPointer
-		if readOnly {
-			want = ui.CursorText
-		}
-		if got := at(0, x, y); got != want {
+		if got := at(0, x, y); got != ui.CursorPointer {
 			t.Fatalf("readOnly=%v link: %v", readOnly, got)
+		}
+		if readOnly {
+			tt.ClickAt(bounds.X+x, bounds.Y+y)
+			tt.Frame()
+			if e.linkOpen {
+				t.Fatal("read-only link hover enabled the editing popover")
+			}
 		}
 		if got := at(ui.Cmd, x, y); got != ui.CursorPointer {
 			t.Fatalf("readOnly=%v Cmd over link: %v", readOnly, got)
