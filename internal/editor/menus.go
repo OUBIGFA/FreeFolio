@@ -729,6 +729,9 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 					if m.Item(i18n.T("自定义修改…")).Chosen() {
 						o.EditWithAI("")
 					}
+					if o.AddToAI != nil && m.Item(i18n.T("添加到 OneBot")).Chosen() {
+						o.AddToAI()
+					}
 					m.Separator()
 					for _, p := range selectionAIPresets {
 						if m.Item(i18n.T(p.label)).Chosen() {

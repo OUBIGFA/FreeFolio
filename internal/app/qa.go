@@ -55,6 +55,8 @@ type qaState struct {
 	editDocQuery      string
 	open              bool
 	input             string
+	// quotes are selections added to the input, sent with the next message.
+	quotes []oneBotQuote
 	// sessions are the conversations by space ID.
 	sessions map[string]*qaSession
 	// spaces are the read-only views of the spaces, by ID, kept so their
@@ -124,6 +126,7 @@ type qaTurn struct {
 	edit         *oneBotTask
 	finishReason string
 	question     string
+	quotes       []oneBotQuote
 	// start is the length of the history before the question, to which a
 	// retry rolls it back.
 	start    int
@@ -355,8 +358,11 @@ func (a *App) askQA() {
 			count = 1
 		}
 		a.qa.input = ""
+		quotes := a.qa.quotes
+		a.qa.quotes = nil
+		task.Quotes = oneBotQuotePrompt(quotes)
 		s := a.qaSession(task.SpaceID)
-		turn := &qaTurn{question: text, edit: task}
+		turn := &qaTurn{question: text, quotes: quotes, edit: task}
 		s.turns = append(s.turns, turn)
 		s.list.ScrollToEnd()
 		a.runOneBotEdit(task, text, count, a.qa.editFollow)
@@ -364,13 +370,16 @@ func (a *App) askQA() {
 		return
 	}
 	a.qa.input = ""
-	a.ask(sp.ID, text)
+	quotes := a.qa.quotes
+	a.qa.quotes = nil
+	a.ask(sp.ID, text, quotes)
 }
 
-// ask runs a question in the space with the ID.
-func (a *App) ask(spaceID, question string) {
+// ask runs a question in the space with the ID. Quoted selections go
+// before the question in the model's copy only; the turn shows badges.
+func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	s := a.qaSession(spaceID)
-	turn := &qaTurn{question: question, start: len(s.history), running: true}
+	turn := &qaTurn{question: question, quotes: quotes, start: len(s.history), running: true}
 	s.turns = append(s.turns, turn)
 	s.list.FollowEnd = true
 	s.list.ScrollToEnd()
@@ -398,7 +407,11 @@ func (a *App) ask(spaceID, question string) {
 		s.history = agent.NeutralHistory(s.history)
 	}
 	s.source = settings.Signature()
-	s.history = append(s.history, agent.Message{Role: agent.User, Text: question, Parts: a.qa.attachments})
+	text := question
+	if len(quotes) > 0 {
+		text = oneBotQuotePrompt(quotes) + "\n" + question
+	}
+	s.history = append(s.history, agent.Message{Role: agent.User, Text: text, Parts: a.qa.attachments})
 	a.qa.attachments = nil
 	history := append([]agent.Message(nil), s.history...)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -572,7 +585,7 @@ func (a *App) retryQA(spaceID string, t *qaTurn) {
 	}
 	s.turns = s.turns[:len(s.turns)-1]
 	s.history = s.history[:t.start]
-	a.ask(spaceID, t.question)
+	a.ask(spaceID, t.question, t.quotes)
 }
 
 // clearQA starts a new conversation in the active space.
@@ -597,6 +610,7 @@ func (a *App) clearQA() {
 	a.qa.editMode = false
 	a.qa.editFollow = false
 	a.qa.attachments = nil
+	a.qa.quotes = nil
 }
 
 // openCitation opens the cited document of the space at the cited block.

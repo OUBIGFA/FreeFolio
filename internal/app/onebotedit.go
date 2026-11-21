@@ -55,6 +55,9 @@ type oneBotCandidate struct {
 	Complete bool            `json:"complete"`
 }
 type oneBotTask struct {
+	// Quotes are the rendered selections quoted with the instruction:
+	// read-only context, not edit targets.
+	Quotes      string                        `json:"-"`
 	ShowDiff    bool                          `json:"-"`
 	Receipts    map[string]*model.EditReceipt `json:"receipts,omitempty"`
 	Parts       []agent.ContentPart           `json:"-"`
@@ -401,6 +404,9 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 	prompt := instruction + "\nWritable paths: " + strings.Join(oneBotEditPaths(files, newPaths), ", ")
 	if task.Scope == "selection" || task.Scope == "section" {
 		prompt += "\nThese files expose only the selected excerpt. Keep all edits inside it."
+	}
+	if task.Quotes != "" {
+		prompt += "\nReferenced content (read-only context, not an edit target):\n" + task.Quotes
 	}
 	if prior != "" {
 		prompt += "\nPrevious draft to revise (not yet saved):\n" + prior

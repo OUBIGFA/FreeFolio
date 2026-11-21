@@ -111,6 +111,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 					}
 				})
 			}
+			a.oneBotQuoteBadges(c, "quotes", a.qa.quotes, true)
 			if len(a.qa.attachments) > 0 {
 				ui.Row(c.Key("attachments")).Gap(6).Wrap().Children(func() {
 					for i, p := range a.qa.attachments {
@@ -198,7 +199,7 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 	t := c.Theme()
 	label := i18n.T("选择模型")
 	if conn := a.prefs.AI.Current(); conn != nil && conn.Model != "" {
-		label = conn.Model
+		label = oneBotModelName(conn.Name, conn.Model)
 	}
 	b := ui.MenuButton(c.Key("onebot-model"), label, func(m *ui.Menu) {
 		for i, conn := range a.prefs.AI.Connections {
@@ -209,7 +210,7 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 				if !model.Enabled {
 					continue
 				}
-				if m.Item(conn.Name + " / " + model.ID).Checked(conn.ID == a.prefs.AI.Active && conn.Model == model.ID).Chosen() {
+				if m.Item(oneBotModelName(conn.Name, model.ID)).Checked(conn.ID == a.prefs.AI.Active && conn.Model == model.ID).Chosen() {
 					if a.prefs.AI.Active != conn.ID {
 						a.selectAIConnection(conn.ID)
 					}
@@ -222,10 +223,19 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 		if m.Item(i18n.T("管理供应商…")).Chosen() {
 			a.openSettings(tabAI)
 		}
-	}).Height(26).Padding(2, 8).Radius(6).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型"))
+	}).Height(26).Padding(2, 8).Radius(6).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型")).Tooltip(label)
 	if b.Hovered() {
 		b.Background(hoverFill(t)).TextColor(t.Text)
 	}
+}
+
+// oneBotModelName is the full name of a model: its provider, then its ID,
+// so models of the same ID from two providers read apart.
+func oneBotModelName(provider, model string) string {
+	if provider = strings.TrimSpace(provider); provider == "" {
+		return model
+	}
+	return provider + " / " + model
 }
 
 func (a *App) attachOneBotTask(task *oneBotTask) {

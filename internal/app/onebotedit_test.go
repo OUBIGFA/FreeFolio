@@ -159,7 +159,7 @@ func TestOneBotClearedChatCannotApplyLateFileTools(t *testing.T) {
 	a.prefs.AI.Direct = true
 	args, _ := json.Marshal(map[string]string{"path": a.doc.rel, "oldString": "hello", "newString": "late"})
 	fake.steps = []func(agent.Request) agent.Message{call("edit", string(args)), func(agent.Request) agent.Message { a.clearQA(); return agent.Message{Text: "done"} }}
-	a.ask(a.state.ActiveSpace().ID, "请修改")
+	a.ask(a.state.ActiveSpace().ID, "请修改", nil)
 	if a.doc.ed.Doc.PlainText() != "hello world\nkeep this" || len(a.qaSession(a.state.ActiveSpace().ID).turns) != 0 {
 		t.Fatal("cleared chat applied late result")
 	}
@@ -275,7 +275,7 @@ func TestOneBotChatPreparesDraftWithoutWriting(t *testing.T) {
 	editArgs, _ := json.Marshal(map[string]string{"path": a.doc.rel, "oldString": "hello", "newString": "changed"})
 	fake.steps = []func(agent.Request) agent.Message{call("read", string(readArgs)), call("edit", string(editArgs)), reply("已准备修改，请审阅。")}
 	before := a.doc.text()
-	a.ask(a.state.ActiveSpace().ID, "请修改第一段")
+	a.ask(a.state.ActiveSpace().ID, "请修改第一段", nil)
 	turn := a.qaSession(a.state.ActiveSpace().ID).turns[0]
 	if turn.edit == nil || a.doc.text() != before {
 		t.Fatalf("chat did not prepare a safe draft: %+v", turn)

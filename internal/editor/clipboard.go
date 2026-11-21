@@ -29,6 +29,21 @@ func (e *Editor) copySelection(write func(string)) {
 	e.writeClipboard(fragment, data, text)
 }
 
+// SelectedMarkdown is the selection as copying puts it on the clipboard as
+// text: Markdown, or the literal text of a code-like block.
+func (e *Editor) SelectedMarkdown() string {
+	r := e.Selection().Range
+	if r.Start == r.End {
+		return ""
+	}
+	if literalBlock(e.LeafAt(r.Start).Block.Kind) {
+		return e.slice(r.Start, r.End)
+	}
+	fragment := e.Engine.Fragment()
+	fragment.ImportSource = ""
+	return trimNewline(ExportMarkdown(fragment))
+}
+
 func trimNewline(s string) string { return strings.TrimSuffix(s, "\n") }
 
 // writeClipboard offers a fragment, encoded as data, with its text,

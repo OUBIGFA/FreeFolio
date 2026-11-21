@@ -1536,6 +1536,12 @@ var en = map[string]string{
 	"扩写选中内容：补充细节和解释，保持原有观点、语气和 Markdown 格式。":     "Expand the selected text: add detail and explanation, keeping its points, tone and Markdown formatting.",
 	"将选中内容翻译为简体中文，保留 Markdown 格式。":               "Translate the selected text into Simplified Chinese, keeping the Markdown formatting.",
 	"将选中内容翻译为英文，保留 Markdown 格式。":                 "Translate the selected text into English, keeping the Markdown formatting.",
+	// OneBot quotes.
+	"添加到 OneBot":  "Add to OneBot",
+	"请先选择需要引用的内容": "Select the text to quote first",
+	"引用：":         "Quote: ",
+	"(%d 字)":      "(%d chars)",
+	"移除引用：":       "Remove quote: ",
 	// OneBot API keys.
 	"粘贴 API Key，多个用逗号或换行分隔": "Paste API keys, separated by commas or lines",
 	"添加":          "Add",

@@ -535,6 +535,8 @@ type Options struct {
 	// An empty instruction opens OneBot for the user to type one; a preset
 	// from the selection bar runs on the selection at once.
 	EditWithAI func(instruction string)
+	// AddToAI adds the selection to OneBot's input as a reference.
+	AddToAI func()
 	// Resizing keeps offscreen shaping cached during an interactive resize.
 	// Hosts must clear it on release; the final layout is always exact.
 	Resizing             bool

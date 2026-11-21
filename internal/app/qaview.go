@@ -232,11 +232,11 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 
 func (a *App) qaQuestion(c *ui.Context, turn *qaTurn) {
 	t := c.Theme()
-	ui.Row(c.Key("q")).Transition(ui.ElementTransition{
+	ui.Column(c.Key("q")).Gap(5).AlignItems(ui.End).Transition(ui.ElementTransition{
 		Duration: 180 * time.Millisecond,
 		Enter:    &ui.Motion{Y: 5, Opacity: 0},
 	}).Children(func() {
-		ui.Spacer(c)
+		a.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
 		ui.Box(c.Key("bubble")).Padding(9, 13).Radius(13).
 			Background(t.Accent.Alpha(0.13)).Border(1, t.Accent.Alpha(0.20)).MaxWidth(304).Children(func() {
 			ui.Text(c, turn.question).FontSize(13.5).LineHeight(1.5).Selectable()
