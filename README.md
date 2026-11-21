@@ -17,44 +17,52 @@
 
 ---
 
+## 界面预览
+
+[![首页中的读书会笔记，含待办清单和活动安排](assets/FreeMD-home.png)](assets/FreeMD-home.png)
+
+<p align="center">
+  <a href="assets/FreeMD-settings.png"><img src="assets/FreeMD-settings.png" width="48%" alt="设置页中的语言、文件列表位置和字体选项"></a>
+  <a href="assets/FreeMD-whiteboard.png"><img src="assets/FreeMD-whiteboard.png" width="48%" alt="白板上用便签和箭头画出的读书会流程"></a>
+</p>
+
+[首页原图](assets/FreeMD-home.png) · [设置页原图](assets/FreeMD-settings.png) · [白板原图](assets/FreeMD-whiteboard.png)
+
 ## 项目说明
 
-**FreeMD** 是基于 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT License，基线提交 `27322d387268751932624ef83a7c580cb0b068d5` / `v0.2.1`）开展的二开项目，面向本地优先的 Markdown 写作、多空间组织与原生桌面交互进行深度优化、定制与功能演进。
+FreeMD 是一款写笔记和画图的电脑应用。笔记保存在电脑的文件夹里。没有网络时，你也能继续写。
 
-FreeMD 使用 MyGo v0.10.0 原生界面。打开已登记文件夹中的文档会进入所属空间。打开其他 Markdown 文件会进入文件浏览模式，可编辑、保存和另存为。临时打开的路径只保留在当前会话中。
+## 可以用来做什么
 
-空间支持独立附件目录、自动更新图片引用、侧边栏多选与批量整理。文档支持可导航的思维导图，以及从当前块逐步扩展到整篇文档的全选。设置中的云端同步可将选定空间的笔记和附件同步到 WebDAV 或 S3，支持手动、定时、冲突副本和可选内容加密，默认关闭。
+- **写笔记。** 给课堂笔记或会议记录加上图片、表格和待办清单。
+- **整理和查找笔记。** 用不同的文件夹存放工作和生活笔记。在搜索框中输入笔记里的词。
+- **找到长笔记中的一段。** 用一张图查看笔记的标题和列表。点图上的一项，就能跳到笔记中对应的位置。
+- **在白板上画图。** 用便签记下想法。用形状和箭头画出计划的步骤。
+- **分享笔记。** 把笔记存成 PDF。你可以发送或打印这份文件。
 
-## 从源码运行与验证
+## 下载与上手
 
-### 仓库边界检查
+### 安装 FreeMD
 
-```sh
-python -X utf8 tools/check_repo.py
-python -X utf8 -m unittest discover -s tests/repository -v
-```
+1. 打开 [FreeMD 下载页](https://github.com/OUBIGFA/FreeMD/releases)。
+2. 下载适合你的电脑的安装文件。
+3. 打开下载的文件。
+4. 按屏幕上的提示安装 FreeMD。
 
-### 运行应用与单元测试
+### 新建或打开笔记
 
-```sh
-CGO_ENABLED=0 go run ./cmd/freemd
-CGO_ENABLED=0 go test ./internal/document
-```
+打开 FreeMD。
 
-使用隔离开发目录启动（不写入个人日常文稿目录）：
+- 写新笔记时，点文件列表上方的 **+**。
+- 打开已有笔记时，点文件列表下方的文件夹图标。选择文件名以 **.md** 结尾的笔记。
 
-```sh
-FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
-```
+## 按需使用
 
-## 文档与仓库边界
+- **请 OneBot 帮忙。** 在 **设置** 中添加你使用的 AI 服务。你可以请 OneBot 根据笔记回答问题，也可以请它修改文字。你可以先看修改，再决定是否采用。
+- **在多台电脑上使用同一套笔记。** 连接 FreeMD 支持的云存储服务。选择要同步的文件夹。此功能默认关闭。
 
-- [架构说明（英文）](docs/architecture.md)
-- [云端同步、冲突处理与恢复（英文）](docs/cloud-sync.md)
-- [插件契约与路线图（英文）](docs/plugins.md)
-- [仓库边界与交付约定](references/repository-boundaries.md)
-- [第三方来源、上游基线与许可清单](third_party/README.md)
+## 来源与许可
 
-## 许可证
+FreeMD 基于 ArcMD 开发，沿用 MIT 许可证。
 
-FreeMD 沿用上游 [MIT License](LICENSE)。所有第三方组件、字体、上游基线与依赖校验记录均保留在 [third_party](third_party/README.md) 与 [依赖清单](third_party/manifests/go-mod.json)。
+[ArcMD](https://github.com/Ciao1019/ArcMD) · [MIT 许可证](LICENSE) · [第三方鸣谢](third_party/README.md)

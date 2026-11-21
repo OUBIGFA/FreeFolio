@@ -17,50 +17,62 @@
 
 ---
 
-## Overview
+## Preview
 
-**FreeMD** is an active fork and deep customization of [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD) (MIT License, baseline commit `27322d387268751932624ef83a7c580cb0b068d5` / `v0.2.1`), focused on native performance tuning, tailored workflows, and iterative feature improvements.
+[![Home view with a book club note, a task list, and a schedule](assets/FreeMD-home.png)](assets/FreeMD-home.png)
 
-It builds on the pure Go + [MyGo](https://github.com/egoist/mygo) native UI stack with in-place `.md` storage and zero HTML, WebView, Electron, or cgo dependencies.
+<p align="center">
+  <a href="assets/FreeMD-settings.png"><img src="assets/FreeMD-settings.png" width="48%" alt="Settings for language, file list position, and fonts"></a>
+  <a href="assets/FreeMD-whiteboard.png"><img src="assets/FreeMD-whiteboard.png" width="48%" alt="Whiteboard with sticky notes and arrows for a book club plan"></a>
+</p>
 
-Spaces support dedicated attachment folders with automatic relinking and sidebar
-multi-selection for batch organization. Documents offer navigable mind maps and
-hierarchical Select All. Optional WebDAV/S3 synchronization supports selected
-spaces, manual and scheduled runs, conflict copies and content encryption; it is
-disabled by default.
+[Home](assets/FreeMD-home.png) · [Settings](assets/FreeMD-settings.png) · [Whiteboard](assets/FreeMD-whiteboard.png)
 
-## Running and Verification
+## About FreeMD
 
-### Repository Hygiene Checks
+FreeMD is an app for notes and drawings. It saves your notes in folders on your
+computer. You can write notes without an internet connection.
 
-```sh
-python -X utf8 tools/check_repo.py
-python -X utf8 -m unittest discover -s tests/repository -v
-```
+## What you can do
 
-### Build and Test
+- **Write notes.** Add pictures, tables, and lists of tasks to your class notes
+  or meeting notes.
+- **Find notes.** Use different folders for work notes and personal notes.
+  Enter words from a note in the search box.
+- **Find a section in a long note.** Use a diagram to see the headings and
+  lists in a note. Select an item in the diagram to go to that part of the note.
+- **Make drawings on a whiteboard.** Write ideas on sticky notes. Use shapes
+  and arrows to show the steps in a plan.
+- **Share notes.** Save a note as a PDF. You can send or print this file.
 
-```sh
-CGO_ENABLED=0 go run ./cmd/freemd
-CGO_ENABLED=0 go test ./internal/document
-```
+## Download and start
 
-Use an isolated development home directory so personal spaces are untouched:
+### Install FreeMD
 
-```sh
-FREEMD_HOME=/tmp/freemd-dev CGO_ENABLED=0 go run ./cmd/freemd
-```
+1. Open the [FreeMD download page](https://github.com/OUBIGFA/FreeMD/releases).
+2. Download the installation file for your computer.
+3. Open the downloaded file.
+4. Follow the instructions on the screen to install FreeMD.
 
-## Documentation and Boundaries
+### Create or open a note
 
-- [Architecture Guide](docs/architecture.md)
-- [Cloud Sync, Conflicts and Recovery](docs/cloud-sync.md)
-- [Plugins and Marketplace Draft](docs/plugins.md)
-- [Repository Boundaries](references/repository-boundaries.md)
-- [Third-Party Attribution and Manifests](third_party/README.md)
+Open FreeMD.
 
-## License
+- For a new note, select **+** above the list of files.
+- To open a note, select the folder icon below the list of files. Select a
+  file with a name that ends in **.md**.
 
-FreeMD follows the upstream [MIT License](LICENSE). Third-party attributions, upstream source records, and Go dependency inventories live in [third_party](third_party/README.md) and [go-mod.json](third_party/manifests/go-mod.json).
+## Options
 
-Loose Markdown files open in the same window, with in-place editing and Save As. Their paths stay in memory until the file session ends.
+- **Use OneBot for help with your notes.** Add your AI service in **Settings**.
+  You can ask OneBot questions about your notes. You can also ask OneBot to
+  change text. You can see the changes before you accept them.
+- **Use the same notes on more than one computer.** Connect to an online
+  storage service that FreeMD supports. Select the folders to use on each
+  computer. This option is off when you first use FreeMD.
+
+## Sources and license
+
+FreeMD uses ArcMD as its base. FreeMD uses the MIT License.
+
+[ArcMD](https://github.com/Ciao1019/ArcMD) · [MIT License](LICENSE) · [Third-party credits](third_party/README.md)

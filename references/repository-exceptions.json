@@ -9,6 +9,30 @@
       "sha256": "77603f1cf7dc46f74d4fe6f231aa0b3bc6bae45dbfb141c51641814752c85fad"
     },
     {
+      "path": "assets/FreeMD-home.png",
+      "reason": "README preview of the FreeMD writing view",
+      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "license": "MIT",
+      "bytes": 74013,
+      "sha256": "da49ebf99d522b037daf0efa8d13ffe6a62fe43eaf2a89b65ac5a7bfba6e7dfe"
+    },
+    {
+      "path": "assets/FreeMD-settings.png",
+      "reason": "README preview of the FreeMD appearance settings",
+      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "license": "MIT",
+      "bytes": 77338,
+      "sha256": "88bab190b87a23f4ac4c574dd375a0c9fa100acdd1fdc295c3b2dc8ade3e3dcd"
+    },
+    {
+      "path": "assets/FreeMD-whiteboard.png",
+      "reason": "README preview of the FreeMD whiteboard",
+      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "license": "MIT",
+      "bytes": 97353,
+      "sha256": "68fee49c307e84bacf1eafdcb7cb08355175931ef76979f762d3dff8ba005c7d"
+    },
+    {
       "path": "resources/icon.icns",
       "reason": "macOS app bundle icon referenced by mygo.json",
       "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
