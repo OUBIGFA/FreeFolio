@@ -34,7 +34,7 @@ import (
 )
 
 // Version is FreeMD's version, which plugins' engines are checked against.
-const Version = "0.0.1"
+const Version = "0.1.0"
 
 // Config says where FreeMD keeps its files.
 type Config struct {

@@ -1,5 +1,17 @@
 # Changelog
 
+## FreeMD 0.1.0
+
+FreeMD's first public release: a local-first native Markdown editor based on ArcMD, built with Go and MyGo.
+
+- Open Markdown files outside a space in separate tabs, save edits in place or save a copy, and keep file browsing limited to the files explicitly opened.
+- Create native whiteboards from the home page or title bar, organize ideas with notes, shapes and arrows, and open whiteboards in split panes.
+- Ask OneBot about notes and review suggested edits. Quote selected text into the conversation, configure multiple providers and API keys, and distinguish models by provider name.
+- Enable WebDAV or S3 synchronization for selected spaces, with conflict copies, recovery backups and optional content encryption. Synchronization remains off by default.
+- Reduce file-system work during startup and drawing, build sidebar rows near the viewport, improve SVG images and README badges, and keep long code blocks' Collapse button visible.
+- Continue to support native Markdown and legacy `.arcmd` documents. Current formats are document 11, spaces configuration 14 and preferences 11. Back up notes and configuration before upgrading.
+- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.0-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+
 ## FreeMD 0.0.1
 
 - Add per-space attachment folders with guarded relinking, sidebar multi-selection and batch actions, a navigable native document mind map, and hierarchical Select All.
