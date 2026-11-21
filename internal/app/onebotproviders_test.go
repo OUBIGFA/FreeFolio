@@ -45,7 +45,7 @@ func TestOneBotProvidersKeepKeysAndModelChoicesSeparate(t *testing.T) {
 	if err != nil || strings.Contains(string(raw), "-key") {
 		t.Fatal("credentials escaped into preferences")
 	}
-	a.removeAIKey()
+	a.removeAIKey("second-key")
 	if s := a.qaSettings(); s.APIKey != "" {
 		t.Fatal("removed key is still in use")
 	}
@@ -117,8 +117,67 @@ func TestOneBotSecretFailureDoesNotDiscardInputOrSavedKey(t *testing.T) {
 	if err := a.saveAIKey(); err == nil || a.qa.keyInput != "new" || a.qaSettings().APIKey != "saved" {
 		t.Fatal("failed save lost credential state")
 	}
-	a.removeAIKey()
+	a.removeAIKey("saved")
 	if a.qaSettings().APIKey != "saved" {
 		t.Fatal("failed removal lost saved key")
+	}
+}
+
+// A connection keeps several keys: pasted together or added later, without
+// duplicates, each removable on its own. Version 1 keyrings read as lists.
+func TestOneBotMultipleKeysAndVersion1Keyring(t *testing.T) {
+	a, _ := newTestApp(t)
+	setupOneBot(a, "")
+	secrets := memSecrets{}
+	secrets.Set(apiKeySecret, []byte(`{"version":1,"keys":{"test":"old-key","other":"kept"}}`))
+	a.qa.secrets = secrets
+	a.qa.keyRead = false
+	if s := a.qaSettings(); s.APIKey != "old-key" || len(s.APIKeys) != 1 {
+		t.Fatalf("version 1 key: %+v", s)
+	}
+	a.qa.keyInput = "k-two, k-three\nold-key"
+	if err := a.saveAIKey(); err != nil {
+		t.Fatal(err)
+	}
+	s := a.qaSettings()
+	if strings.Join(s.APIKeys, " ") != "old-key k-two k-three" || s.APIKey != "old-key" {
+		t.Fatalf("keys: %v", s.APIKeys)
+	}
+	a.removeAIKey("k-two")
+	a.qa.keyRead = false
+	if got := strings.Join(a.qaSettings().APIKeys, " "); got != "old-key k-three" {
+		t.Fatalf("after removal: %s", got)
+	}
+	keys, err := a.readAIKeys()
+	if err != nil || keys.Version != 2 || strings.Join(keys.Keys["other"], "") != "kept" {
+		t.Fatalf("keyring: %+v %v", keys, err)
+	}
+}
+
+// The settings show a saved key masked, in full on request, and offer the
+// strategy once there are two keys.
+func TestOneBotSettingsRevealKeyAndChooseStrategy(t *testing.T) {
+	a, tt := newTestApp(t)
+	setupOneBot(a, "sk-first-secret-1234")
+	a.openSettings(tabAI)
+	tt.Frame()
+	if tt.HasText("sk-first-secret-1234") || !tt.HasText(maskAPIKey("sk-first-secret-1234")) {
+		t.Fatal("saved key must start masked")
+	}
+	if tt.HasText("多 Key 策略") {
+		t.Fatal("one key needs no strategy")
+	}
+	if err := tt.Click("显示 API Key"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("sk-first-secret-1234") {
+		t.Fatal("key not shown again")
+	}
+	a.qa.keyInput = "sk-second-secret-5678"
+	a.saveAIKey()
+	tt.Frame()
+	if !tt.HasText("多 Key 策略") || !tt.HasText(maskAPIKey("sk-second-secret-5678")) {
+		t.Fatal("second key or strategy missing", tt.Texts())
 	}
 }

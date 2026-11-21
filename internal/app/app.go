@@ -551,6 +551,10 @@ func (a *App) Run() error {
 		a.win.OnClose(func(event *mygo.CloseEvent) {
 			a.finishLaunch()
 			if !a.flush() {
+				// The window stays: an empty file browser shows again.
+				if a.files != nil {
+					a.files.closing = false
+				}
 				event.PreventDefault()
 				return
 			}

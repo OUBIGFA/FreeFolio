@@ -69,8 +69,10 @@ type qaState struct {
 	dragWidth float32
 
 	secrets secretStore
-	// key is the API key read from the store, keyRead once it was asked.
-	key             string
+	// keys are the connection's API keys read from the store, keyRead once
+	// they were asked; keyShown are those the settings show in full.
+	keys            []string
+	keyShown        map[string]bool
 	keyRead         bool
 	keyID           string
 	manualName      string
@@ -80,7 +82,7 @@ type qaState struct {
 	modelsCancel    context.CancelFunc
 	catalogErr      error
 	keyErr          error
-	// keyInput is the settings' field; a saved key is never shown.
+	// keyInput is the settings' field for adding keys.
 	keyInput string
 
 	// models are the service's models, listed for modelsFor (its address

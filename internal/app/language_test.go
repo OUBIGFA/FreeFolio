@@ -10,7 +10,9 @@ import (
 func TestEnglishInterface(t *testing.T) {
 	a, tt := newTestApp(t)
 	t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
-	tt.Frame()
+	// Wide enough for the sidebar's separate New Document button.
+	a.prefs.SidebarWidth = 320
+	settle(tt)
 	if !tt.HasText("新建文档") {
 		t.Fatal("Chinese by default")
 	}

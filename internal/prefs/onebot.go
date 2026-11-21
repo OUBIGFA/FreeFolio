@@ -25,6 +25,9 @@ type AIConnection struct {
 	Model      string            `json:"model,omitempty"`
 	Models     []agent.ModelInfo `json:"models,omitempty"`
 	Parameters agent.Parameters  `json:"parameters,omitempty"`
+	// KeyStrategy picks among several API keys: agent.KeyRoundRobin,
+	// agent.KeyRandom or agent.KeyFailover. The keys are credentials.
+	KeyStrategy string `json:"keyStrategy,omitempty"`
 }
 
 func (a *AI) Current() *AIConnection { return a.Find(a.Active) }

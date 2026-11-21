@@ -1248,15 +1248,12 @@ func (a *App) spaceBarGlyph(c *ui.Context, emoji, symbol, image, name string, on
 	}
 }
 
-// newDocRow is the dashed slot right of the search making a document at
-// the root.
+// newDocRow is the dashed slot right of the search that starts a page at
+// the root. A wide sidebar shows two buttons in it, a document and a
+// whiteboard, each icon carrying a plus; a narrow one has room for a single
+// "+" whose menu offers both. Spaces of outside files only open files.
 func (a *App) newDocRow(c *ui.Context) {
 	t := c.Theme()
-	label, tip := i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc")
-	open := a.state.ActiveSpace().IsExternal()
-	if open {
-		label, tip = i18n.T("打开文件…"), i18n.T("只添加选中的文件，保留原位置")
-	}
 	pulsing := false
 	if !a.newDocPulse.IsZero() {
 		const pulseDur = 260 * time.Millisecond
@@ -1267,34 +1264,81 @@ func (a *App) newDocRow(c *ui.Context) {
 			a.newDocPulse = time.Time{}
 		}
 	}
-	// Match the exact 32-DIP height of the search field beside it.
-	row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(9).Gap(5).Radius(controlRadius).Center().
-		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip).
-		Background(ui.Transparent)
-	lit := row.Animate("lit", b2f(row.Hovered() || pulsing), 180*time.Millisecond)
-	fill, border := dashedSlotColors(t, lit)
-	row.Draw(func(p *ui.Painter, r ui.Rect) {
-		fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 0.5, W: max(0, r.W-1), H: max(0, r.H-1)}
-		if fill.A > 0 {
-			p.Fill(fr, fill, controlRadius)
-		}
-		p.StrokeDashed(fr, border, controlRadius, 1)
-	})
-	alpha := 0.75 + 0.20*lit
-	row.Children(func() {
-		ui.Icon(c, iconPlus).FontSize(14).TextColor(t.Text.Alpha(alpha))
-		if a.sidebarW() >= 400 {
-			ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()
-		}
-	})
-	if row.Clicked() {
-		if open {
-			a.chooseExternalFiles()
-		} else {
-			a.newDocPulse = c.Now()
-			a.newDoc("")
-		}
+	newDoc := func() {
+		a.newDocPulse = c.Now()
+		a.newDoc("")
 	}
+	// Match the exact 32-DIP height of the search field beside it.
+	slot := func(row ui.Element) float32 {
+		lit := row.Animate("lit", b2f(row.Hovered() || pulsing), 180*time.Millisecond)
+		fill, border := dashedSlotColors(t, lit)
+		row.Draw(func(p *ui.Painter, r ui.Rect) {
+			fr := ui.Rect{X: r.X + 0.5, Y: r.Y + 0.5, W: max(0, r.W-1), H: max(0, r.H-1)}
+			if fill.A > 0 {
+				p.Fill(fr, fill, controlRadius)
+			}
+			p.StrokeDashed(fr, border, controlRadius, 1)
+		})
+		return 0.75 + 0.20*lit
+	}
+	if a.state.ActiveSpace().IsExternal() {
+		label := i18n.T("打开文件…")
+		row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(9).Gap(5).Radius(controlRadius).Center().
+			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(i18n.T("只添加选中的文件，保留原位置"))
+		alpha := slot(row)
+		row.Children(func() {
+			ui.Icon(c, iconPlus).FontSize(14).TextColor(t.Text.Alpha(alpha))
+			if a.sidebarW() >= 400 {
+				ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()
+			}
+		})
+		if row.Clicked() {
+			a.chooseExternalFiles()
+		}
+		return
+	}
+	if a.sidebarW() < 300 {
+		label := i18n.T("新建")
+		row := ui.Row(c.Key("new-menu")).Size(32, 32).Shrink(0).Radius(controlRadius).Center().
+			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleMenuButton).Label(label).Tooltip(i18n.T("新建文档或白板"))
+		alpha := slot(row)
+		row.Children(func() { ui.Icon(c, iconPlus).FontSize(14).TextColor(t.Text.Alpha(alpha)) })
+		row.PopoverMenuButton(func(m *ui.Menu) {
+			if m.Item(i18n.T("新建文档")).Shortcut(ui.Cmd, ui.KeyN).Chosen() {
+				newDoc()
+			}
+			if m.Item(i18n.T("新建白板")).Shortcut(ui.Cmd|ui.Alt, ui.KeyB).Chosen() {
+				a.newWhiteboard("")
+			}
+		})
+		return
+	}
+	row := ui.Row(c.Key("new-row")).Height(32).Shrink(0).Radius(controlRadius).AlignItems(ui.Center)
+	alpha := slot(row)
+	wide := a.sidebarW() >= 400
+	part := func(key string, icon *ui.SVG, label, tip, short string) ui.Element {
+		b := ui.Row(c.Key(key)).Height(32).MinWidth(30).PaddingX(8).Gap(5).Radius(controlRadius).Center().
+			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip)
+		if b.Hovered() {
+			b.Background(t.Text.Alpha(0.06))
+		}
+		b.Children(func() {
+			ui.Icon(c, icon).FontSize(15).TextColor(t.Text.Alpha(alpha))
+			if wide {
+				ui.Text(c, short).FontSize(13).FontWeight(500).TextColor(t.Text.Alpha(alpha)).NoWrap()
+			}
+		})
+		return b
+	}
+	row.Children(func() {
+		if part("new-doc-row", iconFilePlus, i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc"), i18n.T("文档")).Clicked() {
+			newDoc()
+		}
+		ui.Box(c).Size(1, 14).Background(separator(t)).Shrink(0)
+		if part("new-board-row", iconBoardPlus, i18n.T("新建白板"), a.withKey(i18n.T("新建白板"), "new-board"), i18n.T("白板")).Clicked() {
+			a.newWhiteboard("")
+		}
+	})
 }
 
 // sortNames name the ways a folder sorts, as its menu offers them.

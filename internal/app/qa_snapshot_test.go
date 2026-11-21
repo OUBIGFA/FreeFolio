@@ -172,7 +172,7 @@ func TestQASnapshot(t *testing.T) {
 				a.openSettings(tabAI)
 			case "settings-empty":
 				a.prefs.AI = prefs.AI{}
-				a.qa.key = ""
+				a.qa.keys = nil
 				a.openSettings(tabAI)
 			case "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en":
 				setupOneBot(a, "sk-test")

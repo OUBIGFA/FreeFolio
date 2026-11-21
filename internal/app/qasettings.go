@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
@@ -97,24 +98,68 @@ func (a *App) settingsAI(c *ui.Context) {
 		settingsSeparator(c)
 		formRow("key", "API Key", func() {
 			a.qaSettings()
-			if a.qa.key != "" {
-				ui.Row(c).Grow(1).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(7, 7).Radius(3.5).Background(t.Success).Shrink(0)
-					ui.Text(c, i18n.T("已保存")+" ••••"+lastRunes(a.qa.key, 4)).FontSize(13).TextColor(t.TextMuted).SingleLine()
-				})
-				if ui.Button(c.Key("remove"), i18n.T("移除")).Clicked() {
-					a.removeAIKey()
-				}
-			} else {
-				in := ui.TextInput(c.Key("field"), &a.qa.keyInput).Password().Grow(1).Placeholder(i18n.T("本机服务可以不填")).Label(i18n.T("粘贴 API Key"))
-				if in.Submitted() {
-					a.saveAIKey()
-				}
-				if ui.Button(c.Key("save"), i18n.T("保存")).Disabled(strings.TrimSpace(a.qa.keyInput) == "").Clicked() {
-					a.saveAIKey()
-				}
+			placeholder := i18n.T("粘贴 API Key，多个用逗号或换行分隔")
+			if agent.IsLocal(conn.BaseURL) {
+				placeholder = i18n.T("本机服务可以不填")
+			}
+			in := ui.TextInput(c.Key("field"), &a.qa.keyInput).Password().Grow(1).Placeholder(placeholder).Label(i18n.T("粘贴 API Key"))
+			if in.Submitted() {
+				a.saveAIKey()
+			}
+			if ui.Button(c.Key("save"), i18n.T("添加")).Disabled(strings.TrimSpace(a.qa.keyInput) == "").Clicked() {
+				a.saveAIKey()
 			}
 		})
+		// Saved keys show masked; each can be shown in full again, copied or
+		// removed. The settings keep them in memory only while open.
+		for i, key := range a.qa.keys {
+			settingsSeparator(c)
+			formRow(fmt.Sprintf("key-%d", i), fmt.Sprintf(i18n.T("Key %d"), i+1), func() {
+				shown := a.qa.keyShown[key]
+				text := maskAPIKey(key)
+				if shown {
+					text = key
+				}
+				ui.Text(c, text).FontSize(13).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+				eye, tip := iconEye, i18n.T("显示 API Key")
+				if shown {
+					eye, tip = iconEyeOff, i18n.T("隐藏 API Key")
+				}
+				if iconButton(c, "show", eye, tip, tip, false).Shrink(0).Clicked() {
+					if a.qa.keyShown == nil {
+						a.qa.keyShown = map[string]bool{}
+					}
+					a.qa.keyShown[key] = !shown
+				}
+				if iconButton(c, "copy", iconCopy, i18n.T("复制 API Key"), i18n.T("复制 API Key"), false).Shrink(0).Clicked() {
+					c.WriteClipboard(key)
+					c.Toast(i18n.T("已复制 API Key"))
+				}
+				if iconButton(c, "remove", iconTrash, i18n.T("移除 API Key"), i18n.T("移除 API Key"), false).Shrink(0).Clicked() {
+					a.removeAIKey(key)
+				}
+			})
+		}
+		if len(a.qa.keys) > 1 {
+			settingsSeparator(c)
+			formRow("key-strategy", "多 Key 策略", func() {
+				strategies := []string{agent.KeyRoundRobin, agent.KeyRandom, agent.KeyFailover}
+				labels := []string{i18n.T("轮询"), i18n.T("随机"), i18n.T("故障转移")}
+				current := labels[max(0, slices.Index(strategies, conn.KeyStrategy))]
+				ui.Select(c.Key("field"), &current, labels).Grow(1).Label(i18n.T("多 Key 策略"))
+				if i := slices.Index(labels, current); i >= 0 && strategies[i] != conn.KeyStrategy {
+					conn.KeyStrategy = strategies[i]
+					a.savePrefs()
+				}
+			})
+			note := map[string]string{
+				agent.KeyRoundRobin: "按顺序轮流使用每个 Key，分摊请求。",
+				agent.KeyRandom:     "每次请求随机选用一个 Key。",
+				agent.KeyFailover:   "总是先用第一个 Key，失败时再依次换用后面的 Key。",
+			}[conn.KeyStrategy]
+			ui.Text(c, i18n.T(note)+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试。")).
+				FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 10, 16)
+		}
 		if a.qa.keyErr != nil {
 			ui.Text(c, i18n.T("无法读取 API Key：")+a.qa.keyErr.Error()).FontSize(12).TextColor(t.Danger).Padding(0, 16, 10, 16)
 		}
@@ -377,6 +422,16 @@ func (a *App) modelCapabilitiesView(c *ui.Context, m *agent.ModelInfo) {
 		}
 	})
 }
+
+// maskAPIKey hides all of a key but enough of its ends to tell keys apart.
+func maskAPIKey(key string) string {
+	r := []rune(key)
+	if len(r) <= 10 {
+		return "••••" + lastRunes(key, 2)
+	}
+	return string(r[:3]) + "••••••" + lastRunes(key, 4)
+}
+
 func lastRunes(s string, n int) string { r := []rune(s); return string(r[max(0, len(r)-n):]) }
 func (a *App) modelsNote() string {
 	if a.qa.modelsBusy {

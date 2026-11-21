@@ -1,6 +1,7 @@
 package prefs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil || !q.Typewriter || q.Keys["palette"] != "Cmd+J" || !q.TourSeen {
 		t.Fatalf("loaded %+v %v", q, err)
 	}
-	os.WriteFile(s.Path, []byte(`{"version": 10}`), 0o644)
+	os.WriteFile(s.Path, []byte(fmt.Sprintf(`{"version": %d}`, CurrentVersion+1)), 0o644)
 	if _, err := s.Load(); err == nil {
 		t.Error("newer version accepted")
 	}
@@ -114,5 +115,25 @@ func TestFilesPrefsMigrateAndRoundTrip(t *testing.T) {
 	again, err := store.Load()
 	if err != nil || again.Files != p.Files {
 		t.Fatalf("file browser choices: %+v, %v", again, err)
+	}
+}
+
+func TestKeyStrategyMigratesAndRoundTrips(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	old := `{"version":9,"ai":{"active":"a","connections":[{"id":"a","name":"A","protocol":"chat","baseURL":"https://x.example/v1"}]}}`
+	if err := os.WriteFile(store.Path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || p.AI.Current() == nil || p.AI.Current().KeyStrategy != "" {
+		t.Fatalf("version 9 migrated: %+v, %v", p, err)
+	}
+	p.AI.Current().KeyStrategy = "failover"
+	if err := store.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Load()
+	if err != nil || again.AI.Current().KeyStrategy != "failover" {
+		t.Fatalf("key strategy round-trip: %+v, %v", again, err)
 	}
 }

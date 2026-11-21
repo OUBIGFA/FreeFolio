@@ -221,17 +221,31 @@ func makeOneBotTarget(d *document, target model.EditTarget) oneBotTarget {
 	return captured
 }
 
-func (a *App) beginOneBotEdit(scope string) {
+func (a *App) beginOneBotEdit(scope string) bool {
 	t, err := a.captureOneBotTask(scope)
 	if err != nil {
 		a.notify("%s", err.Error())
-		return
+		return false
 	}
 	a.qa.editTask = t
 	a.qa.editScope = scope
 	a.qa.open = true
 	a.qa.focusInput = true
 	a.qa.editMode = true
+	return true
+}
+
+// editSelectionWithOneBot opens OneBot on the editor's selection. A preset
+// instruction from the selection bar is sent at once, as if typed, so the
+// candidate edits the captured selection; the user's unsent draft stays.
+func (a *App) editSelectionWithOneBot(instruction string) {
+	if !a.beginOneBotEdit("selection") || instruction == "" {
+		return
+	}
+	draft := a.qa.input
+	a.qa.input = instruction
+	a.askQA()
+	a.qa.input = draft
 }
 
 func (a *App) oneBotTargetDoc(task *oneBotTask, target *oneBotTarget) (*document, error) {

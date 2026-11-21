@@ -56,12 +56,16 @@ func PresetOf(id string) Preset {
 // Settings are what is needed to ask a model.
 type Settings struct {
 	BaseURL, Model, APIKey string
-	ConnectionID           string
-	Protocol               string
-	Vendor                 string
-	Parameters             Parameters
-	Capabilities           Capabilities
-	Client                 *http.Client
+	// APIKeys are all of the connection's keys, APIKey being the first; with
+	// more than one, KeyStrategy picks the key of each request.
+	APIKeys      []string
+	KeyStrategy  string
+	ConnectionID string
+	Protocol     string
+	Vendor       string
+	Parameters   Parameters
+	Capabilities Capabilities
+	Client       *http.Client
 }
 
 // Errors of settings that cannot be used.

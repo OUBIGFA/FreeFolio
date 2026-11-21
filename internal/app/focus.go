@@ -154,7 +154,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		CreateWhiteboard: func() { a.insertWhiteboard(d) },
 		OpenWhiteboard:   func(url string) { a.openBoardEmbed(d, url) },
 		BoardOptions:     a.boardOptions(c, d),
-		EditWithAI:       func() { run(func() { a.beginOneBotEdit("selection") }) },
+		EditWithAI:       func(instruction string) { run(func() { a.editSelectionWithOneBot(instruction) }) },
 		FontSize:         a.prefs.ReadingSize(),
 		LineHeight:       a.prefs.ReadingLine(),
 		FontFamily:       a.prefs.BodyFamily(),

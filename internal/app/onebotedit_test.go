@@ -356,3 +356,45 @@ func TestOneBotNewDocumentUsesExclusiveCreation(t *testing.T) {
 func selectionFileDraft(task *oneBotTask, after string) agent.FileDraft {
 	return agent.FileDraft{Changes: []agent.FileChange{{Path: task.Targets[0].Path, Before: task.Targets[0].Markdown, After: after}}}
 }
+
+// The selection bar's OneBot menu runs a preset on exactly the selected
+// text: the instruction reaches the model and the edit lands in place.
+func TestSelectionBarOneBotPresetEditsSelection(t *testing.T) {
+	a, tt := newTestApp(t)
+	setupOneBot(a, "key")
+	a.prefs.AI.Direct = true
+	a.qa.sync = true
+	editTestTask(t, a)
+	var prompt string
+	a.qa.provider = func(agent.Settings) agent.Provider {
+		return oneBotProviderFunc(func(ctx context.Context, r agent.Request, delta func(agent.Delta)) (agent.Response, error) {
+			if len(r.Messages) == 1 {
+				prompt = r.Messages[0].Text
+				data, _ := json.Marshal(map[string]string{"path": a.doc.rel, "oldString": "hello", "newString": "hi"})
+				return agent.Response{Message: agent.Message{Calls: []agent.ToolCall{{ID: "edit", Name: "edit", Args: string(data)}}}, FinishReason: "tool_calls"}, nil
+			}
+			return agent.Response{Message: agent.Message{Text: "done"}, FinishReason: "stop"}, nil
+		})
+	}
+	a.qa.input = "unsent draft"
+	a.doc.ed.RequestFocus = true
+	tt.Frame()
+	a.doc.ed.SetSelection(0, 5)
+	tt.Frame()
+	if err := tt.Click("OneBot 修改选区"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("润色"); err != nil {
+		t.Fatal(err, tt.Menu())
+	}
+	tt.Frame()
+	if !strings.Contains(prompt, "润色选中内容") {
+		t.Fatalf("preset instruction missing from prompt: %q", prompt)
+	}
+	if got := a.doc.ed.Doc.PlainText(); got != "hi world\nkeep this" {
+		t.Fatalf("selection edit: %q", got)
+	}
+	if !a.qa.open || a.qa.editScope != "selection" || a.qa.input != "unsent draft" {
+		t.Fatalf("OneBot state: open=%v scope=%q input=%q", a.qa.open, a.qa.editScope, a.qa.input)
+	}
+}

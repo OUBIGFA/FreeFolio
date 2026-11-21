@@ -22,7 +22,9 @@ import (
 // Version 7 replaces legacy AI preferences with OneBot connections.
 // Version 8 adds OneBotWidth; zero keeps the standard panel width.
 // Version 9 adds GrayFolderIcons; zero keeps the space accent color.
-const CurrentVersion = 9
+// Version 10 adds each OneBot connection's KeyStrategy; empty is round
+// robin, which a single key never notices, so version 9 migrates unchanged.
+const CurrentVersion = 10
 
 // Prefs are the preferences.
 type Prefs struct {

@@ -211,7 +211,7 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 // Compact controls must remain usable at the minimum width on either side.
 func TestSidebarActionRowFitsAtEveryWidth(t *testing.T) {
 	t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
-	for _, width := range []float32{sidebarMin, sidebarWidth, sidebarMax} {
+	for _, width := range []float32{sidebarMin, sidebarWidth, 300, sidebarMax} {
 		for _, left := range []bool{true, false} {
 			for _, language := range []string{"zh-Hans", "en"} {
 				a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
@@ -224,7 +224,13 @@ func TestSidebarActionRowFitsAtEveryWidth(t *testing.T) {
 					start = 0
 				}
 				last, center := start, float32(0)
-				for _, label := range []string{"后退", "前进", "重新载入", "搜索或打开文档", "新建文档", "排序方式"} {
+				// A narrow sidebar merges New Document and New Whiteboard
+				// into one "新建" menu button.
+				labels := []string{"后退", "前进", "重新载入", "搜索或打开文档", "新建文档", "新建白板", "排序方式"}
+				if width < 300 {
+					labels = []string{"后退", "前进", "重新载入", "搜索或打开文档", "新建", "排序方式"}
+				}
+				for _, label := range labels {
 					r, ok := tt.Find(i18n.T(label))
 					if !ok || r.W < 28 || r.H < 28 || r.X < last || r.X+r.W > start+width {
 						t.Fatalf("width=%g left=%v: %s is clipped or overlaps: %+v (previous right=%g)", width, left, label, r, last)

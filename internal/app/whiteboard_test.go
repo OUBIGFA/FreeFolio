@@ -210,12 +210,20 @@ func TestHomeNewWhiteboardButton(t *testing.T) {
 	}
 }
 
-// The title bar starts a whiteboard while a document shows.
-func TestTitleBarNewWhiteboardButton(t *testing.T) {
+// The sidebar's New slot starts a document or a whiteboard. Wide, each has
+// its own button; narrow, one "新建" menu offers both. The title bar has
+// no whiteboard button any more.
+func TestSidebarNewDocumentAndWhiteboard(t *testing.T) {
 	a, tt := newTestApp(t)
-	tt.Frame()
+	a.prefs.SidebarWidth = 320
+	settle(tt)
 	if a.doc == nil {
 		t.Fatal("the test needs an open document, so the home page is hidden")
+	}
+	r, ok := tt.Find("新建白板")
+	search, _ := tt.Find("搜索或打开文档")
+	if !ok || r.Y != search.Y || r.X < search.X+search.W {
+		t.Fatalf("whiteboard button %+v must sit in the sidebar row right of the search %+v", r, search)
 	}
 	before := a.doc.rel
 	if err := tt.Click("新建白板"); err != nil {
@@ -223,6 +231,30 @@ func TestTitleBarNewWhiteboardButton(t *testing.T) {
 	}
 	tt.Frame()
 	if a.doc == nil || a.doc.board == nil || !vault.IsWhiteboard(a.doc.rel) || a.doc.rel == before {
-		t.Fatal("title bar whiteboard button did not open a new whiteboard")
+		t.Fatal("sidebar whiteboard button did not open a new whiteboard")
+	}
+	if err := tt.Click("新建文档"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc == nil || a.doc.board != nil || !vault.IsMarkdown(a.doc.rel) {
+		t.Fatal("sidebar document button did not open a new document")
+	}
+
+	a.prefs.SidebarWidth = sidebarWidth
+	settle(tt)
+	if tt.HasText("新建白板") {
+		t.Fatal("a narrow sidebar or the title bar still shows a separate whiteboard button")
+	}
+	if err := tt.Click("新建"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("新建白板"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc == nil || a.doc.board == nil {
+		t.Fatal("the New menu did not open a new whiteboard")
 	}
 }

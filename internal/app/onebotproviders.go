@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
 	model "github.com/OUBIGFA/FreeMD/internal/document"
@@ -17,15 +18,17 @@ import (
 	"github.com/OUBIGFA/FreeMD/internal/prefs"
 )
 
+// aiKeyring is credentials/ai-api-key: each connection's API keys by its ID.
+// Version 1 held one key per connection; it reads as a list of one.
 type aiKeyring struct {
-	Version int               `json:"version"`
-	Keys    map[string]string `json:"keys"`
+	Version int                 `json:"version"`
+	Keys    map[string][]string `json:"keys"`
 }
 
 // Legacy plaintext credentials are deliberately not reused. A malformed new
 // keyring is an error, not permission to discard its other connections.
 func (a *App) readAIKeys() (aiKeyring, error) {
-	out := aiKeyring{Version: 1, Keys: map[string]string{}}
+	out := aiKeyring{Version: 2, Keys: map[string][]string{}}
 	if a.qa.secrets == nil {
 		return out, errors.New(i18n.T("本地凭据存储不可用"))
 	}
@@ -39,13 +42,43 @@ func (a *App) readAIKeys() (aiKeyring, error) {
 	if !strings.HasPrefix(strings.TrimSpace(string(data)), "{") {
 		return out, nil
 	}
-	if err = json.Unmarshal(data, &out); err != nil {
+	var raw struct {
+		Version int             `json:"version"`
+		Keys    json.RawMessage `json:"keys"`
+	}
+	if err = json.Unmarshal(data, &raw); err != nil {
 		return out, err
 	}
-	if out.Version != 1 || out.Keys == nil {
-		return out, errors.New(i18n.T("OneBot 凭据格式无效"))
+	invalid := errors.New(i18n.T("OneBot 凭据格式无效"))
+	switch raw.Version {
+	case 1:
+		var single map[string]string
+		if json.Unmarshal(raw.Keys, &single) != nil || single == nil {
+			return out, invalid
+		}
+		for id, key := range single {
+			out.Keys[id] = []string{key}
+		}
+	case 2:
+		if json.Unmarshal(raw.Keys, &out.Keys) != nil || out.Keys == nil {
+			return out, invalid
+		}
+	default:
+		return out, invalid
 	}
 	return out, nil
+}
+
+func (a *App) writeAIKeys(keys aiKeyring) error {
+	if len(keys.Keys) == 0 {
+		return a.qa.secrets.Delete(apiKeySecret)
+	}
+	keys.Version = 2
+	data, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	return a.qa.secrets.Set(apiKeySecret, data)
 }
 
 func (a *App) qaSettings() agent.Settings {
@@ -57,14 +90,17 @@ func (a *App) qaSettings() agent.Settings {
 	if !q.keyRead || q.keyID != c.ID {
 		q.keyRead = true
 		q.keyID = c.ID
-		q.key = ""
+		q.keys = nil
 		keys, err := a.readAIKeys()
 		q.keyErr = err
 		if err == nil {
-			q.key = keys.Keys[c.ID]
+			q.keys = keys.Keys[c.ID]
 		}
 	}
-	s := agent.Settings{ConnectionID: c.ID, BaseURL: strings.TrimSpace(c.BaseURL), Model: c.Model, APIKey: q.key, Protocol: c.Protocol, Vendor: c.Vendor, Parameters: c.Parameters}
+	s := agent.Settings{ConnectionID: c.ID, BaseURL: strings.TrimSpace(c.BaseURL), Model: c.Model, APIKeys: slices.Clone(q.keys), KeyStrategy: c.KeyStrategy, Protocol: c.Protocol, Vendor: c.Vendor, Parameters: c.Parameters}
+	if len(q.keys) > 0 {
+		s.APIKey = q.keys[0]
+	}
 	if c.Parameters.Temperature != nil {
 		value := *c.Parameters.Temperature
 		s.Parameters.Temperature = &value
@@ -80,9 +116,17 @@ func (a *App) qaSettings() agent.Settings {
 	return s
 }
 
+// splitAPIKeys reads the keys pasted into the field: one or several,
+// separated by commas, spaces or lines, as gateways list them.
+func splitAPIKeys(text string) []string {
+	return strings.FieldsFunc(text, func(r rune) bool { return r == ',' || r == '，' || r == ';' || unicode.IsSpace(r) })
+}
+
+// saveAIKey adds the field's keys to the connection's, skipping any it
+// already has.
 func (a *App) saveAIKey() error {
-	value := strings.TrimSpace(a.qa.keyInput)
-	if value == "" {
+	added := splitAPIKeys(a.qa.keyInput)
+	if len(added) == 0 {
 		return nil
 	}
 	c := a.prefs.AI.Current()
@@ -90,19 +134,22 @@ func (a *App) saveAIKey() error {
 		return errors.New(i18n.T("请先添加供应商"))
 	}
 	keys, err := a.readAIKeys()
+	var list []string
 	if err == nil {
-		keys.Keys[c.ID] = value
-		var data []byte
-		data, err = json.Marshal(keys)
-		if err == nil {
-			err = a.qa.secrets.Set(apiKeySecret, data)
+		list = keys.Keys[c.ID]
+		for _, key := range added {
+			if !slices.Contains(list, key) {
+				list = append(list, key)
+			}
 		}
+		keys.Keys[c.ID] = list
+		err = a.writeAIKeys(keys)
 	}
 	if err != nil {
 		a.notify("无法保存 API Key：%s", err.Error())
 		return fmt.Errorf(i18n.T("无法保存 API Key：%s"), err.Error())
 	}
-	a.qa.key, a.qa.keyID, a.qa.keyRead, a.qa.keyErr, a.qa.keyInput = value, c.ID, true, nil, ""
+	a.qa.keys, a.qa.keyID, a.qa.keyRead, a.qa.keyErr, a.qa.keyInput = list, c.ID, true, nil, ""
 	return nil
 }
 
@@ -112,25 +159,32 @@ func (a *App) deleteAIKey(id string) error {
 		return err
 	}
 	delete(keys.Keys, id)
-	if len(keys.Keys) == 0 {
-		return a.qa.secrets.Delete(apiKeySecret)
-	}
-	data, err := json.Marshal(keys)
-	if err != nil {
-		return err
-	}
-	return a.qa.secrets.Set(apiKeySecret, data)
+	return a.writeAIKeys(keys)
 }
-func (a *App) removeAIKey() {
+
+// removeAIKey removes one key of the current connection.
+func (a *App) removeAIKey(key string) {
 	c := a.prefs.AI.Current()
 	if c == nil {
 		return
 	}
-	if err := a.deleteAIKey(c.ID); err != nil {
+	keys, err := a.readAIKeys()
+	if err == nil {
+		list := slices.DeleteFunc(slices.Clone(keys.Keys[c.ID]), func(k string) bool { return k == key })
+		if len(list) == 0 {
+			delete(keys.Keys, c.ID)
+		} else {
+			keys.Keys[c.ID] = list
+		}
+		err = a.writeAIKeys(keys)
+	}
+	if err != nil {
 		a.notify("无法移除 API Key：%s", err.Error())
 		return
 	}
-	a.qa.key, a.qa.keyRead, a.qa.keyErr = "", true, nil
+	a.qa.keyRead = false
+	delete(a.qa.keyShown, key)
+	a.qaSettings()
 }
 
 func (a *App) addAIConnection(preset string) {

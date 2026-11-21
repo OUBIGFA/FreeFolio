@@ -59,7 +59,15 @@ func (s Settings) Signature() string {
 }
 
 // NewProvider selects an actual wire adapter, not merely a different URL.
+// Several API keys share one connection through a key pool.
 func (s Settings) NewProvider() Provider {
+	if len(s.APIKeys) > 1 {
+		return &keyPool{settings: s, keys: s.keyOrder()}
+	}
+	return s.wireProvider()
+}
+
+func (s Settings) wireProvider() Provider {
 	if s.Protocol == "" || s.Protocol == Chat {
 		return s.Provider()
 	}

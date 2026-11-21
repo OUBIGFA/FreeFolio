@@ -35,6 +35,10 @@ type fileSession struct {
 	middle string
 	// revealed is the tab last scrolled into the tab strip's view.
 	revealed string
+	// closing is set once the last tab asked the window to close. Close is
+	// posted, so frames still draw until it lands; they draw nothing rather
+	// than flash the empty browser the user did not ask to keep.
+	closing bool
 }
 
 func (a *App) openLooseFile(full string) bool {
@@ -66,6 +70,7 @@ func (a *App) openLooseFile(full string) bool {
 		}
 		f.order = slices.Insert(f.order, at, name)
 	}
+	f.closing = false
 	if shown != "" {
 		f.readOnly[shown] = a.doc.ed.ReadOnly
 	}
@@ -164,6 +169,7 @@ func (a *App) closeFileTab(rel string) {
 		return
 	}
 	if !a.prefs.Files.KeepOpen && a.closeMain != nil {
+		f.closing = true
 		a.closeMain()
 	}
 }
@@ -332,6 +338,9 @@ func (a *App) fileView(c *ui.Context) {
 		}
 	}
 	ui.Column(c.Key("file-mode")).Fill().Background(t.Background).Children(func() {
+		if f.closing && len(f.order) == 0 {
+			return
+		}
 		if a.fileBar(c, f); a.files != f {
 			return
 		}

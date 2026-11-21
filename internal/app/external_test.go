@@ -149,6 +149,10 @@ func TestClosingLastTabClosesWindowNotReturns(t *testing.T) {
 	if closed != 1 || a.files == nil || a.doc != nil {
 		t.Fatal("the last tab did not close the window", closed)
 	}
+	// Close lands frames later; until then nothing unrelated may flash.
+	if tt.HasText("没有打开的文件") || tt.HasText("返回空间") {
+		t.Fatal("closing the last tab drew the empty file browser")
+	}
 	if data, err := os.ReadFile(file); err != nil || string(data) != "# Original" {
 		t.Fatal("close changed original", err)
 	}

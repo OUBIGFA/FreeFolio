@@ -166,6 +166,7 @@ func TestListDropNoop(t *testing.T) {
 func TestNewDocButtonStaysPut(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.state.Favorites = nil
+	a.prefs.SidebarWidth = 320
 	tt.Frame()
 	tt.Advance(time.Second)
 	tt.Frame()

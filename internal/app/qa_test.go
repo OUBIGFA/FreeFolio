@@ -367,11 +367,11 @@ func TestQAKeyRemovalFailureKeepsSavedKey(t *testing.T) {
 	a.qa.secrets = failingSecrets{}
 	a.openSettings(tabAI)
 	tt.Frame()
-	if err := tt.Click("移除"); err != nil {
+	if err := tt.Click("移除 API Key"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.qa.key != "sk-test-1234" || !tt.HasText("已保存 ••••1234") || !tt.HasText("无法移除 API Key：locked") {
+	if len(a.qa.keys) != 1 || a.qa.keys[0] != "sk-test-1234" || !tt.HasText(maskAPIKey("sk-test-1234")) || !tt.HasText("无法移除 API Key：locked") {
 		t.Fatalf("failed removal discarded the saved key: %q", tt.Texts())
 	}
 }

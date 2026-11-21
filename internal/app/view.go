@@ -679,13 +679,6 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		if docked < 0.5 && toolbar.LayoutBounds().W >= 440 {
 			a.historyButtons(c)
 		}
-		// New whiteboard, as ⌘⌥B: in the folder of what shows, like a new
-		// document. It sits at the start, whose side has room, so the title
-		// keeps its center over the page. Spaces of outside files hold no
-		// whiteboards; the home page, shown with no document, has its own.
-		if sp := a.state.ActiveSpace(); a.doc != nil && iconButton(c, "new-board", iconWhiteboard, i18n.T("新建白板"), a.withKey(i18n.T("新建白板"), "new-board"), sp == nil || sp.IsExternal()).Shrink(0).Clicked() {
-			a.newWhiteboard(a.currentDir())
-		}
 		ui.Box(c).Width(8)
 	}
 	actions := func() {

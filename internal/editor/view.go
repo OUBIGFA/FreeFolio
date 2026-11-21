@@ -532,7 +532,9 @@ type Options struct {
 	OpenWhiteboard   func(string)
 	BoardOptions     BoardOptions
 	// EditWithAI captures the selection before the assistant takes focus.
-	EditWithAI func()
+	// An empty instruction opens OneBot for the user to type one; a preset
+	// from the selection bar runs on the selection at once.
+	EditWithAI func(instruction string)
 	// Resizing keeps offscreen shaping cached during an interactive resize.
 	// Hosts must clear it on release; the final layout is always exact.
 	Resizing             bool
@@ -861,7 +863,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				})
 				surface.ContextMenu(func(menu *ui.Menu) {
 					if o.EditWithAI != nil && !e.ReadOnly {
-						menuAction(menu, i18n.T("用 OneBot 修改"), o.EditWithAI)
+						menuAction(menu, i18n.T("用 OneBot 修改"), func() { o.EditWithAI("") })
 						menu.Separator()
 					}
 					menuAction(menu, i18n.T("加粗"), func() { e.Wrap("**") })
@@ -904,7 +906,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 		e.findBox(c)
 	})
 	if !e.ReadOnly {
-		e.popups(c, surface)
+		e.popups(c, surface, o)
 		e.wikiMenu(c, surface)
 		e.completeMenu(c, surface)
 		e.headerPopups(c, surface)

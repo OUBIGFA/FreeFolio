@@ -660,9 +660,9 @@ func (e *Editor) copyBlockContent(id string) {
 }
 
 // selectionBar floats over selected text once the pointer lets go:
-// block type and alignment menus, the marks, the
+// OneBot's edits of the selection, block type and alignment menus, the marks, the
 // link, then the block's other actions.
-func (e *Editor) selectionBar(c *ui.Context, surface ui.Element) {
+func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 	sel := e.Selection().Range
 	if !e.focused || sel.Start == sel.End || e.dragging || e.slashOpen || e.mark != nil || e.menuOpen || e.linkOpen {
 		e.annotatePanel = false
@@ -680,6 +680,10 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element) {
 	last, _, _ := e.BoundsForRange(ui.TextInputRange{Start: sel.End, End: sel.End})
 	bounds := surface.Bounds()
 	width, height := float32(390), float32(42)
+	ai := o.EditWithAI != nil && !e.ReadOnly
+	if ai {
+		width += 52
+	}
 	windowW, windowH := c.Size()
 	x := max(8, min(bounds.X+first.X-12, windowW-width-12))
 	if first.Y == last.Y {
@@ -717,6 +721,23 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element) {
 				})
 			}
 			sep := func() { ui.Box(c).Size(1, 20).Background(c.Theme().Border) }
+			if ai {
+				// OneBot first, as the action that rewrites the selection
+				// rather than styling it. Presets run at once; the custom
+				// item opens OneBot for an instruction of the user's own.
+				drop("float:onebot", i18n.T("OneBot 修改选区"), iconSparkles, func(m *ui.Menu) {
+					if m.Item(i18n.T("自定义修改…")).Chosen() {
+						o.EditWithAI("")
+					}
+					m.Separator()
+					for _, p := range selectionAIPresets {
+						if m.Item(i18n.T(p.label)).Chosen() {
+							o.EditWithAI(i18n.T(p.instruction))
+						}
+					}
+				})
+				sep()
+			}
 			drop("float:turn", i18n.T("转换为"), kindIcon(leaf.Block), func(m *ui.Menu) {
 				for _, it := range turnItems(leaf.Block) {
 					if m.Item(it.label()).Checked(sameKind(leaf.Block, it)).Chosen() {
@@ -766,6 +787,18 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element) {
 			e.annotationPanel(c, px, py)
 		}
 	})
+}
+
+// selectionAIPresets are the selection bar's one-click OneBot edits. Each
+// instruction keeps the edit inside the selection and its Markdown, so the
+// result replaces exactly what was selected after review.
+var selectionAIPresets = []struct{ label, instruction string }{
+	{"润色", "润色选中内容：让表达更清晰流畅，保持原意、语言和 Markdown 格式。"},
+	{"修正错别字和语法", "修正选中内容中的错别字、标点和语法错误，不改变原意、语气和 Markdown 格式。"},
+	{"精简", "精简选中内容：删去冗余表达，保留全部要点和 Markdown 格式。"},
+	{"扩写", "扩写选中内容：补充细节和解释，保持原有观点、语气和 Markdown 格式。"},
+	{"翻译为中文", "将选中内容翻译为简体中文，保留 Markdown 格式。"},
+	{"翻译为英文", "将选中内容翻译为英文，保留 Markdown 格式。"},
 }
 
 // colorNames name the text colors and highlights for people.

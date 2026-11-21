@@ -431,10 +431,10 @@ func (e *Editor) watchSlash() {
 	}
 	e.slashQuery, e.slashOpen = query, true
 }
-func (e *Editor) popups(c *ui.Context, surface ui.Element) {
+func (e *Editor) popups(c *ui.Context, surface ui.Element, o Options) {
 	t := c.Theme()
 	e.slashMenu(c, surface)
-	e.selectionBar(c, surface)
+	e.selectionBar(c, surface, o)
 	e.markBar(c, surface)
 	if e.colorOpen && e.colorID != "" {
 		bounds := e.surfaceBounds(surface)

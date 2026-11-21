@@ -142,7 +142,8 @@ func TestNewestFirstReachesSubfoldersAndFollowsWrites(t *testing.T) {
 // New Document stands right of the search; the final button sorts the space.
 func TestSidebarSortButtonSortsRoot(t *testing.T) {
 	a, tt := newTestApp(t)
-	tt.Frame()
+	a.prefs.SidebarWidth = 320
+	settle(tt)
 	sp := a.state.ActiveSpace()
 	search, ok1 := tt.Find("搜索或打开文档")
 	newDoc, ok2 := tt.Find("新建文档")
