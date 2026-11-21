@@ -446,15 +446,21 @@ func drawGantt(title string, tasks []*ganttTask, lo, hi time.Time, axisFormat st
 		}
 		w := max(2, x1-x0)
 		d.Shapes = append(d.Shapes, ShapeOp{Kind: ShapeRect, Role: RoleTask, X: x0, Y: y, W: w, H: barH, Radius: 4, Tone: t.tone})
-		// The name sits in its bar when it fits, else beside it.
-		lx := x0 + (w-lw)/2
-		if lw+12 > w {
-			lx = x1 + 6
-			if lx+lw > width-pad {
-				lx = x0 - 6 - lw
+		// The name always stays inside its bar: a name too wide for the bar
+		// shrinks until it fits, keeping a small inset when the bar has room
+		// for one. Measuring is not exactly linear in size, so step down
+		// until the measured width fits.
+		size := labelPx
+		inset := min(float32(6), w*0.1)
+		if avail := w - 2*inset; lw > avail {
+			size = labelPx * avail / lw
+			lw, lh = measure(t.name, size, false)
+			for lw > avail && size > 0.01 {
+				size *= 0.95
+				lw, lh = measure(t.name, size, false)
 			}
 		}
-		d.Labels = append(d.Labels, LabelOp{Text: t.name, X: lx, Y: y + (barH-lh)/2, W: lw, H: lh, Size: labelPx, Align: -1})
+		d.Labels = append(d.Labels, LabelOp{Text: t.name, X: x0 + (w-lw)/2, Y: y + (barH-lh)/2, W: lw, H: lh, Size: size, Align: -1})
 	}
 	// Center the title over the timeline, and size the drawing.
 	if title != "" {

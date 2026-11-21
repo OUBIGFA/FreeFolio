@@ -107,3 +107,52 @@ func TestMermaidPieAndEChartsCharts(t *testing.T) {
 		t.Fatal("non-JSON option should fail")
 	}
 }
+
+// A task name too wide for its bar shrinks to fit inside the bar rather than
+// spilling beside it.
+func TestGanttNamesShrinkIntoTheirBars(t *testing.T) {
+	src := `gantt
+  title 项目开发流程
+  section 项目确定
+    需求分析       :a1, 2019-06-22, 3d
+    可行性报告     :after a1, 5d
+    概念验证       : 5d
+  section 项目实施
+    概要设计      :2019-07-05  , 5d
+    详细设计      :2019-07-08, 10d
+    编码          :2019-07-15, 10d
+    测试          :2019-07-22, 5d
+  section 发布验收
+    发布: 2d
+    验收: 3d
+    一个名字很长很长很长的任务: 1h`
+	d, err := ParseAndLayout(src, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDiagramBounds(t, d)
+	var bars []ShapeOp
+	for _, s := range d.Shapes {
+		if s.Role == RoleTask {
+			bars = append(bars, s)
+		}
+	}
+	var names []LabelOp
+	for _, lb := range d.Labels {
+		if lb.Role == 0 && !lb.Bold {
+			names = append(names, lb)
+		}
+	}
+	if len(bars) != 10 || len(names) != len(bars) {
+		t.Fatalf("got %d bars and %d names, want 10 each", len(bars), len(names))
+	}
+	for i, b := range bars {
+		lb := names[i]
+		if lb.X < b.X-0.01 || lb.X+lb.W > b.X+b.W+0.01 || lb.Y < b.Y-0.01 || lb.Y+lb.H > b.Y+b.H+0.01 {
+			t.Fatalf("name %q (%+v) spills out of its bar %+v", lb.Text, lb, b)
+		}
+	}
+	if names[0].Size >= 12 || names[9].Size >= names[0].Size || names[4].Size != 12 {
+		t.Fatalf("only names that do not fit should shrink: %v, %v, %v", names[0].Size, names[9].Size, names[4].Size)
+	}
+}
