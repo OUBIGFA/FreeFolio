@@ -647,10 +647,6 @@ func toastColors(l spaceLook) toastLook {
 	return toastLook{hsb(s, 0.89), hsb(min(0.25, s*1.3), 0.85), hsb(s, 0.61), black}
 }
 
-// updaterButton is the update window's wide button, Arc's
-// UpdaterButtonBackgroundColor: white, black in the dark.
-func updaterButton(t *ui.Theme) ui.Color { return pick(t, white, black) }
-
 // tourLook are the colors of the first-run tour (tour.go): the scrim over
 // the window and the ring round what a step points at, and, for the
 // pictures on its card, the space's own tint with a small mock of the

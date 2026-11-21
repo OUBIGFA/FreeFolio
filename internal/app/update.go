@@ -17,8 +17,8 @@ import (
 // downloads a new version on its own (unless the user turned that off) and
 // says so in a card above the spaces at the foot of the sidebar, or in a
 // toast while the sidebar is hidden. Clicking it restarts into the new
-// version, whose first launch says "FreeMD 已更新！". "检查更新…" opens the
-// update window. Windows downloads a verified full installer; other platforms
+// version, whose first launch says "FreeMD 已更新！". "检查更新…" shows the
+// result in Settings > Updates. Windows downloads a verified full installer; other platforms
 // use MyGo's signed bundle updates. The views are in updateview.go.
 
 // updateService finds new versions for the current platform.
@@ -40,11 +40,12 @@ type updateRelease interface {
 	Apply() error
 }
 
-// updatePhase is what the update window shows (Cra's UpdaterWindowView).
+// updatePhase is the status shown inline in Settings > Updates.
 type updatePhase int
 
 const (
-	phaseChecking updatePhase = iota
+	phaseIdle updatePhase = iota
+	phaseChecking
 	phaseUpToDate
 	phaseFound
 	phaseDownloading
@@ -68,6 +69,9 @@ type updateState struct {
 	// checking and downloading are the work under way; cancel stops it.
 	checking, downloading bool
 	cancel                context.CancelFunc
+	// manual keeps a requested check distinct from a background check even
+	// when the user leaves the settings page while the request is running.
+	manual bool
 	// generation ignores callbacks from a canceled download after a retry.
 	generation uint64
 	// installAfterDownload is explicit consent from Download and Install.
@@ -84,8 +88,7 @@ type updateState struct {
 	updatedTo string
 	// dismissed hides the ready banner until the next launch.
 	dismissed bool
-	// window shows the update window on phase; failure is why it failed.
-	window  bool
+	// phase and failure describe the latest operation in the settings page.
 	phase   updatePhase
 	failure string
 	// told is the last notice toasted, toast the one showing.
@@ -97,7 +100,6 @@ type updateState struct {
 	shownSince time.Time
 	// lastCheck is when the last check answered.
 	lastCheck time.Time
-	checkErr  error
 	// relaunch restarts FreeMD and openURL opens a page in the browser;
 	// tests replace them.
 	relaunch func()
@@ -162,10 +164,10 @@ func (a *App) runUpdate(work func() func()) {
 	}()
 }
 
-// checkForUpdates is "检查更新…": the update window, checking at once.
+// checkForUpdates opens the updates settings page and checks at once.
 func (a *App) checkForUpdates() {
 	u := &a.updates
-	u.window = true
+	a.openSettings(tabUpdates)
 	switch {
 	case u.installing:
 		u.phase = phaseInstalling
@@ -175,21 +177,20 @@ func (a *App) checkForUpdates() {
 		u.phase = phaseDisabled
 	case u.downloading:
 		u.phase = phaseDownloading
-	case u.found != "" && u.release != nil:
-		u.phase = phaseFound
+	case u.checking:
+		u.manual = true
 	default:
-		u.phase = phaseChecking
-		if !u.checking {
-			a.checkUpdates(true)
-		}
+		a.checkUpdates(true)
 	}
 }
 
-// checkUpdates asks for a newer release; manual is the user's own check,
-// which the window answers.
+// checkUpdates asks for a newer release; a manual check offers the download
+// in settings without starting it automatically.
 func (a *App) checkUpdates(manual bool) {
 	u := &a.updates
-	u.checking = true
+	u.checking, u.manual = true, manual
+	u.phase, u.failure = phaseChecking, ""
+	u.release, u.found = nil, ""
 	svc := u.svc
 	a.runUpdate(func() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -203,30 +204,23 @@ func (a *App) checkUpdates(manual bool) {
 func (a *App) checked(rel updateRelease, err error) {
 	u := &a.updates
 	u.checking = false
-	u.lastCheck, u.checkErr = a.now, err
-	asked := u.window && u.phase == phaseChecking
+	u.lastCheck = a.now
+	manual := u.manual
+	u.manual = false
 	switch {
 	case errors.Is(err, update.ErrNoInstaller):
-		if asked {
-			u.phase = phaseNoRelease
-		}
+		u.phase = phaseNoRelease
 	case err != nil:
-		if asked {
-			u.phase, u.failure = phaseFailed, i18n.T("无法检查更新：")+err.Error()
-		}
+		u.phase, u.failure = phaseFailed, i18n.T("无法检查更新：")+err.Error()
 	case rel == nil:
-		if asked {
-			u.phase = phaseUpToDate
-		}
-	case asked:
-		// The user checked: the window offers the download.
-		u.release = rel
-		u.phase = phaseFound
-	case !a.prefs.NoAutoUpdate:
-		u.release = rel
-		a.downloadUpdate()
+		u.phase = phaseUpToDate
+		u.release, u.found = nil, ""
 	default:
 		u.release, u.found = rel, rel.Version()
+		u.phase = phaseFound
+		if !manual && !a.prefs.NoAutoUpdate {
+			a.downloadUpdate()
+		}
 	}
 }
 
@@ -238,19 +232,18 @@ func (a *App) downloadUpdate() {
 	}
 	rel := u.release
 	u.downloading = true
+	u.found = ""
 	u.generation++
 	generation := u.generation
 	u.received, u.total = 0, 0
-	if u.window {
-		u.phase = phaseDownloading
-	}
+	u.phase, u.failure = phaseDownloading, ""
 	ctx, cancel := context.WithCancel(context.Background())
 	u.cancel = cancel
 	var shown atomic.Int64
 	shown.Store(-1)
 	a.runUpdate(func() func() {
 		err := rel.Download(ctx, func(done, total int64) {
-			// Tell the window as the percentage changes, not every block.
+			// Update the progress as the percentage changes, not every block.
 			pct := int64(0)
 			if total > 0 {
 				pct = done * 100 / total
@@ -288,16 +281,12 @@ func (a *App) downloaded(rel updateRelease, err error) {
 		if errors.Is(err, context.Canceled) {
 			return
 		}
-		if u.window && u.phase == phaseDownloading {
-			u.phase, u.failure = phaseFailed, i18n.T("下载更新失败：")+err.Error()
-		}
+		u.phase, u.failure = phaseFailed, i18n.T("下载更新失败：")+err.Error()
 		return
 	}
 	u.ready, u.found = rel.Version(), ""
 	u.dismissed = false
-	if u.window {
-		u.phase = phaseReady
-	}
+	u.phase = phaseReady
 	if u.installAfterDownload {
 		u.installAfterDownload = false
 		a.installUpdate()
@@ -323,13 +312,14 @@ func (a *App) installUpdate() {
 		return
 	}
 	if !a.leaveDocs(a.residentDocuments(), a.installUpdate) {
-		// The save dialog must be the top modal, so its Cancel remains usable.
-		u.window = false
 		return
 	}
 	a.prefs.PendingUpdate = u.ready
 	a.savePrefs()
-	u.installing, u.window, u.phase = true, true, phaseInstalling
+	// Keep the settings page in front while the installer is being launched,
+	// so edits cannot resume after the document-save gate has completed.
+	a.openSettings(tabUpdates)
+	u.installing, u.phase, u.failure = true, phaseInstalling, ""
 	release := u.release
 	a.runUpdate(func() func() {
 		err := release.Apply()
@@ -339,6 +329,7 @@ func (a *App) installUpdate() {
 				u.phase, u.failure = phaseFailed, i18n.T("安装更新失败：")+err.Error()
 				a.prefs.PendingUpdate = ""
 				a.savePrefs()
+				a.openSettings(tabUpdates)
 				return
 			}
 			if u.relaunch != nil {
@@ -350,9 +341,9 @@ func (a *App) installUpdate() {
 	})
 }
 
-// closeUpdateWindow is the window's Later, Cancel and Close: a download
-// under way stops, and an update found and put off leaves the banner.
-func (a *App) closeUpdateWindow() {
+// cancelUpdateDownload stops only the download. Leaving settings does not
+// cancel work, and a canceled download remains available for an explicit retry.
+func (a *App) cancelUpdateDownload() {
 	u := &a.updates
 	if u.installing {
 		return
@@ -364,13 +355,9 @@ func (a *App) closeUpdateWindow() {
 		u.downloading = false
 		u.generation++
 	}
-	if u.phase == phaseFound {
-		u.found = ""
-		if u.ready == "" {
-			u.release = nil
-		}
+	if u.release != nil {
+		u.found, u.phase = u.release.Version(), phaseFound
 	}
-	u.window = false
 }
 
 // updateNotice is what the update banner says now.
@@ -387,7 +374,7 @@ func (a *App) actOnNotice(n update.Notice) {
 		a.installUpdate()
 		return
 	}
-	u.window, u.phase = true, phaseFound
+	a.openSettings(tabUpdates)
 }
 
 // dismissBanner is a banner's ✕: the ready card hides until the next
@@ -399,6 +386,7 @@ func (a *App) dismissBanner() {
 		u.dismissed = true
 	case u.found != "":
 		u.found, u.release = "", nil
+		u.phase = phaseIdle
 	default:
 		u.updatedTo = ""
 	}
@@ -450,20 +438,20 @@ func (a *App) updateSummary() string {
 		return i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本。")
 	case u.installing:
 		return i18n.T("正在启动更新安装器…")
-	case u.ready != "":
-		return "FreeMD " + u.ready + i18n.T(" 已下载，可以安装。")
 	case u.downloading:
 		return i18n.T("正在下载新版本…")
-	case u.found != "":
-		return "FreeMD " + u.found + i18n.T(" 可以更新。")
 	case u.checking:
 		return i18n.T("正在检查更新…")
-	case u.lastCheck.IsZero():
-		return i18n.T("从 GitHub Releases 获取新版本。")
-	case errors.Is(u.checkErr, update.ErrNoInstaller):
+	case u.failure != "":
+		return u.failure
+	case u.ready != "":
+		return "FreeMD " + u.ready + i18n.T(" 已下载，可以安装。")
+	case u.found != "":
+		return "FreeMD " + u.found + i18n.T(" 可以更新。")
+	case u.phase == phaseNoRelease:
 		return i18n.T("暂未发布适用于此平台的安装包。")
-	case u.checkErr != nil:
-		return i18n.T("上次检查失败：") + u.checkErr.Error()
+	case u.phase == phaseUpToDate:
+		return i18n.T("FreeMD 已是最新版本")
 	}
-	return i18n.T("上次检查：") + u.lastCheck.Format(i18n.T("1月2日 15:04")) + i18n.T("，已是最新版本。")
+	return i18n.T("从 GitHub Releases 获取新版本。")
 }

@@ -1,7 +1,7 @@
 // Package update holds what FreeMD's software updates decide without the
 // window: what the sidebar's update banner says and when that goes into a
 // toast (after Cra's UpdateNotice, MIT), how often the releases are
-// checked, and the release notes made plain for the update window. The
+// checked, and the release notes made plain for the updates settings page. The
 // Windows installer downloads are verified against GitHub's asset digest;
 // this package has no dependency on the window framework.
 package update

@@ -122,7 +122,7 @@ func (a *App) settingsView(c *ui.Context) {
 		rail = 148
 	}
 	ui.Overlay(c.Key("settings"), func() {
-		ui.Column(c.Key("settings-surface")).Fill().Modal().Role(ui.RoleDialog).Label(i18n.T("设置")).Background(t.Background).Children(func() {
+		ui.Column(c.Key("settings-surface")).Fill().Modal().Role(ui.RoleDialog).Label(i18n.T("设置")).Disabled(a.updates.installing).Background(t.Background).Children(func() {
 			ui.Box(c.Key("settings-title")).Height(max(12, bar.Height)).DragWindow()
 			ui.Row(c.Key("settings-body")).Grow(1).MinHeight(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 10, 10, 10).Gap(8).Children(func() {
@@ -138,7 +138,7 @@ func (a *App) settingsView(c *ui.Context) {
 							ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(min(32, h/14))
 						}
 					}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(2).Background(ui.Transparent)
-					if a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
+					if !a.updates.installing && a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
 						a.settingsOpen = false
 					}
 				})
@@ -652,6 +652,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 // settingsUpdates is whether FreeMD downloads new versions by itself, and
 // the check of "检查更新…".
 func (a *App) settingsUpdates(c *ui.Context) {
+	u := &a.updates
 	settingsHeading(c, i18n.T("更新"), "")
 	settingsGroup(c, "updates", func() {
 		auto := !a.prefs.NoAutoUpdate
@@ -660,11 +661,13 @@ func (a *App) settingsUpdates(c *ui.Context) {
 			a.toggleAutoUpdate()
 		}
 		settingsSeparator(c)
-		settingRow(c, "check", i18n.T("当前版本 ")+Version, a.updateSummary(), func() {
-			if ui.Button(c.Key("check-now"), i18n.T("检查更新…")).Clicked() {
+		settingRow(c, "check", i18n.T("当前版本 ")+Version, "", func() {
+			if ui.Button(c.Key("check-now"), i18n.T("检查更新…")).Disabled(u.checking || u.downloading || u.installing).Clicked() {
 				a.checkForUpdates()
 			}
 		})
+		settingsSeparator(c)
+		a.updateDetails(c)
 	})
 }
 

@@ -10,8 +10,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The update banners, toast and window, ported from Cra's UpdateBanner,
-// ShinyToast and UpdaterWindow (MIT) with their measurements of Arc 1.171:
+// The update banners and toast, ported from Cra's UpdateBanner and
+// ShinyToast (MIT) with their measurements of Arc 1.171:
 //
 //   - Ready ("更新已准备就绪！" / "点击重新启动", or "FreeMD 有新版本"): a 56
 //     DIP card above the spaces, title 13 semibold and subtitle 11, a 40×37
@@ -24,8 +24,7 @@ import (
 //     and a drawn arrow. It pops in with a slight tilt that settles.
 //   - The toast says the ready card's news at the top right of the page
 //     while the sidebar is hidden, with its button and a ✕.
-//   - The update window: the name and version, a status line or the
-//     release notes, and one wide button.
+//   - Status, progress, actions and release notes appear in Settings > Updates.
 
 const (
 	readyCardHeight   = 56
@@ -508,154 +507,73 @@ func (a *App) updateToast(c *ui.Context) {
 	})
 }
 
-// updateWindowView is the update window (Arc's UpdaterWindowController, as
-// Cra measures it): FreeMD's name and version, what the updater is doing,
-// and one wide button, with "以后再说" under it when there is a choice.
-func (a *App) updateWindowView(c *ui.Context) {
+// updateDetails keeps status, progress and actions in the updates settings
+// page. Navigation stays available while checks and downloads run.
+func (a *App) updateDetails(c *ui.Context) {
 	u := &a.updates
-	if !u.window {
-		return
-	}
 	t := c.Theme()
-	open := true
-	ui.Modal(c.Key("updater"), &open, func() {
-		ui.Column(c.Key("updater-body")).Width(270).AlignItems(ui.Center).Padding(20, 0, 26, 0).Children(func() {
-			ui.Box(c.Key("updater-heart")).Size(84, 78).Draw(func(p *ui.Painter, r ui.Rect) {
-				paintUpdateHeart(p, ui.Rect{X: r.X + 10, Y: r.Y + 10, W: r.W - 20, H: r.H - 20}, t.Accent, 0)
-			})
-			title := "FreeMD"
-			sub := i18n.T("版本 ") + Version
-			if u.release != nil && (u.phase == phaseFound || u.phase == phaseDownloading || u.phase == phaseReady) {
-				title = "FreeMD " + u.release.Version()
-				sub = i18n.T("当前版本 ") + Version
+	ui.Column(c.Key("update-details")).Padding(12, 16, 16, 16).Gap(12).Children(func() {
+		ui.Text(c.Key("update-status"), a.updateSummary()).FontSize(13).LineHeight(1.5).Selectable()
+		if !u.lastCheck.IsZero() {
+			ui.Text(c, i18n.T("上次检查：")+u.lastCheck.Format(i18n.T("1月2日 15:04"))).FontSize(13).TextColor(t.TextMuted)
+		}
+		if u.checking || u.downloading || u.installing {
+			value := float64(-1)
+			if u.downloading && u.total > 0 {
+				value = float64(u.received) / float64(u.total)
 			}
-			ui.Text(c, title).Margin(10, 0, 0, 0).FontSize(24).FontWeight(700)
-			ui.Text(c, sub).FontSize(11).TextColor(t.Text.Alpha(0.5))
-			status := func(s string) {
-				ui.Text(c.Key("status"), s).Width(208).Margin(18, 0, 10, 0).FontSize(13).TextAlign(ui.Center).
-					TextColor(t.Text.Alpha(0.5))
+			ui.Progress(c.Key("update-progress"), value)
+			if u.downloading && u.total > 0 {
+				ui.Text(c, byteSize(u.received)+" / "+byteSize(u.total)).FontSize(13).TextColor(t.TextMuted)
 			}
-			progress := func(v float64, label string) {
-				ui.Column(c.Key("progress")).Width(170).Gap(6).Margin(18, 0, 10, 0).Children(func() {
-					ui.Progress(c, v)
-					ui.Text(c, label).FontSize(11).TextColor(t.Text.Alpha(0.5)).AlignSelf(ui.Center)
-				})
-			}
-			switch u.phase {
-			case phaseChecking:
-				status(i18n.T("正在检查更新…"))
-				if updaterButtonView(c, i18n.T("取消"), false) {
-					a.closeUpdateWindow()
-				}
-			case phaseUpToDate, phaseNoRelease:
-				if u.phase == phaseNoRelease {
-					status(i18n.T("暂未发布适用于此平台的安装包。"))
-				} else {
-					status(i18n.T("FreeMD 已是最新版本"))
-				}
-				if updaterButtonView(c, i18n.T("好"), false) {
-					a.closeUpdateWindow()
-				}
-			case phaseFound:
-				lines := update.Lines(u.release.Notes())
-				if len(lines) > 0 {
-					releaseNotes(c, lines)
-				} else {
-					status(i18n.T("有新版本可用"))
-				}
-				if updaterButtonView(c, i18n.T("下载并安装"), false) {
-					a.installUpdate()
-				}
-				if laterButton(c, i18n.T("以后再说")) {
-					a.closeUpdateWindow()
-				}
-			case phaseDownloading:
-				if u.total > 0 {
-					progress(float64(u.received)/float64(u.total), byteSize(u.received)+" / "+byteSize(u.total))
-				} else {
-					progress(-1, i18n.T("正在下载…"))
-				}
-				if updaterButtonView(c, i18n.T("取消"), false) {
-					a.closeUpdateWindow()
-				}
-			case phaseReady:
-				status(i18n.T("更新已准备就绪，重新启动即可安装"))
-				if updaterButtonView(c, i18n.T("安装并重新启动"), false) {
-					a.installUpdate()
-				}
-				if laterButton(c, i18n.T("以后再说")) {
-					a.closeUpdateWindow()
-				}
-			case phaseInstalling:
-				progress(-1, i18n.T("正在启动更新安装器…"))
-			case phaseFailed:
-				status(u.failure)
-				if u.release != nil && laterButton(c, i18n.T("重试")) {
-					u.ready = ""
-					a.installUpdate()
-				}
-				if updaterButtonView(c, i18n.T("手动下载"), false) {
-					a.closeUpdateWindow()
+		}
+		ui.Row(c.Key("update-actions")).Gap(8).Children(func() {
+			switch {
+			case !a.updatesEnabled():
+				if ui.Button(c.Key("download-page"), i18n.T("前往下载页面")).Clicked() {
 					a.openUpdatePage(update.ReleaseURL(""))
 				}
-				if laterButton(c, i18n.T("关闭")) {
-					a.closeUpdateWindow()
+			case u.downloading:
+				if ui.Button(c.Key("cancel-download"), i18n.T("取消")).Clicked() {
+					a.cancelUpdateDownload()
 				}
-			case phaseDisabled:
-				status(i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本。"))
-				if updaterButtonView(c, i18n.T("前往下载页面"), false) {
-					a.closeUpdateWindow()
+			case u.checking || u.installing:
+				// Progress above explains why no action is available yet.
+			case u.phase == phaseFailed:
+				if ui.Button(c.Key("retry-update"), i18n.T("重试")).Clicked() {
+					if u.release != nil {
+						u.ready = ""
+						a.installUpdate()
+					} else {
+						a.checkUpdates(true)
+					}
+				}
+				if ui.Button(c.Key("manual-download"), i18n.T("手动下载")).Clicked() {
 					a.openUpdatePage(update.ReleaseURL(""))
 				}
-				if laterButton(c, i18n.T("关闭")) {
-					a.closeUpdateWindow()
+			case u.ready != "":
+				if ui.PrimaryButton(c.Key("install-update"), i18n.T("安装并重新启动")).Clicked() {
+					a.installUpdate()
+				}
+			case u.release != nil:
+				if ui.PrimaryButton(c.Key("download-install"), i18n.T("下载并安装")).Clicked() {
+					a.installUpdate()
 				}
 			}
 		})
-	})
-	if !open {
-		a.closeUpdateWindow()
-	}
-}
-
-// updaterButtonView is the window's wide button: 170 × 48, radius 6, white
-// (black in the dark) with a faint shadow, its label 13 bold.
-func updaterButtonView(c *ui.Context, label string, disabled bool) bool {
-	t := c.Theme()
-	b := ui.Box(c.Key("updater-button")).Margin(19, 0, 0, 0).Size(170, 48).Radius(6).Center().
-		Background(updaterButton(t)).Shadow(0, 0, 10, 0, black.Alpha(0.1)).
-		Focusable().Role(ui.RoleButton).Label(label).Disabled(disabled).Cursor(ui.CursorPointer)
-	if b.Pressed() {
-		b.Opacity(0.75)
-	}
-	b.Children(func() { ui.Text(c, label).FontSize(13).FontWeight(700).TextColor(t.Text.Alpha(0.94)) })
-	return !disabled && (b.Clicked() || c.Shortcut(0, ui.KeyEnter))
-}
-
-// laterButton is the plain choice under the wide button.
-func laterButton(c *ui.Context, label string) bool {
-	t := c.Theme()
-	b := ui.Box(c.Key("updater-later-"+label)).Margin(12, 0, 0, 0).PaddingX(8).Height(20).Center().
-		Focusable().Role(ui.RoleButton).Label(label).Cursor(ui.CursorPointer)
-	ink := t.Text.Alpha(0.5)
-	if b.Hovered() {
-		ink = t.Text.Alpha(0.75)
-	}
-	b.Children(func() { ui.Text(c, label).FontSize(13).TextColor(ink) })
-	return b.Clicked() || c.Shortcut(0, ui.KeyEscape)
-}
-
-// releaseNotes are the new version's notes, 230 × 150 on a faint fill.
-func releaseNotes(c *ui.Context, lines []string) {
-	t := c.Theme()
-	ui.Scroll(c.Key("release-notes")).Margin(18, 0, 0, 0).Size(230, 150).Radius(8).Background(t.Text.Alpha(0.05)).
-		Padding(10).Gap(2).Children(func() {
-		for i, l := range lines {
-			if l == "" {
-				ui.Box(c.Key(i)).Height(6)
-				continue
+		if u.release != nil && !u.checking {
+			lines := update.Lines(u.release.Notes())
+			if len(lines) > 0 {
+				ui.Scroll(c.Key("release-notes")).Height(150).Gap(4).Children(func() {
+					for i, line := range lines {
+						if line == "" {
+							ui.Box(c.Key(i)).Height(6)
+							continue
+						}
+						ui.Text(c.Key(i), line).FontSize(13).LineHeight(1.6).Selectable()
+					}
+				})
 			}
-			ui.Text(c.Key(i), l).FontSize(12).LineHeight(1.6).Selectable()
 		}
 	})
 }

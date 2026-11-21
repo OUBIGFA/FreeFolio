@@ -21,9 +21,9 @@ measurements of Arc.
 The split layout, pane toolbar, divider behavior and segmented group row
 (`internal/app/split.go`, `splitview.go`) follow Cra's SplitPaneLayout,
 SplitDraggerHandleView, PaneToolbarView and split sidebar interaction.
-The software update banners, toast and update window
+The software update banners and toast
 (`internal/app/updateview.go`, `internal/update`) port Cra's UpdateBanner,
-UpdateNotice, ShinyToast and UpdaterWindow, with their measurements of Arc.
+UpdateNotice and ShinyToast, with their measurements of Arc.
 The full MIT notice is in `cra/LICENSE`.
 
 [Cra source](https://github.com/VictorKildahl/cra)

@@ -20,11 +20,15 @@ type fakeUpdates struct {
 	release  *fakeRelease
 	err      error
 	checks   int
+	onCheck  func()
 }
 
 func (f *fakeUpdates) Enabled() bool { return !f.disabled }
 func (f *fakeUpdates) Check(context.Context) (updateRelease, error) {
 	f.checks++
+	if f.onCheck != nil {
+		f.onCheck()
+	}
 	if f.err != nil || f.release == nil {
 		return nil, f.err
 	}
@@ -120,8 +124,8 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	}
 	tt.Click("FreeMD 有新版本")
 	tt.Frame()
-	if !a.updates.window || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") {
-		t.Fatalf("the update window with the notes: %q", tt.Texts())
+	if !a.settingsOpen || a.settingsTab != tabUpdates || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") {
+		t.Fatalf("the updates settings with the notes: %q", tt.Texts())
 	}
 	tt.Click("下载并安装")
 	tt.Frame()
@@ -140,10 +144,10 @@ func TestUpdateManualCheck(t *testing.T) {
 	if !tt.HasText("FreeMD 已是最新版本") {
 		t.Fatalf("up to date: %q", tt.Texts())
 	}
-	tt.Click("好")
+	tt.Click("返回")
 	tt.Frame()
-	if a.updates.window {
-		t.Fatal("the window closes")
+	if a.settingsOpen {
+		t.Fatal("settings return to the document")
 	}
 
 	f.err = errors.New("offline")
@@ -154,20 +158,102 @@ func TestUpdateManualCheck(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.updates.window {
-		t.Fatal("Esc closes the window")
+	if a.settingsOpen {
+		t.Fatal("Esc leaves settings")
 	}
 
 	f.err, f.release = nil, &fakeRelease{version: "0.2.0"}
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("FreeMD 0.2.0") || !tt.HasText("当前版本 "+Version) || !tt.HasText("有新版本可用") {
+	if !tt.HasText("FreeMD 0.2.0 可以更新。") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
 		t.Fatalf("found: %q", tt.Texts())
 	}
-	tt.Click("以后再说")
+	tt.Click("返回")
 	tt.Frame()
-	if tt.HasText("FreeMD 有新版本") {
-		t.Fatal("put off, the update leaves no banner")
+	if a.settingsOpen || a.updates.found != "0.2.0" {
+		t.Fatal("leaving settings keeps the available update")
+	}
+	f.release = nil
+	a.checkForUpdates()
+	tt.Frame()
+	if f.checks != 4 || !tt.HasText("FreeMD 已是最新版本") || tt.HasText("下载并安装") {
+		t.Fatal("checking again must refresh the result instead of reopening an old offer")
+	}
+}
+
+func TestUpdateCheckKeepsSettingsNavigationAvailable(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		service fakeUpdates
+	}{
+		{"current", fakeUpdates{}},
+		{"available", fakeUpdates{release: &fakeRelease{version: "0.2.0"}}},
+		{"failed", fakeUpdates{err: errors.New("offline")}},
+		{"unpublished", fakeUpdates{err: update.ErrNoInstaller}},
+		{"unsupported", fakeUpdates{disabled: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			withUpdates(a, &test.service)
+			a.openSettings(tabUpdates)
+			tt.Frame()
+			if err := tt.Click("检查更新…"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if err := tt.Click("关于"); err != nil {
+				t.Fatalf("checking for updates must not put a dialog over settings: %v", err)
+			}
+			tt.Frame()
+			if a.settingsTab != tabAbout {
+				t.Fatal("settings navigation must stay available after checking")
+			}
+		})
+	}
+}
+
+func TestUpdateManualCheckDoesNotAutoDownloadAfterLeavingSettings(t *testing.T) {
+	a, tt := newTestApp(t)
+	release := &fakeRelease{version: "0.2.0"}
+	service := &fakeUpdates{release: release, onCheck: func() { a.settingsOpen = false }}
+	withUpdates(a, service)
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if a.settingsOpen || release.installs != 0 || a.updates.found != "0.2.0" {
+		t.Fatal("a manual check stays manual when the user leaves settings before it completes")
+	}
+}
+
+func TestUpdateDownloadContinuesWhenLeavingSettingsAndCanBeCanceledInline(t *testing.T) {
+	a, tt := newTestApp(t)
+	withUpdates(a, &fakeUpdates{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.updates.release = &fakeRelease{version: "0.2.0"}
+	a.updates.downloading, a.updates.installAfterDownload = true, true
+	a.updates.phase, a.updates.cancel = phaseDownloading, cancel
+	a.updates.received, a.updates.total = 512, 1024
+	a.openSettings(tabUpdates)
+	tt.Frame()
+	if !tt.HasText("512 B / 1.0 KB") {
+		t.Fatalf("progress must be visible inline: %q", tt.Texts())
+	}
+	if err := tt.Click("返回"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.settingsOpen || ctx.Err() != nil || !a.updates.downloading {
+		t.Fatal("leaving settings must not cancel a download")
+	}
+	a.openSettings(tabUpdates)
+	tt.Frame()
+	if err := tt.Click("取消"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if ctx.Err() != context.Canceled || a.updates.downloading || a.updates.installAfterDownload || !tt.HasText("下载并安装") {
+		t.Fatal("inline Cancel must stop the operation and leave a download action")
 	}
 }
 
@@ -201,7 +287,7 @@ func TestUpdateInstallFailureKeepsAppOpen(t *testing.T) {
 
 func TestUpdateCanceledDownloadNeedsAnotherInstallClick(t *testing.T) {
 	a, tt := newTestApp(t)
-	release := &fakeRelease{version: "0.2.0", onDownload: a.closeUpdateWindow}
+	release := &fakeRelease{version: "0.2.0", onDownload: a.cancelUpdateDownload}
 	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
 	tt.Frame()
 	a.checkForUpdates()
@@ -423,7 +509,7 @@ func TestArrowCutsOutOfHeart(t *testing.T) {
 
 func TestSnapshotUpdates(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the update banners")
-	for _, name := range []string{"ready", "available", "updated", "toast", "window-found", "window-ready", "ready@dark", "updated@dark", "settings"} {
+	for _, name := range []string{"ready", "available", "updated", "toast", "settings-found", "settings-ready", "settings-downloading", "settings-failed", "settings-small", "ready@dark", "updated@dark", "settings"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			withUpdates(a, &fakeUpdates{})
@@ -442,12 +528,24 @@ func TestSnapshotUpdates(t *testing.T) {
 			case "toast":
 				a.updates.ready = "0.2.0"
 				a.toggleSidebar()
-			case "window-found":
-				a.updates.release, a.updates.window, a.updates.phase = rel, true, phaseFound
-			case "window-ready":
-				a.updates.release, a.updates.ready, a.updates.window, a.updates.phase = rel, "0.2.0", true, phaseReady
+			case "settings-found":
+				a.updates.release, a.updates.found, a.updates.phase = rel, "0.2.0", phaseFound
+				a.openSettings(tabUpdates)
+			case "settings-ready":
+				a.updates.release, a.updates.ready, a.updates.phase = rel, "0.2.0", phaseReady
+				a.openSettings(tabUpdates)
+			case "settings-downloading":
+				a.updates.downloading, a.updates.phase = true, phaseDownloading
+				a.updates.received, a.updates.total = 14000000, 28000000
+				a.openSettings(tabUpdates)
+			case "settings-failed", "settings-small":
+				a.updates.phase, a.updates.failure = phaseFailed, "无法检查更新：连接超时，请稍后重试。"
+				a.openSettings(tabUpdates)
+				if name == "settings-small" {
+					tt.SetSize(640, 420)
+				}
 			case "settings":
-				a.openSettings(tabGeneral)
+				a.openSettings(tabUpdates)
 			}
 			tt.Frame()
 			tt.Advance(1200 * time.Millisecond)

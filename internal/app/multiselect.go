@@ -329,7 +329,7 @@ func (a *App) inDraggedGroup(spID, rel string) bool {
 // is open that should handle Escape before sidebar multi-selection clears.
 func (a *App) modalOrOverlayBlocksEsc() bool {
 	return a.palette.open || a.settingsOpen || a.replace.open || a.tagRename.open ||
-		a.versions.open || a.updates.window || a.pdfExport != nil ||
+		a.versions.open || a.pdfExport != nil ||
 		a.library.open || a.spaceForm.open || a.renaming != "" ||
 		(a.preview.shown != nil && !a.preview.closing) || a.carrying != nil || a.carried != nil
 }

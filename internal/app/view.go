@@ -196,7 +196,6 @@ func (a *App) View(c *ui.Context) {
 	a.unsavedPromptView(c)
 	a.tagRenameView(c)
 	a.versionsView(c)
-	a.updateWindowView(c)
 	a.pdfExportView(c)
 	a.tourView(c)
 	if a.captureSplits() {
