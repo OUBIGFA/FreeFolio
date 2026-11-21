@@ -189,10 +189,16 @@ func (e *Editor) openFoldAtCaret() {
 }
 
 // codeFoldButton is where a long code block shows its toggle: in the lane
-// at the block's foot, below its last line.
+// at the block's foot, below its last line. An open block whose foot is
+// below the view keeps its toggle at the view's foot instead, within the
+// block, so the reader can fold it again wherever they read.
 func (e *Editor) codeFoldButton(d decoration) ui.Rect {
 	w, h := float32(96), float32(codeFoldButtonH)
-	bottom := max(d.rect.Y+d.rect.H-codeFoldMargin, d.rect.Y+48+h)
+	bottom := d.rect.Y + d.rect.H - codeFoldMargin
+	if !d.folded && e.viewport > 0 && !e.printing {
+		bottom = min(bottom, e.Scroll.Y+e.viewport-codeFoldMargin)
+	}
+	bottom = max(bottom, d.rect.Y+48+h)
 	return ui.Rect{X: d.rect.X + (d.rect.W-w)/2, Y: bottom - h, W: w, H: h}
 }
 

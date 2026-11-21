@@ -39,17 +39,23 @@ func TestLongCodeFoldsAndItsToggleFollowsTheBlock(t *testing.T) {
 	if e.codeFolded(long) || e.rows[0].rect.H <= folded+500 {
 		t.Fatal("the toggle opens the block", e.rows[0].rect.H)
 	}
-	// Open and longer than the view, the toggle stays in its lane at the
-	// block's foot, below the code, not over it at the view's foot.
+	// Open and longer than the view, the toggle waits at the view's foot,
+	// so the block folds from wherever it is read.
 	for i := range e.decorations {
 		if dc := *e.indexedDecoration(i); dc.id == long.ID {
 			d = dc
 		}
 	}
 	b = e.codeFoldButton(d)
-	if b.Y+b.H != d.rect.Y+d.rect.H-codeFoldMargin {
+	if d.rect.Y+d.rect.H <= e.Scroll.Y+e.viewport || b.Y+b.H != e.Scroll.Y+e.viewport-codeFoldMargin {
 		t.Fatalf("toggle %+v, view %v..%v, block %+v", b, e.Scroll.Y, e.Scroll.Y+e.viewport, d.rect)
 	}
+	// With the block's foot in view, it goes back to its lane below the code.
+	e.Scroll.Y = d.rect.Y + d.rect.H - e.viewport/2
+	if b = e.codeFoldButton(d); b.Y+b.H != d.rect.Y+d.rect.H-codeFoldMargin {
+		t.Fatalf("toggle %+v back in its lane, view %v, block %+v", b, e.Scroll.Y, d.rect)
+	}
+	e.Scroll.Y = 0
 	// Folding with the view scrolled past the block's top goes back to it.
 	e.Scroll.Y = e.rows[0].rect.Y + 400
 	tt.Frame()
@@ -121,7 +127,9 @@ func TestWrappedCodeFoldsByItsHeight(t *testing.T) {
 
 // The toggle of a foldable block has a lane of its own below the code, so
 // it covers no text, open or folded, and keeps a margin from the block's
-// foot.
+// foot. An open block whose foot is out of view keeps its toggle at the
+// view's foot instead (TestLongCodeFoldsAndItsToggleFollowsTheBlock), so
+// the open case looks with the foot in view.
 func TestCodeFoldToggleHasItsOwnLane(t *testing.T) {
 	var lines []string
 	for i := 1; i <= 20; i++ {
@@ -146,6 +154,9 @@ func TestCodeFoldToggleHasItsOwnLane(t *testing.T) {
 			if dc := *e.indexedDecoration(i); dc.id == b.ID {
 				d = dc
 			}
+		}
+		if open {
+			e.Scroll.Y = max(0, d.rect.Y+d.rect.H-e.viewport/2)
 		}
 		btn := e.codeFoldButton(d)
 		if btn.Y < textBottom+codeFoldMargin-0.5 {
