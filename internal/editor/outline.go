@@ -114,24 +114,34 @@ func (e *Editor) hasBookmarks() bool {
 	return false
 }
 
-// fitOutline uses only the writing column's existing right margin. When
-// that margin is too narrow the reader can open a temporary overlay.
+// fitOutline uses the clear right margin of the visible content. Wide blocks
+// can extend past the writing column; then only a temporary overlay fits.
 func (e *Editor) fitOutline(o Options) {
 	s := &e.outlineState
 	s.open, s.set = o.Outline, o.SetOutline
 	s.mode = outlineOff
 	if s.set == nil || !(e.hasHeadings() || e.hasBookmarks()) {
-		s.floating = false
+		s.floating, s.panelHovered = false, false
 		return
 	}
 	margin := (o.Width - columnWidth(o.Column)) / 2
+	// Query the existing viewport indexes after layout and scroll updates, so
+	// offscreen tables neither close the outline nor require a document scan.
+	for i := range e.visibleRows(0) {
+		r := e.indexedRow(i).rect
+		margin = min(margin, o.Width-r.X-r.W)
+	}
+	for i := range e.visibleDecorations(0) {
+		r := e.indexedDecoration(i).rect
+		margin = min(margin, o.Width-r.X-r.W)
+	}
 	available := margin - outlineGutter
 	s.mode = outlineFloating
 	s.width = min(outlineWidth, o.Width)
 	if available >= outlineMinWidth {
 		s.mode = outlineBeside
 		s.width = min(outlineWidth, available)
-		s.floating = false
+		s.floating, s.panelHovered = false, false
 	}
 	s.buttonTop = pageTop + 12
 	if margin < 96 {

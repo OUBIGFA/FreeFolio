@@ -365,9 +365,6 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	row.Children(func() {
 		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
 			ui.Image(c, brandLogo).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
-			if iconButton(c, "open", iconPlus, i18n.T("打开文件…"), i18n.T("打开文件…")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Clicked() {
-				a.chooseExternalFiles()
-			}
 		})
 		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
 			if d := a.doc; d != nil && d.loadErr == nil {
@@ -381,12 +378,12 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		if a.files != f {
 			return
 		}
-		// Center the whole group only while it clears both sets of controls.
-		// Narrow windows and crowded tabs use the full gap, aligned left.
+		// Center the tabs while their trailing open button also clears the
+		// page tools. Narrow windows keep the button outside the scrolling strip.
 		b, l, r := row.LayoutBounds(), start.LayoutBounds(), end.LayoutBounds()
 		from, to := l.X+l.W-b.X+12, r.X-b.X-12
-		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).AlignItems(ui.Center).Clip()
-		var strip, tabs ui.Element
+		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).Gap(6).AlignItems(ui.Center).Clip()
+		var strip, tabs, open ui.Element
 		area.Children(func() {
 			strip = ui.ScrollHorizontal(c.Key("file-tabs")).Shrink(1).MinWidth(0).Role(ui.RoleTabList).Label(i18n.T("已打开的文件"))
 			strip.Children(func() {
@@ -399,16 +396,22 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 					}
 				})
 			})
+			open = iconButton(c, "open", iconPlus, i18n.T("打开文件…"), i18n.T("打开文件…")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Shrink(0)
+			if open.Clicked() {
+				a.chooseExternalFiles()
+			}
 		})
 		width := tabs.LayoutBounds().W
-		if width > 0 && width <= 2*min(b.W/2-from, to-b.W/2) {
-			area.LeftPercent(50).TranslatePercent(-50, 0).Width(width)
+		groupWidth := width + 6 + open.LayoutBounds().W
+		centered := (b.W - width) / 2
+		if width > 0 && centered >= from && centered+groupWidth <= to {
+			area.Left(centered).Width(groupWidth)
 		} else {
 			area.Left(from).Width(max(0, to-from))
 		}
 		// Measured bounds arrive after building the view. Recheck placement
 		// and reveal the active tab when a resize changes its visible space.
-		for _, element := range []ui.Element{row, start, end, tabs, strip} {
+		for _, element := range []ui.Element{row, start, end, tabs, strip, open} {
 			before := element.LayoutBounds()
 			isStrip := element == strip
 			element.Draw(func(_ *ui.Painter, now ui.Rect) {

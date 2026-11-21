@@ -731,7 +731,6 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.watchHTML()
 	e.watchInline()
 	pane := ui.Column(c).Grow(1).MinHeight(0).MinWidth(0)
-	e.fitOutline(o)
 	e.reduceMotion = c.Preferences().ReduceMotion
 	e.layoutForView(c, o)
 	e.updateMotion(c.Now(), o)
@@ -897,6 +896,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				}
 			})
 		})
+		e.fitOutline(o)
 		e.outlineView(c, pane)
 		e.scrollEnds(c)
 		e.findBox(c)

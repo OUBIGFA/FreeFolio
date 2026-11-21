@@ -275,10 +275,13 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 					t.Errorf("%d tabs: group is not centered: first=%+v last=%+v", i+1, first, last)
 				}
 				if i == 8 {
-					open, _ := tt.Find("打开文件…")
-					if math.Abs(float64(strip.X-(open.X+open.W+12))) > 1 {
-						t.Errorf("crowded tabs did not align left: strip=%+v open=%+v", strip, open)
+					if strip.X > profile.bar.Left+64 {
+						t.Errorf("crowded tabs did not align left: strip=%+v", strip)
 					}
+				}
+				open, ok := tt.Find("打开文件…")
+				if !ok || open.X < strip.X+strip.W || open.X > strip.X+strip.W+12 {
+					t.Errorf("%d tabs: open button is not beside the strip's right edge: strip=%+v open=%+v", i+1, strip, open)
 				}
 			}
 			a.showFileTab(a.files.order[0])
@@ -299,7 +302,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 				}
 				open, _ := tt.Find("打开文件…")
 				actions, _ := tt.Find("Markdown 源码")
-				if strip.X < open.X+open.W+11 || strip.X+strip.W > actions.X-11 {
+				if strip.X < profile.bar.Left || open.X < strip.X+strip.W || open.X+open.W > actions.X-11 {
 					t.Errorf("width=%d: strip %+v overlaps controls: open=%+v actions=%+v", width, strip, open, actions)
 				}
 			}
@@ -312,9 +315,8 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 			tt.SetSize(640, 760)
 			settle(tt)
 			last, _ = tt.Find("Note-9.md")
-			open, _ := tt.Find("打开文件…")
-			if math.Abs(float64(last.X-(open.X+open.W+12))) > 1 {
-				t.Errorf("narrow window did not align its single tab left: tab=%+v open=%+v", last, open)
+			if last.X < profile.bar.Left || last.X > profile.bar.Left+64 {
+				t.Errorf("narrow window did not align its single tab left: tab=%+v", last)
 			}
 		})
 	}
