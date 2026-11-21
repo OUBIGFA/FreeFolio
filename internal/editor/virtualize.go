@@ -671,7 +671,8 @@ func (e *Editor) blockMetrics(b *document.Block, w float32, header bool) blockMe
 		// (p { margin-bottom: 1em }), so paragraphs read as separate units.
 		m.bottom = m.font.Size
 	case "quote":
-		m.left, m.top, m.bottom, m.gap = 14, 0, 8, 8
+		// Each nesting level adds a bar and its gutter.
+		m.left, m.top, m.bottom, m.gap = 14+float32(min(b.Indent, 6))*14, 0, 8, 8
 	case "callout":
 		m.gap = 8
 		m.left, m.right, m.top, m.bottom = 48, 16, 16, 16+m.gap
@@ -777,6 +778,7 @@ func (e *Editor) blockSpans(b *document.Block, font ui.Font, header bool, theme 
 	}
 	if b.Kind != "math" && b.Kind != "raw" {
 		spans = padAnnotations(spans, b.Runs, font.Size)
+		spans = colorKeycaps(spans)
 	}
 	if len(spans) == 0 {
 		spans = []ui.Span{{Text: ""}}

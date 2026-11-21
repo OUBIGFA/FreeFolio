@@ -427,3 +427,43 @@ func TestPlainTextEscapesOnlyWhatMarkdownWouldRead(t *testing.T) {
 		}
 	}
 }
+
+// Regenerated Markdown reads back as the same document: plain text that
+// looks like block syntax is escaped, quote paragraphs stay one (nested)
+// quote, autolinks stay autolinks, ***bold italic*** stays Markdown and an
+// explicit left-aligned column keeps its ":---".
+func TestRegeneratedMarkdownKeepsStructure(t *testing.T) {
+	for text, want := range map[string]string{
+		"# not heading": `\# not heading`,
+		"1. not list":   `1\. not list`,
+		"- not list":    `\- not list`,
+		"> not quote":   `\> not quote`,
+		"---":           `\---`,
+		"$$":            `\$\$`,
+		"a\n# b":        "a\n" + `\# b`,
+	} {
+		d := document.New()
+		d.Blocks[0].Runs = []document.Run{{Text: text}}
+		got := strings.TrimSuffix(ExportMarkdown(d), "\n")
+		back := ImportMarkdown(got)
+		if got != want || len(back.Blocks) != 1 || back.Blocks[0].Kind != "paragraph" || back.Blocks[0].Text() != text {
+			t.Errorf("%q: wrote %q, read back %+v", text, got, back.Blocks)
+		}
+	}
+	for src, want := range map[string]string{
+		"> one\n>\n> two\n>\n> > nested\n>\n> back": "> one\n>\n> two\n>\n> > nested\n>\n> back\n",
+		"这是***粗斜体文本***。":                            "这是***粗斜体文本***。\n",
+		"see <https://bm.md> or me@bm.md":           "see <https://bm.md> or <me@bm.md>\n",
+		"| a | b |\n| :--- | ---: |\n| 1 | 2 |":     "| a | b |\n| :--- | ---: |\n| 1 | 2 |\n",
+	} {
+		d := ImportMarkdown(src)
+		d.ImportSource = ""
+		if got := ExportMarkdown(d); got != want {
+			t.Errorf("%q: got %q, want %q", src, got, want)
+		}
+	}
+	nested := ImportMarkdown("> a\n>\n> > b")
+	if len(nested.Blocks) != 2 || nested.Blocks[0].Indent != 0 || nested.Blocks[1].Indent != 1 || nested.Blocks[1].Kind != "quote" {
+		t.Fatalf("nested quote depth: %+v", nested.Blocks)
+	}
+}

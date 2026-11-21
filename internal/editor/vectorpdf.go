@@ -238,7 +238,9 @@ func (e *Editor) exportVectorDecorations(
 			}
 
 		case "quote":
-			vp.FillRect(x, y, 2*sx, h, 1*sc, pdfRGBA(pg.QuoteBar))
+			for k := 0; k <= d.depth; k++ {
+				vp.FillRect(x+float64(k)*14*sx, y, 2*sx, h, 1*sc, pdfRGBA(pg.QuoteBar))
+			}
 
 		case "rule":
 			vp.Line(x, py(d.rect.Y+12.5), x+w, py(d.rect.Y+12.5), 1*sc, pdfRGBA(pg.Rule), false)

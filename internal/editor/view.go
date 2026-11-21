@@ -334,6 +334,8 @@ type decoration struct {
 	label        string
 	// tone is a callout's color.
 	tone string
+	// depth is a nested quote's extra levels, one bar each.
+	depth int
 	// id is the block of a code block or table, whose hover controls act
 	// on it.
 	id      string
@@ -1207,7 +1209,8 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			counters = nil
 			return e.layoutTable(b, x, y, w, virtualize && !tableActive, winTop, winBottom, leafOf, &cellTop, &header, blockLayout)
 		}
-		if b.Kind != "bullet" && b.Kind != "numbered" && b.Kind != "task" && b.Kind != "toggle" && b.Indent > 0 {
+		// A quote's Indent is its nesting, drawn as bars (blockMetrics).
+		if b.Kind != "bullet" && b.Kind != "numbered" && b.Kind != "task" && b.Kind != "toggle" && b.Kind != "quote" && b.Indent > 0 {
 			indent := min(float32(b.Indent)*20, max(0, w-80))
 			x += indent
 			w -= indent
@@ -1366,6 +1369,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			}
 			if b.Kind == "callout" {
 				d.tone, d.id, d.label = b.Color, b.ID, b.Emoji
+			}
+			if b.Kind == "quote" {
+				d.depth = min(b.Indent, 6)
 			}
 			e.decorations = append(e.decorations, d)
 		}
@@ -1576,7 +1582,9 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					p.Icon(calloutIcon(d.tone), ui.Rect{X: icon.X + 3, Y: icon.Y + 3, W: 18, H: 18}, look.Icon)
 				}
 			case "quote":
-				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 2, H: r.H}, e.page.QuoteBar, 1)
+				for k := 0; k <= d.depth; k++ {
+					p.Fill(ui.Rect{X: r.X + float32(k)*14, Y: r.Y, W: 2, H: r.H}, e.page.QuoteBar, 1)
+				}
 			case "rule":
 				p.Line(r.X, r.Y+12.5, r.X+r.W, r.Y+12.5, 1, e.page.Rule)
 			case "cell":

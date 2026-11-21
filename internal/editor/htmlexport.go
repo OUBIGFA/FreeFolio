@@ -181,7 +181,11 @@ func ExportHTML(doc *document.Document) string {
 			if (b.Align == "center" || b.Align == "right") && tag != "pre" {
 				attrs = ` style="text-align:` + b.Align + `"`
 			}
-			out.WriteString("<" + tag + attrs + ">" + body + "</" + tag + ">")
+			nest := 1
+			if b.Kind == "quote" {
+				nest += min(b.Indent, 6)
+			}
+			out.WriteString(strings.Repeat("<"+tag+attrs+">", nest) + body + strings.Repeat("</"+tag+">", nest))
 		}
 		return out.String()
 	}

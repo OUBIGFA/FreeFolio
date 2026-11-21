@@ -389,12 +389,19 @@ func canUseMarkdownDelim(inner string, before, after rune, delim string) bool {
 	if delim == "~~" && (strings.HasPrefix(inner, "~") || strings.HasSuffix(inner, "~")) {
 		return false
 	}
+	// The delimiter joins any of its own characters inner starts or ends
+	// with into one run, as "*" around "**bold**" writes "***": flanking
+	// looks past them to the text (CommonMark 6.2).
+	core := strings.Trim(inner, delim[:1])
+	if core == "" {
+		return false
+	}
 	var first, last rune
-	for _, r := range inner {
+	for _, r := range core {
 		first = r
 		break
 	}
-	for _, r := range inner {
+	for _, r := range core {
 		last = r
 	}
 	isWS := func(r rune) bool { return r == 0 || unicode.IsSpace(r) }

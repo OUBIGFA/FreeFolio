@@ -172,7 +172,13 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 					b.Comments = nil
 				}
 			case parser.Quote:
-				children := blocks(index, "quote", indent)
+				// A quote within a quote nests one level deeper: its
+				// paragraphs keep the depth in Indent.
+				depth := indent
+				if context == "quote" {
+					depth++
+				}
+				children := blocks(index, "quote", depth)
 				if color, emoji, align, ok := alertMetadata(children); ok {
 					for _, child := range children {
 						child.Kind, child.Color, child.Emoji = "callout", color, emoji
@@ -295,6 +301,9 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 						}
 						if col < len(node.Align) {
 							switch node.Align[col] {
+							case parser.AlignLeft:
+								// An explicit ":---" writes back as written.
+								td.Align = "left"
 							case parser.AlignCenter:
 								td.Align = "center"
 							case parser.AlignRight:
@@ -393,14 +402,27 @@ func isBlankLine(b *document.Block) bool {
 }
 
 // joinMarkdownItem writes the separator before an item: a blank line, a
-// line break between items of a list, and after a blank-line block just the
-// line break that ends it.
-func joinMarkdownItem(out *strings.Builder, prevList, prevBlank, list bool) {
-	if prevBlank || prevList && list {
+// line break between items of a list, after a blank-line block just the
+// line break that ends it, and between quote paragraphs a quoted blank
+// line, so they stay one quote (prevQuote and quote are quoteDepth).
+func joinMarkdownItem(out *strings.Builder, prevList, prevBlank, list bool, prevQuote, quote int) {
+	switch {
+	case prevQuote > 0 && quote > 0:
+		out.WriteString("\n" + strings.TrimSpace(strings.Repeat("> ", min(prevQuote, quote))) + "\n")
+	case prevBlank || prevList && list:
 		out.WriteString("\n")
-		return
+	default:
+		out.WriteString("\n\n")
 	}
-	out.WriteString("\n\n")
+}
+
+// quoteDepth is how many ">" a quote paragraph is written under, 0 for
+// anything else (an aligned quote is wrapped in HTML of its own).
+func quoteDepth(b *document.Block) int {
+	if b.Kind != "quote" || normCellAlign(b.Align) != "" {
+		return 0
+	}
+	return b.Indent + 1
 }
 
 // buildStructuredBlocks resolves multi-block HTML wrappers (columns, details,
@@ -1541,6 +1563,9 @@ func exportWithSourceChunks(doc *document.Document, orig parsedMarkdown, buckets
 		isList, blank bool
 		// chunk is the source chunk the item writes back, -1 for none.
 		chunk int
+		// firstQuote and lastQuote are its first and last block's
+		// quoteDepth.
+		firstQuote, lastQuote int
 	}
 	items := make([]emittedItem, 0, len(blocks))
 	numberedSeq := map[int]int{}
@@ -1589,12 +1614,12 @@ func exportWithSourceChunks(doc *document.Document, orig parsedMarkdown, buckets
 					advanceListState(blocks[bi], numberedSeq, listCols)
 				}
 			}
-			items = append(items, emittedItem{text: ch.raw, isList: isList, blank: spanLen == 1 && isBlankLine(blocks[i]), chunk: matched})
+			items = append(items, emittedItem{text: ch.raw, isList: isList, blank: spanLen == 1 && isBlankLine(blocks[i]), chunk: matched, firstQuote: quoteDepth(blocks[i]), lastQuote: quoteDepth(blocks[i+spanLen-1])})
 			i += spanLen
 			continue
 		}
 		text, consumed, isList := renderSingleMarkdownItem(blocks, i, numberedSeq, listCols)
-		items = append(items, emittedItem{text: text, isList: isList, blank: isBlankLine(blocks[i]), chunk: -1})
+		items = append(items, emittedItem{text: text, isList: isList, blank: isBlankLine(blocks[i]), chunk: -1, firstQuote: quoteDepth(blocks[i]), lastQuote: quoteDepth(blocks[i+consumed-1])})
 		i += consumed
 	}
 
@@ -1607,7 +1632,7 @@ func exportWithSourceChunks(doc *document.Document, orig parsedMarkdown, buckets
 			if prev := items[idx-1]; prev.chunk >= 0 && it.chunk == prev.chunk+1 && orig.chunks[prev.chunk].tight {
 				body.WriteString("\n")
 			} else {
-				joinMarkdownItem(&body, prev.isList, prev.blank, it.isList)
+				joinMarkdownItem(&body, prev.isList, prev.blank, it.isList, prev.lastQuote, it.firstQuote)
 			}
 		}
 		body.WriteString(it.text)
@@ -1657,19 +1682,21 @@ func renderMarkdownBlockList(blocks []*document.Block) string {
 	numberedSeq := map[int]int{}
 	listCols := map[int]int{}
 	type item struct {
-		text          string
-		isList, blank bool
+		text                  string
+		isList, blank         bool
+		firstQuote, lastQuote int
 	}
 	var items []item
 	for i := 0; i < len(blocks); {
 		text, consumed, isList := renderSingleMarkdownItem(blocks, i, numberedSeq, listCols)
-		items = append(items, item{text: text, isList: isList, blank: isBlankLine(blocks[i])})
+		items = append(items, item{text: text, isList: isList, blank: isBlankLine(blocks[i]), firstQuote: quoteDepth(blocks[i]), lastQuote: quoteDepth(blocks[i+consumed-1])})
 		i += consumed
 	}
 	var out strings.Builder
 	for idx, it := range items {
 		if idx > 0 {
-			joinMarkdownItem(&out, items[idx-1].isList, items[idx-1].blank, it.isList)
+			prev := items[idx-1]
+			joinMarkdownItem(&out, prev.isList, prev.blank, it.isList, prev.lastQuote, it.firstQuote)
 		}
 		out.WriteString(it.text)
 	}
@@ -1726,6 +1753,11 @@ func renderSingleMarkdownItem(blocks []*document.Block, i int, numberedSeq, list
 	pad := strings.Repeat(" ", padCols)
 
 	inline := exportRunsWithComments(b.Runs, b.Comments, b.Kind != "heading")
+	if b.Kind == "heading" {
+		inline = escapeHeadingClose(inline)
+	} else {
+		inline = escapeBlockStarts(inline)
+	}
 	switch b.Kind {
 	case "toggle":
 		var body []*document.Block
@@ -1789,7 +1821,8 @@ func renderSingleMarkdownItem(blocks []*document.Block, i int, numberedSeq, list
 			isList = true
 		}
 	case "quote":
-		text = "> " + strings.ReplaceAll(inline, "\n", "\n> ")
+		marks := strings.Repeat("> ", b.Indent+1)
+		text = marks + strings.ReplaceAll(inline, "\n", "\n"+marks)
 		if align != "" {
 			text = `<div align="` + align + "\">\n\n" + text + "\n\n</div>"
 		}
@@ -1933,6 +1966,8 @@ func exportPipeTable(b *document.Block) string {
 			for _, cell := range row.Children {
 				bar := "---"
 				switch cell.Align {
+				case "left":
+					bar = ":---"
 				case "center":
 					bar = ":---:"
 				case "right":
@@ -2186,7 +2221,11 @@ func renderMarkdownRuns(runs []document.Run, before, after rune, literalContext 
 		var chunk string
 		switch kind {
 		case "link":
-			chunk = fmt.Sprintf("[%s](%s)", inner, val)
+			if auto, ok := autolinkOf(sub, val); ok {
+				chunk = auto
+			} else {
+				chunk = fmt.Sprintf("[%s](%s)", inner, val)
+			}
 		case "kbd":
 			chunk = "<kbd>" + inner + "</kbd>"
 		case "bold":
@@ -2226,6 +2265,89 @@ func renderMarkdownRuns(runs []document.Run, before, after rune, literalContext 
 		i = j
 	}
 	return out.String()
+}
+
+// Line starts that Markdown reads as block syntax: a heading, a list item,
+// a quote, a thematic break or setext underline, and a math fence.
+var (
+	atxStart     = regexp.MustCompile(`^( {0,3})(#{1,6})([ \t]|$)`)
+	orderedStart = regexp.MustCompile(`^( {0,3})([0-9]{1,9})([.)])([ \t]|$)`)
+	bulletStart  = regexp.MustCompile(`^( {0,3})([-+*])([ \t]|$)`)
+	quoteStart   = regexp.MustCompile(`^( {0,3})>`)
+	breakLine    = regexp.MustCompile(`^( {0,3})([-*_=])[ \t]*(?:[-*_=][ \t]*)*$`)
+	headingClose = regexp.MustCompile(`([ \t])(#+)([ \t]*)$`)
+)
+
+// escapeBlockStarts escapes, on every line of a block's text, what would
+// start other block syntax, so a paragraph reading "# x", "1. x", "- x",
+// "> x" or "---" writes back as that text and not as a heading, a list, a
+// quote or a rule. Leading spaces that would make indented code become a
+// character reference.
+func escapeBlockStarts(s string) string {
+	if s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		switch {
+		case strings.HasPrefix(ln, "    ") || strings.HasPrefix(ln, "\t"):
+			lines[i] = "&#32;" + ln[1:]
+		case atxStart.MatchString(ln):
+			m := atxStart.FindStringSubmatchIndex(ln)
+			lines[i] = ln[:m[4]] + `\` + ln[m[4]:]
+		case orderedStart.MatchString(ln):
+			m := orderedStart.FindStringSubmatchIndex(ln)
+			lines[i] = ln[:m[6]] + `\` + ln[m[6]:]
+		case breakLine.MatchString(ln) && strings.TrimSpace(ln) != "":
+			m := breakLine.FindStringSubmatchIndex(ln)
+			lines[i] = ln[:m[4]] + `\` + ln[m[4]:]
+		case bulletStart.MatchString(ln):
+			m := bulletStart.FindStringSubmatchIndex(ln)
+			lines[i] = ln[:m[4]] + `\` + ln[m[4]:]
+		case quoteStart.MatchString(ln):
+			m := quoteStart.FindStringSubmatchIndex(ln)
+			lines[i] = ln[:m[3]] + `\` + ln[m[3]:]
+		case strings.TrimSpace(ln) == "$$":
+			lines[i] = strings.Replace(ln, "$$", `\$\$`, 1)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// escapeHeadingClose keeps a heading's trailing " #" as text: Markdown
+// would drop it as the closing sequence.
+func escapeHeadingClose(s string) string {
+	if m := headingClose.FindStringSubmatchIndex(s); m != nil {
+		return s[:m[4]] + `\` + s[m[4]:]
+	}
+	return s
+}
+
+// autolinkOf writes a link whose plain text is its own address, as
+// <https://bm.md> and bare URLs and e-mail addresses import, as the
+// CommonMark autolink <address> rather than [address](address).
+func autolinkOf(runs []document.Run, dest string) (string, bool) {
+	var text strings.Builder
+	for _, r := range runs {
+		st := r.Style
+		st.NoMath = false
+		if st != (document.Style{}) {
+			return "", false
+		}
+		text.WriteString(r.Text)
+	}
+	t := text.String()
+	if strings.ContainsAny(t, " <>\n\u2028") {
+		return "", false
+	}
+	low := strings.ToLower(t)
+	switch {
+	case t == dest && (strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://") || strings.HasPrefix(low, "ftp://")):
+		return "<" + t + ">", true
+	case dest == "mailto:"+t && strings.Contains(t, "@"):
+		return "<" + t + ">", true
+	}
+	return "", false
 }
 
 func formatMarkdownLeafRun(run document.Run, skipWiki bool) string {
