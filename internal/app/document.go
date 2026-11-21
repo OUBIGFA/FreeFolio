@@ -427,8 +427,8 @@ func (d *document) toggleMode() {
 }
 
 // sourceEditable reports whether source mode edits the Markdown itself:
-// a Markdown page that is not read-only. An .arcmd page shows its export,
-// which cannot hold all of it, read-only.
+// a Markdown page that is not read-only. An .arcmd page shows its Markdown
+// export, which cannot hold all of it, read-only.
 func (d *document) sourceEditable() bool {
 	return d.loadErr == nil && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
 }

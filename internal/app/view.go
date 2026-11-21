@@ -591,28 +591,6 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 			}
 		}
 	}
-	if d.source && !d.sourceEditable() {
-		// A page source mode cannot edit shows its Markdown export, with
-		// a way straight back.
-		box := ui.Column(c.Key("source-page")).Grow(1).Padding(24).Gap(12)
-		applyModeFade(box)
-		box.Children(func() {
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, i18n.T("Markdown 导出预览")).Grow(1)
-				if ui.Button(c, i18n.T("导出 Markdown 文件")).Clicked() {
-					a.activateDocument(d)
-					a.exportMarkdown()
-				}
-				if iconButton(c, "source-exit", iconX, i18n.T("退出 Markdown 导出预览"), a.withKey(i18n.T("返回富文本编辑"), "source"), false).Clicked() {
-					d.toggleMode()
-				}
-			})
-			ta := ui.TextArea(c.Key("export-preview"), &d.preview).Grow(1).ReadOnly(true).
-				TrackScroll(&d.previewScroll).Label(i18n.T("Markdown 导出预览"))
-			d.placePreviewCaret(ta)
-		})
-		return
-	}
 	// One column always, so that the bar coming and going keeps the
 	// editor's place in the tree, and with it its scroll and focus.
 	page := ui.Column(c.Key("page")).Grow(1).MinHeight(0)
@@ -833,11 +811,13 @@ func (a *App) address(c *ui.Context) {
 // editor takes it in.
 const sourceApplyDelay = 300 * time.Millisecond
 
-// sourceView edits the page's Markdown in place of the rich text: the same
-// text column, size and line height, set in monospace.
+// sourceView shows the page's Markdown in place of the rich text, in every
+// mode, the space's and the file browser's alike: the same text column,
+// size and line height, set in monospace. A page source mode cannot edit,
+// read-only or .arcmd, shows its Markdown read-only.
 func (a *App) sourceView(c *ui.Context, d *document, width float32) {
 	pad := editor.TextPadding(width, a.prefs.Column())
-	ta := ui.TextAreaBase(c.Key(d.viewKey()+":source"), &d.preview).Grow(1).MinHeight(0).Padding(48, pad, 160, pad).
+	ta := ui.TextAreaBase(c.Key(d.viewKey()+":source"), &d.preview).Grow(1).MinHeight(0).Padding(48, pad, 160, pad).ReadOnly(!d.sourceEditable()).
 		Font("monospace").FontSize(a.prefs.ReadingSize()).LineHeight(a.prefs.ReadingLine()).
 		TrackScroll(&d.previewScroll).Label(i18n.T("Markdown 源码编辑区"))
 	// Typed source goes into the editor once typing pauses, so each
@@ -846,7 +826,7 @@ func (a *App) sourceView(c *ui.Context, d *document, width float32) {
 	if ta.Changed() {
 		d.sourceEdited = c.Now()
 	}
-	if d.preview != d.sourceApplied {
+	if d.preview != d.sourceApplied && d.sourceEditable() {
 		if wait := sourceApplyDelay - c.Now().Sub(d.sourceEdited); wait > 0 {
 			c.After(wait)
 		} else {

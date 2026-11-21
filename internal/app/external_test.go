@@ -427,3 +427,35 @@ func TestShowSpaceHomeLeavesFilesAndDocument(t *testing.T) {
 		t.Fatal("the space forgot its last document", sp.LastOpen)
 	}
 }
+
+// The file browser switches its page to Markdown source in place, as a
+// space does: read-only while the tab is locked, editable once unlocked.
+func TestFileBrowserSourceModeInPlace(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.prefs.Files.ReadOnly = true
+	file := externalFile(t, "One.md", "# One")
+	a.openSystemFile(file)
+	tt.Frame()
+	if err := tt.Click("Markdown 源码"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Markdown 源码编辑区"); !a.doc.source || !ok || tt.HasText("Markdown 导出预览") {
+		t.Fatal("file browser did not switch to source in place")
+	}
+	a.doc.ed.SetReadOnly(false)
+	a.doc.preview = "# One\n\nTyped in source.\n"
+	tt.Frame()
+	tt.Advance(sourceApplyDelay + time.Millisecond)
+	tt.Advance(autosaveDelay + time.Millisecond)
+	if b, _ := os.ReadFile(file); string(b) != "# One\n\nTyped in source.\n" {
+		t.Fatalf("source edit not saved: %q", b)
+	}
+	if err := tt.Click("Markdown 源码"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc.source || !strings.Contains(a.doc.ed.Text(), "Typed in source.") {
+		t.Fatal("did not return to rich text with the edit")
+	}
+}
