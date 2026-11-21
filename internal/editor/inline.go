@@ -127,11 +127,18 @@ func literalBlock(kind string) bool {
 }
 
 func tokenAllowed(b *document.Block, a, z int) bool {
+	return inlineTokenAllowed(b, a, z, false)
+}
+
+// inlineTokenAllowed reports whether the token at a..z shows as an object.
+// An image may sit in a link, as linked badges and screenshots do; math
+// and notes in links stay text.
+func inlineTokenAllowed(b *document.Block, a, z int, image bool) bool {
 	if literalBlock(b.Kind) {
 		return false
 	}
 	for _, r := range document.SliceRuns(b.Runs, a, z) {
-		if r.Style.Code || r.Style.Link != "" || r.Style.NoMath {
+		if r.Style.Code || r.Style.Link != "" && !image || r.Style.NoMath && !image {
 			return false
 		}
 	}
@@ -292,7 +299,7 @@ func (e *Editor) shapeInline(b *document.Block, spans []ui.Span, font ui.Font, s
 	}
 	for _, token := range inlineTokens(text) {
 		a, z := document.Len(text[:token.start]), document.Len(text[:token.end])
-		if !tokenAllowed(b, a, z) {
+		if !inlineTokenAllowed(b, a, z, token.image != "") {
 			continue
 		}
 		if hasEdit && a < editObj.end && z > editObj.start {
@@ -400,6 +407,20 @@ func (e *Editor) shapeInline(b *document.Block, spans []ui.Span, font ui.Font, s
 	if len(visible) == 0 {
 		visible = spans
 	}
+	if imageRow(text, l.objects) {
+		// A paragraph of images alone, as a row of README badges written one
+		// per line, flows side by side and wraps, as GitHub and mark2 show
+		// it. Only the shaped text changes, newline for space, so offsets
+		// keep matching the source.
+		row := make([]ui.Span, len(visible))
+		for i, sp := range visible {
+			if sp.ObjectWidth == 0 {
+				sp.Text = strings.ReplaceAll(sp.Text, "\n", " ")
+			}
+			row[i] = sp
+		}
+		visible = row
+	}
 	visible = e.shapeTabsAndCodeIndent(b, visible, font, shape)
 	l.TextLayout = ui.ShapeRichTextWith(visible, font, shape)
 	for _, o := range l.TextLayout.Objects() {
@@ -440,6 +461,22 @@ func (e *Editor) inlineImage(token inlineToken, a, z int, font ui.Font, lineW fl
 	}
 	obj.label = ui.ShapeText("🖼 "+name, ui.Font{Family: font.Family, Size: font.Size * .85}, 0)
 	return obj
+}
+
+// imageRow reports whether text is two or more inline images with only
+// white space between them.
+func imageRow(text string, objects []inlineObject) bool {
+	blank := func(a, z int) bool {
+		return strings.TrimSpace(text[document.ByteOffset(text, a):document.ByteOffset(text, z)]) == ""
+	}
+	images, pos := 0, 0
+	for _, o := range objects {
+		if !o.image || !blank(pos, o.start) {
+			return false
+		}
+		images, pos = images+1, o.end
+	}
+	return images >= 2 && blank(pos, document.Len(text))
 }
 
 func labelHeight(l *ui.TextLayout) float32 {

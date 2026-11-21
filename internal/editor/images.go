@@ -226,6 +226,11 @@ func (e *Editor) layoutImage(r *row, o Options) float32 {
 	iw, ih := 0, 0
 	if bitmap := f.resource.Bitmap; bitmap != nil {
 		iw, ih = bitmap.Size()
+		// A rasterized SVG holds more pixels than its own size: lay it out
+		// at the size the resource names.
+		if f.resource.Width > 0 && f.resource.Height > 0 {
+			iw, ih = f.resource.Width, f.resource.Height
+		}
 	} else if f.resource.Loading && f.resource.Width > 0 && f.resource.Height > 0 {
 		iw, ih = f.resource.Width, f.resource.Height
 	}

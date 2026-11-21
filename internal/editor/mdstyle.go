@@ -766,6 +766,22 @@ func parseInlineHTMLFragment(fragment string) ([]document.Run, []document.Inline
 	return runs, comments
 }
 
+// inlineImageSyntax writes an <img> as Markdown's ![alt|width](src), the
+// form inline images take within text; a data: or empty source is left as
+// HTML. The address is escaped where the inline image syntax stops.
+func inlineImageSyntax(img *xhtml.Node) (string, bool) {
+	src := strings.TrimSpace(attr(img, "src"))
+	if src == "" || strings.HasPrefix(strings.ToLower(src), "data:") {
+		return "", false
+	}
+	src = strings.NewReplacer(" ", "%20", "(", "%28", ")", "%29", "<", "%3C", ">", "%3E").Replace(src)
+	alt := strings.NewReplacer("]", "", "[", "", "\n", " ", "|", "/").Replace(attr(img, "alt"))
+	if w := parseHTMLWidth(img); w > 0 {
+		alt += "|" + strconv.Itoa(int(w))
+	}
+	return "![" + alt + "](" + src + ")", true
+}
+
 type htmlStyleFrame struct {
 	tag   string
 	style document.Style
@@ -791,6 +807,14 @@ func applyInlineHTMLToken(raw string, stack *[]htmlStyleFrame, style *document.S
 			return true, hardBreak, ""
 		}
 		node := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: tok.DataAtom, Data: name, Attr: tok.Attr}
+		if tok.DataAtom == atom.Img {
+			// An image inside text, as README badges are written, shows as
+			// the inline image the line already draws.
+			if img, ok := inlineImageSyntax(node); ok {
+				return true, img, ""
+			}
+			return false, "", ""
+		}
 		if tok.DataAtom == atom.Span && (attr(node, "data-emoji") != "" || attr(node, "data-align") != "") {
 			return false, "", ""
 		}

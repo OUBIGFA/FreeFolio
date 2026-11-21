@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"image"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -132,5 +133,43 @@ func TestInlineHTMLExactColorAndSize(t *testing.T) {
 	// Palette colors stay palette names.
 	if r := ImportMarkdown(`<font color=red>x</font>`).Blocks[0].Runs[0]; r.Style.Color != "red" {
 		t.Fatalf("palette color %q", r.Style.Color)
+	}
+}
+
+// Images in an HTML block are inline, as in the browser: side by side in
+// a centered paragraph, one under the other across a <br>.
+func TestHTMLBlockImagesFlowInline(t *testing.T) {
+	const row = `<p align="center"><a href="a"><img src="a.svg" alt="A"></a> <a href="b"><img src="b.svg" alt="B"></a></p>`
+	const stacked = `<p align="center"><img src="a.svg" alt="A"><br><img src="b.svg" alt="B"></p>`
+	bmp := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 100, 20)))
+	for _, tc := range []struct {
+		src  string
+		side bool
+	}{{row, true}, {stacked, false}} {
+		e := New(tc.src + "\n\nafter\n")
+		tt := ui.NewTester(func(c *ui.Context) {
+			w, _ := c.Size()
+			View(c, e, Options{Width: w, Theme: c.Theme(), LoadImage: func(string) ImageResource {
+				return ImageResource{Bitmap: bmp, Width: 100, Height: 20}
+			}})
+		}, 900, 650)
+		tt.Frame()
+		r := htmlRowOf(t, e, e.Doc.Blocks[0].ID)
+		var imgs []ui.Rect
+		for _, op := range r.html.ops {
+			if op.kind == htmlImage {
+				imgs = append(imgs, op.r)
+			}
+		}
+		if len(imgs) != 2 || imgs[0].W != 100 || imgs[0].H != 20 {
+			t.Fatalf("%s: images %+v", tc.src, imgs)
+		}
+		if side := imgs[0].Y == imgs[1].Y && imgs[1].X > imgs[0].X+imgs[0].W; side != tc.side {
+			t.Fatalf("%s: side by side %v, images %+v", tc.src, side, imgs)
+		}
+		// Centered: the left image starts well right of the block's start.
+		if imgs[0].X < 200 {
+			t.Fatalf("%s: not centered %+v", tc.src, imgs)
+		}
 	}
 }

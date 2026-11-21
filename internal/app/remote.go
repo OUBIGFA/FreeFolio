@@ -220,6 +220,9 @@ func (r *remoteImages) raw(url string) image.Image {
 func decodeImageData(data []byte, local bool) editor.ImageResource {
 	bmp, err := ui.DecodeBitmap(data)
 	if err != nil {
+		if isSVGData(data) {
+			return decodeSVGData(data, local)
+		}
 		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: local}
 	}
 	w, h := bmp.Size()
@@ -228,6 +231,39 @@ func decodeImageData(data []byte, local bool) editor.ImageResource {
 		res.Frames, res.Delays = frames, delays
 	}
 	return res
+}
+
+// svgRasterScale draws SVG pictures at twice their size, so badges and
+// diagrams stay sharp on high-density displays; svgRasterSide bounds the
+// longer side in pixels so a huge declared size cannot exhaust memory.
+const (
+	svgRasterScale = 2
+	svgRasterSide  = 4096
+)
+
+// isSVGData reports whether data is an SVG document, which the bitmap
+// decoders reject: shields.io badges and many logos come as SVG.
+func isSVGData(data []byte) bool {
+	head := data[:min(len(data), 1024)]
+	return bytes.Contains(bytes.ToLower(head), []byte("<svg"))
+}
+
+// decodeSVGData rasterizes an SVG with MyGo's SVG renderer (shapes,
+// gradients, clip paths and text; embedded raster images are left out).
+// Width and Height keep the SVG's own size, which layout uses, while the
+// bitmap holds more pixels for sharpness.
+func decodeSVGData(data []byte, local bool) editor.ImageResource {
+	s, err := ui.ParseSVG(data)
+	if err != nil {
+		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: local}
+	}
+	w, h := s.Size()
+	if w <= 0 || h <= 0 {
+		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: local}
+	}
+	scale := min(float32(svgRasterScale), svgRasterSide/max(w, h))
+	img := s.Image(max(1, int(w*scale+0.5)), max(1, int(h*scale+0.5)), nil)
+	return editor.ImageResource{Bitmap: ui.NewBitmap(img), Width: max(1, int(w+0.5)), Height: max(1, int(h+0.5)), Local: local}
 }
 
 // touch bounds retained network bitmaps; live editors retain their own resources.

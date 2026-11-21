@@ -1316,6 +1316,9 @@ func decodeLocalImageThumb(full string) editor.ImageResource {
 	}
 	bmp, err := ui.DecodeBitmapScaled(data, 640)
 	if err != nil {
+		if isSVGData(data) {
+			return decodeSVGData(data, true)
+		}
 		return editor.ImageResource{Problem: editor.ImageUnsupported, Local: true}
 	}
 	w, h := bmp.Size()

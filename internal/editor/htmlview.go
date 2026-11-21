@@ -76,6 +76,14 @@ type htmlLayout struct {
 	spanW   float32
 	y       float32
 	pending float32 // margin waiting below the last block
+	// images are the pictures in the line being written, each an object of
+	// its text at a UTF-16 offset, drawn where the shaped line puts them.
+	images []htmlInlineImage
+}
+
+type htmlInlineImage struct {
+	at     int
+	bitmap *ui.Bitmap
 }
 
 // documentParagraph measures the body text HTML is set in.
@@ -249,8 +257,20 @@ func (l *htmlLayout) flush() {
 	l.y += l.pending
 	l.pending = 0
 	l.box.ops = append(l.box.ops, htmlOp{kind: htmlText, r: ui.Rect{X: l.spanX, Y: l.y, W: l.spanW, H: h}, text: layout})
+	for _, o := range layout.Objects() {
+		for _, img := range l.images {
+			if img.at == o.Index {
+				r := o.Rect
+				r.X += l.spanX
+				r.Y += l.y
+				l.box.ops = append(l.box.ops, htmlOp{kind: htmlImage, r: r, image: img.bitmap, radius: 4})
+				break
+			}
+		}
+	}
 	l.y += h
 	l.spans = l.spans[:0]
+	l.images = l.images[:0]
 }
 
 func spanText(spans []ui.Span) string {
@@ -480,18 +500,13 @@ func (l *htmlLayout) image(n *xhtml.Node, st htmlStyle, x, w float32) {
 	if iw > w {
 		ih, iw = ih*w/iw, w
 	}
-	l.flush()
-	l.y += l.pending
-	l.pending = 0
-	ix := x
-	switch st.align {
-	case ui.Center:
-		ix = x + (w-iw)/2
-	case ui.End:
-		ix = x + w - iw
+	// An img is inline, as in the browser: pictures side by side flow in
+	// the line and wrap, a <br> or a block starts the next line.
+	if len(l.spans) == 0 {
+		l.spanAl, l.spanX, l.spanW = st.align, x, w
 	}
-	l.box.ops = append(l.box.ops, htmlOp{kind: htmlImage, r: ui.Rect{X: ix, Y: l.y, W: iw, H: ih}, image: res.Bitmap, radius: 4})
-	l.y += ih
+	l.images = append(l.images, htmlInlineImage{at: document.Len(spanText(l.spans)), bitmap: res.Bitmap})
+	l.spans = append(l.spans, ui.Span{Text: "\ufffc", ObjectWidth: iw, ObjectHeight: ih})
 }
 
 // table lays out a table as the browser sizes one without widths: each

@@ -68,3 +68,20 @@ func TestRemoteImagesFetchCacheAndFail(t *testing.T) {
 		}
 	}
 }
+
+// An SVG picture, as a shields.io badge, which the bitmap decoders reject,
+// shows rasterized at twice its size and lays out at its own size; bytes
+// that are neither stay unsupported.
+func TestDecodeImageDataRasterizesSVG(t *testing.T) {
+	const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="20"><rect width="30" height="20" fill="#555"/><rect x="30" width="30" height="20" fill="#f21158"/><text x="15" y="14" fill="#fff" font-size="11" text-anchor="middle">MIT</text></svg>`
+	res := decodeImageData([]byte(badge), false)
+	if res.Bitmap == nil || res.Width != 60 || res.Height != 20 || res.Problem != 0 {
+		t.Fatalf("svg: %+v", res)
+	}
+	if w, h := res.Bitmap.Size(); w != 120 || h != 40 {
+		t.Fatalf("raster %dx%d", w, h)
+	}
+	if res := decodeImageData([]byte("not a picture"), true); res.Bitmap != nil || res.Problem != editor.ImageUnsupported || !res.Local {
+		t.Fatalf("junk: %+v", res)
+	}
+}

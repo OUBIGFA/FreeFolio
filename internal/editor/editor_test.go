@@ -1227,11 +1227,23 @@ func TestBlockMenuFitsShortViewport(t *testing.T) {
 	assertWithin("一级标题", 24, 640, 300)
 	tt.Key(0, ui.KeyEscape)
 
-	// Multi-block selection menu at the bottom of a short viewport.
+	// Multi-block selection menu at the bottom of a short viewport: the
+	// selection's first block put near the bottom edge, as above, rather
+	// than wherever scrolling to the end leaves it (the page ends in room).
 	tt.SetSize(640, 620)
 	tt.Frame()
-	e.Scroll.Y = 1e6
 	n := len(e.Doc.Blocks)
+	firstStart := 0
+	for _, l := range e.Doc.Leaves() {
+		if l.Block.ID == e.Doc.Blocks[n-2].ID {
+			firstStart = l.Start
+		}
+	}
+	firstCaret, _, ok := e.BoundsForRange(ui.TextInputRange{Start: firstStart, End: firstStart})
+	if !ok {
+		t.Fatal("missing bounds for the selection's first block")
+	}
+	e.Scroll.Y = max(0, firstCaret.Y-(620-80))
 	e.SelectBlocks(e.Doc.Blocks[n-2].ID, e.Doc.Blocks[n-1].ID)
 	e.OpenBlockMenu(e.Doc.Blocks[n-2].ID, "")
 	tt.Frame()

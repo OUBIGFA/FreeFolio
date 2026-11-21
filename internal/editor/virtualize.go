@@ -384,6 +384,10 @@ func (e *Editor) blockMetrics(b *document.Block, w float32, header bool) blockMe
 			m.font.Size, m.font.LineHeight = 14.4, 22.0/14.4
 			m.left, m.right = mathPaddingX, mathPaddingX
 		}
+	case "paragraph":
+		// A paragraph keeps 1em below it, as Obsidian and mark2 set prose
+		// (p { margin-bottom: 1em }), so paragraphs read as separate units.
+		m.bottom = m.font.Size
 	case "quote":
 		m.left, m.top, m.bottom, m.gap = 14, 0, 8, 8
 	case "callout":
