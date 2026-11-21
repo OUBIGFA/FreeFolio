@@ -94,3 +94,17 @@ func TestLines(t *testing.T) {
 		t.Fatalf("empty notes: %q", got)
 	}
 }
+
+func TestNoteLines(t *testing.T) {
+	notes := "## 新功能\n\n- 自动更新\n\n说明文字"
+	want := []NoteLine{
+		{NoteHeading, "新功能"},
+		{NoteBlank, ""},
+		{NoteItem, "• 自动更新"},
+		{NoteBlank, ""},
+		{NoteText, "说明文字"},
+	}
+	if got := NoteLines(notes); !reflect.DeepEqual(got, want) {
+		t.Fatalf("NoteLines:\n got %+v\nwant %+v", got, want)
+	}
+}

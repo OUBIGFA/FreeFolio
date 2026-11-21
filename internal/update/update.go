@@ -114,27 +114,47 @@ var (
 	notesBare   = regexp.MustCompile(`https?://\S+`)
 )
 
-// Lines turns release notes in Markdown into plain lines for the update
-// window: headings as they are, list items with a bullet, links as their
-// text, emphasis and code marks dropped, and runs of blank lines as one.
-func Lines(notes string) []string {
-	var out []string
+// NoteKind classifies a formatted release-notes line for display.
+type NoteKind int
+
+const (
+	NoteBlank NoteKind = iota
+	NoteHeading
+	NoteItem
+	NoteText
+)
+
+// NoteLine is one formatted line of release notes.
+type NoteLine struct {
+	Kind NoteKind
+	Text string
+}
+
+// NoteLines turns release notes in Markdown into structured lines for the
+// updates settings page: headings, bullet items, plain text, and collapsed
+// blank lines, with links reduced to their text and emphasis/code marks
+// stripped.
+func NoteLines(notes string) []NoteLine {
+	var out []NoteLine
 	blank := true
 	for _, line := range strings.Split(strings.ReplaceAll(notes, "\r\n", "\n"), "\n") {
 		line = strings.TrimRight(line, " \t")
 		if strings.TrimSpace(line) == "" {
 			if !blank {
-				out = append(out, "")
+				out = append(out, NoteLine{Kind: NoteBlank})
 			}
 			blank = true
 			continue
 		}
 		blank = false
 		trimmed := strings.TrimSpace(line)
+		kind := NoteText
 		switch {
 		case strings.HasPrefix(trimmed, "#"):
+			kind = NoteHeading
 			line = strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
 		case notesBullet.MatchString(line):
+			kind = NoteItem
 			line = "• " + notesBullet.ReplaceAllString(line, "")
 		default:
 			line = trimmed
@@ -149,10 +169,25 @@ func Lines(notes string) []string {
 			}
 			return u
 		}))
-		out = append(out, line)
+		out = append(out, NoteLine{Kind: kind, Text: line})
 	}
-	for len(out) > 0 && out[len(out)-1] == "" {
+	for len(out) > 0 && out[len(out)-1].Kind == NoteBlank {
 		out = out[:len(out)-1]
+	}
+	return out
+}
+
+// Lines turns release notes in Markdown into plain lines for the update
+// window: headings as they are, list items with a bullet, links as their
+// text, emphasis and code marks dropped, and runs of blank lines as one.
+func Lines(notes string) []string {
+	structured := NoteLines(notes)
+	if len(structured) == 0 {
+		return nil
+	}
+	out := make([]string, len(structured))
+	for i, l := range structured {
+		out[i] = l.Text
 	}
 	return out
 }

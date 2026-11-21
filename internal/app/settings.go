@@ -649,25 +649,19 @@ func (a *App) settingsSpaces(c *ui.Context) {
 	})
 }
 
-// settingsUpdates is whether FreeMD downloads new versions by itself, and
-// the check of "检查更新…".
+// settingsUpdates shows the current version, update status, release notes and
+// automatic download preference.
 func (a *App) settingsUpdates(c *ui.Context) {
-	u := &a.updates
-	settingsHeading(c, i18n.T("更新"), "")
-	settingsGroup(c, "updates", func() {
+	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeMD 新版本，自动更新可在后台下载并等待你确认重启。"))
+	a.updateOverview(c)
+	a.updateReleaseNotes(c)
+	settingsSection(c, i18n.T("更新偏好"))
+	settingsGroup(c, "update-prefs", func() {
 		auto := !a.prefs.NoAutoUpdate
 		toggleRow(c, "auto-update", i18n.T("自动更新 FreeMD"), i18n.T("在后台下载新版本，准备好后由你安装。关闭后只提示有新版本。"), &auto, nil)
 		if auto == a.prefs.NoAutoUpdate {
 			a.toggleAutoUpdate()
 		}
-		settingsSeparator(c)
-		settingRow(c, "check", i18n.T("当前版本 ")+Version, "", func() {
-			if ui.Button(c.Key("check-now"), i18n.T("检查更新…")).Disabled(u.checking || u.downloading || u.installing).Clicked() {
-				a.checkForUpdates()
-			}
-		})
-		settingsSeparator(c)
-		a.updateDetails(c)
 	})
 }
 

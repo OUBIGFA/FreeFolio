@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
@@ -507,40 +508,126 @@ func (a *App) updateToast(c *ui.Context) {
 	})
 }
 
-// updateDetails keeps status, progress and actions in the updates settings
-// page. Navigation stays available while checks and downloads run.
-func (a *App) updateDetails(c *ui.Context) {
+// updateOverview renders the version header, current status, download progress
+// and contextual actions in Settings > Updates. Navigation stays available
+// while checks and downloads run.
+func (a *App) updateOverview(c *ui.Context) {
 	u := &a.updates
 	t := c.Theme()
-	ui.Column(c.Key("update-details")).Padding(12, 16, 16, 16).Gap(12).Children(func() {
-		ui.Text(c.Key("update-status"), a.updateSummary()).FontSize(13).LineHeight(1.5).Selectable()
-		if !u.lastCheck.IsZero() {
-			ui.Text(c, i18n.T("上次检查：")+u.lastCheck.Format(i18n.T("1月2日 15:04"))).FontSize(13).TextColor(t.TextMuted)
+	busy := u.checking || u.downloading || u.installing
+
+	// Semantic icon and tint for the current update state.
+	var (
+		icon     = iconReload
+		fg       = t.TextMuted
+		bg       = t.Border.Alpha(0.45)
+		spinning = false
+	)
+	switch {
+	case u.checking || u.installing:
+		spinning = true
+		fg, bg = t.Accent, t.Accent.Alpha(0.10)
+	case u.downloading:
+		icon = iconDownload
+		fg, bg = t.Accent, t.Accent.Alpha(0.10)
+	case !a.updatesEnabled() || u.phase == phaseNoRelease:
+		icon = iconInfo
+	case u.phase == phaseFailed:
+		icon = iconAlert
+		fg, bg = t.Danger, t.Danger.Alpha(0.10)
+	case u.ready != "" || u.phase == phaseUpToDate:
+		icon = iconCheck
+		fg, bg = t.Success, t.Success.Alpha(0.12)
+	case u.release != nil:
+		icon = iconDownload
+		fg, bg = t.Accent, t.Accent.Alpha(0.10)
+	}
+
+	statusColor := t.Text
+	if u.phase == phaseFailed {
+		statusColor = t.Danger
+	}
+
+	settingsGroup(c, "update-overview", func() {
+		ui.Row(c.Key("update-header")).Padding(14, 16).Gap(14).AlignItems(ui.Center).Children(func() {
+			ui.Box(c.Key("update-badge")).Size(36, 36).Radius(8).Shrink(0).Center().Background(bg).Children(func() {
+				if spinning {
+					ui.Spinner(c.Key("update-spinner")).TextColor(fg).Label(a.updateSummary())
+				} else {
+					ui.Icon(c, icon).FontSize(17).TextColor(fg)
+				}
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+				ui.Text(c.Key("update-status"), a.updateSummary()).FontSize(14).FontWeight(600).TextColor(statusColor).LineHeight(1.4).Selectable()
+				ui.Row(c.Key("update-meta")).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+					ui.Text(c, i18n.T("当前版本 ")+Version).FontSize(12).TextColor(t.TextMuted)
+					if !u.lastCheck.IsZero() {
+						ui.Text(c, "·").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, i18n.T("上次检查：")+u.lastCheck.Format(i18n.T("1月2日 15:04"))).FontSize(12).TextColor(t.TextMuted)
+					}
+				})
+			})
+			ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(func() {
+				if ui.Button(c.Key("check-now"), i18n.T("检查更新…")).Disabled(busy).Clicked() {
+					a.checkForUpdates()
+				}
+			})
+		})
+
+		if busy {
+			settingsSeparator(c)
+			ui.Column(c.Key("update-progress-area")).Padding(12, 16).Gap(8).Children(func() {
+				value := float64(-1)
+				if u.downloading && u.total > 0 {
+					value = float64(u.received) / float64(u.total)
+				}
+				ui.Progress(c.Key("update-progress"), value).Label(i18n.T("下载进度"))
+				if u.downloading {
+					ui.Row(c.Key("update-actions")).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+							if u.total > 0 {
+								pct := min(100, max(0, int(u.received*100/u.total)))
+								ui.Text(c, byteSize(u.received)+" / "+byteSize(u.total)).FontSize(12).TextColor(t.TextMuted)
+								ui.Text(c, fmt.Sprintf("%d%%", pct)).FontSize(12).FontWeight(500).TextColor(t.Accent)
+							}
+						})
+						if ui.Button(c.Key("cancel-download"), i18n.T("取消")).Clicked() {
+							a.cancelUpdateDownload()
+						}
+					})
+				}
+			})
+			return
 		}
-		if u.checking || u.downloading || u.installing {
-			value := float64(-1)
-			if u.downloading && u.total > 0 {
-				value = float64(u.received) / float64(u.total)
-			}
-			ui.Progress(c.Key("update-progress"), value)
-			if u.downloading && u.total > 0 {
-				ui.Text(c, byteSize(u.received)+" / "+byteSize(u.total)).FontSize(13).TextColor(t.TextMuted)
-			}
+
+		hasActions := !a.updatesEnabled() || u.phase == phaseFailed || u.ready != "" || u.release != nil
+		if !hasActions {
+			return
 		}
-		ui.Row(c.Key("update-actions")).Gap(8).Children(func() {
+		stripBg := ui.Transparent
+		switch {
+		case u.phase == phaseFailed:
+			stripBg = t.Danger.Alpha(0.06)
+		case u.ready != "":
+			stripBg = t.Success.Alpha(0.06)
+		case u.release != nil:
+			stripBg = t.Accent.Alpha(0.05)
+		}
+		// Use a full-width hairline above tinted strips so it meets the outer
+		// border cleanly without leaving uncolored notches at the edges.
+		if stripBg != ui.Transparent {
+			ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
+		} else {
+			settingsSeparator(c)
+		}
+		ui.Row(c.Key("update-actions")).Padding(12, 16).Gap(8).Wrap().AlignItems(ui.Center).Background(stripBg).Children(func() {
 			switch {
 			case !a.updatesEnabled():
 				if ui.Button(c.Key("download-page"), i18n.T("前往下载页面")).Clicked() {
 					a.openUpdatePage(update.ReleaseURL(""))
 				}
-			case u.downloading:
-				if ui.Button(c.Key("cancel-download"), i18n.T("取消")).Clicked() {
-					a.cancelUpdateDownload()
-				}
-			case u.checking || u.installing:
-				// Progress above explains why no action is available yet.
 			case u.phase == phaseFailed:
-				if ui.Button(c.Key("retry-update"), i18n.T("重试")).Clicked() {
+				if ui.PrimaryButton(c.Key("retry-update"), i18n.T("重试")).Clicked() {
 					if u.release != nil {
 						u.ready = ""
 						a.installUpdate()
@@ -555,26 +642,53 @@ func (a *App) updateDetails(c *ui.Context) {
 				if ui.PrimaryButton(c.Key("install-update"), i18n.T("安装并重新启动")).Clicked() {
 					a.installUpdate()
 				}
+				if ui.Button(c.Key("release-page"), i18n.T("查看发布页")).Clicked() {
+					a.openUpdatePage(update.ReleaseURL(u.ready))
+				}
 			case u.release != nil:
 				if ui.PrimaryButton(c.Key("download-install"), i18n.T("下载并安装")).Clicked() {
 					a.installUpdate()
 				}
+				if ui.Button(c.Key("release-page"), i18n.T("查看发布页")).Clicked() {
+					a.openUpdatePage(update.ReleaseURL(u.release.Version()))
+				}
 			}
 		})
-		if u.release != nil && !u.checking {
-			lines := update.Lines(u.release.Notes())
-			if len(lines) > 0 {
-				ui.Scroll(c.Key("release-notes")).Height(150).Gap(4).Children(func() {
-					for i, line := range lines {
-						if line == "" {
-							ui.Box(c.Key(i)).Height(6)
-							continue
-						}
-						ui.Text(c.Key(i), line).FontSize(13).LineHeight(1.6).Selectable()
-					}
-				})
+	})
+}
+
+// updateReleaseNotes displays the structured release notes for a found or
+// downloaded release in its own section below the status overview.
+func (a *App) updateReleaseNotes(c *ui.Context) {
+	u := &a.updates
+	if u.release == nil || u.checking {
+		return
+	}
+	lines := update.NoteLines(u.release.Notes())
+	if len(lines) == 0 {
+		return
+	}
+	t := c.Theme()
+	title := i18n.T("更新说明")
+	if ver := strings.TrimPrefix(u.release.Version(), "v"); ver != "" {
+		title += " · v" + ver
+	}
+	settingsSection(c, title)
+	settingsGroup(c, "update-notes", func() {
+		ui.Scroll(c.Key("release-notes")).MaxHeight(220).Padding(14, 16).Gap(4).Children(func() {
+			for i, line := range lines {
+				switch line.Kind {
+				case update.NoteBlank:
+					ui.Box(c.Key(i)).Height(6)
+				case update.NoteHeading:
+					ui.Text(c.Key(i), line.Text).FontSize(13).FontWeight(600).TextColor(t.Text).LineHeight(1.5).Selectable()
+				case update.NoteItem:
+					ui.Text(c.Key(i), line.Text).FontSize(13).TextColor(t.Text).LineHeight(1.55).Padding(0, 0, 0, 4).Selectable()
+				default:
+					ui.Text(c.Key(i), line.Text).FontSize(13).TextColor(t.TextMuted).LineHeight(1.55).Selectable()
+				}
 			}
-		}
+		})
 	})
 }
 

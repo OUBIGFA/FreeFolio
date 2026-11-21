@@ -124,7 +124,7 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	}
 	tt.Click("FreeMD 有新版本")
 	tt.Frame()
-	if !a.settingsOpen || a.settingsTab != tabUpdates || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") {
+	if !a.settingsOpen || a.settingsTab != tabUpdates || !tt.HasText("更新说明 · v0.3.0") || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") || !tt.HasText("查看发布页") {
 		t.Fatalf("the updates settings with the notes: %q", tt.Texts())
 	}
 	tt.Click("下载并安装")
@@ -236,7 +236,7 @@ func TestUpdateDownloadContinuesWhenLeavingSettingsAndCanBeCanceledInline(t *tes
 	a.updates.received, a.updates.total = 512, 1024
 	a.openSettings(tabUpdates)
 	tt.Frame()
-	if !tt.HasText("512 B / 1.0 KB") {
+	if !tt.HasText("512 B / 1.0 KB") || !tt.HasText("50%") {
 		t.Fatalf("progress must be visible inline: %q", tt.Texts())
 	}
 	if err := tt.Click("返回"); err != nil {
@@ -507,9 +507,24 @@ func TestArrowCutsOutOfHeart(t *testing.T) {
 	}
 }
 
+func TestUpdateReleasePageButtonOpensTagURL(t *testing.T) {
+	a, tt := newTestApp(t)
+	_, opened := withUpdates(a, &fakeUpdates{release: &fakeRelease{version: "0.3.0", notes: "## 新功能\n\n- 更清晰的更新界面"}})
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if err := tt.Click("查看发布页"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(*opened) != 1 || (*opened)[0] != update.ReleaseURL("0.3.0") {
+		t.Fatalf("opened %q", *opened)
+	}
+}
+
 func TestSnapshotUpdates(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the update banners")
-	for _, name := range []string{"ready", "available", "updated", "toast", "settings-found", "settings-ready", "settings-downloading", "settings-failed", "settings-small", "ready@dark", "updated@dark", "settings"} {
+	for _, name := range []string{"ready", "available", "updated", "toast", "settings-found", "settings-ready", "settings-downloading", "settings-failed", "settings-small", "settings-checking", "settings-uptodate", "settings-found@dark", "settings-failed@dark", "ready@dark", "updated@dark", "settings"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			withUpdates(a, &fakeUpdates{})
@@ -528,7 +543,7 @@ func TestSnapshotUpdates(t *testing.T) {
 			case "toast":
 				a.updates.ready = "0.2.0"
 				a.toggleSidebar()
-			case "settings-found":
+			case "settings-found", "settings-found-dark":
 				a.updates.release, a.updates.found, a.updates.phase = rel, "0.2.0", phaseFound
 				a.openSettings(tabUpdates)
 			case "settings-ready":
@@ -538,7 +553,14 @@ func TestSnapshotUpdates(t *testing.T) {
 				a.updates.downloading, a.updates.phase = true, phaseDownloading
 				a.updates.received, a.updates.total = 14000000, 28000000
 				a.openSettings(tabUpdates)
-			case "settings-failed", "settings-small":
+			case "settings-checking":
+				a.updates.checking, a.updates.phase = true, phaseChecking
+				a.openSettings(tabUpdates)
+			case "settings-uptodate":
+				a.updates.phase = phaseUpToDate
+				a.updates.lastCheck = time.Date(2026, 11, 21, 18, 30, 0, 0, time.Local)
+				a.openSettings(tabUpdates)
+			case "settings-failed", "settings-failed-dark", "settings-small":
 				a.updates.phase, a.updates.failure = phaseFailed, "无法检查更新：连接超时，请稍后重试。"
 				a.openSettings(tabUpdates)
 				if name == "settings-small" {
