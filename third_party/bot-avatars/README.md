@@ -42,10 +42,10 @@ local esbuild executable and an ego-browser Page, for example from an
 
 ```js
 const task = await taskSpace('Regenerate native ghost');
-const { generateGhostAssets } = await import('file:///absolute/path/ArcMD/tools/ghost-assets.mjs');
-console.log(await generateGhostAssets(task.page('p1'), '/absolute/path/ArcMD', '/absolute/path/esbuild'));
+const { generateGhostAssets } = await import('file:///absolute/path/FreeMD/tools/ghost-assets.mjs');
+console.log(await generateGhostAssets(task.page('p1'), '/absolute/path/FreeMD', '/absolute/path/esbuild'));
 await task.finish({ keep: [] });
 ```
 
 Run `CGO_ENABLED=0 go test ./internal/app -run 'TestGhost|TestBotMotion'`
-after regeneration. Set `ARCMD_SNAPSHOT` to compare the resulting native PNGs.
+after regeneration. Set `FREEMD_SNAPSHOT` to compare the resulting native PNGs.

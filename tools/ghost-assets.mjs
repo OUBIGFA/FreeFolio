@@ -27,7 +27,7 @@ export function ghostConfig() {
 `;
 
 export async function generateGhostAssets(page, repo, esbuild) {
- const dir = await mkdtemp(join(tmpdir(), 'arcmd-ghost-'));
+ const dir = await mkdtemp(join(tmpdir(), 'freemd-ghost-'));
  await mkdir(join(dir, 'src'));
  const files = ['engine.ts','draw.ts','presets.ts','shapes.ts','color.ts','plastic.ts','mesh.ts','wear.ts'];
  await Promise.all(files.map(async file => {

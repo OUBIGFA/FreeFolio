@@ -49,7 +49,7 @@ func TestDocumentMapToggleAndJump(t *testing.T) {
 	}
 }
 func TestDocumentMapSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set ARCMD_SNAPSHOT to render the mind map")
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the mind map")
 	a, _ := newTestApp(t)
 	openSample(t, a, "Map.arcmd", mapSample)
 	a.doc.ed.Doc.Blocks[2].Runs[0].Style.Annotation = "box"

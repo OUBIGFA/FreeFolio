@@ -4,14 +4,12 @@
 > and the `Host` contract exist (`internal/plugin`); the runtimes and the
 > marketplace UI do not yet.
 
-FreeMD's core edits Markdown, organizes it into spaces, and answers
-questions about a space with a read-only agent (`internal/agent`,
-`internal/spacefs`: the model searches and reads the documents with tools,
-no vector index) on the model the user sets up. Everything else — AI
-writing tools first — comes from plugins that users download from the
-marketplace; a plugin may also give the agent tools of its own. This keeps the core small, lets features ship on their own
-schedule, and lets users choose what code, and which AI providers, touch
-their notes.
+FreeMD's core edits Markdown, organizes it into spaces, and includes native
+whiteboards and OneBot. OneBot can answer questions and propose edits using
+the AI service the user configures; these are built-in features, not plugins.
+The contracts below describe a future extension point. FreeMD does not ship
+plugin runtimes, a marketplace UI, or an official registry. The examples are
+protocol illustrations, not installable downloads.
 
 ## A plugin
 
@@ -26,7 +24,7 @@ root:
   "description": "Rewrite, summarize and continue your writing.",
   "author": "FreeMD",
   "license": "MIT",
-  "engine": "0.0.1",
+  "engine": "0.1.0",
   "runtime": "wasm",
   "main": "plugin.wasm",
   "permissions": ["document:read", "document:write", "network", "secrets", "ui:panel"],
@@ -84,9 +82,10 @@ whole protocol surface for v1.
 
 ## The marketplace
 
-The registry is a static `index.json` in a public Git repository (e.g.
-`arcmd-md/registry`); publishing is a pull request that CI validates and
-maintainers review.
+A future registry can publish a static `index.json` in a public Git
+repository, with contributions validated and reviewed before publishing.
+No official FreeMD registry exists. The example below uses a reserved
+placeholder host rather than an upstream project's download address.
 
 ```json
 {
@@ -99,7 +98,7 @@ maintainers review.
       "description": "Rewrite, summarize and continue your writing.",
       "tags": ["ai", "writing"],
       "permissions": ["document:read", "document:write", "network", "secrets", "ui:panel"],
-      "download": "https://github.com/arcmd-md/ai-writer/releases/download/v0.1.0/ai-writer.zip",
+      "download": "https://example.invalid/freemd-plugins/ai-writer-0.1.0.zip",
       "sha256": "…"
     }
   ]

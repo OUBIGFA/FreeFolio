@@ -35,8 +35,8 @@ under the MIT License,
 Copyright (c) 2026 CatVinci Studio. They are implemented with native Go drawing
 and controls. Inline math, clipboard formats, link popovers, image resizing,
 bracket pairing, footnotes and reading controls also use Textus as a behavior
-reference, implemented against ArcMD’s own document model. The MIT notice is
-in `textus/LICENSE`.
+reference, implemented against FreeMD's document model inherited from ArcMD.
+The MIT notice is in `textus/LICENSE`.
 
 [Textus source](https://github.com/CatVinci-Studio/Textus)
 
@@ -57,7 +57,8 @@ faces from KaTeX commit
 These fonts are under the SIL Open Font License 1.1, with copyright and reserved
 font names retained in `katex/OFL.txt` and in the font metadata. KaTeX's upstream
 MIT notice is also retained in `katex/LICENSE`; its JavaScript renderer is not
-included. Formula parsing and layout remain in ArcMD's `internal/tex` package.
+included. Formula parsing and layout remain in FreeMD's `internal/tex`
+package, inherited from ArcMD.
 
 [KaTeX source](https://github.com/KaTeX/KaTeX)
 

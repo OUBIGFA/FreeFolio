@@ -7,6 +7,7 @@
 - **上游基线**：`https://github.com/Ciao1019/ArcMD`，提交 `27322d387268751932624ef83a7c580cb0b068d5`（上游标签 `v0.2.1`）。
 - **历史策略**：保留上游完整提交历史，不为清理当前工作树而改写历史提交。
 - **远端约定**：`upstream` 仅用于读取 `Ciao1019/ArcMD` 并在本地禁用推送（`DISABLED`）；`origin` 的 fetch 与 push 均指向 `https://github.com/OUBIGFA/FreeMD.git`。仅推送 `main`，不自动迁移上游其他分支、标签或 Release 自动化。
+- **标签隔离**：本地 `refs/tags/*` 只保留 FreeMD 自己的标签，并与 `origin` 的标签对象保持一致。配置 `git config --local remote.upstream.tagOpt --no-tags`，禁止自动跟随上游标签；对照上游使用清单中固定的提交，不运行 `git fetch upstream --tags`，也不批量推送标签。清理误带标签不改写上游提交历史，不移动已发布的 FreeMD 标签。`CHANGELOG.md` 只记录 FreeMD 版本，上游来源和许可保留在 `third_party/`。
 - **子模块与 Git LFS**：上游基线与当前仓库均不使用 Git submodule 或 Git LFS；若未来引入，须先固定修订、核对许可并明确登记。
 
 ## 公开边界决策
