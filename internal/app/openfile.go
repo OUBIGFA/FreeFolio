@@ -26,7 +26,7 @@ func (a *App) openSystemFile(file string) bool {
 		a.notify("请选择 FreeMD 或 Markdown 文档：%s", filepath.Base(full))
 		return false
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return false
 	}
 	if a.files != nil {

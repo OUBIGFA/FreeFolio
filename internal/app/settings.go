@@ -296,6 +296,12 @@ func (a *App) settingsWriting(c *ui.Context) {
 	settingsGroup(c, "writing", func() {
 		toggleRow(c, "typewriter", i18n.T("打字机滚动"), i18n.T("正在写的一行始终停在页面中间。"), &a.prefs.Typewriter, a.savePrefs)
 		settingsSeparator(c)
+		autosave := !a.prefs.NoAutosave
+		toggleRow(c, "autosave", i18n.T("自动保存"), fmt.Sprintf(i18n.T("编辑后自动写入文件；关闭后需按 %s 手动保存。"), a.keyLabel("save")), &autosave, nil)
+		if autosave == a.prefs.NoAutosave {
+			a.toggleAutosave()
+		}
+		settingsSeparator(c)
 		pair := !a.prefs.NoAutoPair
 		toggleRow(c, "auto-pair", i18n.T("括号与引号自动配对"), i18n.T("支持中文符号、包裹选区和成对删除。"), &pair, nil)
 		if pair == a.prefs.NoAutoPair {

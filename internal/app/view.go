@@ -94,7 +94,14 @@ func (a *App) View(c *ui.Context) {
 		if a.win != nil {
 			d.releaseShownImagePixels(c.Now())
 		}
-		a.withDocument(d, func() { d.autosaveWith(c, post); a.cloudSaved(d); a.followTitle(); a.syncExcerpts(a.doc) })
+		a.withDocument(d, func() {
+			if a.autosaveEnabled() {
+				d.autosaveWith(c, post)
+			}
+			a.cloudSaved(d)
+			a.followTitle()
+			a.syncExcerpts(a.doc)
+		})
 	}
 	for _, n := range a.notices {
 		c.Toast(n)
@@ -186,6 +193,7 @@ func (a *App) View(c *ui.Context) {
 	a.updateToast(c)
 	a.settingsView(c)
 	a.replaceView(c)
+	a.unsavedPromptView(c)
 	a.tagRenameView(c)
 	a.versionsView(c)
 	a.updateWindowView(c)

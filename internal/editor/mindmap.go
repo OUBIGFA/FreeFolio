@@ -321,7 +321,7 @@ func truncateMapRuns(runs []document.Run, maxRunes, maxNewlines int) ([]document
 	openRun, openByte := -1, -1
 	for ri := range kept {
 		r := kept[ri]
-		if r.Style.Code || r.Style.Link != "" || r.Style.NoMath {
+		if r.Style.Code || r.Style.Kbd || r.Style.Link != "" || r.Style.NoMath {
 			continue
 		}
 		s := r.Text
@@ -788,7 +788,7 @@ func (b *mapBody) paint(p *ui.Painter, r ui.Rect, z float32, showBadge bool, t *
 	if b.source.Kind == "math" && len(ed.rows) == 1 && ed.rows[0].math != nil {
 		row := ed.rows[0]
 		scale := row.mathScale * z * fit
-		p.Transform(ui.Scaling(scale, scale), r.X, r.Y, func() { ed.paintFormula(p, *row.math, r.X, r.Y+row.math.Ascent, t) })
+		ed.paintFormulaScaled(p, *row.math, r.X, r.Y+row.math.Ascent*scale, scale, t)
 		return
 	}
 	p.Clip(r, 0, func() {

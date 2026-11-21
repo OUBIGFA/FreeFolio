@@ -449,6 +449,8 @@ func renderHTMLRunSlice(runs []document.Run, preserveNoMath bool) string {
 			} else {
 				out.WriteString(inner)
 			}
+		case "kbd":
+			out.WriteString("<kbd>" + inner + "</kbd>")
 		case "bold":
 			out.WriteString("<strong>" + inner + "</strong>")
 		case "italic":
@@ -476,6 +478,8 @@ func outerHTMLMark(s document.Style) (kind, val string) {
 	switch {
 	case s.Link != "":
 		return "link", s.Link
+	case s.Kbd:
+		return "kbd", "1"
 	case s.Bold:
 		return "bold", "1"
 	case s.Italic:
@@ -496,6 +500,8 @@ func hasHTMLMark(s document.Style, kind string) (bool, string) {
 	switch kind {
 	case "link":
 		return s.Link != "", s.Link
+	case "kbd":
+		return s.Kbd, "1"
 	case "bold":
 		return s.Bold, "1"
 	case "italic":
@@ -517,6 +523,8 @@ func clearHTMLMark(r document.Run, kind string) document.Run {
 	switch kind {
 	case "link":
 		r.Style.Link = ""
+	case "kbd":
+		r.Style.Kbd = false
 	case "bold":
 		r.Style.Bold = false
 	case "italic":
@@ -743,8 +751,12 @@ func applyElementTagStyle(n *xhtml.Node, style document.Style) document.Style {
 		style.Script = "sup"
 	case atom.Sub:
 		style.Script = "sub"
-	case atom.Code, atom.Kbd, atom.Samp, atom.Tt:
+	case atom.Kbd:
+		style.Kbd = true
+		style.Code = false
+	case atom.Code, atom.Samp, atom.Tt:
 		style.Code = true
+		style.Kbd = false
 	case atom.A:
 		if href := attr(n, "href"); href != "" && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(href)), "javascript:") {
 			style.Link = href
@@ -873,7 +885,9 @@ func applyInlineHTMLToken(raw string, stack *[]htmlStyleFrame, style *document.S
 				style.Annotation, style.AnnotationColor = "", ""
 			case atom.A:
 				style.Link = ""
-			case atom.Code, atom.Kbd, atom.Samp, atom.Tt:
+			case atom.Kbd:
+				style.Kbd = false
+			case atom.Code, atom.Samp, atom.Tt:
 				style.Code = false
 			case atom.Small, atom.Abbr, atom.Q:
 			}

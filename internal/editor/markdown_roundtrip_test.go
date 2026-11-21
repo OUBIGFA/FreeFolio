@@ -405,3 +405,25 @@ func TestEditKeepsTheRestOfTheSource(t *testing.T) {
 		t.Fatalf("export\n%q\nwant\n%q", got, want)
 	}
 }
+
+// Plain text writes back as written where Markdown cannot misread it:
+// intraword underscores stay, while tildes that could pair into
+// strikethrough and leading emphasis markers are escaped.
+func TestPlainTextEscapesOnlyWhatMarkdownWouldRead(t *testing.T) {
+	cases := map[string]string{
+		"snake_case_name": "snake_case_name\n",
+		"_lead and tail_": `\_lead and tail\_` + "\n",
+		"a ~ b":           "a ~ b\n",
+		"~~not struck~~":  `\~\~not struck\~\~` + "\n",
+	}
+	for text, want := range cases {
+		d := document.New()
+		d.Blocks[0].Runs = []document.Run{{Text: text}}
+		if got := ExportMarkdown(d); got != want {
+			t.Errorf("%q: got %q, want %q", text, got, want)
+		}
+		if back := ImportMarkdown(want); back.Blocks[0].Text() != text {
+			t.Errorf("%q came back as %q", text, back.Blocks[0].Text())
+		}
+	}
+}

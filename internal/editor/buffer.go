@@ -270,7 +270,7 @@ func (b *Buffer) Undo() {
 func (b *Buffer) Redo() { b.UnmarkText(); b.Engine.Redo(); b.sync() }
 func (b *Buffer) Wrap(marker string) {
 	b.UnmarkText()
-	marks := map[string]string{"**": "bold", "*": "italic", "~~": "strike", "`": "code", "_": "underline"}
+	marks := map[string]string{"**": "bold", "*": "italic", "~~": "strike", "`": "code", "_": "underline", "<kbd>": "kbd"}
 	b.Engine.Toggle(marks[marker])
 	b.sync()
 }

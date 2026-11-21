@@ -212,9 +212,15 @@ func (h *htmlImporter) walk(n *html.Node, style document.Style) {
 		style.Underline = true
 	case atom.S, atom.Del, atom.Strike:
 		style.Strike = true
-	case atom.Code, atom.Kbd, atom.Samp, atom.Tt:
+	case atom.Kbd:
+		if !h.pre {
+			style.Kbd = true
+			style.Code = false
+		}
+	case atom.Code, atom.Samp, atom.Tt:
 		if !h.pre {
 			style.Code = true
+			style.Kbd = false
 		}
 	case atom.Q:
 		h.text("“", style)

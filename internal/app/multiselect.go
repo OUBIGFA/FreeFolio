@@ -412,7 +412,7 @@ func (a *App) placeEntriesWithUndo(group []string, dir string, index int, withUn
 		return
 	}
 	sp := a.state.ActiveSpace()
-	if sp == nil || !a.flush() {
+	if sp == nil || !a.flushForTask() {
 		return
 	}
 	kids := a.childrenOf(dir)
@@ -535,7 +535,7 @@ func (a *App) moveGroupAcross(fromID string, group []string, toID, dir string) [
 		return []string{to}
 	}
 	src, dst := a.state.Get(fromID), a.state.Get(toID)
-	if src == nil || dst == nil || src == dst || !a.flush() {
+	if src == nil || dst == nil || src == dst || !a.flushForTask() {
 		return nil
 	}
 	type crossMoved struct {
@@ -637,7 +637,7 @@ func (a *App) newFolderWithGroup(group []string) {
 		return
 	}
 	sp := a.state.ActiveSpace()
-	if sp == nil || sp.IsExternal() || !a.flush() {
+	if sp == nil || sp.IsExternal() || !a.flushForTask() {
 		return
 	}
 	allPinned := true
@@ -714,7 +714,7 @@ func (a *App) trashGroup(group []string) {
 		a.clearPicks("")
 		return
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	// Close or trash the active open document last so the editor does not
@@ -772,7 +772,7 @@ func (a *App) trashGroup(group []string) {
 // equal-width split group, focusing the first document, as Cra's "Open in
 // Split View" on picked tabs.
 func (a *App) openPickedInSplit(sp *space.Space, docRels []string) {
-	if sp == nil || len(docRels) < 2 || len(docRels) > splitLimit || !a.flush() {
+	if sp == nil || len(docRels) < 2 || len(docRels) > splitLimit || !a.flushForTask() {
 		return
 	}
 	panes := make([]*splitPane, 0, len(docRels))

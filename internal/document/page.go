@@ -136,7 +136,7 @@ func (e *Engine) SetGoal(words int) {
 func (e *Engine) MapProse(change func(string) string) bool {
 	before := e.version
 	e.Edit(func() {
-		prose := func(r Run) bool { return !r.Style.Code }
+		prose := func(r Run) bool { return !r.Style.Code && !r.Style.Kbd }
 		var walk func([]*Block)
 		walk = func(blocks []*Block) {
 			for _, b := range blocks {

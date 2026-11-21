@@ -1321,13 +1321,16 @@ func importRunsAndCommentsWithBreak(in []parser.Inline, base document.Style, har
 			case parser.Link:
 				next.Link = node.Dest
 			case parser.Code:
-				next.Code = true
+				// Code inside a key, as <kbd>`Ctrl`</kbd>, stays the key.
+				if !next.Kbd {
+					next.Code = true
+				}
 			case parser.Text:
 				next.NoMath = strings.Contains(node.Text, "$")
 			}
 			if end > i+1 && node.Kind != parser.Image {
 				walk(i+1, end, next)
-			} else if node.Kind == parser.Text && !next.Code {
+			} else if node.Kind == parser.Text && !next.Code && !next.Kbd {
 				writeHighlightSyntax(&acc, node.Text, next)
 			} else {
 				text := node.Text
@@ -2112,7 +2115,7 @@ func lastRuneOfString(s string) rune {
 	return last
 }
 
-var markdownMarkOrder = []string{"link", "underline", "script", "span", "strike", "italic", "bold"}
+var markdownMarkOrder = []string{"link", "kbd", "underline", "script", "span", "strike", "italic", "bold"}
 
 func chooseOuterMarkdownMark(runs []document.Run, i int) (kind, val string, end int) {
 	for _, k := range markdownMarkOrder {
@@ -2157,6 +2160,10 @@ func renderMarkdownRuns(runs []document.Run, before, after rune, literalContext 
 		sub := make([]document.Run, j-i)
 		for k := i; k < j; k++ {
 			sub[k-i] = clearHTMLMark(runs[k], kind)
+			if kind == "kbd" {
+				// A key's text is literal: a "$" in it is no formula.
+				sub[k-i].Style.NoMath = true
+			}
 		}
 		next := after
 		if j < len(runs) {
@@ -2168,18 +2175,20 @@ func renderMarkdownRuns(runs []document.Run, before, after rune, literalContext 
 		switch kind {
 		case "link":
 			innerPrev, innerNext = '[', ']'
-		case "underline", "script", "span":
+		case "kbd", "underline", "script", "span":
 			innerPrev, innerNext = '>', '<'
 		case "bold", "italic":
 			innerPrev, innerNext = '*', '*'
 		case "strike":
 			innerPrev, innerNext = '~', '~'
 		}
-		inner := renderMarkdownRuns(sub, innerPrev, innerNext, literalContext)
+		inner := renderMarkdownRuns(sub, innerPrev, innerNext, literalContext || kind == "kbd")
 		var chunk string
 		switch kind {
 		case "link":
 			chunk = fmt.Sprintf("[%s](%s)", inner, val)
+		case "kbd":
+			chunk = "<kbd>" + inner + "</kbd>"
 		case "bold":
 			if canUseMarkdownDelim(inner, prev, next, "**") {
 				chunk = "**" + inner + "**"
@@ -2218,10 +2227,6 @@ func renderMarkdownRuns(runs []document.Run, before, after rune, literalContext 
 	}
 	return out.String()
 }
-
-// markdownEscape leaves ']' unescaped because ExtMath treats '\[...\]' as TeX
-// display math, whereas an unmatched ']' after '\[...' stays literal text.
-var markdownEscape = strings.NewReplacer("\\", "\\\\", "*", "\\*", "_", "\\_", "[", "\\[", "`", "\\`", "<", "&lt;")
 
 func formatMarkdownLeafRun(run document.Run, skipWiki bool) string {
 	if run.Style.Code {
@@ -2267,6 +2272,9 @@ func escapePlainSegment(s string, skipWiki bool) string {
 		b.WriteString(escapePlainSegment(s[pos:], skipWiki))
 		return b.String()
 	}
+	if skipWiki {
+		return escapeMarkdownPlain(s)
+	}
 	links := wiki.Links(s)
 	if len(links) == 0 {
 		return escapeMarkdownPlain(s)
@@ -2300,8 +2308,51 @@ func imageTokens(s string) []inlineToken {
 	return out
 }
 
+// escapeMarkdownPlain escapes the characters that would turn plain text
+// into Markdown. An underscore between letters or digits stays as typed:
+// intraword "_" never opens emphasis (CommonMark), so snake_case is kept.
+// A tilde is escaped when the text holds two, which GFM could read as
+// strikethrough.
 func escapeMarkdownPlain(s string) string {
-	out := markdownEscape.Replace(s)
+	var b strings.Builder
+	b.Grow(len(s))
+	tildes := strings.Count(s, "~") >= 2
+	alnum := func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+	for i := 0; i < len(s); {
+		r, n := utf8.DecodeRuneInString(s[i:])
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '*':
+			b.WriteString(`\*`)
+		case '[':
+			// ']' stays unescaped: ExtMath reads '\[...\]' as display
+			// math, while an unmatched ']' stays literal text.
+			b.WriteString(`\[`)
+		case '`':
+			b.WriteString("\\`")
+		case '<':
+			b.WriteString("&lt;")
+		case '~':
+			if tildes {
+				b.WriteString(`\~`)
+			} else {
+				b.WriteByte('~')
+			}
+		case '_':
+			pr, _ := utf8.DecodeLastRuneInString(s[:i])
+			nr, _ := utf8.DecodeRuneInString(s[i+n:])
+			if i > 0 && i+n < len(s) && alnum(pr) && alnum(nr) {
+				b.WriteByte('_')
+			} else {
+				b.WriteString(`\_`)
+			}
+		default:
+			b.WriteString(s[i : i+n])
+		}
+		i += n
+	}
+	out := b.String()
 	// Only escape "==" when it would be misread as ==highlight== syntax.
 	if strings.Contains(out, "==") && len(splitHighlightSyntax(out, document.Style{})) > 1 {
 		out = strings.ReplaceAll(out, "==", `\==`)
@@ -2939,6 +2990,9 @@ func fnvMixStyle(h uint64, st document.Style) uint64 {
 	}
 	if st.Code {
 		flags |= 32
+	}
+	if st.Kbd {
+		flags |= 64
 	}
 	h = fnvMixByte(h, flags)
 	h = fnvMixString(h, st.Script)

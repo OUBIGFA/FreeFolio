@@ -103,6 +103,10 @@ HTML comment preservation, document and image lifecycle, attachment folders,
 sidebar multi-selection, document mind maps, Mermaid viewing and equation tags.
 The original MIT notice remains in `LICENSE`. The selected scope is recorded in
 `manifests/upstreams.json`; this is not a wholesale replacement of the baseline.
+Editor parity with ArcMD `3bb4a3342b3f5ffe8cf65898b6bbd2a8f3f85376` (v0.2.5)
+adds keyboard keys, live inline HTML tags, wrapped and crisp formulas,
+content-sized tables, literal copying and the autosave switch, under the same
+MIT notice.
 
 The WebDAV/S3 transport, Windows DPAPI credential protection and PBKDF2/AES-GCM
 content encryption in `internal/cloudsync` reuse BIGFA's implementation from

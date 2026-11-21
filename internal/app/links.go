@@ -127,7 +127,7 @@ func (a *App) openWiki(name string) {
 // space and opens it, its title written.
 func (a *App) newDocNamed(dir, name string) {
 	sp := a.state.ActiveSpace()
-	if sp == nil || sp.IsExternal() || !a.flush() {
+	if sp == nil || sp.IsExternal() || !a.flushForTask() {
 		return
 	}
 	doc := model.New()

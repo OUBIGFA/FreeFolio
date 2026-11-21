@@ -690,6 +690,10 @@ func runStyleAfter(l document.Leaf, docPos int) document.Style {
 
 func exitCapsuleMarks(cur, nextAfter document.Style) (document.Style, bool) {
 	changed := false
+	if cur.Kbd && !nextAfter.Kbd {
+		cur.Kbd = false
+		changed = true
+	}
 	if cur.Code && !nextAfter.Code {
 		cur.Code = false
 		changed = true

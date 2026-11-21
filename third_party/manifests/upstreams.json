@@ -229,6 +229,13 @@
       "revision": "5b2a59ae6ac5bc06009a70ab2a26a1c625593d08",
       "tag": "v0.2.4",
       "scope": "Selected editing and lifecycle fixes; attachments; sidebar multi-selection; document mind map; hierarchical selection. Excludes whiteboards, WASM plugins, keycaps, Git merge UI and upstream publishing."
+    },
+    {
+      "name": "ArcMD",
+      "sourceUrl": "https://github.com/Ciao1019/ArcMD",
+      "revision": "3bb4a3342b3f5ffe8cf65898b6bbd2a8f3f85376",
+      "tag": "v0.2.5",
+      "scope": "Editor parity: <kbd> keyboard keys, live inline HTML tags, quotes inside HTML left unpaired, wrapped and crisp formulas, content-sized tables, literal plain-text copy, intraword underscores, the table toolbar row fix and the autosave switch. Excludes whiteboards, WASM plugins, Git merge UI, native conversion of HTML blocks and upstream publishing."
     }
   ],
   "maintainerCodeReuse": [

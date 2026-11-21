@@ -24,7 +24,9 @@ import (
 // Version 9 adds GrayFolderIcons; zero keeps the space accent color.
 // Version 10 adds each OneBot connection's KeyStrategy; empty is round
 // robin, which a single key never notices, so version 9 migrates unchanged.
-const CurrentVersion = 10
+// Version 11 adds NoAutosave; zero keeps background autosave, so version 10
+// migrates unchanged.
+const CurrentVersion = 11
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -52,6 +54,9 @@ type Prefs struct {
 	FontSize    float32 `json:"fontSize,omitempty"`
 	LineHeight  float32 `json:"lineHeight,omitempty"`
 	NoAutoPair  bool    `json:"noAutoPair,omitempty"`
+	// NoAutosave turns background saving off: edits stay in memory until
+	// saved with the save shortcut or confirmed when a document closes.
+	NoAutosave bool `json:"noAutosave,omitempty"`
 	// AutoSpace puts a space between Chinese and Latin text as it is typed.
 	AutoSpace bool `json:"autoSpace,omitempty"`
 	// CodeNoWrap disables soft wrapping in code blocks by default so long

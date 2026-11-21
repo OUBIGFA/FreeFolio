@@ -116,7 +116,7 @@ func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 		return ""
 	}
 	moving := a.residentDocument(src.ID, rel)
-	if !a.flush() {
+	if !a.flushForTask() {
 		return ""
 	}
 	if moving != nil {

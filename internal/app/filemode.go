@@ -306,7 +306,7 @@ func (a *App) fileView(c *ui.Context) {
 	t := spaceTheme(c.Theme(), a.look)
 	c.SetTheme(t)
 	a.syncWatches()
-	if d := a.doc; d != nil {
+	if d := a.doc; d != nil && a.autosaveEnabled() {
 		d.autosaveWith(c, a.asyncPost())
 	}
 	for _, n := range a.notices {

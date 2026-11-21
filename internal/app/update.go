@@ -307,7 +307,7 @@ func (a *App) installUpdate() {
 		a.downloadUpdate()
 		return
 	}
-	if !a.flush() {
+	if !a.leaveDocs(a.residentDocuments(), a.installUpdate) {
 		return
 	}
 	a.prefs.PendingUpdate = u.ready

@@ -85,7 +85,9 @@ func (a *App) openVersions() {
 		a.notify("这篇文档还没有版本历史。")
 		return
 	}
-	a.flush()
+	if a.autosaveEnabled() {
+		a.flush()
+	}
 	v := &a.versions
 	*v = versionsState{open: true, for_: d}
 	v.versions, v.err = history.List(d.space.Root, d.rel)

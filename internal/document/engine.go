@@ -378,6 +378,7 @@ func (e *Engine) applyTypingAfterReplace(text string, style Style, splitBlocks b
 }
 
 func exitCapsuleStyle(s Style) Style {
+	s.Kbd = false
 	s.Code = false
 	s.Script = ""
 	s.Link = ""
@@ -451,7 +452,7 @@ func (e *Engine) autoformat(inserted string) {
 		return
 	}
 	for _, r := range SliceRuns(b.Runs, 0, prefixUnits) {
-		if r.Style.Code || r.Style.Link != "" {
+		if r.Style.Code || r.Style.Kbd || r.Style.Link != "" {
 			return
 		}
 	}
@@ -661,6 +662,8 @@ func (e *Engine) Fragment() *Document {
 			b.Kind = "paragraph"
 			b.Level, b.NoteLabel, b.ImageWidth, b.URL = 0, "", 0, ""
 			b.Background, b.ColSpan, b.RowSpan = "", 0, 0
+			// A cell copied alone is its text: no cell alignment or list state.
+			b.Align, b.Indent, b.Checked, b.Language, b.MapList = "", 0, false, "", nil
 		}
 		out.Blocks = append(out.Blocks, b)
 	}
@@ -790,6 +793,8 @@ func (e *Engine) Toggle(mark string) {
 			return &s.Underline
 		case "strike":
 			return &s.Strike
+		case "kbd":
+			return &s.Kbd
 		default:
 			return &s.Code
 		}
@@ -797,6 +802,15 @@ func (e *Engine) Toggle(mark string) {
 	on := !*get(&style)
 	apply := func(s *Style) {
 		*get(s) = on
+		// A key and code are exclusive marks: turning one on clears the other.
+		if on {
+			switch mark {
+			case "kbd":
+				s.Code = false
+			case "code":
+				s.Kbd = false
+			}
+		}
 	}
 	if e.Anchor == e.Caret {
 		apply(&style)

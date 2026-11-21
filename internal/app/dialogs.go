@@ -148,7 +148,13 @@ func (a *App) removeSpace(id string) {
 	if id == space.ExternalID || len(a.state.Spaces) < 2 {
 		return
 	}
-	if !a.flush() {
+	var spaceDocs []*document
+	for _, d := range a.residentDocuments() {
+		if d.space != nil && d.space.ID == id {
+			spaceDocs = append(spaceDocs, d)
+		}
+	}
+	if !a.leaveDocs(spaceDocs, func() { a.removeSpace(id) }) {
 		return
 	}
 	if a.state.ActiveSpace() != nil && a.state.ActiveSpace().ID == id {

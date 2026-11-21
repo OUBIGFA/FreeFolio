@@ -35,7 +35,7 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 	if dst.IsExternal() {
 		return "", false, errors.New(i18n.T("外部空间只记录文件，不能作为移动目标。"))
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return "", false, errors.New(i18n.T("请先保存文档并解决文件冲突"))
 	}
 	docs, err := a.movingDocuments(src, rel)

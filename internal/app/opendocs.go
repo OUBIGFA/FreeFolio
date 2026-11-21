@@ -151,18 +151,22 @@ func (a *App) closeOpen(sp *space.Space, rel string) {
 	p := place{sp.ID, rel}
 	if !a.isShown(sp, rel) {
 		closed := a.openDocs[p]
-		if closed != nil && closed.dirty() {
-			if err := closed.save(); err != nil {
-				a.notify("保存 %s 失败。%v", closed.title(), err)
-				return
+		if a.autosaveEnabled() {
+			if closed != nil && closed.dirty() {
+				if err := closed.save(); err != nil {
+					a.notify("保存 %s 失败。%v", closed.title(), err)
+					return
+				}
 			}
+		} else if !a.leaveDocs([]*document{closed}, func() { a.closeOpen(sp, rel) }) {
+			return
 		}
 		delete(a.openDocs, p)
 		a.bounce = bounce{p, a.now}
 		a.retireClosedDocuments(closed)
 		return
 	}
-	if !a.flush() {
+	if !a.leaveDocs([]*document{a.doc}, func() { a.closeOpen(sp, rel) }) {
 		return
 	}
 	closed := a.doc

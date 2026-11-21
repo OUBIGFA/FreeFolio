@@ -3,6 +3,7 @@ package document
 import (
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -102,7 +103,7 @@ func TestNestedTransactionsAndContainers(t *testing.T) {
 }
 
 func TestRejectUnsupportedOrCorruptFormat(t *testing.T) {
-	for _, text := range []string{`{"format":"arcmd","version":11,"blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":4,"icon":"🚀","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":5,"cover":"../x.png","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":5,"cover":"gradient:nope","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":1,"blocks":[]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"future"}]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"paragraph","future":true}]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"paragraph"},{"id":"a","kind":"paragraph"}]}`} {
+	for _, text := range []string{`{"format":"arcmd","version":12,"blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":4,"icon":"🚀","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":5,"cover":"../x.png","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":5,"cover":"gradient:nope","blocks":[{"id":"a","kind":"paragraph"}]}`, `{"format":"arcmd","version":1,"blocks":[]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"future"}]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"paragraph","future":true}]}`, `{"format":"arcmd","version":1,"blocks":[{"id":"a","kind":"paragraph"},{"id":"a","kind":"paragraph"}]}`} {
 		if _, err := Decode(text); err == nil {
 			t.Fatal("accepted unsupported document", text)
 		}
@@ -765,5 +766,24 @@ func TestPrependMarkdownPrefixPreservesExistingContent(t *testing.T) {
 	prepend(indented, "    ## ")
 	if indented.Doc.Blocks[0].Kind != "paragraph" || indented.Doc.Blocks[0].Text() != "    ## 保持正文" {
 		t.Fatalf("4 leading spaces should not autoformat: %+v", indented.Doc.Blocks[0])
+	}
+}
+
+// A keyboard key mark needs version 11: an older file claiming one is
+// damaged, and Toggle keeps key and code exclusive.
+func TestKbdMarkVersionAndExclusiveToggle(t *testing.T) {
+	e := NewEngine(&Document{Format: "arcmd", Version: CurrentVersion, Blocks: []*Block{NewBlock("paragraph", "Press Ctrl")}})
+	e.SetSelection(6, 10)
+	e.Toggle("code")
+	e.Toggle("kbd")
+	if r := e.Doc.Blocks[0].Runs[1]; !r.Style.Kbd || r.Style.Code {
+		t.Fatalf("kbd over code: %+v", e.Doc.Blocks[0].Runs)
+	}
+	s, err := e.Doc.Encode()
+	if err != nil || !strings.Contains(s, `"kbd": true`) {
+		t.Fatal(s, err)
+	}
+	if _, err := Decode(strings.Replace(s, `"version": 11`, `"version": 10`, 1)); err == nil {
+		t.Fatal("accepted a key mark in v10")
 	}
 }

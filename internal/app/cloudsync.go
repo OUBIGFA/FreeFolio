@@ -89,7 +89,7 @@ func (a *App) startCloudSync(probe, manual bool) {
 	if s.busy || s.broken {
 		return
 	}
-	if !probe && (!s.config.Enabled || !a.flush()) {
+	if !probe && (!s.config.Enabled || !a.flushForTask()) {
 		return
 	}
 	c := s.config

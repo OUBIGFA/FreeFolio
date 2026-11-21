@@ -19,6 +19,9 @@
 - Keep an open long code block's Collapse button at the bottom of the view while the block runs past it.
 - Start a whiteboard from the home page and from the title bar. Open whiteboards in split panes; the pane gives its keys to the canvas.
 - Show every resize handle (split panes, sidebar, OneBot, mind map) the split view's way, with no dividing line; one shared style in `theme.go` sets them all.
+- Follow ArcMD 0.2.5 in the editor: `<kbd>` keys show as keycaps and write back as `<kbd>` (no longer as code); typing `<u>…</u>`, `<sup>`, `<kbd>`, `<font color>` and similar tags formats the text, `<br>` breaks the line and `<hr>` draws a rule; quotes typed inside an HTML tag or comment stay straight. Long formulas wrap at relations and operators before they shrink and draw sharp at any scale; tables size columns by their content and widen with the window for wide formulas; copying from cells, inline code and plain prose puts the literal characters on the clipboard; `snake_case` no longer writes back as `snake\_case`; selecting a row of a table with more rows than columns no longer quits FreeMD.
+- Turn autosave off in Settings → Writing or the command bar. Edits then stay in memory until you press the save shortcut; leaving, closing or quitting asks to save, discard or cancel.
+- Advance document format to 11 (keyboard keys) and preferences to 11 (autosave switch). Older files and preferences load unchanged.
 
 The entries below describe the inherited ArcMD releases.
 

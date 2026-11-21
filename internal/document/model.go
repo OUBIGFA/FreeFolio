@@ -28,8 +28,9 @@ import (
 // blocks and the word goal, version 9 exact text colors (#rrggbb in
 // Style.Color) and text sizes, as HTML within Markdown writes them. Older
 // documents are read and migrated in memory, and written back as the
-// current version only when edited. Version 10 adds preserved inline HTML comments.
-const CurrentVersion = 10
+// current version only when edited. Version 10 adds preserved inline HTML comments,
+// version 11 keyboard key marks (<kbd>, Style.Kbd).
+const CurrentVersion = 11
 
 // CoverGradients are the covers drawn rather than pictured, as
 // "gradient:name" in Document.Cover.
@@ -78,6 +79,7 @@ type Style struct {
 	Underline bool   `json:"underline,omitempty"`
 	Strike    bool   `json:"strike,omitempty"`
 	Code      bool   `json:"code,omitempty"`
+	Kbd       bool   `json:"kbd,omitempty"` // Keyboard key mark (version 11).
 	Link      string `json:"link,omitempty"`
 	// Color and Highlight name a text color and a highlight, one of
 	// TextColors and TextHighlights (version 3).
@@ -405,6 +407,26 @@ func (d *Document) migrate() error {
 	if d.Version < 9 && v9(d.Blocks) {
 		return errors.New("document: exact text colors and sizes require version 9")
 	}
+	var v11 func([]*Block) bool
+	v11 = func(blocks []*Block) bool {
+		for _, b := range blocks {
+			if b == nil {
+				continue
+			}
+			for _, r := range b.Runs {
+				if r.Style.Kbd {
+					return true
+				}
+			}
+			if v11(b.Children) {
+				return true
+			}
+		}
+		return false
+	}
+	if d.Version < 11 && v11(d.Blocks) {
+		return errors.New("document: keyboard keys require version 11")
+	}
 	d.Version = CurrentVersion
 	return nil
 }
@@ -494,6 +516,7 @@ func (dh *docHasher) runs(runs []Run) {
 		dh.bool(st.Underline)
 		dh.bool(st.Strike)
 		dh.bool(st.Code)
+		dh.bool(st.Kbd)
 		dh.str(st.Link)
 		dh.str(st.Color)
 		dh.str(st.Highlight)

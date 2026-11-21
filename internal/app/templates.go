@@ -57,7 +57,7 @@ func readTemplate(sp *space.Space, t templates.Template) (*model.Document, error
 // file is untitled until its title names it, as a new document's is.
 func (a *App) newFromTemplate(dir string, t templates.Template) {
 	sp := a.state.ActiveSpace()
-	if sp == nil || sp.IsExternal() || !a.flush() {
+	if sp == nil || sp.IsExternal() || !a.flushForTask() {
 		return
 	}
 	tmpl, err := readTemplate(sp, t)
@@ -133,7 +133,7 @@ func (a *App) openTemplatesFolder() {
 // space's 日记 template when it has one — the first time.
 func (a *App) openDaily() {
 	sp := a.state.ActiveSpace()
-	if sp == nil || sp.IsExternal() || !a.flush() {
+	if sp == nil || sp.IsExternal() || !a.flushForTask() {
 		return
 	}
 	now := today()

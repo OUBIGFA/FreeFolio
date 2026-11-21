@@ -218,6 +218,7 @@ type Editor struct {
 	bindings          map[string]Combo
 	openWiki, openTag func(string)
 	maths             map[string]mathShape
+	tableWidths       map[string]cachedTableWidths
 	mathGlyphs        map[string]*ui.TextLayout
 	mermaids          map[string]mermaidShape
 	mermaidLayouts    map[string]*ui.TextLayout
@@ -985,6 +986,7 @@ func (e *Editor) layout(o Options) {
 		clear(e.heightHints)
 		clear(e.mathGlyphs)
 		clear(e.maths)
+		clear(e.tableWidths)
 		clear(e.mermaidLayouts)
 		clear(e.mermaids)
 		clear(e.htmls)
@@ -1041,7 +1043,12 @@ func (e *Editor) layout(o Options) {
 			e.Scroll.Y = max(0, y+anchor.offset)
 			anchorPlaced = true
 		}
-		h := blockLayout(b, e.padding, y, width)
+		bx, bw := e.padding, width
+		if b.Kind == "table" {
+			// A wide table may use the page's margins (tableSpan).
+			bx, bw = e.tableSpan(b, o.Width, width)
+		}
+		h := blockLayout(b, bx, y, bw)
 		if b.ID == anchor.id && anchorPlaced {
 			e.Scroll.Y = max(0, y+min(anchor.offset, max(0, h-1)))
 		}
@@ -1056,7 +1063,7 @@ func (e *Editor) layout(o Options) {
 		if b.Kind == "table" {
 			// A table's handle sits left of its column bar, clear of the
 			// row bar.
-			hx, hy = e.padding-48, y+22-21
+			hx, hy = bx-48, y+22-21
 		}
 		if foldable[b.ID] {
 			// The fold triangle sits just left of the block, 20
@@ -1673,6 +1680,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 				if e.paintMermaid(p, bounds, r, t) {
 					return
 				}
+				e.paintKeycaps(p, shiftedBounds, r)
 				e.paintAnnotations(p, shiftedBounds, r, true)
 				textColor := t.Text
 				if r.leaf.Block.Kind == "image" && e.imageCaptionID != r.leaf.Block.ID {
@@ -2486,3 +2494,37 @@ func bodyFamily(family string) string {
 // Padding is the page's margin either side of its text column, as last
 // laid out.
 func (e *Editor) Padding() float32 { return e.padding }
+
+// paintKeycaps draws 3-layer rounded 3D keycap surfaces behind Style.Kbd stretches.
+func (e *Editor) paintKeycaps(p *ui.Painter, bounds ui.Rect, r row) {
+	if r.layout == nil || r.mathHidden || r.mermaidHidden || r.leaf.Block == nil || r.leaf.Block.Kind == "code" || r.leaf.Block.Kind == "math" || r.leaf.Block.Kind == "raw" {
+		return
+	}
+	runs := kbdRuns(r.leaf.Block.Runs)
+	if len(runs) == 0 {
+		return
+	}
+	size := r.size
+	if size <= 0 {
+		size = 16
+	}
+	for _, kr := range runs {
+		rects := r.layout.SelectionRects(ui.TextInputRange{Start: kr.start, End: kr.end})
+		if k := len(rects) - 1; k >= 0 && kr.trimLast {
+			rects[k].W -= trailingPadAt(r.leaf.Block.Runs, kr.end, size)
+		}
+		for _, rect := range rects {
+			if rect.W < 1 || rect.H <= 0 {
+				continue
+			}
+			faceX := bounds.X + r.x + rect.X - 3.5
+			faceW := rect.W + 7
+			faceH := min(rect.H-1, max(15, size*0.84*1.55))
+			faceY := bounds.Y + r.y + rect.Y + (rect.H-faceH)/2 - 0.5
+			const rad = float32(4.5)
+			p.Fill(ui.Rect{X: faceX, Y: faceY + 1.5, W: faceW, H: faceH}, e.page.CodeBorder, rad)
+			p.Fill(ui.Rect{X: faceX, Y: faceY, W: faceW, H: faceH}, e.page.Popover, rad)
+			p.Stroke(ui.Rect{X: faceX, Y: faceY, W: faceW, H: faceH}, e.page.CodeBorder, rad, 1)
+		}
+	}
+}

@@ -900,11 +900,13 @@ func (e *Editor) exportVectorRowText(
 		}
 	}
 
+	kRuns := kbdRuns(r.leaf.Block.Runs)
+
 	for _, line := range r.layout.Lines() {
 		if r.y+line.Rect.Y+line.Rect.H < top-2 || r.y+line.Rect.Y > bottom+2 {
 			continue
 		}
-		// Pass 1: inline span backgrounds (code pills, highlights, tags).
+		// Pass 1: inline span backgrounds (code pills, highlights, tags) and 3D keycaps.
 		for _, sg := range segs {
 			if sg.span.Background.A == 0 {
 				continue
@@ -919,6 +921,30 @@ func (e *Editor) exportVectorRowText(
 					}
 					vp.FillRect(px(r.x-scrollX+rx), py(r.y+ry), pw(rw), ph(rh), rad, pdfRGBA(sg.span.Background))
 				}
+			}
+		}
+
+		for _, kr := range kRuns {
+			a, z := max(line.Start, kr.start), min(line.End, kr.end)
+			if a >= z {
+				continue
+			}
+			rects := r.layout.SelectionRects(ui.TextInputRange{Start: a, End: z})
+			if k := len(rects) - 1; k >= 0 && z == kr.end && kr.trimLast {
+				rects[k].W -= trailingPadAt(r.leaf.Block.Runs, kr.end, font.Size)
+			}
+			for _, rc := range rects {
+				if rc.W < 1 || rc.H <= 0 {
+					continue
+				}
+				faceX := r.x - scrollX + rc.X - 3.5
+				faceW := rc.W + 7
+				faceH := min(rc.H-1, max(15, font.Size*0.84*1.55))
+				faceY := r.y + rc.Y + (rc.H-faceH)/2 - 0.5
+				rad := 4.5 * sc
+				vp.FillRect(px(faceX), py(faceY+1.5), pw(faceW), ph(faceH), rad, pdfRGBA(pg.CodeBorder))
+				vp.FillRect(px(faceX), py(faceY), pw(faceW), ph(faceH), rad, pdfRGBA(pg.Popover))
+				vp.StrokeRect(px(faceX), py(faceY), pw(faceW), ph(faceH), rad, 1*sc, pdfRGBA(pg.CodeBorder), false)
 			}
 		}
 
@@ -1232,8 +1258,8 @@ func (e *Editor) exportVectorAnnotations(
 		}
 		color := e.annotationColor(run.variant, run.color)
 		rects := r.layout.SelectionRects(ui.TextInputRange{Start: run.start, End: run.end})
-		if k := len(rects) - 1; k >= 0 && look.pad > 0 {
-			rects[k].W -= look.pad * size
+		if k := len(rects) - 1; k >= 0 {
+			rects[k].W -= trailingPadAt(r.leaf.Block.Runs, run.end, size)
 		}
 		for i, rect := range rects {
 			if rect.W < 1 {

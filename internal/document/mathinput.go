@@ -9,7 +9,7 @@ func SingleLineDisplayMath(b *Block) (string, bool) {
 		return "", false
 	}
 	for _, r := range b.Runs {
-		if r.Style.Code || r.Style.Link != "" || r.Style.NoMath {
+		if r.Style.Code || r.Style.Kbd || r.Style.Link != "" || r.Style.NoMath {
 			return "", false
 		}
 	}
@@ -39,7 +39,7 @@ func SingleLineDisplayMath(b *Block) (string, bool) {
 // enterMath recognizes display fences and trailing double-Enter exits without
 // reparsing the document or changing ordinary Enter inside multiline TeX.
 func (e *Engine) enterMath(leaf Leaf) bool {
-	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code {
+	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code || e.CurrentStyle().Kbd {
 		return false
 	}
 	b := leaf.Block
@@ -98,7 +98,7 @@ func (e *Engine) enterMath(leaf Leaf) bool {
 // enterPipeTable compiles a single-line pipe header row such as
 // "| Port | Low | High" into a two-row table when Enter is pressed at its end.
 func (e *Engine) enterPipeTable(leaf Leaf) bool {
-	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code {
+	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code || e.CurrentStyle().Kbd {
 		return false
 	}
 	b := leaf.Block
@@ -214,7 +214,7 @@ func isPipeRuleCell(s string) bool {
 // enterCodeFence converts a paragraph holding a fenced code header such as
 // "```go" or "```mermaid" into a code block when Enter is pressed at its end.
 func (e *Engine) enterCodeFence(leaf Leaf) bool {
-	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code {
+	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code || e.CurrentStyle().Kbd {
 		return false
 	}
 	b := leaf.Block
@@ -271,7 +271,7 @@ func (e *Engine) enterRawExit(leaf Leaf) bool {
 }
 
 func (e *Engine) exitTrailingNewlineBlock(leaf Leaf) bool {
-	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code {
+	if e.Anchor != e.Caret || e.Caret != leaf.End || e.CurrentStyle().Code || e.CurrentStyle().Kbd {
 		return false
 	}
 	b := leaf.Block

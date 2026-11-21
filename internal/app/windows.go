@@ -51,7 +51,7 @@ func (a *App) openInWindow(sp *space.Space, rel string) {
 		w.win.Focus()
 		return
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	d := a.residentDocument(sp.ID, rel)
@@ -117,10 +117,21 @@ func (a *App) makeWindow(title string, view func(*ui.Context), close func() bool
 // it cannot be saved.
 func (a *App) closeWindow(w *docWindow) bool {
 	if d := w.doc; d != nil {
-		ok := true
-		a.withDocument(d, func() { ok = a.flushCurrent() })
-		if !ok {
-			a.showSaveFailure(d)
+		if a.autosaveEnabled() {
+			ok := true
+			a.withDocument(d, func() { ok = a.flushCurrent() })
+			if !ok {
+				a.showSaveFailure(d)
+				return false
+			}
+		} else if !a.leaveDocs([]*document{d}, func() {
+			if w.win != nil {
+				w.win.Close()
+			}
+		}) {
+			if w.win != nil {
+				w.win.Focus()
+			}
 			return false
 		}
 	}
@@ -184,6 +195,10 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		width, _ := c.Size()
 		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
 	})
+	// The window's own document asks here, where the user closed it.
+	if a.unsaved.open && len(a.unsaved.docs) == 1 && a.unsaved.docs[0] == d {
+		a.unsavedPromptView(c)
+	}
 	w.win.SetTitle(docName(d.title()))
 }
 

@@ -241,6 +241,7 @@ type App struct {
 	undos []ui.Toast
 	// replace is the find and replace across documents (replace.go).
 	replace replaceState
+	unsaved unsavedPrompt
 	// tagRename is the window renaming a #tag everywhere (tags.go).
 	tagRename tagRename
 	// systemLanguage is the language the system prefers of those the
@@ -419,7 +420,7 @@ func (a *App) firstRun() error {
 // false, staying put, when a document cannot be saved. The space keeps
 // its last document and split for when the user goes back to them.
 func (a *App) showSpaceHome() bool {
-	if !a.leaveFileMode() || !a.flush() {
+	if !a.leaveFileMode() || !a.leaveDocs(a.leavingCurrentDoc(), func() { a.showSpaceHome() }) {
 		return false
 	}
 	a.finishSpaceEdit()
@@ -550,13 +551,18 @@ func (a *App) Run() error {
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
 		a.win.OnClose(func(event *mygo.CloseEvent) {
 			a.finishLaunch()
-			if !a.flush() {
-				// The window stays: an empty file browser shows again.
-				if a.files != nil {
-					a.files.closing = false
+			// Hidden in the tray, the window keeps its documents in memory:
+			// only quitting asks about edits autosave did not write.
+			hides := !a.quitting && a.tray != nil
+			if a.autosaveEnabled() || !hides {
+				if !a.leaveDocs(a.residentDocuments(), a.retryCloseMain) {
+					// The window stays: an empty file browser shows again.
+					if a.files != nil {
+						a.files.closing = false
+					}
+					event.PreventDefault()
+					return
 				}
-				event.PreventDefault()
-				return
 			}
 			a.finishSpaceEdit()
 			if a.captureSplits() || a.noteReading() {
@@ -912,7 +918,18 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		}
 		return false
 	}
-	if !a.flush() {
+	paneIdx := -1
+	if a.paneNavigation && a.split != nil {
+		paneIdx = a.split.active
+	}
+	if !a.leaveDocs(a.leavingCurrentDoc(), func() {
+		if paneIdx >= 0 && a.split != nil && paneIdx < len(a.split.panes) {
+			a.focusPane(paneIdx, false)
+			a.navigateInPane(a.doc, func() { a.openIn(sp, rel) })
+			return
+		}
+		a.openIn(sp, rel)
+	}) {
 		return false
 	}
 	if a.split != nil && a.doc != nil && !a.paneNavigation {
@@ -1018,7 +1035,7 @@ func (a *App) goHistory(step int) {
 		a.paneNavigation = true
 		defer func() { a.paneNavigation = false; a.syncSplit() }()
 	}
-	if !a.flush() {
+	if !a.leaveDocs(a.leavingCurrentDoc(), func() { a.goHistory(step) }) {
 		return
 	}
 	for a.canGo(step) {
@@ -1061,7 +1078,7 @@ func (a *App) reload() {
 		a.useDisk()
 		return
 	}
-	if !a.flush() {
+	if !a.leaveDocs([]*document{a.doc}, a.reload) {
 		return
 	}
 	rel, source := a.doc.rel, a.doc.source
@@ -1261,7 +1278,7 @@ func (a *App) commitRename() {
 		return
 	}
 	renaming := a.residentDocument(sp.ID, rel)
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	if renaming != nil {
@@ -1287,7 +1304,7 @@ func (a *App) moveInto(rel, dir string) {
 		return
 	}
 	sp := a.state.ActiveSpace()
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	to, _, err := a.moveWithResources(sp, rel, sp, dir)
@@ -1339,7 +1356,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 		return false
 	}
 	next := a.state.Get(id)
-	if next == nil || !a.canEnter(next.Root) || !a.flush() {
+	if next == nil || !a.canEnter(next.Root) || !a.flushForTask() {
 		return false
 	}
 	a.finishSpaceEdit()
@@ -1480,7 +1497,7 @@ func (a *App) trash(rel string) {
 	if err != nil {
 		return
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	kept, ok := a.keepDeleted(sp.ID, sp.Name, sp.Root, rel)

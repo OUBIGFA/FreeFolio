@@ -336,6 +336,17 @@ func (a *App) actions() []action {
 		space = i18n.T("关闭中英文自动加空格")
 	}
 	cmd(space, "", func() { a.prefs.AutoSpace = !a.prefs.AutoSpace; a.savePrefs() })
+	autosave := i18n.T("关闭自动保存")
+	if a.prefs.NoAutosave {
+		autosave = i18n.T("开启自动保存")
+	}
+	cmd(autosave, "", a.toggleAutosave)
+	if a.doc != nil && a.doc.loadErr == nil {
+		cmd(i18n.T("立即保存"), a.keyLabel("save"), func() { a.flush() })
+		if a.prefs.NoAutosave && a.doc.dirty() {
+			danger(i18n.T("放弃未保存的修改"), "", a.discardCurrentEdits)
+		}
+	}
 	cmd(i18n.T("外观设置…"), "", func() { a.openSettings(tabAppearance) })
 	ask := i18n.T("向当前空间提问")
 	if a.qa.open {
@@ -724,6 +735,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("插入脚注"), "", after(ed.InsertFootnote))
 	cmd(i18n.T("上标"), "", after(func() { ed.SetScript("sup") }))
 	cmd(i18n.T("下标"), "", after(func() { ed.SetScript("sub") }))
+	cmd(i18n.T("键盘按键"), "", after(func() { ed.Wrap("<kbd>") }))
 	if ed.Doc.Icon == "" {
 		cmd(i18n.T("添加页面图标"), "", ed.EditPageIcon)
 	} else {

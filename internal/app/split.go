@@ -150,7 +150,7 @@ func (a *App) beginSplit() bool {
 	if a.split != nil {
 		return true
 	}
-	if a.doc == nil || !a.flush() {
+	if a.doc == nil || !a.flushForTask() {
 		return false
 	}
 	s := &splitGroup{panes: []*splitPane{{doc: a.doc, history: slices.Clone(a.history), at: a.at, factor: 1, shownFactor: 1, shownReady: true}}}
@@ -213,7 +213,7 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 		a.notify("打开 %s 失败。%v", vault.Title(rel), err)
 		return
 	}
-	if !a.flush() || !a.beginSplit() {
+	if !a.flushForTask() || !a.beginSplit() {
 		return
 	}
 	s := a.split
@@ -243,11 +243,18 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 
 func (a *App) closePane(index int) {
 	s := a.split
-	if s == nil || index < 0 || index >= len(s.panes) || !a.flush() {
+	if s == nil || index < 0 || index >= len(s.panes) {
 		return
 	}
 	a.syncSplit()
 	closed := s.panes[index].doc
+	var leaving []*document
+	if closed != nil && !inPins(closed.space, closed.rel) {
+		leaving = []*document{closed}
+	}
+	if !a.leaveDocs(leaving, func() { a.closePane(index) }) {
+		return
+	}
 	s.panes = slices.Delete(s.panes, index, index+1)
 	if index < s.active {
 		s.active--
@@ -277,10 +284,21 @@ func (a *App) selectSplitActive() {
 
 func (a *App) separateSplit() {
 	s := a.split
-	if s == nil || !a.flush() {
+	if s == nil {
 		return
 	}
 	a.syncSplit()
+	var leaving []*document
+	if len(s.panes) <= 2 {
+		for i, p := range s.panes {
+			if i != s.active && p.doc != nil && !inPins(p.doc.space, p.doc.rel) {
+				leaving = append(leaving, p.doc)
+			}
+		}
+	}
+	if !a.leaveDocs(leaving, a.separateSplit) {
+		return
+	}
 	s.panes = slices.Delete(s.panes, s.active, s.active+1)
 	s.active = min(s.active, len(s.panes)-1)
 	a.equalSplit()
@@ -305,7 +323,7 @@ func (a *App) separateSplit() {
 func (a *App) suspendSplit() { a.syncSplit(); a.split = nil }
 
 func (a *App) restoreSplit(s *splitGroup, index int) bool {
-	if s == nil || !a.flush() {
+	if s == nil || !a.leaveDocs(a.leavingCurrentDoc(), func() { a.restoreSplit(s, index) }) {
 		return false
 	}
 	a.suspendSplit()

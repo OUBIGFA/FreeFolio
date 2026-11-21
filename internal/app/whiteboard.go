@@ -341,7 +341,7 @@ func (a *App) newWhiteboard(dir string) {
 		a.notify("请在普通空间中新建白板。")
 		return
 	}
-	if !a.flush() {
+	if !a.flushForTask() {
 		return
 	}
 	s := whiteboard.NewScene()

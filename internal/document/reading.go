@@ -101,7 +101,7 @@ func (e *Engine) pastedNotes(fragment *Document) *Document {
 		if isVerbatim(b) || b.Kind == "image" {
 			continue
 		}
-		MapBlockRunText(b, func(r Run) bool { return !r.Style.Code }, replace.Replace)
+		MapBlockRunText(b, func(r Run) bool { return !r.Style.Code && !r.Style.Kbd }, replace.Replace)
 	}
 	return out
 }
