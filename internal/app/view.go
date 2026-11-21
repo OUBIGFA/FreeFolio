@@ -32,6 +32,8 @@ func (a *App) Content() *ui.Content { return ui.View(a.View) }
 // View builds the window from the state, every frame.
 func (a *App) View(c *ui.Context) {
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
+	a.frame++
+	a.launchTick(c)
 	a.cloudTick(c)
 	if a.win != nil {
 		a.remote.releasePixels(c.Now())
@@ -798,7 +800,7 @@ func (a *App) address(c *ui.Context) {
 			}
 		}
 		ui.Column(c).MinWidth(0).Shrink(1).Gap(1).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.fullPath())
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.shownPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
 				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")

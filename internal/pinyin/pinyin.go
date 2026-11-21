@@ -172,65 +172,57 @@ func ScoreToken(token, target string) (int, bool) {
 	if len(q) > 96 {
 		return 0, false
 	}
-	runes := []rune(target)
-	if len(runes) == 0 {
+	if target == "" {
 		return 0, false
 	}
-	if len(runes) > 512 {
-		runes = runes[:512]
-	}
 
-	// Quick pre-check: avoid DP when target has no Hanzi and token is ASCII/literal;
-	// caller already scores pure literal fuzzy matches separately. Still handle
-	// general strings accurately here.
-	tn := len(runes)
-	qn := len(q)
-	stride := qn + 1
+	// The table has a row for each rune of target, and a row reads only the
+	// one before it: two rows are kept, on the stack, where the whole table
+	// was allocated for every title a query was scored against.
+	//
 	// dp0: best score when previous target rune was NOT matched into current run.
 	// dp1: best score when previous target rune WAS matched right before ti.
 	// Using -1e9 as unreachable sentinel.
 	const negInf = -1_000_000_000
-	dp0 := make([]int, (tn+1)*stride)
-	dp1 := make([]int, (tn+1)*stride)
+	qn := len(q)
+	var rows [4][97]int
+	dp0, dp1, next0, next1 := rows[0][:qn+1], rows[1][:qn+1], rows[2][:qn+1], rows[3][:qn+1]
 	for i := range dp0 {
-		dp0[i] = negInf
-		dp1[i] = negInf
+		dp0[i], dp1[i] = negInf, negInf
 	}
 	dp0[0] = 0
 
-	// Precompute word-boundary flags for each target rune.
-	boundary := make([]bool, tn)
-	prev := ' '
-	for i, r := range runes {
-		if i == 0 || (!unicode.IsLetter(prev) && !unicode.IsDigit(prev)) {
-			boundary[i] = true
-		}
-		prev = r
-	}
-
 	var sylBuf [8]string
-	for ti := 0; ti < tn; ti++ {
-		tr := unicode.ToLower(runes[ti])
-		ns := fillSyllables(runes[ti], &sylBuf)
+	ti := 0
+	prev := ' '
+	for _, r := range target {
+		if ti == 512 {
+			break // a longer target is scored by its first 512 runes
+		}
+		tr := unicode.ToLower(r)
+		ns := fillSyllables(r, &sylBuf)
 		boundBonus := 0
 		if ti == 0 {
 			boundBonus = 8
-		} else if boundary[ti] {
-			boundBonus = 5
+		} else if !unicode.IsLetter(prev) && !unicode.IsDigit(prev) {
+			boundBonus = 5 // a word boundary
 		}
+		prev = r
+		ti++
 
-		baseCur := ti * stride
-		baseNext := (ti + 1) * stride
+		for i := range next0 {
+			next0[i], next1[i] = negInf, negInf
+		}
 		for qi := 0; qi <= qn; qi++ {
-			s0 := dp0[baseCur+qi]
-			s1 := dp1[baseCur+qi]
+			s0 := dp0[qi]
+			s1 := dp1[qi]
 			bestHere := max(s0, s1)
 			if bestHere <= negInf/2 {
 				continue
 			}
 			// Skip target rune ti without consuming query bytes.
-			if bestHere > dp0[baseNext+qi] {
-				dp0[baseNext+qi] = bestHere
+			if bestHere > next0[qi] {
+				next0[qi] = bestHere
 			}
 			if qi == qn {
 				continue
@@ -248,8 +240,8 @@ func ScoreToken(token, target string) (int, bool) {
 					val1 = s1 + 14 + 6 + boundBonus
 				}
 				cand := max(val0, val1)
-				if cand > dp1[baseNext+qi+qSize] {
-					dp1[baseNext+qi+qSize] = cand
+				if cand > next1[qi+qSize] {
+					next1[qi+qSize] = cand
 				}
 			}
 
@@ -270,8 +262,8 @@ func ScoreToken(token, target string) (int, bool) {
 						step := 12 + boundBonus - polyPenalty
 						cand := max(s0+step, s1+step+6)
 						nextQ := qi + len(syl)
-						if cand > dp1[baseNext+nextQ] {
-							dp1[baseNext+nextQ] = cand
+						if cand > next1[nextQ] {
+							next1[nextQ] = cand
 						}
 					}
 
@@ -280,8 +272,8 @@ func ScoreToken(token, target string) (int, bool) {
 					if len(rem) >= 2 && len(rem) < len(syl) && strings.HasPrefix(syl, rem) {
 						step := 8 + len(rem) + boundBonus - polyPenalty
 						cand := max(s0+step, s1+step+6)
-						if cand > dp1[baseNext+qn] {
-							dp1[baseNext+qn] = cand
+						if cand > next1[qn] {
+							next1[qn] = cand
 						}
 					}
 
@@ -289,8 +281,8 @@ func ScoreToken(token, target string) (int, bool) {
 					if rem[0] == syl[0] {
 						step := 4 + boundBonus - polyPenalty
 						cand := max(s0+step, s1+step+4)
-						if cand > dp1[baseNext+qi+1] {
-							dp1[baseNext+qi+1] = cand
+						if cand > next1[qi+1] {
+							next1[qi+1] = cand
 						}
 					}
 
@@ -299,16 +291,18 @@ func ScoreToken(token, target string) (int, bool) {
 					if len(rem) > 2 && len(syl) >= 2 && (syl[:2] == "zh" || syl[:2] == "ch" || syl[:2] == "sh") && rem[:2] == syl[:2] {
 						step := 6 + boundBonus - polyPenalty
 						cand := max(s0+step, s1+step+4)
-						if cand > dp1[baseNext+qi+2] {
-							dp1[baseNext+qi+2] = cand
+						if cand > next1[qi+2] {
+							next1[qi+2] = cand
 						}
 					}
 				}
 			}
 		}
+		dp0, next0 = next0, dp0
+		dp1, next1 = next1, dp1
 	}
 
-	best := max(dp0[tn*stride+qn], dp1[tn*stride+qn])
+	best := max(dp0[qn], dp1[qn])
 	if best <= negInf/2 {
 		return 0, false
 	}

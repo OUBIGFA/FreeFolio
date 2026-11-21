@@ -2,8 +2,10 @@ package app
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -111,6 +113,9 @@ type preview struct {
 	refocus bool
 	// col are the card's colors this frame, in the space's look.
 	col previewLook
+	// path keeps where the document previewed is, which the card asks in
+	// every frame for the time the file changed.
+	path keptPath
 }
 
 type thumb struct {
@@ -228,6 +233,45 @@ func (a *App) folderItems(sp *space.Space, rel string) []previewItem {
 	if n == nil {
 		return nil
 	}
+	// Each folder is resolved once and its files asked for their own time,
+	// where resolving every document walked its whole path link by link:
+	// a folder of hundreds held the window for a moment as its card opened.
+	// A file that is itself a link is still resolved, to where it leads.
+	folders := map[string]string{}
+	changed := func(rel string) (at time.Time) {
+		if sp.IsExternal() {
+			if p, err := resolveFile(sp, rel); err == nil {
+				if info, err := os.Stat(p); err == nil {
+					at = info.ModTime()
+				}
+			}
+			return at
+		}
+		dir := path.Dir(rel)
+		full, ok := folders[dir]
+		if !ok {
+			if dir == "." {
+				full = sp.Root
+			} else if p, err := vault.Resolve(sp.Root, dir); err == nil {
+				full = p
+			}
+			folders[dir] = full
+		}
+		if full == "" {
+			return at
+		}
+		file := filepath.Join(full, path.Base(rel))
+		info, err := os.Lstat(file)
+		if err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			if _, err = vault.Resolve(sp.Root, rel); err == nil {
+				info, err = os.Stat(file)
+			}
+		}
+		if err == nil {
+			at = info.ModTime()
+		}
+		return at
+	}
 	var out []previewItem
 	var walk func([]*vault.Node)
 	walk = func(nodes []*vault.Node) {
@@ -236,13 +280,7 @@ func (a *App) folderItems(sp *space.Space, rel string) []previewItem {
 				walk(k.Children)
 				continue
 			}
-			it := previewItem{rel: k.Path, title: k.Title()}
-			if p, err := resolveFile(sp, k.Path); err == nil {
-				if info, err := os.Stat(p); err == nil {
-					it.changed = info.ModTime()
-				}
-			}
-			out = append(out, it)
+			out = append(out, previewItem{rel: k.Path, title: k.Title(), changed: changed(k.Path)})
 		}
 	}
 	walk(n.Children)
@@ -381,7 +419,7 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 		a.putThumb(key, thumb{d, rev})
 		return d
 	}
-	full, err := resolveFile(sp, rel)
+	full, err := p.path.resolve(sp, rel)
 	if err != nil {
 		return nil
 	}
@@ -634,7 +672,7 @@ func (a *App) docPreview(c *ui.Context) {
 			if dir := parentDir(t.rel); dir != "" {
 				where += " / " + dir
 			}
-			if full, err := resolveFile(t.space, t.rel); err == nil {
+			if full, err := p.path.resolve(t.space, t.rel); err == nil {
 				if info, err := os.Stat(full); err == nil {
 					where += i18n.T(" · 修改于") + ago(info.ModTime(), time.Now())
 				}

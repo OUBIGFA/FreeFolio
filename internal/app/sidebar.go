@@ -191,8 +191,10 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 			restingPins := len(pins)
 			highlight := 0
 			if live {
-				prev = append([]rowFrame(nil), a.rows...)
-				a.rows = a.rows[:0]
+				// The frame before's rows change places with this frame's,
+				// where a copy of them all was made for every frame.
+				prev, a.rows = a.rows, a.rowsBefore[:0]
+				a.rowsBefore = prev
 				over := a.listDrag(c, tree, prev)
 				a.slot, restingPins = a.computeSlot(sp, pins, over)
 				highlight = a.dropSection(a.listDrop)

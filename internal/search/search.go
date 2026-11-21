@@ -272,14 +272,17 @@ func bestMultiSnippetAnchor(text string, runes [][]rune, terms []string, firstHi
 	runePos = firstHits[termIdx]
 	bestDistinct = 1
 
-	docRunes := []rune(text)
+	// Line by line, in one buffer: the whole document as runes at once
+	// cost four times its size for every document a query found.
+	var line []rune
 	lineStart := 0
-	for lineStart <= len(docRunes) {
-		lineEnd := lineStart
-		for lineEnd < len(docRunes) && docRunes[lineEnd] != '\n' {
-			lineEnd++
+	for rest, more := text, true; more; {
+		var raw string
+		raw, rest, more = strings.Cut(rest, "\n")
+		line = line[:0]
+		for _, r := range raw {
+			line = append(line, r)
 		}
-		line := docRunes[lineStart:lineEnd]
 		distinct := 0
 		earliestIdx := -1
 		earliestPos := len(line) + 1
@@ -300,7 +303,7 @@ func bestMultiSnippetAnchor(text string, runes [][]rune, terms []string, firstHi
 				break
 			}
 		}
-		lineStart = lineEnd + 1
+		lineStart += len(line) + 1
 	}
 	return termIdx, runePos, bestDistinct
 }
@@ -324,30 +327,94 @@ func findRunesFirst(hay, needle []rune) int {
 	return -1
 }
 
-// find counts the non-overlapping matches of q (lowered) in text and
-// returns the rune index of the first.
-func find(text string, q []rune) (count, first int) {
-	runes := []rune(text)
-	first = -1
-	for i := 0; i+len(q) <= len(runes); {
-		ok := true
-		for j, r := range q {
-			if unicode.ToLower(runes[i+j]) != r {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			if first < 0 {
-				first = i
-			}
-			count++
-			i += len(q)
+// cased marks the pages of 256 runes that hold a rune with a lower case of
+// its own, by the ranges unicode.ToLower itself reads.
+var cased = func() (pages [unicode.MaxRune>>8 + 1]bool) {
+	for _, c := range unicode.CaseRanges {
+		if c.Delta[unicode.LowerCase] == 0 {
 			continue
 		}
-		i++
+		for page := c.Lo >> 8; page <= c.Hi>>8; page++ {
+			pages[page] = true
+		}
+	}
+	return pages
+}()
+
+// lower is unicode.ToLower, answering at once for ASCII and for the pages
+// without case, as all of Chinese: looking each rune up in the case ranges
+// was a fifth of a search.
+func lower(r rune) rune {
+	if r < utf8.RuneSelf {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		}
+		return r
+	}
+	if r > unicode.MaxRune || !cased[r>>8] {
+		return r
+	}
+	return unicode.ToLower(r)
+}
+
+// lowerWide decodes the rune a string begins with, one beyond ASCII, and
+// returns it lowered with its width.
+func lowerWide(s string) (rune, int) {
+	r, w := utf8.DecodeRuneInString(s)
+	if cased[r>>8] {
+		r = unicode.ToLower(r)
+	}
+	return r, w
+}
+
+// find counts the non-overlapping matches of q (lowered) in text and
+// returns the rune index of the first. It reads the text where it is: a
+// copy of every document as runes, for every term of every query typed,
+// was most of what a search cost. ASCII is lowered in the loop itself,
+// which a call for every byte would slow by half.
+func find(text string, q []rune) (count, first int) {
+	first = -1
+	if len(q) == 0 {
+		return 0, first
+	}
+	for i, at := 0, 0; i < len(text); {
+		c, w := text[i], 1
+		r := rune(c)
+		if c >= utf8.RuneSelf {
+			r, w = lowerWide(text[i:])
+		} else if 'A' <= c && c <= 'Z' {
+			r += 'a' - 'A'
+		}
+		if r == q[0] {
+			if end, ok := matchRest(text, i+w, q[1:]); ok {
+				if first < 0 {
+					first = at
+				}
+				count++
+				i, at = end, at+len(q)
+				continue
+			}
+		}
+		i += w
+		at++
 	}
 	return count, first
+}
+
+// matchRest reports whether q (lowered) is the text from byte i on, and
+// the byte the match ends before.
+func matchRest(text string, i int, q []rune) (end int, ok bool) {
+	for _, want := range q {
+		if i >= len(text) {
+			return 0, false
+		}
+		r, w := utf8.DecodeRuneInString(text[i:])
+		if lower(r) != want {
+			return 0, false
+		}
+		i += w
+	}
+	return i, true
 }
 
 // Context around a match in a snippet, in runes.
@@ -360,7 +427,23 @@ const (
 // line, whitespace runs as one space, and returns it with the match's byte
 // range in it.
 func snip(text string, at, n int) (string, [2]int) {
-	runes := []rune(text)
+	// Only the runes around the match, with one more either side to tell
+	// whether the text goes on: lo and hi are their rune indexes.
+	lo, hi := max(0, at-before-1), at+n+after+1
+	from, to := len(text), len(text)
+	k := 0
+	for i := range text {
+		if k == lo {
+			from = i
+		}
+		if k == hi {
+			to = i
+			break
+		}
+		k++
+	}
+	runes := []rune(text[from:to])
+	at -= lo
 	start := max(0, at-before)
 	// Start at the line the match is on when it begins close by.
 	for i := at - 1; i >= start; i-- {

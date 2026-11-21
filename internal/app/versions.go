@@ -71,6 +71,13 @@ func (d *document) fullPath() string {
 	return p
 }
 
+// shownPath is fullPath for display, as the title bar's tooltip, which
+// every frame asks for (keptPath).
+func (d *document) shownPath() string {
+	p, _ := d.shown.resolve(d.space, d.rel)
+	return p
+}
+
 // openVersions shows the history of the open document.
 func (a *App) openVersions() {
 	d := a.doc

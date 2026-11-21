@@ -31,6 +31,30 @@ func resolveFile(sp *space.Space, rel string) (string, error) {
 	return vault.Resolve(root, name)
 }
 
+// keptPath is a document's resolved path and what it was resolved from.
+// Resolving walks the file system link by link, which is too much to do in
+// every frame for a path that is only shown or asked for its time: the
+// answer is kept until the document or its space moves. Reading and writing
+// never use it: they resolve again, as the space's boundary asks.
+type keptPath struct {
+	root, rel, external, path string
+	err                       error
+	known                     bool
+}
+
+// resolve is resolveFile, asked again only for another document or place.
+func (k *keptPath) resolve(sp *space.Space, rel string) (string, error) {
+	external := ""
+	if sp.IsExternal() {
+		external = sp.ExternalFiles[rel]
+	}
+	if !k.known || k.root != sp.Root || k.rel != rel || k.external != external {
+		*k = keptPath{root: sp.Root, rel: rel, external: external, known: true}
+		k.path, k.err = resolveFile(sp, rel)
+	}
+	return k.path, k.err
+}
+
 func readFile(sp *space.Space, rel string) (string, error) {
 	root, name, err := fileLocation(sp, rel)
 	if err != nil {

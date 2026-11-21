@@ -12,6 +12,7 @@
 - Place the document outline on the right and show the drag cursor over block handles.
 - Group search and file opening, improve favorite label contrast, and keep the settings exit in the navigation footer.
 - Build the local Windows x64 test installer with `python -X utf8 tools/build_test_installer.py`.
+- Start faster and keep frames light: read a space's folders side by side without resolving every folder again, set the window and tray icons after the first frame, and stop resolving the open document's path in every frame. Command-bar search reads documents in place instead of copying each one, pinyin scoring allocates nothing, a folder's hover card no longer resolves every document, and pictures named without a folder share one reading of the space per frame.
 
 The entries below describe the inherited ArcMD releases.
 

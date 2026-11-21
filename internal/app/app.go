@@ -85,7 +85,11 @@ type App struct {
 	pickAnchor string
 
 	// Image locations and attachment scans are scoped to resident documents/spaces.
-	imgResolved       map[imageKey]resolvedImage
+	imgResolved map[imageKey]resolvedImage
+	// frame counts the frames built, and pictureNames are a space's files
+	// as the frame's pictures found them (findAttachment).
+	frame             uint64
+	pictureNames      frameNames
 	selfWrites        map[string]time.Time
 	attachmentRelinks map[string]*attachmentRelink
 	movingDoc         *document
@@ -192,6 +196,7 @@ type App struct {
 	listDragging bool
 	dividerY     float32
 	rows         []rowFrame
+	rowsBefore   []rowFrame
 	slot         slotState
 	dragGrab     dragGrab
 	dragSettle   dragSettle
@@ -270,6 +275,8 @@ type App struct {
 	updates updateState
 	// tour introduces the sidebar on the first run (tour.go).
 	tour tour
+	// launch is what waits for the window's first frame (launch.go).
+	launch launch
 
 	runAsync             func(func())
 	navDir               int
@@ -309,6 +316,16 @@ func New(cfg Config) (*App, error) {
 		library:    library{frames: 1},
 		insertSeam: insertSeam{index: -1},
 	}
+	// The search index kept from the last run is read while the rest
+	// loads: it is one file as long as all the documents' text.
+	var cached chan *search.Index
+	if p := a.searchCachePath(); p != "" {
+		cached = make(chan *search.Index, 1)
+		go func() {
+			ix, _ := search.LoadCache(p)
+			cached <- ix
+		}()
+	}
 	if p, err := a.prefStore.Load(); err == nil {
 		a.prefs = p
 	} else {
@@ -328,11 +345,6 @@ func New(cfg Config) (*App, error) {
 	for _, sp := range st.Spaces {
 		if err := vault.MigrateSystemDir(sp.Root); err != nil {
 			a.notify("迁移空间 %s 的系统文件夹失败。%v", sp.Name, err)
-		}
-	}
-	if p := a.searchCachePath(); p != "" {
-		if ix, err := search.LoadCache(p); err == nil {
-			a.search.index = ix
 		}
 	}
 	// Older installations kept loose paths in a built-in collection. Drop
@@ -367,6 +379,9 @@ func New(cfg Config) (*App, error) {
 	// saved could not remember that, and would show it at every launch.
 	if !a.prefs.TourSeen && !a.prefsBroken {
 		a.startTour()
+	}
+	if cached != nil {
+		a.search.index = <-cached
 	}
 	return a, nil
 }
@@ -412,6 +427,7 @@ func (a *App) showSpaceHome() bool {
 
 // Run opens the window and runs the app until it quits.
 func (a *App) Run() error {
+	go warmIcons()
 	mygo.App.SetName("FreeMD")
 	mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 	if !mygo.App.RequestSingleInstanceLock() {
@@ -507,9 +523,8 @@ func (a *App) Run() error {
 		// Called off the main thread, Close is posted to it: the frame that
 		// asked for it finishes before the window closes and OnClose saves.
 		a.closeMain = func() { go main.Close() }
-		if err := a.win.SetIcon(windowIcon()); err != nil {
-			a.notify("无法设置窗口图标。%v", err)
-		}
+		// The window's icon and the tray icon follow the first frame.
+		a.launch.pending = true
 		if len(pending) > 0 {
 			files := pending
 			pending = nil
@@ -526,8 +541,8 @@ func (a *App) Run() error {
 		a.updates.svc, a.updates.async = mygoUpdates{}, true
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
-		a.syncTray()
 		a.win.OnClose(func(event *mygo.CloseEvent) {
+			a.finishLaunch()
 			if !a.flush() {
 				event.PreventDefault()
 				return
@@ -720,7 +735,7 @@ func (a *App) imageResourceFor(d *document, url string) editor.ImageResource {
 	key := imageKey{doc: d, url: url}
 	res, ok := a.imgResolved[key]
 	if !ok {
-		full, err := d.localImage(url)
+		full, err := resolveSpaceImageWith(d.space, d.rel, url, a.findAttachment)
 		res = resolvedImage{full: full, err: err}
 		if a.documentContext > 0 || a.isResidentDocument(d) {
 			if a.imgResolved == nil {
@@ -1601,7 +1616,7 @@ func (a *App) applyLanguage() {
 	}
 }
 
-func (a *App) invalidateResolvedImages() { a.imgResolved = nil }
+func (a *App) invalidateResolvedImages() { a.imgResolved, a.pictureNames = nil, frameNames{} }
 
 func (a *App) isResidentDocument(d *document) bool {
 	if d == nil {

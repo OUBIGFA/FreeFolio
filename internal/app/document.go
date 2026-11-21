@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	model "github.com/OUBIGFA/FreeMD/internal/document"
@@ -111,6 +112,8 @@ type document struct {
 	// marks are the document's bookmarks resolved to its blocks
 	// (bookmarks.go).
 	marks docMarks
+	// shown keeps the path the title bar shows (shownPath).
+	shown keptPath
 }
 
 func openDocument(sp *space.Space, rel, text string, preferSource bool) *document {
@@ -925,6 +928,13 @@ func localImageFile(root, rel, url string) (string, error) {
 // for non-external Spaces falls back to Obsidian-style vault-root and Space
 // attachment lookup when that path does not exist on disk.
 func resolveSpaceImage(sp *space.Space, rel, url string) (string, error) {
+	return resolveSpaceImageWith(sp, rel, url, findSpaceAttachment)
+}
+
+// resolveSpaceImageWith is resolveSpaceImage looking for a picture named
+// without a folder with find: the window's frames share one reading of the
+// space among their pictures (App.findAttachment).
+func resolveSpaceImageWith(sp *space.Space, rel, url string, find func(root, name string) (string, bool)) (string, error) {
 	root, docRel, err := fileLocation(sp, rel)
 	if err != nil {
 		return "", err
@@ -964,17 +974,30 @@ func resolveSpaceImage(sp *space.Space, rel, url string) (string, error) {
 				}
 			}
 		}
-		if found, ok := findSpaceAttachment(root, decoded); ok {
+		if found, ok := find(root, decoded); ok {
 			return found, nil
 		}
 	}
 	return direct, nil
 }
 
+// findSpaceAttachment finds the file called name, in any case, anywhere in
+// the space: the one named exactly so before another, then the nearest the
+// root, then the first by path.
 func findSpaceAttachment(root, name string) (string, bool) {
-	var bestPath, bestRel string
-	bestExact := false
-	bestDepth := 0
+	var rels []string
+	walkSpaceFiles(root, func(file, rel string) {
+		if strings.EqualFold(file, name) {
+			rels = append(rels, rel)
+		}
+	})
+	return bestAttachment(root, name, rels)
+}
+
+// walkSpaceFiles calls fn with the name and the path in the space of every
+// file under root, leaving out the hidden ones and the folders List leaves
+// out.
+func walkSpaceFiles(root string, fn func(name, rel string)) {
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -985,31 +1008,79 @@ func findSpaceAttachment(root, name string) (string, bool) {
 			}
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") || !strings.EqualFold(d.Name(), name) {
-			return nil
-		}
-		if info, stErr := os.Stat(p); stErr != nil || info.IsDir() {
+		if strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
 		rel, relErr := filepath.Rel(root, p)
 		if relErr != nil {
 			return nil
 		}
-		rel = filepath.ToSlash(rel)
+		fn(d.Name(), filepath.ToSlash(rel))
+		return nil
+	})
+}
+
+// bestAttachment picks, of the files at rels whose names are name in some
+// case, the one findSpaceAttachment promises, and resolves it.
+func bestAttachment(root, name string, rels []string) (string, bool) {
+	var bestPath, bestRel string
+	bestExact := false
+	bestDepth := 0
+	for _, rel := range rels {
+		if info, stErr := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); stErr != nil || info.IsDir() {
+			continue
+		}
 		resolved, resErr := vault.Resolve(root, rel)
 		if resErr != nil {
-			return nil
+			continue
 		}
-		exact := d.Name() == name
+		exact := path.Base(rel) == name
 		depth := strings.Count(rel, "/")
 		if bestPath == "" ||
 			(exact && !bestExact) ||
 			(exact == bestExact && (depth < bestDepth || (depth == bestDepth && rel < bestRel))) {
 			bestPath, bestRel, bestExact, bestDepth = resolved, rel, exact, depth
 		}
-		return nil
-	})
+	}
 	return bestPath, bestPath != ""
+}
+
+// foldName is a file name as strings.EqualFold compares it: each rune the
+// smallest of those it folds to.
+func foldName(name string) string {
+	return strings.Map(func(r rune) rune {
+		least := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			least = min(least, f)
+		}
+		return least
+	}, name)
+}
+
+// frameNames are the files of a space by folded name, as one frame read
+// them.
+type frameNames struct {
+	frame uint64
+	root  string
+	names map[string][]string
+	known bool
+}
+
+// findAttachment is findSpaceAttachment for the pictures a frame shows.
+// Each walked the whole space for itself, so a document of many pictures
+// named as Obsidian names them held the window for as many walks when it
+// opened. The frame's first reads the space once, for the rest of the
+// frame only: the next frame reads again, as each walk did.
+func (a *App) findAttachment(root, name string) (string, bool) {
+	n := &a.pictureNames
+	if !n.known || n.frame != a.frame || n.root != root {
+		*n = frameNames{frame: a.frame, root: root, names: map[string][]string{}, known: true}
+		walkSpaceFiles(root, func(file, rel string) {
+			key := foldName(file)
+			n.names[key] = append(n.names[key], rel)
+		})
+	}
+	return bestAttachment(root, name, n.names[foldName(name)])
 }
 
 // resolveLink returns the space path a link of the document points to,
