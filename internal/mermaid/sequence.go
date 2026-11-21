@@ -1172,8 +1172,9 @@ var seqMsgOps = []struct {
 	{"<<->>", EdgeSolid, MarkerArrow, MarkerArrow},
 	{"-->>", EdgeDashed, MarkerNone, MarkerArrow},
 	{"->>", EdgeSolid, MarkerNone, MarkerArrow},
-	{"-->", EdgeDashed, MarkerNone, MarkerOpenArrow},
-	{"->", EdgeSolid, MarkerNone, MarkerOpenArrow},
+	// A line with no head, as Mermaid draws "->" and "-->".
+	{"-->", EdgeDashed, MarkerNone, MarkerNone},
+	{"->", EdgeSolid, MarkerNone, MarkerNone},
 	{"--x", EdgeDashed, MarkerNone, MarkerCross},
 	{"-x", EdgeSolid, MarkerNone, MarkerCross},
 	{"--)", EdgeDashed, MarkerNone, MarkerOpenArrow},

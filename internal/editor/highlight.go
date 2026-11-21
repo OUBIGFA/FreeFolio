@@ -168,6 +168,8 @@ func normalizeLexLang(language string) lexLang {
 		return langMarkdown
 	case "mermaid":
 		return langMermaid
+	case "echarts":
+		return langJSON
 	default:
 		return langGeneric
 	}

@@ -380,7 +380,7 @@ var codeLanguages = []struct{ name, label string }{
 	{"", "纯文本"}, {"go", "Go"}, {"javascript", "JavaScript"}, {"typescript", "TypeScript"}, {"python", "Python"},
 	{"rust", "Rust"}, {"java", "Java"}, {"c", "C"}, {"cpp", "C++"}, {"csharp", "C#"}, {"swift", "Swift"},
 	{"kotlin", "Kotlin"}, {"ruby", "Ruby"}, {"php", "PHP"}, {"bash", "Shell"}, {"sql", "SQL"},
-	{"html", "HTML"}, {"css", "CSS"}, {"json", "JSON"}, {"yaml", "YAML"}, {"toml", "TOML"}, {"markdown", "Markdown"}, {"mermaid", "Mermaid"},
+	{"html", "HTML"}, {"css", "CSS"}, {"json", "JSON"}, {"yaml", "YAML"}, {"toml", "TOML"}, {"markdown", "Markdown"}, {"mermaid", "Mermaid"}, {"echarts", "ECharts"},
 }
 
 // languageLabel names a fence language for people.

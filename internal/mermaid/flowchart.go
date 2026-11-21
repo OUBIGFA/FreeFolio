@@ -22,7 +22,6 @@ type flowNode struct {
 	shape    ShapeKind
 	subgraph int // -1 if top-level
 	rank     int
-	order    int
 	x, y     float32
 	w, h     float32
 	labelW   float32
@@ -244,178 +243,37 @@ func layoutFlowchart(lines []string, measure MeasureFunc) (Diagram, error) {
 		}
 	}
 
-	// Longest-path rank assignment on DAG.
-	dagOut := make([][]int, len(nodes))
-	dagIn := make([]int, len(nodes))
-	for _, e := range edges {
-		if e.from == e.to {
-			continue
-		}
-		u, v := e.from, e.to
-		if e.reversed {
-			u, v = v, u
-		}
-		dagOut[u] = append(dagOut[u], v)
-		dagIn[v]++
-	}
-	var q []int
-	for u := range nodes {
-		if dagIn[u] == 0 {
-			q = append(q, u)
-		}
-	}
-	maxRank := 0
-	for len(q) > 0 {
-		u := q[0]
-		q = q[1:]
-		for _, v := range dagOut[u] {
-			if nodes[v].rank < nodes[u].rank+1 {
-				nodes[v].rank = nodes[u].rank + 1
-				maxRank = max(maxRank, nodes[v].rank)
-			}
-			dagIn[v]--
-			if dagIn[v] == 0 {
-				q = append(q, v)
-			}
-		}
-	}
-
-	ranks := make([][]int, maxRank+1)
-	for i, n := range nodes {
-		ranks[n.rank] = append(ranks[n.rank], i)
-	}
-	for r := range ranks {
-		for ord, idx := range ranks[r] {
-			nodes[idx].order = ord
-		}
-	}
-
-	// Build undirected-per-adjacent-rank neighbor lists for barycenter sweeps.
-	preds := make([][]int, len(nodes))
-	succs := make([][]int, len(nodes))
-	for _, e := range edges {
-		if e.from == e.to {
-			continue
-		}
-		u, v := e.from, e.to
-		if e.reversed {
-			u, v = v, u
-		}
-		succs[u] = append(succs[u], v)
-		preds[v] = append(preds[v], u)
-	}
-	for sweep := 0; sweep < 4; sweep++ {
-		if sweep%2 == 0 {
-			for r := 1; r <= maxRank; r++ {
-				sortRankByBarycenter(ranks[r], preds, nodes)
-			}
-		} else {
-			for r := maxRank - 1; r >= 0; r-- {
-				sortRankByBarycenter(ranks[r], succs, nodes)
-			}
-		}
-	}
-
-	// Coordinate assignment.
+	// Ranks, order and positions (layered.go).
 	horizontal := dir == dirLR || dir == dirRL
 	reversedAxis := dir == dirBT || dir == dirRL
-	const (
-		rankGapBase float32 = 44
-		crossGap    float32 = 28
-		sgGapExtra  float32 = 20
-		outerPad    float32 = 16
-	)
-
-	// Extra gap between rank r and r+1 if an edge between them has a label.
-	rankGap := make([]float32, maxRank+1)
-	for r := 0; r < maxRank; r++ {
-		rankGap[r] = rankGapBase
+	const outerPad float32 = 16
+	_, sgTitleH := measure("Hg", sgFontSize, true)
+	g := layoutLayered(nodes, edges, subgraphs, horizontal, max(26, sgTitleH+12)+6, 22)
+	primTotal := float32(0)
+	for r, c := range g.center {
+		thick := float32(0)
+		for _, i := range g.ranks[r] {
+			thick = max(thick, g.n[i].prim)
+		}
+		primTotal = max(primTotal, c+thick/2)
 	}
-	for _, e := range edges {
-		if e.label == "" || e.from == e.to {
-			continue
+	// prim maps a rank-direction position to the drawing, flipped for BT
+	// and RL charts.
+	prim := func(v float32) float32 {
+		if reversedAxis {
+			return outerPad + primTotal - v
 		}
-		r1, r2 := nodes[e.from].rank, nodes[e.to].rank
-		if r1 > r2 {
-			r1, r2 = r2, r1
-		}
-		if r2 == r1+1 {
-			need := e.labelH + 20
-			if horizontal {
-				need = e.labelW + 24
-			}
-			rankGap[r1] = max(rankGap[r1], need)
-		}
+		return outerPad + v
 	}
-
-	rankThick := make([]float32, maxRank+1)
-	rankCenter := make([]float32, maxRank+1)
-	crossSpan := make([]float32, maxRank+1)
-	maxCross := float32(0)
-
-	for r := 0; r <= maxRank; r++ {
-		row := ranks[r]
-		totalCross := float32(0)
-		for idxPos, ni := range row {
-			n := nodes[ni]
-			thick, span := n.h, n.w
-			if horizontal {
-				thick, span = n.w, n.h
-			}
-			rankThick[r] = max(rankThick[r], thick)
-			if idxPos > 0 {
-				totalCross += crossGap
-				if nodes[row[idxPos-1]].subgraph != n.subgraph {
-					totalCross += sgGapExtra
-				}
-			}
-			totalCross += span
+	for i, n := range nodes {
+		ln := g.n[i]
+		pc, cc := prim(g.center[ln.rank]), outerPad+ln.at
+		if horizontal {
+			n.x, n.y = pc-n.w/2, cc-n.h/2
+		} else {
+			n.x, n.y = cc-n.w/2, pc-n.h/2
 		}
-		crossSpan[r] = totalCross
-		maxCross = max(maxCross, totalCross)
-	}
-
-	curPrimary := outerPad
-	for r := 0; r <= maxRank; r++ {
-		rankCenter[r] = curPrimary + rankThick[r]/2
-		curPrimary += rankThick[r]
-		if r < maxRank {
-			curPrimary += rankGap[r]
-		}
-	}
-	totalPrimary := curPrimary + outerPad
-
-	if reversedAxis {
-		for r := 0; r <= maxRank; r++ {
-			rankCenter[r] = totalPrimary - rankCenter[r]
-		}
-	}
-
-	for r := 0; r <= maxRank; r++ {
-		row := ranks[r]
-		curCross := outerPad + (maxCross-crossSpan[r])/2
-		for idxPos, ni := range row {
-			n := nodes[ni]
-			span := n.w
-			if horizontal {
-				span = n.h
-			}
-			if idxPos > 0 {
-				curCross += crossGap
-				if nodes[row[idxPos-1]].subgraph != n.subgraph {
-					curCross += sgGapExtra
-				}
-			}
-			cc := curCross + span/2
-			if horizontal {
-				n.x = rankCenter[r] - n.w/2
-				n.y = cc - n.h/2
-			} else {
-				n.x = cc - n.w/2
-				n.y = rankCenter[r] - n.h/2
-			}
-			curCross += span
-		}
+		n.rank = ln.rank
 	}
 
 	// Compute subgraph bounding boxes bottom-up (deepest first).
@@ -517,22 +375,25 @@ func layoutFlowchart(lines []string, measure MeasureFunc) (Diagram, error) {
 		}
 	}
 
-	// Route edges before emitting node labels (paths paint behind nodes or between borders).
-	pairCount := map[[2]int]int{}
-	for _, e := range edges {
-		a, b := min(e.from, e.to), max(e.from, e.to)
-		pairCount[[2]int{a, b}]++
-	}
-	pairSeen := map[[2]int]int{}
-	for _, e := range edges {
-		u, v := nodes[e.from], nodes[e.to]
-		key := [2]int{min(e.from, e.to), max(e.from, e.to)}
-		idx := pairSeen[key]
-		pairSeen[key] = idx + 1
-		total := pairCount[key]
-		spread := (float32(idx) - float32(total-1)/2) * 16
-
-		pts := routeFlowEdge(u, v, horizontal, spread, nodes)
+	// Route edges before emitting node labels (paths paint behind nodes or
+	// between borders): through their virtual nodes, leaving and entering
+	// nodes along the rank direction with right-angle bends between ranks.
+	for ei, e := range edges {
+		var pts [][2]float32
+		labelAt := [2]float32{}
+		hasLabel := false
+		if chain := g.chains[ei]; chain == nil {
+			pts = routeFlowEdge(nodes[e.from], nodes[e.to], horizontal, 0, nodes)
+			if e.label != "" {
+				labelAt[0], labelAt[1] = polylineMidpoint(pts)
+				hasLabel = true
+			}
+		} else {
+			pts, labelAt, hasLabel = g.routeChain(chain, prim, outerPad, horizontal, reversedAxis)
+			if e.reversed {
+				slices.Reverse(pts)
+			}
+		}
 		diag.Paths = append(diag.Paths, PathOp{
 			Points:      pts,
 			Smooth:      true,
@@ -541,12 +402,11 @@ func layoutFlowchart(lines []string, measure MeasureFunc) (Diagram, error) {
 			EndMarker:   e.endM,
 			Role:        RoleEdge,
 		})
-		if e.label != "" {
-			mx, my := polylineMidpoint(pts)
+		if e.label != "" && hasLabel {
 			diag.Labels = append(diag.Labels, LabelOp{
 				Text:  e.label,
-				X:     mx - e.labelW/2,
-				Y:     my - e.labelH/2,
+				X:     labelAt[0] - e.labelW/2,
+				Y:     labelAt[1] - e.labelH/2,
 				W:     e.labelW,
 				H:     e.labelH,
 				Size:  edgeFontSize,
@@ -600,37 +460,6 @@ func layoutFlowchart(lines []string, measure MeasureFunc) (Diagram, error) {
 	}
 	diag.W, diag.H = maxW, maxH
 	return diag, nil
-}
-
-func sortRankByBarycenter(row []int, neighbors [][]int, nodes []*flowNode) {
-	if len(row) <= 1 {
-		return
-	}
-	bary := make(map[int]float64, len(row))
-	for _, ni := range row {
-		ns := neighbors[ni]
-		if len(ns) == 0 {
-			bary[ni] = float64(nodes[ni].order)
-			continue
-		}
-		sum := 0.0
-		for _, nb := range ns {
-			sum += float64(nodes[nb].order)
-		}
-		bary[ni] = sum / float64(len(ns))
-	}
-	slices.SortStableFunc(row, func(a, b int) int {
-		if bary[a] < bary[b] {
-			return -1
-		}
-		if bary[a] > bary[b] {
-			return 1
-		}
-		return nodes[a].order - nodes[b].order
-	})
-	for ord, ni := range row {
-		nodes[ni].order = ord
-	}
 }
 
 func routeFlowEdge(u, v *flowNode, horizontal bool, spread float32, nodes []*flowNode) [][2]float32 {

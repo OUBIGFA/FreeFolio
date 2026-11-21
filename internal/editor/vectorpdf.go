@@ -595,7 +595,7 @@ func (e *Editor) exportVectorMermaid(
 	lineScale := sc * float64(scale)
 
 	for _, s := range diag.Shapes {
-		if s.Role == mermaid.RoleSubgraph || s.Role == mermaid.RoleFragment {
+		if isMermaidBackShape(s) {
 			exportMermaidShape(vp, s, px, py, sx*float64(scale), sy*float64(scale), lineScale, t, pg, blue, yellow)
 		}
 	}
@@ -603,16 +603,13 @@ func (e *Editor) exportVectorMermaid(
 		exportMermaidPath(vp, pOp, docX, docY, scale, sx, sy, lineScale, top, paperMargin, t, pg)
 	}
 	for _, s := range diag.Shapes {
-		if s.Role != mermaid.RoleSubgraph && s.Role != mermaid.RoleFragment {
+		if !isMermaidBackShape(s) {
 			exportMermaidShape(vp, s, px, py, sx*float64(scale), sy*float64(scale), lineScale, t, pg, blue, yellow)
 		}
 	}
 
 	for _, lb := range diag.Labels {
-		fg := t.Text
-		if lb.Role == mermaid.RoleSubgraph || lb.Role == mermaid.RoleFragment {
-			fg = pg.Caption
-		}
+		fg := mermaidLabelColor(lb, t, pg)
 		if lb.Pill {
 			vp.FillRect(px(lb.X-4), py(lb.Y-1), float64((lb.W+8)*scale)*sx, float64((lb.H+2)*scale)*sy, 4*lineScale, pdfRGBA(t.Background.Alpha(0.92)))
 		}
@@ -642,7 +639,34 @@ func exportMermaidShape(
 	lw := float64(sw) * sc
 	x, y, w, h := px(s.X), py(s.Y), float64(s.W)*sx, float64(s.H)*sy
 
+	if sw == 0 && s.Kind != mermaid.ShapePolygon {
+		if s.Kind == mermaid.ShapeCircle {
+			vp.DrawCircle(x+w/2, y+h/2, min(w, h)/2, fc, [4]uint8{}, 0)
+		} else {
+			vp.FillRect(x, y, w, h, float64(s.Radius)*sc, fc)
+		}
+		return
+	}
+
 	switch s.Kind {
+	case mermaid.ShapePolygon:
+		if len(s.Points) < 3 {
+			return
+		}
+		var segs []pdf.PathSegment
+		for i, pt := range s.Points {
+			op := 1
+			if i == 0 {
+				op = 0
+			}
+			segs = append(segs, pdf.PathSegment{Op: op, X0: px(pt[0]), Y0: py(pt[1])})
+		}
+		segs = append(segs, pdf.PathSegment{Op: 4})
+		stroke := bc
+		if sw == 0 {
+			stroke = [4]uint8{}
+		}
+		vp.DrawPath(segs, fc, stroke, lw, false)
 	case mermaid.ShapeRect:
 		vp.FillRect(x, y, w, h, float64(s.Radius)*sc, fc)
 		vp.StrokeRect(x, y, w, h, float64(s.Radius)*sc, lw, bc, s.Dashed)
@@ -753,15 +777,7 @@ func exportMermaidPath(
 	for i, pt := range op.Points {
 		pts[i] = [2]float32{docX + pt[0]*scale, docY + pt[1]*scale}
 	}
-	col := pg.Caption
-	width := float32(1.35)
-	if op.Style == mermaid.EdgeThick {
-		width = 2.3
-		col = t.Text.Alpha(0.72)
-	} else if op.Role == mermaid.RoleFragment {
-		col = pg.CodeBorder
-		width = 1
-	}
+	col, width := mermaidPathStyle(op, t, pg)
 
 	drawPts := append([][2]float32(nil), pts...)
 	if op.StartMarker == mermaid.MarkerArrow {

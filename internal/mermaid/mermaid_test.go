@@ -341,3 +341,15 @@ func TestComplexMultiPhaseSequenceCompactWidthAndRectColors(t *testing.T) {
 		t.Fatalf("expected 4 colored rect phases, got %d", coloredRects)
 	}
 }
+
+// Mermaid's "->" and "-->" are lines without heads; "->>" and "-->>" carry
+// arrowheads and "-)" an open one.
+func TestSequenceArrowHeadsFollowMermaid(t *testing.T) {
+	cases := map[string]MarkerKind{"->": MarkerNone, "-->": MarkerNone, "->>": MarkerArrow, "-->>": MarkerArrow, "-)": MarkerOpenArrow, "-x": MarkerCross}
+	for op, want := range cases {
+		_, _, _, _, end, _, text, ok := parseSeqMessage("Alice" + op + "John: Hello")
+		if !ok || end != want || text != "Hello" {
+			t.Errorf("%s: end %v ok %v text %q, want %v", op, end, ok, text, want)
+		}
+	}
+}

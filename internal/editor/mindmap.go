@@ -528,7 +528,7 @@ func (b *mapBody) measure(o Options) {
 	b.fitScale = 1
 	b.isCode = false
 	b.calloutTone = ""
-	if b.source.Kind == "code" && b.source.Language != "mermaid" {
+	if b.source.Kind == "code" && !isMermaidBlock(b.source) {
 		b.isCode = true
 		limit := max(36, b.limit-8)
 		sample, totalLines, textClipped := codeSourceSample(b.source, mapMaxCodeLines, mapMaxCodeRunes)
@@ -1053,7 +1053,7 @@ func (m *MindMap) buildItem(b *document.Block, depth int, reuse bool, t *ui.Them
 		entry.body = body
 	}
 	body.source = b
-	item.CodeBlock = b.Kind == "code" && b.Language != "mermaid"
+	item.CodeBlock = b.Kind == "code" && !isMermaidBlock(b)
 	m.bodies[b.ID] = body
 	item.Image = b.Kind == "image" || b.Kind == "image_ref"
 	item.Panel = item.CodeBlock ||
@@ -1062,7 +1062,7 @@ func (m *MindMap) buildItem(b *document.Block, depth int, reuse bool, t *ui.Them
 		b.Kind == "callout" ||
 		b.Kind == "columns" ||
 		b.Kind == "raw" ||
-		(b.Kind == "code" && b.Language == "mermaid")
+		isMermaidBlock(b)
 	item.Width, item.Height = body.w, body.h
 	item.Draw = func(p *ui.Painter, r ui.Rect, z float32) { m.paintBody(body, p, r, z, t) }
 	return item

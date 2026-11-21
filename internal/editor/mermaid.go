@@ -157,15 +157,22 @@ func (e *Editor) measureMermaid(text string, size float32, bold bool) (w, h floa
 	return l.Size()
 }
 
-func (e *Editor) diagram(id, src string) mermaidShape {
-	if s, ok := e.mermaids[id]; ok && s.src == src {
+func (e *Editor) diagram(id, lang, src string) mermaidShape {
+	key := strings.ToLower(strings.TrimSpace(lang)) + "\x00" + src
+	if s, ok := e.mermaids[id]; ok && s.src == key {
 		return s
 	}
 	if e.mermaids == nil {
 		e.mermaids = map[string]mermaidShape{}
 	}
-	diag, err := mermaid.ParseAndLayout(src, e.measureMermaid)
-	s := mermaidShape{src: src, diag: diag, err: err}
+	var diag mermaid.Diagram
+	var err error
+	if strings.EqualFold(strings.TrimSpace(lang), "echarts") {
+		diag, err = mermaid.ParseECharts(src, e.measureMermaid)
+	} else {
+		diag, err = mermaid.ParseAndLayout(src, e.measureMermaid)
+	}
+	s := mermaidShape{src: key, diag: diag, err: err}
 	e.mermaids[id] = s
 	return s
 }
@@ -199,7 +206,7 @@ func (e *Editor) mermaidRow(r *row, textH, gap float32) (total float32, wellOff 
 
 	previewH := float32(36)
 	if src != "" {
-		shape := e.diagram(b.ID, src)
+		shape := e.diagram(b.ID, b.Language, src)
 		if shape.err != nil {
 			r.mermaidErr = i18n.T("图表语法有误：") + shape.err.Error()
 			r.mermaidError = ui.ShapeText(r.mermaidErr, ui.Font{Family: "system-ui", Size: 12}, max(24, r.rect.W-2*mermaidPadX))
@@ -291,14 +298,11 @@ func (e *Editor) openMermaidPreview(id string) bool {
 	if src == "" {
 		return false
 	}
-	shape := e.diagram(id, src)
+	shape := e.diagram(id, b.Language, src)
 	if shape.err != nil {
 		return false
 	}
-	title := i18n.T("流程图")
-	if shape.diag.Kind == "sequence" {
-		title = i18n.T("时序图")
-	}
+	title := diagramTitle(shape.diag.Kind)
 	e.mermaidViewer = mermaidViewer{
 		open:       true,
 		needsAlign: true,
@@ -459,7 +463,11 @@ func (e *Editor) paintMermaid(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme)
 	}
 	if r.mermaid == nil {
 		if !e.printing {
-			hint := ui.ShapeText(i18n.T("输入 Mermaid 流程图或时序图"), ui.Font{Family: "system-ui", Size: 14}, 0)
+			msg := i18n.T("输入 Mermaid 流程图、时序图、甘特图或饼图")
+			if strings.EqualFold(strings.TrimSpace(r.leaf.Block.Language), "echarts") {
+				msg = i18n.T("输入 ECharts 图表配置（JSON）")
+			}
+			hint := ui.ShapeText(msg, ui.Font{Family: "system-ui", Size: 14}, 0)
 			hw, hh := hint.Size()
 			p.TextLayout(hint, x+(r.rect.W-hw)/2, y+r.mermaidTop+(36-hh)/2, e.page.Placeholder)
 		}
@@ -492,9 +500,10 @@ func (e *Editor) paintMermaidDiagram(p *ui.Painter, diag mermaid.Diagram, ox, oy
 	blue := mermaidBlueCallout(pg)
 	yellow := pg.Callouts["yellow"]
 
-	// 1. Background containers (subgraphs & fragments).
+	// 1. Background containers (subgraphs, fragments, sections, chart
+	// backgrounds).
 	for _, s := range diag.Shapes {
-		if s.Role == mermaid.RoleSubgraph || s.Role == mermaid.RoleFragment {
+		if isMermaidBackShape(s) {
 			e.paintMermaidShape(p, s, ox, oy, t, pg, blue, yellow)
 		}
 	}
@@ -504,9 +513,9 @@ func (e *Editor) paintMermaidDiagram(p *ui.Painter, diag mermaid.Diagram, ox, oy
 		e.paintMermaidPath(p, pathOp, ox, oy, t, pg)
 	}
 
-	// 3. Foreground shapes (nodes, actors, activations, notes).
+	// 3. Foreground shapes (nodes, actors, activations, notes, bars).
 	for _, s := range diag.Shapes {
-		if s.Role != mermaid.RoleSubgraph && s.Role != mermaid.RoleFragment {
+		if !isMermaidBackShape(s) {
 			e.paintMermaidShape(p, s, ox, oy, t, pg, blue, yellow)
 		}
 	}
@@ -515,10 +524,7 @@ func (e *Editor) paintMermaidDiagram(p *ui.Painter, diag mermaid.Diagram, ox, oy
 	for _, lb := range diag.Labels {
 		lx := ox + lb.X
 		ly := oy + lb.Y
-		fg := t.Text
-		if lb.Role == mermaid.RoleSubgraph || lb.Role == mermaid.RoleFragment {
-			fg = pg.Caption
-		}
+		fg := mermaidLabelColor(lb, t, pg)
 		if lb.Pill {
 			pill := ui.Rect{X: lx - 4, Y: ly - 1, W: lb.W + 8, H: lb.H + 2}
 			p.Fill(pill, t.Background.Alpha(0.92), 4)
@@ -530,9 +536,90 @@ func (e *Editor) paintMermaidDiagram(p *ui.Painter, diag mermaid.Diagram, ox, oy
 	}
 }
 
+// diagramTitle names a diagram kind for people.
+func diagramTitle(kind string) string {
+	switch kind {
+	case "sequence":
+		return i18n.T("时序图")
+	case "gantt":
+		return i18n.T("甘特图")
+	case "pie", "chart":
+		return i18n.T("图表")
+	}
+	return i18n.T("流程图")
+}
+
+// isMermaidBackShape reports shapes painted behind the edges.
+func isMermaidBackShape(s mermaid.ShapeOp) bool {
+	switch s.Role {
+	case mermaid.RoleSubgraph, mermaid.RoleFragment, mermaid.RoleSection, mermaid.RoleChartBack:
+		return true
+	}
+	return false
+}
+
+func chartColor(c [4]uint8) ui.Color {
+	return ui.RGB(c[0], c[1], c[2]).Alpha(float32(c[3]) / 255)
+}
+
+// mermaidLabelColor is a label's exact color, or its role's theme color.
+func mermaidLabelColor(lb mermaid.LabelOp, t *ui.Theme, pg Page) ui.Color {
+	switch {
+	case lb.Color[3] > 0:
+		return chartColor(lb.Color)
+	case lb.Role == mermaid.RoleSubgraph || lb.Role == mermaid.RoleFragment:
+		return pg.Caption
+	}
+	return t.Text
+}
+
+// mermaidPathStyle is a path's stroke color and width.
+func mermaidPathStyle(op mermaid.PathOp, t *ui.Theme, pg Page) (ui.Color, float32) {
+	switch {
+	case op.Color[3] > 0:
+		return chartColor(op.Color), max(0.5, op.Width)
+	case op.Role == mermaid.RoleGrid:
+		return pg.Caption.Alpha(0.35), 1
+	case op.Style == mermaid.EdgeThick:
+		return t.Text.Alpha(0.72), 2.3
+	case op.Role == mermaid.RoleFragment:
+		return pg.CodeBorder, 1
+	}
+	return pg.Caption, 1.35
+}
+
 func mermaidShapeColors(s mermaid.ShapeOp, t *ui.Theme, pg Page, blue, yellow Callout) (fill, border ui.Color, strokeW float32) {
 	strokeW = 1.25
 	switch s.Role {
+	case mermaid.RoleChart, mermaid.RoleChartBack:
+		fill = chartColor(s.Fill)
+		if s.Stroke[3] == 0 {
+			return fill, ui.Transparent, 0
+		}
+		// A white outline parts slices and points; on a dark page it is
+		// the page's own color instead.
+		border = chartColor(s.Stroke)
+		if s.Stroke == [4]uint8{255, 255, 255, 255} {
+			border = t.Background
+		}
+		return fill, border, 1
+	case mermaid.RoleSection:
+		if s.Tone == 0 {
+			return pg.CodeFill.Alpha(0.55), ui.Transparent, 0
+		}
+		return ui.Transparent, ui.Transparent, 0
+	case mermaid.RoleTask:
+		switch s.Tone {
+		case mermaid.ToneDone:
+			return pg.Caption.Alpha(0.22), pg.Caption.Alpha(0.55), 1
+		case mermaid.ToneActive:
+			return t.Accent.Alpha(0.45), t.Accent, 1
+		case mermaid.ToneCrit:
+			return t.Danger.Alpha(0.28), t.Danger, 1
+		case mermaid.ToneMilestone:
+			return t.Text.Alpha(0.75), t.Text.Alpha(0.75), 1
+		}
+		return t.Accent.Alpha(0.22), t.Accent.Alpha(0.8), 1
 	case mermaid.RoleSubgraph, mermaid.RoleFragment:
 		if s.Kind == mermaid.ShapePentagon {
 			return pg.CodeHover.Alpha(0.28), pg.CodeBorder, 1
@@ -569,7 +656,36 @@ func (e *Editor) paintMermaidShape(p *ui.Painter, s mermaid.ShapeOp, ox, oy floa
 		p.StrokePath(path, strokeW, border)
 	}
 
+	if strokeW == 0 && s.Kind != mermaid.ShapePolygon {
+		// Chart marks and bands: a fill only.
+		switch s.Kind {
+		case mermaid.ShapeCircle:
+			var path ui.Path
+			path.Circle(x+w/2, y+h/2, min(w, h)/2)
+			p.FillPath(&path, fill)
+		default:
+			p.Fill(r, fill, s.Radius)
+		}
+		return
+	}
+
 	switch s.Kind {
+	case mermaid.ShapePolygon:
+		if len(s.Points) < 3 {
+			return
+		}
+		var path ui.Path
+		path.Join(ui.RoundJoin)
+		path.MoveTo(ox+s.Points[0][0], oy+s.Points[0][1])
+		for _, pt := range s.Points[1:] {
+			path.LineTo(ox+pt[0], oy+pt[1])
+		}
+		path.Close()
+		p.FillPath(&path, fill)
+		if strokeW > 0 {
+			p.StrokePath(&path, strokeW, border)
+		}
+
 	case mermaid.ShapeRect:
 		p.Fill(r, fill, s.Radius)
 		if s.Dashed {
@@ -703,15 +819,7 @@ func (e *Editor) paintMermaidPath(p *ui.Painter, op mermaid.PathOp, ox, oy float
 		pts[i] = [2]float32{ox + pt[0], oy + pt[1]}
 	}
 
-	col := pg.Caption
-	width := float32(1.35)
-	if op.Style == mermaid.EdgeThick {
-		width = 2.3
-		col = t.Text.Alpha(0.72)
-	} else if op.Role == mermaid.RoleFragment {
-		col = pg.CodeBorder
-		width = 1
-	}
+	col, width := mermaidPathStyle(op, t, pg)
 
 	// Shorten shaft slightly when terminating at a filled arrowhead so the blunt
 	// line cap does not poke past the tip.

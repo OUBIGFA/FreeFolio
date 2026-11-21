@@ -1,6 +1,7 @@
 // Package mermaid parses and lays out a core subset of Mermaid diagrams
-// (flowchart/graph and sequenceDiagram) into pure vector primitives without
-// any UI toolkit dependency.
+// (flowchart/graph, sequenceDiagram, gantt and pie) and ECharts options
+// (pie, bar, line and scatter series) into pure vector primitives without any
+// UI toolkit dependency.
 package mermaid
 
 import (
@@ -26,6 +27,25 @@ const (
 	RoleActivation
 	RoleEdgeLabel
 	RoleEdge
+	// RoleChartBack and RoleChart are chart marks drawn in their exact Fill
+	// and Stroke colors: the background first, then the data.
+	RoleChartBack
+	RoleChart
+	// RoleTask is a Gantt bar, its Tone one of the Tone constants;
+	// RoleSection a section's band, Tone 0 or 1 alternating.
+	RoleTask
+	RoleSection
+	// RoleGrid is an axis or grid line, drawn thin in the caption color.
+	RoleGrid
+)
+
+// Tones of a Gantt task.
+const (
+	ToneNormal uint8 = iota
+	ToneDone
+	ToneActive
+	ToneCrit
+	ToneMilestone
 )
 
 // ShapeKind identifies a vector node/container shape.
@@ -43,6 +63,8 @@ const (
 	ShapeParallelogram
 	ShapeActor
 	ShapePentagon
+	// ShapePolygon fills Points, as pie slices and chart areas are drawn.
+	ShapePolygon
 )
 
 // EdgeKind selects solid, dashed, or thick stroke styling.
@@ -76,6 +98,10 @@ type ShapeOp struct {
 	Radius float32
 	Dashed bool
 	Fill   [4]uint8 // Optional RGBA tint (Fill[3] > 0); zero uses theme role colors.
+	// Stroke is a chart mark's outline; zero draws none.
+	Stroke [4]uint8
+	Tone   uint8
+	Points [][2]float32
 }
 
 // PathOp describes an open polyline or smooth curve with optional endpoints.
@@ -86,6 +112,9 @@ type PathOp struct {
 	StartMarker MarkerKind
 	EndMarker   MarkerKind
 	Role        Role
+	// Color and Width, when Color[3] > 0, draw a chart line exactly.
+	Color [4]uint8
+	Width float32
 }
 
 // LabelOp describes a positioned multi-line or single-line text label.
@@ -100,11 +129,13 @@ type LabelOp struct {
 	Align int // 0 center, -1 left, 1 right
 	Role  Role
 	Pill  bool
+	// Color, when Color[3] > 0, is the label's exact color.
+	Color [4]uint8
 }
 
 // Diagram holds the measured size and drawing primitives of a parsed diagram.
 type Diagram struct {
-	Kind   string // "flowchart" or "sequence"
+	Kind   string // "flowchart", "sequence", "gantt", "pie" or "chart"
 	W      float32
 	H      float32
 	Shapes []ShapeOp
@@ -132,6 +163,10 @@ func ParseAndLayout(src string, measure MeasureFunc) (Diagram, error) {
 		return layoutFlowchart(lines, measure)
 	case "sequencediagram":
 		return layoutSequence(lines, measure)
+	case "gantt":
+		return layoutGantt(lines, measure)
+	case "pie":
+		return layoutMermaidPie(lines, measure)
 	default:
 		return Diagram{}, fmt.Errorf("unsupported diagram %q", fields[0])
 	}

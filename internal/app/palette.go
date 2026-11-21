@@ -826,7 +826,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("增加缩进"), "", after(func() { ed.Engine.Indent(1) }))
 	cmd(i18n.T("减少缩进"), "", after(func() { ed.Engine.Indent(-1) }))
 	cmd(i18n.T("插入图片…"), "", a.pickImages)
-	if b := ed.Engine.LeafAt(ed.Caret).Block; b.Kind == "code" && !strings.EqualFold(strings.TrimSpace(b.Language), "mermaid") {
+	if b := ed.Engine.LeafAt(ed.Caret).Block; b.Kind == "code" && !editor.IsDiagramLanguage(b.Language) {
 		cmd(i18n.T("代码块：切换自动换行"), "", after(func() { ed.ToggleCodeWrap(b.ID) }))
 	}
 	if b := ed.Engine.LeafAt(ed.Caret).Block; b.Kind == "image" {

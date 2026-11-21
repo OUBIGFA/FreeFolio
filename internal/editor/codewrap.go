@@ -10,7 +10,14 @@ import (
 )
 
 func isMermaidBlock(b *document.Block) bool {
-	return b != nil && b.Kind == "code" && strings.EqualFold(strings.TrimSpace(b.Language), "mermaid")
+	return b != nil && b.Kind == "code" && IsDiagramLanguage(b.Language)
+}
+
+// IsDiagramLanguage reports a fence language FreeMD draws as a diagram:
+// Mermaid, or an ECharts option (```echarts, as Vditor writes charts).
+func IsDiagramLanguage(lang string) bool {
+	lang = strings.TrimSpace(lang)
+	return strings.EqualFold(lang, "mermaid") || strings.EqualFold(lang, "echarts")
 }
 
 // isCodeNoWrap reports whether code block b disables soft line wrapping.
