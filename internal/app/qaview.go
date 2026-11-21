@@ -52,10 +52,11 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 		}
 		ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0).Children(func() {
 			s := a.qaSession(sp.ID)
-			ui.Row(c.Key("qa-head")).Height(max(bar.Height, 46)).Padding(0, bar.Right, 0, 6).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
-				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Text.Alpha(0.72))
-				ui.Text(c, i18n.T("OneBot")).FontWeight(600).NoWrap()
-				ui.Text(c, sp.Name).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+			ui.Row(c.Key("qa-head")).Height(max(bar.Height, mainBarHeight)).Padding(0, bar.Right, 0, 8).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
+				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Accent.Alpha(0.88))
+				ui.Text(c, i18n.T("OneBot")).FontSize(13.5).FontWeight(600).NoWrap()
+				ui.Text(c, "·").FontSize(12).TextColor(t.TextMuted.Alpha(0.55)).NoWrap()
+				ui.Text(c, sp.Name).FontSize(12.5).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				a.oneBotHeaderMenu(c)
 				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话"), len(s.turns) == 0).Clicked() {
@@ -65,8 +66,8 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 					a.qa.open = false
 				}
 			})
-			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(glass(t)).
-				Border(1, t.Border.Alpha(0.35)).Clip().Children(func() {
+			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(pick(t, white.Alpha(0.88), t.Surface)).
+				Border(1, t.Border).Clip().Children(func() {
 				a.qaBody(c, sp.ID, sp.Name, s)
 			})
 		})
@@ -186,29 +187,37 @@ func qaRoundButton(c *ui.Context, key string, icon *ui.SVG, label string, disabl
 
 func (a *App) qaEmpty(c *ui.Context, name string) {
 	t := c.Theme()
-	ui.Column(c.Key("qa-empty")).Gap(10).Padding(24, 6, 6, 6).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, iconAsk).FontSize(28).TextColor(t.Accent)
-		ui.Text(c, fmt.Sprintf(i18n.T("向「%s」提问"), name)).FontSize(15).FontWeight(600).TextAlign(ui.Center)
-		ui.Text(c, i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")).
-			FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(290)
+	ui.Column(c.Key("qa-empty")).Gap(12).Padding(28, 6, 8, 6).AlignItems(ui.Center).Children(func() {
+		ui.Box(c.Key("qa-badge")).Size(44, 44).Radius(12).Background(t.Accent.Alpha(0.10)).
+			Border(1, t.Accent.Alpha(0.18)).Center().Children(func() {
+			ui.Icon(c, iconAsk).FontSize(22).TextColor(t.Accent)
+		})
+		ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, fmt.Sprintf(i18n.T("向「%s」提问"), name)).FontSize(15).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")).
+				FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(290)
+		})
 		if err := a.qaReady(); err != nil {
-			ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
-			if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型…")).Clicked() {
-				a.openSettings(tabAI)
-			}
+			ui.Column(c.Key("qa-unset-card")).Gap(10).Padding(12, 16).Radius(10).AlignItems(ui.Center).
+				Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.5)).Children(func() {
+				ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
+				if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型…")).Clicked() {
+					a.openSettings(tabAI)
+				}
+			})
 			return
 		}
-		ui.Column(c).Gap(6).Padding(8, 0, 0, 0).AlignItems(ui.Stretch).Width(300).Children(func() {
+		ui.Column(c).Gap(7).Padding(6, 0, 0, 0).AlignItems(ui.Stretch).MaxWidth(320).WidthPercent(100).Children(func() {
 			for i, ex := range qaExamples {
 				ex := i18n.T(ex)
-				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(8, 12).Radius(9).Gap(8).AlignItems(ui.Center).
-					Background(t.Text.Alpha(0.04)).Border(1, t.Border.Alpha(0.22)).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
+				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(9, 12).Radius(10).Gap(8).AlignItems(ui.Center).
+					Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.45)).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
 				if row.Hovered() {
-					row.Background(hoverFill(t).Mix(t.Text.Alpha(0.04), 0.5)).Border(1, t.Border.Alpha(0.42))
+					row.Background(t.Accent.Alpha(0.07)).Border(1, t.Accent.Alpha(0.32))
 				}
 				row.Children(func() {
 					ui.Icon(c, iconSearch).FontSize(13).TextColor(t.TextMuted)
-					ui.Text(c, ex).FontSize(13).Shrink(1).MinWidth(0)
+					ui.Text(c, ex).FontSize(12.5).LineHeight(1.4).Shrink(1).MinWidth(0)
 				})
 				if row.Clicked() {
 					a.qa.input = ex
@@ -217,7 +226,7 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			}
 		})
 		ui.Text(c, i18n.T("提问时，读到的文档片段会发送给你设置的模型服务。")).FontSize(11).TextColor(t.TextMuted.Alpha(0.8)).
-			TextAlign(ui.Center).MaxWidth(290).Padding(6, 0, 0, 0)
+			TextAlign(ui.Center).MaxWidth(290).Padding(4, 0, 0, 0)
 	})
 }
 

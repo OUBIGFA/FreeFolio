@@ -114,3 +114,39 @@ func TestNarrowToolbarKeepsOneBotButtons(t *testing.T) {
 		}
 	}
 }
+
+func TestOneBotCardMatchesEditorCardHeight(t *testing.T) {
+	for _, left := range []bool{false, true} {
+		t.Run(map[bool]string{false: "sidebar-right", true: "sidebar-left"}[left], func(t *testing.T) {
+			a, tt := newTestApp(t)
+			setupOneBot(a, "key")
+			a.prefs.SidebarLeft = left
+			a.qa.open = true
+			tt.SetSize(1280, 820)
+			settle(tt)
+			resizer, ok := tt.Find("调整 OneBot 宽度")
+			if !ok {
+				t.Fatal("missing OneBot resizer")
+			}
+			// Both the editor card and OneBot card start directly below the 52-DIP top bar.
+			if resizer.Y != mainBarHeight {
+				t.Fatalf("OneBot resizer top = %v, want %v", resizer.Y, mainBarHeight)
+			}
+			if resizer.H != 820-mainBarHeight-8 {
+				t.Fatalf("OneBot resizer height = %v, want %v", resizer.H, 820-mainBarHeight-8)
+			}
+			// Visually verify that the top border of the editor card and OneBot card
+			// sit on the exact same row (y = mainBarHeight).
+			img := tt.Image()
+			editorX := int(resizer.X) - 40
+			oneBotX := int(resizer.X+resizer.W) + 40
+			topY := int(mainBarHeight)
+			if img.At(editorX, topY) != img.At(oneBotX, topY) {
+				t.Fatalf("top border mismatch at y=%d: editor=%v onebot=%v", topY, img.At(editorX, topY), img.At(oneBotX, topY))
+			}
+			if img.At(editorX, topY-2) != img.At(oneBotX, topY-2) {
+				t.Fatalf("chrome above card mismatch at y=%d: editor=%v onebot=%v", topY-2, img.At(editorX, topY-2), img.At(oneBotX, topY-2))
+			}
+		})
+	}
+}

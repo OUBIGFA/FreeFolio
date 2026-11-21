@@ -22,9 +22,28 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil || !q.Typewriter || q.Keys["palette"] != "Cmd+J" || !q.TourSeen {
 		t.Fatalf("loaded %+v %v", q, err)
 	}
-	os.WriteFile(s.Path, []byte(`{"version": 9}`), 0o644)
+	os.WriteFile(s.Path, []byte(`{"version": 10}`), 0o644)
 	if _, err := s.Load(); err == nil {
 		t.Error("newer version accepted")
+	}
+}
+
+func TestGrayFolderIconsMigrateAndRoundTrip(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":8,"sidebarLeft":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || !p.SidebarLeft || p.GrayFolderIcons {
+		t.Fatalf("version 8 migrated: %+v, %v", p, err)
+	}
+	p.GrayFolderIcons = true
+	if err := store.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Load()
+	if err != nil || !again.GrayFolderIcons {
+		t.Fatalf("gray folder icons round-trip: %+v, %v", again, err)
 	}
 }
 

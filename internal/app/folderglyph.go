@@ -26,6 +26,17 @@ const (
 // easing in and out.
 var folderTurn = ui.Animation{Duration: 250 * time.Millisecond, Ease: ui.EaseInOut}
 
+const neutralFolderHex = "#9AA1AC"
+
+// sidebarFolderIconColor returns the sidebar folder icon's tint: a uniform
+// light gray when GrayFolderIcons is on, or the active space's accent.
+func (a *App) sidebarFolderIconColor(t *ui.Theme) ui.Color {
+	if a.prefs.GrayFolderIcons {
+		return pick(t, ui.RGB(0x98, 0xA0, 0xAB), ui.RGB(0xA0, 0xA7, 0xB2))
+	}
+	return t.Accent
+}
+
 // folderColors are the glyph's outline, front and back for the look.
 func folderColors(l spaceLook) (outline, front, back ui.Color) {
 	o, f, b := space.FolderTones(l.Accent, l.Dark)

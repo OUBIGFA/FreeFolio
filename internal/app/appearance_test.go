@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -168,9 +169,11 @@ func TestAppearanceFontAndPageWidth(t *testing.T) {
 	standard := a.doc.ed.Padding()
 	a.openSettings(tabAppearance)
 	tt.Frame()
+	scrollIntoView(tt, "宽", 1500, 860)
 	if err := tt.Click("宽"); err != nil {
 		t.Fatal(err)
 	}
+	scrollIntoView(tt, "衬线", 1500, 860)
 	if err := tt.Click("衬线"); err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +201,62 @@ func TestAppearanceFontAndPageWidth(t *testing.T) {
 	if a.prefs.Page != "" || a.prefs.Font != "" || a.doc.ed.Padding() != standard {
 		t.Fatal("reset")
 	}
+}
+
+func TestGrayFolderIconsSettingAndSidebarColor(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1400, 900)
+	sp := a.state.ActiveSpace()
+	sp.Theme = &space.Theme{Colors: []string{"#E11D48"}}
+	tt.Frame()
+	if a.prefs.GrayFolderIcons {
+		t.Fatal("GrayFolderIcons should default to false")
+	}
+	light := spaceTheme(ui.LightTheme(), a.look)
+	if got := a.sidebarFolderIconColor(light); got != light.Accent {
+		t.Fatalf("default folder icon color = %+v, want space accent %+v", got, light.Accent)
+	}
+
+	a.openSettings(tabAppearance)
+	tt.Frame()
+	scrollIntoView(tt, "侧边栏文件夹图标使用浅灰色", 1400, 900)
+	sw, ok := tt.AccessByRole(ui.RoleSwitch, "侧边栏文件夹图标使用浅灰色")
+	if !ok || sw.Checked {
+		t.Fatalf("gray folder switch state: ok=%v checked=%v", ok, sw.Checked)
+	}
+	tt.ClickAt(sw.Bounds.X+sw.Bounds.W/2, sw.Bounds.Y+sw.Bounds.H/2)
+	tt.Frame()
+	if !a.prefs.GrayFolderIcons {
+		t.Fatal("toggle did not enable GrayFolderIcons")
+	}
+	saved, err := (prefs.Store{Path: a.prefStore.Path}).Load()
+	if err != nil || !saved.GrayFolderIcons {
+		t.Fatalf("GrayFolderIcons not persisted: %+v, %v", saved, err)
+	}
+	gray := a.sidebarFolderIconColor(light)
+	if gray == light.Accent {
+		t.Fatalf("expected neutral light gray folder icon color, still got accent %+v", gray)
+	}
+	// Neutral gray has nearly equal RGB channels (no custom accent tint).
+	if absInt(int(gray.R)-int(gray.G)) > 16 || absInt(int(gray.G)-int(gray.B)) > 16 {
+		t.Fatalf("folder icon color %+v is not neutral gray", gray)
+	}
+
+	scrollIntoView(tt, "恢复默认外观", 1400, 900)
+	if err := tt.Click("恢复默认外观"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.prefs.GrayFolderIcons {
+		t.Fatal("reset appearance did not reset GrayFolderIcons")
+	}
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func TestSuggestEmoji(t *testing.T) {

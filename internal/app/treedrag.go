@@ -844,7 +844,11 @@ func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder,
 	})
 	card.Children(func() {
 		if dir {
-			folderGlyph(c, a.look, openFolder, holdsOpen)
+			look := a.look
+			if a.prefs.GrayFolderIcons {
+				look.Accent = neutralFolderHex
+			}
+			folderGlyph(c, look, openFolder, holdsOpen)
 		} else if icon := docIcon(c, title, 16); dim {
 			icon.Opacity(closedIconAlpha)
 		}

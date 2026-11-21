@@ -129,14 +129,24 @@ func oneBotChangeStatus(s string) string {
 }
 
 func (a *App) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index int, ch *oneBotChange) {
-	ui.Column(c.Key("change")).Gap(6).Padding(10, 0).Children(func() {
-		ui.Box(c).Height(1).Background(c.Theme().Border)
-		ui.Row(c).Gap(6).Children(func() {
-			ui.Text(c, ch.Path).FontWeight(500).Grow(1)
-			ui.Text(c, oneBotChangeStatus(ch.Status)).FontSize(12).TextColor(c.Theme().TextMuted)
+	t := c.Theme()
+	ui.Column(c.Key("change")).Gap(8).Padding(9, 10).Radius(9).
+		Background(t.Text.Alpha(0.02)).Border(1, t.Border.Alpha(0.55)).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, ch.Path).FontSize(12.5).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
+			statusInk, statusBg := t.TextMuted, t.Text.Alpha(0.06)
+			switch ch.Status {
+			case "saved":
+				statusInk, statusBg = t.Accent, t.Accent.Alpha(0.12)
+			case "conflict", "stale":
+				statusInk, statusBg = t.Danger, t.Danger.Alpha(0.10)
+			}
+			ui.Box(c.Key("status")).Padding(1, 7).Radius(5).Background(statusBg).Shrink(0).Children(func() {
+				ui.Text(c, oneBotChangeStatus(ch.Status)).FontSize(11).FontWeight(500).TextColor(statusInk).NoWrap()
+			})
 		})
 		if ch.Explanation != "" {
-			ui.Text(c, ch.Explanation).FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c, ch.Explanation).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
 		}
 		if len(ch.Diff) == 0 {
 			before := ""
@@ -152,28 +162,32 @@ func (a *App) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index
 			}
 			ch.Diff = history.Diff(strings.Split(before, "\n"), strings.Split(after, "\n"))
 		}
-		for _, line := range ch.Diff {
-			prefix := "  "
-			ink := c.Theme().Text
-			fill := ui.Color{}
-			switch line.Op {
-			case history.Added:
-				prefix = "+ "
-				ink = c.Theme().Accent
-				fill = c.Theme().Accent.Alpha(0.07)
-			case history.Removed:
-				prefix = "− "
-				ink = c.Theme().Danger
-				fill = c.Theme().Danger.Alpha(0.06)
+		ui.Column(c.Key("diff-lines")).Radius(7).Border(1, t.Border.Alpha(0.45)).Background(t.Surface).Clip().Children(func() {
+			for i, line := range ch.Diff {
+				prefix := "  "
+				ink := t.Text
+				fill := ui.Color{}
+				switch line.Op {
+				case history.Added:
+					prefix = "+ "
+					ink = t.Accent
+					fill = t.Accent.Alpha(0.08)
+				case history.Removed:
+					prefix = "− "
+					ink = t.Danger
+					fill = t.Danger.Alpha(0.08)
+				}
+				ui.Box(c.Key(i)).Background(fill).Padding(4, 8).Children(func() {
+					ui.Text(c, prefix+line.Text).FontSize(12.5).LineHeight(1.45).TextColor(ink)
+				})
 			}
-			ui.Text(c, prefix+line.Text).FontSize(13).TextColor(ink).Background(fill).Padding(2, 4)
-		}
+		})
 		if ch.Error != "" {
-			ui.Text(c, ch.Error).TextColor(c.Theme().Danger).FontSize(12)
+			ui.Text(c, ch.Error).TextColor(t.Danger).FontSize(12)
 		}
-		ui.Row(c).Gap(6).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			if ch.Status == "pending" {
-				if quietOneBotAction(c, "accept", i18n.T("应用这处")).Disabled(task.Applying).Clicked() {
+				if oneBotApplyButton(c, "accept", i18n.T("应用这处")).Disabled(task.Applying).Clicked() {
 					if err := a.applyOneBotCandidate(task, candidate, index); err != nil {
 						ch.Error = err.Error()
 						task.Error = err.Error()
@@ -405,21 +419,28 @@ func (a *App) loadOneBotHistory() {
 	slices.SortFunc(a.qa.editHistory, func(a, b *oneBotTask) int { return b.Created.Compare(a.Created) })
 }
 func (a *App) oneBotHistoryView(c *ui.Context) {
-	ui.Text(c, i18n.T("编辑记录与恢复")).FontWeight(500)
+	t := c.Theme()
 	if len(a.qa.editHistory) == 0 {
-		ui.Text(c, i18n.T("暂无编辑记录")).TextColor(c.Theme().TextMuted)
+		ui.Text(c, i18n.T("暂无编辑记录")).FontSize(12.5).TextColor(t.TextMuted).Padding(6, 0)
+		return
 	}
-	for _, task := range a.qa.editHistory {
-		ui.Column(c.Key(task.ID)).Gap(5).Padding(8, 0).Children(func() {
-			ui.Text(c, task.Created.Format("2006-01-02 15:04")+" · "+task.Instruction).FontSize(13)
-			if ui.Button(c.Key("open"), i18n.T("打开记录")).Clicked() {
-				a.qa.editTask = task
-				a.attachOneBotTask(task)
-				a.qa.editHistoryOpen = false
-				a.qa.editScope = task.Scope
-				a.qa.editNewPath = task.NewPath
-				task.Stopped = false
-			}
-		})
-	}
+	ui.Column(c).Gap(6).Children(func() {
+		for _, task := range a.qa.editHistory {
+			ui.Row(c.Key(task.ID)).Gap(8).Padding(7, 9).Radius(7).AlignItems(ui.Center).
+				Background(t.Surface).Border(1, t.Border.Alpha(0.55)).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+					ui.Text(c, task.Instruction).FontSize(12.5).FontWeight(500).SingleLine()
+					ui.Text(c, task.Created.Format("2006-01-02 15:04")).FontSize(11).TextColor(t.TextMuted)
+				})
+				if quietOneBotAction(c, "open", i18n.T("打开记录")).Clicked() {
+					a.qa.editTask = task
+					a.attachOneBotTask(task)
+					a.qa.editHistoryOpen = false
+					a.qa.editScope = task.Scope
+					a.qa.editNewPath = task.NewPath
+					task.Stopped = false
+				}
+			})
+		}
+	})
 }

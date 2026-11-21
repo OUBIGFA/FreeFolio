@@ -849,7 +849,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 					chevron, folder = iconChevronDown, iconFolderOpen
 				}
 				ui.Icon(c, chevron).FontSize(14).TextColor(t.Text)
-				ui.Icon(c, folder).FontSize(17).TextColor(t.Accent)
+				ui.Icon(c, folder).FontSize(17).TextColor(a.sidebarFolderIconColor(t))
 			} else if icon := ui.Icon(c, iconFile).FontSize(16).TextColor(t.TextMuted); dim {
 				icon.Opacity(closedIconAlpha)
 			}

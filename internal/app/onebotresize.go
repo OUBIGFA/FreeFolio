@@ -27,7 +27,7 @@ func (a *App) oneBotResizer(c *ui.Context, docked float32) {
 		return
 	}
 	hint := i18n.T("拖动调整宽度；双击恢复默认；方向键微调")
-	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(max(c.TitleBar().Height, 46)).Bottom(8).Right(a.qa.shown).Width(8).
+	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(max(c.TitleBar().Height, mainBarHeight)).Bottom(8).Right(a.qa.shown).Width(8).
 		Cursor(ui.CursorResizeEW).Focusable().Role(ui.RoleSplitter).Label(i18n.T("调整 OneBot 宽度")).Description(hint)
 	set := func(w float32) {
 		a.prefs.OneBotWidth = w

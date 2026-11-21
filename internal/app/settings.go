@@ -401,6 +401,8 @@ func (a *App) settingsAppearance(c *ui.Context) {
 				a.savePrefs()
 			}
 		})
+		settingsSeparator(c)
+		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), i18n.T("不使用空间的自定义主题色，统一显示为浅灰色。"), &a.prefs.GrayFolderIcons, a.savePrefs)
 	})
 	settingsSection(c, i18n.T("文档"))
 	settingsGroup(c, "appearance", func() {
@@ -454,6 +456,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 	if ui.Button(c.Key("appearance-reset"), i18n.T("恢复默认外观")).AlignSelf(ui.Start).Clicked() {
 		a.prefs.FontSize, a.prefs.LineHeight, a.prefs.Font, a.prefs.Page = 0, 0, "", ""
 		a.prefs.SidebarLeft = false
+		a.prefs.GrayFolderIcons = false
 		a.savePrefs()
 	}
 }
@@ -524,7 +527,11 @@ func (a *App) appearancePreview(c *ui.Context) {
 					ink = t.Accent
 				}
 				row.Children(func() {
-					ui.Icon(c, iconFile).FontSize(10).TextColor(ink)
+					if i == 1 {
+						ui.Icon(c, iconFolder).FontSize(10).TextColor(a.sidebarFolderIconColor(t))
+					} else {
+						ui.Icon(c, iconFile).FontSize(10).TextColor(ink)
+					}
 					ui.Text(c, name).FontSize(10).TextColor(ink).SingleLine()
 				})
 			}

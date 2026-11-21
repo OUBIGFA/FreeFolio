@@ -21,7 +21,8 @@ import (
 // Version 6 adds document mind-map visibility and layout choices.
 // Version 7 replaces legacy AI preferences with OneBot connections.
 // Version 8 adds OneBotWidth; zero keeps the standard panel width.
-const CurrentVersion = 8
+// Version 9 adds GrayFolderIcons; zero keeps the space accent color.
+const CurrentVersion = 9
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -29,6 +30,9 @@ type Prefs struct {
 	MindMapBothSides bool `json:"mindMapBothSides,omitempty"`
 	// SidebarLeft opts out of the default right-hand workspace sidebar.
 	SidebarLeft bool `json:"sidebarLeft,omitempty"`
+	// GrayFolderIcons renders sidebar folder icons in a uniform light gray
+	// instead of the active space's accent color.
+	GrayFolderIcons bool `json:"grayFolderIcons,omitempty"`
 	// SidebarWidth is the docked sidebar's width as dragged; 0 is the
 	// standard width.
 	SidebarWidth float32 `json:"sidebarWidth,omitempty"`

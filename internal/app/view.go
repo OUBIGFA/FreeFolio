@@ -17,9 +17,10 @@ const (
 	// Both docking positions use the same document tree and measures:
 	// sidebarWidth wide unless the user drags it between sidebarMin and
 	// sidebarMax.
-	sidebarWidth = 260
-	sidebarMin   = 220
-	sidebarMax   = 480
+	sidebarWidth  = 260
+	sidebarMin    = 220
+	sidebarMax    = 480
+	mainBarHeight = 52
 	// slide is how long the sidebar takes to fold and unfold.
 	slide = 240 * time.Millisecond
 	// peekDelay lets the pointer cross the floating panel's small outer gap.
@@ -152,7 +153,7 @@ func (a *App) View(c *ui.Context) {
 					// Keep the brand in the leading title-bar band while the
 					// library rail runs full height underneath without a seam.
 					bar := c.TitleBar()
-					ui.Row(c.Key("library-brand")).Absolute().Top(0).Left(0).Height(max(bar.Height, 52)).
+					ui.Row(c.Key("library-brand")).Absolute().Top(0).Left(0).Height(max(bar.Height, mainBarHeight)).
 						Padding(0, 8, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().
 						Children(func() { brand(c, "", true) })
 				}
@@ -646,7 +647,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	if a.qa.shown > 0.5 {
 		right = 0 // the question panel's header holds the window buttons' room
 	}
-	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, 52)).Padding(0, right+8, 0, left).Gap(2).AlignItems(ui.Center).DragWindow()
+	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, mainBarHeight)).Padding(0, right+8, 0, left).Gap(2).AlignItems(ui.Center).DragWindow()
 	if a.prefs.SidebarLeft {
 		// Center the title over the entire page; the groups below own the
 		// caption reserves so those reserves cannot shift the title.
