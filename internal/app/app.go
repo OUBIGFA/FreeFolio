@@ -951,7 +951,7 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 	}
 	a.retireClosedDocuments(prev, oldSession)
 	if a.paneNavigation {
-		a.doc.ed.RequestFocus = true
+		a.doc.requestFocus()
 	}
 	if a.search.async {
 		// The backlinks below the document read the index.

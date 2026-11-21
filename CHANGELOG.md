@@ -15,6 +15,10 @@
 - Start faster and keep frames light: read a space's folders side by side without resolving every folder again, set the window and tray icons after the first frame, and stop resolving the open document's path in every frame. Command-bar search reads documents in place instead of copying each one, pinyin scoring allocates nothing, a folder's hover card no longer resolves every document, and pictures named without a folder share one reading of the space per frame.
 - Build only the sidebar rows near the visible part of the list; the rest are held by spacers of the same height, so long open folders no longer slow typing, hovering and scrolling. Drags still build every row.
 - Remove the inline "New Document Here" slot that opened when the pointer rested between root rows or on a folder's edge.
+- Read prose closer to Obsidian and mark2: paragraphs keep 1em below them. Show SVG pictures, such as shields.io badges (embedded raster logos inside an SVG are left out). Show `<img>` written inside a paragraph or a link as the image; a paragraph of images alone, as README badges, flows side by side. Images inside HTML blocks sit inline as in a browser, so `<p align="center">` badges line up and `<br>` breaks them.
+- Keep an open long code block's Collapse button at the bottom of the view while the block runs past it.
+- Start a whiteboard from the home page and from the title bar. Open whiteboards in split panes; the pane gives its keys to the canvas.
+- Show every resize handle (split panes, sidebar, OneBot, mind map) the split view's way, with no dividing line; one shared style in `theme.go` sets them all.
 
 The entries below describe the inherited ArcMD releases.
 

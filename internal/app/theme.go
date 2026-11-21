@@ -2,6 +2,7 @@ package app
 
 import (
 	"math"
+	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/space"
@@ -26,7 +27,6 @@ func qaBotInk() ui.Color { return ui.Hex("#1E1A33") }
 
 func splitFocus(t *ui.Theme) ui.Color { return t.Accent }
 func splitEmpty(t *ui.Theme) ui.Color { return glass(t) }
-func splitGrip(t *ui.Theme) ui.Color  { return t.Text.Alpha(0.45) }
 func splitDropColors(t *ui.Theme) (ui.Color, ui.Color) {
 	return t.Accent.Alpha(0.18), t.Accent.Alpha(0.7)
 }
@@ -749,4 +749,42 @@ func versionDiffHighlight(dark, added bool) ui.Color {
 		return ui.Hex("#16A34A").Alpha(0.24)
 	}
 	return ui.Hex("#DC2626").Alpha(0.22)
+}
+
+// Resize handles. Every handle that resizes part of the window (split
+// panes, sidebar, OneBot, mind map) shows the same way, through
+// resizeGrip: no dividing line, only a short rounded bar in the handle's
+// middle that fades in while the handle is lit. Change it here to change
+// them all.
+const (
+	resizeGripLength    = 36
+	resizeGripThickness = 4
+	resizeGripFade      = 120 * time.Millisecond
+)
+
+// resizeGripColor is the bar at rest lit; resizeGripSnapped marks a drag
+// that snapped to an even split.
+func resizeGripColor(t *ui.Theme) ui.Color   { return t.Text.Alpha(0.45) }
+func resizeGripSnapped(t *ui.Theme) ui.Color { return t.Accent }
+
+// resizeGrip draws handle h's bar: lit while hovered, held or focused,
+// in resizeGripSnapped when the drag snaps. vertical lays the bar across
+// a handle between panes stacked one over the other.
+func resizeGrip(c *ui.Context, h ui.Element, vertical, lit, snapped bool) {
+	t := c.Theme()
+	alpha := h.Animate("grip", b2f(lit), resizeGripFade)
+	if alpha <= 0 && !snapped {
+		return
+	}
+	h.Draw(func(p *ui.Painter, r ui.Rect) {
+		w, l := float32(resizeGripThickness), float32(resizeGripLength)
+		if vertical {
+			w, l = l, w
+		}
+		col := resizeGripColor(t).Alpha(alpha)
+		if snapped {
+			col = resizeGripSnapped(t)
+		}
+		p.Fill(ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-l)/2, W: w, H: l}, col, resizeGripThickness/2)
+	})
 }

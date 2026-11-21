@@ -318,20 +318,7 @@ func (a *App) splitDivider(c *ui.Context, s *splitGroup, index int, offset float
 	} else {
 		handle.Left(offset - 4)
 	}
-	showGrip := held || handle.Hovered() || handle.FocusVisible()
-	alpha := handle.Animate("grip", b2f(showGrip), 120*time.Millisecond)
-	snappedNow := held && s.dragSnapped
-	handle.Draw(func(p *ui.Painter, r ui.Rect) {
-		w, h := float32(4), float32(36)
-		if s.vertical {
-			w, h = h, w
-		}
-		gripCol := splitGrip(t).Alpha(alpha)
-		if snappedNow {
-			gripCol = t.Accent
-		}
-		p.Fill(ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}, gripCol, 2)
-	})
+	resizeGrip(c, handle, s.vertical, held || handle.Hovered() || handle.FocusVisible(), held && s.dragSnapped)
 	if held {
 		pairSum := max(1, lengths[index]+lengths[index+1])
 		pct0 := int(math.Round(float64(lengths[index] * 100 / pairSum)))
@@ -343,7 +330,7 @@ func (a *App) splitDivider(c *ui.Context, s *splitGroup, index int, offset float
 			pill := ui.Box(c.Key(fmt.Sprintf("split-pill-%d", index))).Absolute().
 				Left(hb.X + hb.W/2 - 38).Top(hb.Y + hb.H/2 - 12).Height(24).MinWidth(76).PaddingX(8).
 				Radius(6).Center().Background(scrim.Scrim)
-			if snappedNow {
+			if s.dragSnapped {
 				pill.Border(1, t.Accent.Alpha(0.9))
 			}
 			pill.Children(func() {

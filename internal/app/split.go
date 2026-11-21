@@ -111,8 +111,18 @@ func (a *App) focusPane(index int, keyboard bool) {
 	p := s.panes[index]
 	a.doc, a.history, a.at = p.doc, p.history, p.at
 	if keyboard && a.doc != nil {
-		a.doc.ed.RequestFocus = true
+		a.doc.requestFocus()
 	}
+}
+
+// requestFocus gives d the keys where it takes them: a whiteboard on its
+// canvas, any other document in its editor. Split panes hold both kinds.
+func (d *document) requestFocus() {
+	if d.board != nil {
+		d.board.RequestFocus = true
+		return
+	}
+	d.ed.RequestFocus = true
 }
 
 func (a *App) activateDocument(d *document) bool {
@@ -253,7 +263,7 @@ func (a *App) closePane(index int) {
 		a.equalSplit()
 	}
 	if a.doc != nil {
-		a.doc.ed.RequestFocus = true
+		a.doc.requestFocus()
 	}
 	a.retireClosedDocuments(closed)
 }
@@ -285,7 +295,7 @@ func (a *App) separateSplit() {
 		session.split = nil
 	}
 	if a.doc != nil {
-		a.doc.ed.RequestFocus = true
+		a.doc.requestFocus()
 	}
 	if len(dropped) > 0 {
 		a.retireClosedDocuments(dropped...)

@@ -184,3 +184,45 @@ func TestWhiteboardMoveAndTagUndoPreserveScene(t *testing.T) {
 		t.Fatalf("move damaged board: %v", err)
 	}
 }
+
+// The home page, shown while no document is open, starts a whiteboard as
+// it starts a document.
+func TestHomeNewWhiteboardButton(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	if a.doc != nil {
+		a.closeOpen(a.doc.space, a.doc.rel)
+		tt.Frame()
+	}
+	if a.doc != nil {
+		t.Fatal("home page needs no open document")
+	}
+	// The title bar's button of the same name shows only with a document:
+	// the one found is the home page's, below the title bar.
+	r, ok := tt.Find("新建白板")
+	if !ok || r.Y < 100 {
+		t.Fatalf("home whiteboard button %+v, found %v", r, ok)
+	}
+	tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	if a.doc == nil || a.doc.board == nil || !vault.IsWhiteboard(a.doc.rel) {
+		t.Fatal("home whiteboard button did not open a new whiteboard")
+	}
+}
+
+// The title bar starts a whiteboard while a document shows.
+func TestTitleBarNewWhiteboardButton(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	if a.doc == nil {
+		t.Fatal("the test needs an open document, so the home page is hidden")
+	}
+	before := a.doc.rel
+	if err := tt.Click("新建白板"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc == nil || a.doc.board == nil || !vault.IsWhiteboard(a.doc.rel) || a.doc.rel == before {
+		t.Fatal("title bar whiteboard button did not open a new whiteboard")
+	}
+}

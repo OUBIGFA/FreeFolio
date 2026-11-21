@@ -217,7 +217,6 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 		a.sidebarResizing = false
 		return
 	}
-	t := c.Theme()
 	label := i18n.T("调整侧边栏宽度")
 	hint := i18n.T("拖动调整宽度；双击恢复默认，默认宽度时双击展开到最宽")
 	h := ui.Box(c.Key("sidebar-resizer")).Absolute().Top(0).Bottom(0).Width(8).Cursor(ui.CursorResizeEW).
@@ -274,11 +273,7 @@ func (a *App) sidebarResizer(c *ui.Context, docked float32) {
 		set(a.sidebarW() + step)
 		a.savePrefs()
 	}
-	if held || h.Hovered() || h.FocusVisible() {
-		h.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Fill(ui.Rect{X: r.X + r.W/2 - 1, Y: r.Y + 12, W: 2, H: r.H - 24}, t.Accent.Alpha(0.5), 1)
-		})
-	}
+	resizeGrip(c, h, false, held || h.Hovered() || h.FocusVisible(), false)
 }
 
 // resizerTip shows the resizer's hint beside the line, toward the document,
@@ -683,6 +678,13 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		if docked < 0.5 && toolbar.LayoutBounds().W >= 440 {
 			a.historyButtons(c)
 		}
+		// New whiteboard, as ⌘⌥B: in the folder of what shows, like a new
+		// document. It sits at the start, whose side has room, so the title
+		// keeps its center over the page. Spaces of outside files hold no
+		// whiteboards; the home page, shown with no document, has its own.
+		if sp := a.state.ActiveSpace(); a.doc != nil && iconButton(c, "new-board", iconWhiteboard, i18n.T("新建白板"), a.withKey(i18n.T("新建白板"), "new-board"), sp == nil || sp.IsExternal()).Shrink(0).Clicked() {
+			a.newWhiteboard(a.currentDir())
+		}
 		ui.Box(c).Width(8)
 	}
 	actions := func() {
@@ -886,8 +888,14 @@ func (a *App) emptyState(c *ui.Context) {
 				if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件…")).Clicked() {
 					a.chooseExternalFiles()
 				}
-			} else if ui.PrimaryButton(c.Key("empty-new"), i18n.T("新建文档")).Tooltip("⌘N").Clicked() {
-				a.newDoc("")
+			} else {
+				if ui.PrimaryButton(c.Key("empty-new"), i18n.T("新建文档")).Tooltip("⌘N").Clicked() {
+					a.newDoc("")
+				}
+				// A whiteboard is the other kind of page a space starts with.
+				if ui.Button(c.Key("empty-board"), i18n.T("新建白板")).Tooltip(a.keyLabel("new-board")).Clicked() {
+					a.newWhiteboard("")
+				}
 			}
 			if ui.Button(c.Key("empty-palette"), i18n.T("命令栏")).Tooltip("⌘K").Clicked() {
 				a.openPalette()

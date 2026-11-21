@@ -63,11 +63,6 @@ func (a *App) oneBotResizer(c *ui.Context, docked float32) {
 		a.savePrefs()
 	}
 	h.Right(a.oneBotWidth(docked))
-	if held || h.Hovered() || h.FocusVisible() {
-		color := c.Theme().Accent.Alpha(0.5)
-		h.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Fill(ui.Rect{X: r.X + r.W/2 - 1, Y: r.Y + 8, W: 2, H: max(0, r.H-16)}, color, 1)
-		})
-	}
+	resizeGrip(c, h, false, held || h.Hovered() || h.FocusVisible(), false)
 	a.resizerTip(c, h, hint)
 }

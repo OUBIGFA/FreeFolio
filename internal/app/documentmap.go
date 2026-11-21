@@ -101,17 +101,7 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 			})
 			divider := ui.Box(c.Key("map-divider")).Height(7).WidthPercent(100).Center().Focusable().Role(ui.RoleSplitter).
 				Label(i18n.T("调整思维导图高度")).Tooltip(i18n.T("调整思维导图高度")).Cursor(ui.CursorResizeNS)
-			active := divider.Hovered() || divider.Pressed()
-			ink := c.Theme().Border
-			if active {
-				ink = c.Theme().Accent.Alpha(.55)
-			}
-			divider.Children(func() { ui.Box(c).Height(1).WidthPercent(100).Background(ink) })
-			divider.DrawOver(func(p *ui.Painter, r ui.Rect) {
-				if active {
-					p.Fill(ui.Rect{X: r.X + (r.W-28)/2, Y: r.Y + (r.H-3)/2, W: 28, H: 3}, c.Theme().Accent.Alpha(.72), 1.5)
-				}
-			})
+			resizeGrip(c, divider, true, divider.Hovered() || divider.Pressed() || divider.FocusVisible(), false)
 			adjustV := func(dy float32) {
 				denom := max(float32(200), wsH)
 				next := min(float32(.68), max(float32(.28), d.mapVFraction-dy/denom))
@@ -149,17 +139,7 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 		})
 		divider := ui.Box(c.Key("map-divider")).Width(7).HeightPercent(100).Center().Focusable().Role(ui.RoleSplitter).
 			Label(i18n.T("调整思维导图宽度")).Tooltip(i18n.T("调整思维导图宽度")).Cursor(ui.CursorResizeEW)
-		active := divider.Hovered() || divider.Pressed()
-		ink := c.Theme().Border
-		if active {
-			ink = c.Theme().Accent.Alpha(.55)
-		}
-		divider.Children(func() { ui.Box(c).Width(1).HeightPercent(100).Background(ink) })
-		divider.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			if active {
-				p.Fill(ui.Rect{X: r.X + (r.W-3)/2, Y: r.Y + (r.H-28)/2, W: 3, H: 28}, c.Theme().Accent.Alpha(.72), 1.5)
-			}
-		})
+		resizeGrip(c, divider, false, divider.Hovered() || divider.Pressed() || divider.FocusVisible(), false)
 		adjust := func(dx float32) {
 			next := min(float32(.76), max(float32(.22), d.mapFraction-dx/max(1, width)))
 			d.mapFraction = snapMapFraction(next, width)

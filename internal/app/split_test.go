@@ -10,6 +10,7 @@ import (
 
 	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -563,5 +564,57 @@ func TestSplitAddFromMoreMenu(t *testing.T) {
 	settle(tt)
 	if a.split == nil || len(a.split.panes) != 2 {
 		t.Fatal("the menu item did not add a split")
+	}
+}
+
+// A whiteboard opens in a split pane as a document does: in a pane of its
+// own that takes the keys on its canvas, in an empty pane chosen for it,
+// and closes like any pane.
+func TestSplitOpensWhiteboard(t *testing.T) {
+	a, tt := splitTestApp(t)
+	scene, err := whiteboard.NewScene().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Board.excalidraw", "Other.excalidraw"} {
+		if err := vault.Write(root(a), name, scene); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.refreshTree()
+	a.openSplit(a.state.ActiveSpace(), "Board.excalidraw", false, false)
+	settle(tt)
+	if len(a.split.panes) != 3 || a.doc == nil || a.doc.board == nil || a.split.panes[a.split.active].doc != a.doc {
+		t.Fatalf("whiteboard pane: panes %d, active %d", len(a.split.panes), a.split.active)
+	}
+	board := a.doc
+	if a.split.panes[0].doc.board != nil || a.split.panes[1].doc.board != nil {
+		t.Fatal("documents stay in their panes")
+	}
+	a.focusPane(0, true)
+	a.focusPane(2, true)
+	if !board.board.RequestFocus || board.ed.RequestFocus {
+		t.Fatal("the whiteboard pane focuses its canvas, not its hidden editor")
+	}
+	// An empty pane chosen for a whiteboard shows it.
+	a.closePane(2)
+	settle(tt)
+	a.focusPane(1, false)
+	a.addSplitPane()
+	// The palette, open to choose for the new pane, closes before it fills
+	// the pane (runPaletteAction).
+	pane := a.palette.pane
+	a.palette.open, a.palette.pane = false, nil
+	if !a.fillPane(pane, a.state.ActiveSpace().ID, "Other.excalidraw") || pane.doc == nil || pane.doc.board == nil {
+		t.Fatal("an empty pane opens a whiteboard")
+	}
+	settle(tt)
+	if a.doc != pane.doc {
+		t.Fatalf("the filled whiteboard pane keeps the focus: active %d", a.split.active)
+	}
+	a.closePane(a.split.active)
+	settle(tt)
+	if a.split == nil || len(a.split.panes) != 2 || a.doc == nil || a.doc.board != nil {
+		t.Fatal("closing the whiteboard pane leaves the documents")
 	}
 }
