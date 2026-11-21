@@ -1372,6 +1372,78 @@ func TestSlashAndCompletionMenusFollowArrowKeys(t *testing.T) {
 	assertRowVisible(":sm8:", 34, 640, 220)
 }
 
+// A hand shows wherever a press acts instead of placing the caret: a task's
+// checkbox, a link while editing, a code block's buttons, and with Cmd held
+// a wiki link or tag. Plain text keeps the I-beam, and a read-only page shows
+// no hand over a link its plain press leaves alone.
+func TestPointerShowsHandOverActiveControls(t *testing.T) {
+	for _, readOnly := range []bool{false, true} {
+		e := New("- [ ] todo\n\n[site](https://example.com) plain [[Note]] #tag\n\n```go\nx := 1\n```")
+		e.SetReadOnly(readOnly)
+		tt := ui.NewTester(func(c *ui.Context) {
+			View(c, e, Options{Width: 900, Theme: c.Theme(), OpenLink: func(string) {}, OpenWiki: func(string) {}, OpenTag: func(string) {}})
+		}, 900, 650)
+		tt.Frame()
+		bounds, _ := tt.Find("文档")
+		at := func(mods ui.Modifiers, x, y float32) ui.Cursor {
+			// A pointer event carries no modifiers in the tester, so they
+			// are held after the move, as a key press would say.
+			tt.Move(bounds.X+x, bounds.Y+y)
+			tt.HoldModifiers(mods)
+			tt.Frame()
+			tt.Frame()
+			return tt.Cursor()
+		}
+		word := func(r row, s string) (float32, float32) {
+			text := r.leaf.Block.Text()
+			i := strings.Index(text, s)
+			rects := r.layout.SelectionRects(ui.TextInputRange{Start: i + 1, End: i + len(s) - 1})
+			if i < 0 || len(rects) == 0 {
+				t.Fatalf("no %q in %q", s, text)
+			}
+			return r.x + rects[0].X + rects[0].W/2, r.y + rects[0].Y + rects[0].H/2
+		}
+		task, para := *e.indexedRow(0), *e.indexedRow(1)
+		if got := at(0, task.x-14, task.y+task.rect.H/2); got != ui.CursorPointer {
+			t.Fatalf("readOnly=%v task checkbox: %v", readOnly, got)
+		}
+		x, y := word(para, "site")
+		want := ui.CursorPointer
+		if readOnly {
+			want = ui.CursorText
+		}
+		if got := at(0, x, y); got != want {
+			t.Fatalf("readOnly=%v link: %v", readOnly, got)
+		}
+		if got := at(ui.Cmd, x, y); got != ui.CursorPointer {
+			t.Fatalf("readOnly=%v Cmd over link: %v", readOnly, got)
+		}
+		for _, s := range []string{"Note", "#tag"} {
+			x, y := word(para, s)
+			if got := at(0, x, y); got != ui.CursorText {
+				t.Fatalf("readOnly=%v %s without Cmd: %v", readOnly, s, got)
+			}
+			if got := at(ui.Cmd, x, y); got != ui.CursorPointer {
+				t.Fatalf("readOnly=%v %s with Cmd: %v", readOnly, s, got)
+			}
+		}
+		if x, y := word(para, "plain"); at(0, x, y) != ui.CursorText {
+			t.Fatalf("readOnly=%v plain text: %v", readOnly, tt.Cursor())
+		}
+		var code decoration
+		for i := range e.decorations {
+			if d := *e.indexedDecoration(i); d.kind == "code" {
+				code = d
+			}
+		}
+		at(0, code.rect.X+code.rect.W/2, code.rect.Y+code.rect.H/2)
+		b := copyButton(code)
+		if got := at(0, b.X+b.W/2, b.Y+b.H/2); got != ui.CursorPointer {
+			t.Fatalf("readOnly=%v code copy button: %v", readOnly, got)
+		}
+	}
+}
+
 // The I-beam belongs to the text column; the page's margins and the blank
 // space under the last block show the ordinary arrow.
 func TestPointerShowsIBeamOnlyOverText(t *testing.T) {

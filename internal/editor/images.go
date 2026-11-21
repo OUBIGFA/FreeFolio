@@ -715,8 +715,12 @@ func (e *Editor) embedNotice(c *ui.Context, key string, row row, o Options) {
 	r := f.bounds
 	label := f.resource.Problem.text() + "：" + src
 	notice := ui.Box(c.Key(key+":notice")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
-		Focusable().Role(ui.RoleButton).Label(label).Tooltip(src).Cursor(ui.CursorText)
+		Focusable().Role(ui.RoleButton).Label(label).Tooltip(src).Cursor(ui.CursorPointer)
 	editing := e.embedEdit.id == id && !e.ReadOnly
+	if e.ReadOnly {
+		// Nothing opens on a read-only page, so the notice shows no hand.
+		notice.Cursor(ui.CursorDefault)
+	}
 	open := func() {
 		if e.ReadOnly {
 			return

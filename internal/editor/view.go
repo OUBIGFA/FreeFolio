@@ -829,40 +829,28 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 						o.DropFiles(files, at)
 					}
 				}
-				if e.dragID != "" {
-					surface.Cursor(ui.CursorGrabbing)
-				} else if e.resizing != nil || e.hoveredResizer() != nil {
-					surface.Cursor(ui.CursorResizeEW)
-				} else if _, ok := e.hoveredGap(); ok {
-					// A click here adds a paragraph rather than placing the caret.
-					surface.Cursor(ui.CursorPointer)
-				} else if inside && !e.dragging {
-					var handle *blockHandle
-					var add bool
-					if !e.ReadOnly {
-						handle, add = e.blockControlAt(px, py)
-					}
-					switch {
-					case handle != nil && add:
-						surface.Cursor(ui.CursorPointer)
-					case handle != nil:
-						surface.Cursor(ui.CursorGrab)
-					case e.overTableStrip(px, py):
-						// The strips paint nothing; the hand shows they act.
-						surface.Cursor(ui.CursorPointer)
-					case e.overFootnote(px, py):
-						// A reference mark jumps to its note, a note's mark back.
-						surface.Cursor(ui.CursorPointer)
-					case !e.overText(px, py):
-						// The surface spans the whole pane for presses in the
-						// margins, but only the text column reads as editable.
-						surface.Cursor(ui.CursorDefault)
-					}
-				}
+				// Fold arrows show for the block under the pointer, so the
+				// cursor below reads this frame's block, not the last one's.
 				e.hoverID = ""
 				if inside {
 					if i := sort.Search(len(e.handles), func(i int) bool { return e.indexedHandle(i).top > py+4 }) - 1; i >= 0 {
 						e.hoverID = e.indexedHandle(i).id
+					}
+				}
+				switch {
+				case e.dragID != "", e.tableDrag.active, e.tableColDrag.active:
+					surface.Cursor(ui.CursorGrabbing)
+				case e.resizing != nil || e.hoveredResizer() != nil:
+					surface.Cursor(ui.CursorResizeEW)
+				case e.codeBarDrag != "", e.blocks.marquee:
+					surface.Cursor(ui.CursorDefault)
+				case e.dragging || !inside:
+				default:
+					if _, ok := e.hoveredGap(); ok {
+						// A click here adds a paragraph rather than placing the caret.
+						surface.Cursor(ui.CursorPointer)
+					} else if cursor, ok := e.hoverCursor(c.Modifiers(), px, py); ok {
+						surface.Cursor(cursor)
 					}
 				}
 				services := c.Services()
@@ -1922,51 +1910,88 @@ func (e *Editor) paintHoverControls(p *ui.Painter, bounds ui.Rect, t *ui.Theme) 
 
 // hoverControl runs the hover control under a press, if any.
 func (e *Editor) hoverControl(x, y float32) bool {
+	if act := e.controlAt(x, y); act != nil {
+		return act()
+	}
+	return false
+}
+
+// controlAt is what a press at x, y on a painted control does, or nil: the
+// one hit test both the press and the hover cursor ask. A read-only page
+// keeps only its code and diagram buttons.
+func (e *Editor) controlAt(x, y float32) func() bool {
+	if e.ReadOnly {
+		return e.readOnlyControlAt(x, y)
+	}
 	in := func(r ui.Rect) bool { return x >= r.X && x <= r.X+r.W && y >= r.Y && y <= r.Y+r.H }
 	fs, fe := e.visibleFoldRange(y-24, y+24)
 	for i := fs; i < fe; i++ {
 		f := *e.indexedFold(i)
 		if (f.folded || f.always || f.id == e.hoverID) && in(ui.Rect{X: f.rect.X - 2, Y: f.rect.Y - 2, W: f.rect.W + 4, H: f.rect.H + 4}) {
-			e.toggleFold(f.id)
-			return true
+			return func() bool { e.toggleFold(f.id); return true }
 		}
 	}
 	for i := range e.decorationSpace.between(y-28, y+28) {
 		d := *e.indexedDecoration(i)
 		switch {
 		case d.kind == "callout" && d.id != "" && in(calloutIconRect(d)):
-			e.colorOpen = !(e.colorOpen && e.colorID == d.id)
-			e.colorID, e.colorAt = d.id, calloutIconRect(d)
-			return true
+			return func() bool {
+				e.colorOpen = !(e.colorOpen && e.colorID == d.id)
+				e.colorID, e.colorAt = d.id, calloutIconRect(d)
+				return true
+			}
 		case d.kind == "code" && d.foldable && in(e.codeFoldButton(d)):
-			e.ToggleCodeFold(d.id)
-			return true
+			return func() bool { e.ToggleCodeFold(d.id); return true }
 		case d.kind == "code" && d.id != "" && in(languageButton(d)):
-			e.langOpen = !(e.langOpen && e.langID == d.id)
-			e.langID, e.langAt = d.id, languageButton(d)
-			return true
+			return func() bool {
+				e.langOpen = !(e.langOpen && e.langID == d.id)
+				e.langID, e.langAt = d.id, languageButton(d)
+				return true
+			}
 		case d.kind == "code" && d.id != "" && canShowWrapButton(d) && in(wrapButton(d)) && (e.hovered(d.rect, 0) || e.isCodeNoWrap(e.blockByID(d.id))):
-			e.ToggleCodeWrap(d.id)
-			return true
+			return func() bool { e.ToggleCodeWrap(d.id); return true }
 		case d.kind == "code" && d.id != "" && in(copyButton(d)) && e.hovered(d.rect, 0):
-			e.copyBlock(d.id)
-			return true
+			return func() bool { e.copyBlock(d.id); return true }
 		case d.kind == "mermaid" && d.id != "" && !d.mermaidHidden && in(mermaidLanguageButton(d)):
-			e.langOpen = !(e.langOpen && e.langID == d.id)
-			e.langID, e.langAt = d.id, mermaidLanguageButton(d)
-			return true
+			return func() bool {
+				e.langOpen = !(e.langOpen && e.langID == d.id)
+				e.langID, e.langAt = d.id, mermaidLanguageButton(d)
+				return true
+			}
 		case d.kind == "mermaid" && d.id != "" && d.mermaidHidden && in(mermaidZoomButton(d, e.ReadOnly)) && e.hovered(d.rect, 0):
-			return e.openMermaidPreview(d.id)
+			return func() bool { return e.openMermaidPreview(d.id) }
 		case d.kind == "mermaid" && d.id != "" && d.mermaidHidden && in(mermaidEditButton(d)) && e.hovered(d.rect, 0):
-			return e.focusBlockStart(d.id)
+			return func() bool { return e.focusBlockStart(d.id) }
 		case d.kind == "mermaid" && d.id != "" && in(mermaidCopyButton(d)) && e.hovered(d.rect, 0):
-			e.copyBlock(d.id)
-			return true
-		case d.kind == "table" && e.tableControl(d, x, y):
-			return true
+			return func() bool { e.copyBlock(d.id); return true }
+		case d.kind == "table" && e.tableStripAt(d, x, y):
+			return func() bool { return e.tableControl(d, x, y) }
 		}
 	}
-	return false
+	return nil
+}
+
+// readOnlyControlAt is the code or diagram button a press at x, y on a
+// read-only page runs, or nil.
+func (e *Editor) readOnlyControlAt(x, y float32) func() bool {
+	in := func(r ui.Rect) bool { return x >= r.X && x <= r.X+r.W && y >= r.Y && y <= r.Y+r.H }
+	for i := range e.decorationSpace.between(y-28, y+28) {
+		d := *e.indexedDecoration(i)
+		switch {
+		case d.id == "":
+		case d.kind == "mermaid" && d.mermaidHidden && in(mermaidZoomButton(d, true)) && e.hovered(d.rect, 0):
+			return func() bool { return e.openMermaidPreview(d.id) }
+		case d.kind == "mermaid" && in(mermaidCopyButton(d)) && e.hovered(d.rect, 0):
+			return func() bool { e.copyBlock(d.id); return true }
+		case d.kind == "code" && d.foldable && in(e.codeFoldButton(d)):
+			return func() bool { e.ToggleCodeFold(d.id); return true }
+		case d.kind == "code" && canShowWrapButton(d) && in(wrapButton(d)) && (e.hovered(d.rect, 0) || e.isCodeNoWrap(e.blockByID(d.id))):
+			return func() bool { e.ToggleCodeWrap(d.id); return true }
+		case d.kind == "code" && in(copyButton(d)) && e.hovered(d.rect, 0):
+			return func() bool { e.copyBlock(d.id); return true }
+		}
+	}
+	return nil
 }
 
 // copyBlock copies the text of a code block, as its copy button does.
@@ -2164,9 +2189,19 @@ func (e *Editor) linkAt(at int) string {
 	}
 	return ""
 }
-func (e *Editor) toggleTask(at int, x float32) bool {
+
+// taskBox is the task row at text index at whose checkbox spans x, if any.
+func (e *Editor) taskBox(at int, x float32) *row {
 	r := e.rowAt(at)
 	if r == nil || r.leaf.Block.Kind != "task" || x > r.x || x < r.x-28 {
+		return nil
+	}
+	return r
+}
+
+func (e *Editor) toggleTask(at int, x float32) bool {
+	r := e.taskBox(at, x)
+	if r == nil {
 		return false
 	}
 	wasChecked := r.leaf.Block.Checked
@@ -2191,6 +2226,59 @@ func (e *Editor) overText(x, y float32) bool {
 	return x >= e.padding && x <= e.width-e.padding && y <= e.contentEnd+slack
 }
 
+// hoverCursor is the pointer shape over surface point x, y while nothing is
+// pressed: a hand where a press acts, the arrow off the text column or on a
+// code scrollbar, and false where the surface's I-beam stays. Each case asks
+// the same hit test its press runs, so the shape never promises another act.
+func (e *Editor) hoverCursor(mods ui.Modifiers, x, y float32) (ui.Cursor, bool) {
+	if !e.ReadOnly {
+		if h, add := e.blockControlAt(x, y); h != nil {
+			if add {
+				return ui.CursorPointer, true
+			}
+			return ui.CursorGrab, true
+		}
+	}
+	if _, _, ok := e.codeScrollbarAt(x, y); ok {
+		return ui.CursorDefault, true
+	}
+	switch {
+	case e.controlAt(x, y) != nil, e.overFootnote(x, y), e.overTask(x, y), e.overLink(mods, x, y):
+		return ui.CursorPointer, true
+	case !e.overText(x, y):
+		// The surface spans the whole pane for presses in the margins, but
+		// only the text column reads as editable.
+		return ui.CursorDefault, true
+	}
+	return 0, false
+}
+
+// overTask reports whether x, y is on a task's checkbox, as toggleTask tests.
+func (e *Editor) overTask(x, y float32) bool {
+	at, ok := e.IndexForPoint(ui.Point{X: x, Y: y})
+	if !ok {
+		return false
+	}
+	return e.taskBox(at, x) != nil
+}
+
+// overLink reports whether a press at x, y with mods follows a link: a
+// plain press on a link opens its editor while editing; with Cmd held a
+// link, [[wiki link]] or #tag opens where its handler is set.
+func (e *Editor) overLink(mods ui.Modifiers, x, y float32) bool {
+	if mods&ui.Cmd != 0 {
+		if _, ok := e.linkAtPoint(x, y, false); ok && e.openLink != nil {
+			return true
+		}
+		return e.openWiki != nil && e.wikiAtPoint(x, y) != "" || e.openTag != nil && e.tagAtPoint(x, y) != ""
+	}
+	if e.ReadOnly || mods != 0 {
+		return false
+	}
+	_, ok := e.linkAtPoint(x, y, true)
+	return ok
+}
+
 // The painted grip and add button share hit geometry with press and hover.
 func (e *Editor) blockControlAt(x, y float32) (*blockHandle, bool) {
 	first, end := e.visibleHandleRange(y-64, y+64)
@@ -2210,39 +2298,19 @@ func (e *Editor) blockControlAt(x, y float32) (*blockHandle, bool) {
 func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 	if e.ReadOnly {
 		if ev.Kind == ui.InputPointerDown && ev.Button == 0 {
-			in := func(r ui.Rect) bool { return ev.X >= r.X && ev.X <= r.X+r.W && ev.Y >= r.Y && ev.Y <= r.Y+r.H }
+			if act := e.readOnlyControlAt(ev.X, ev.Y); act != nil {
+				return act()
+			}
+			if ev.Clicks < 2 {
+				return false
+			}
+			// A double click on a hidden diagram opens it, as its zoom
+			// button does.
 			for i := range e.decorationSpace.between(ev.Y-28, ev.Y+28) {
 				d := *e.indexedDecoration(i)
-				if d.id == "" {
-					continue
-				}
-				if d.kind == "mermaid" {
-					if d.mermaidHidden && in(mermaidZoomButton(d, true)) && e.hovered(d.rect, 0) {
-						return e.openMermaidPreview(d.id)
-					}
-					if in(mermaidCopyButton(d)) && e.hovered(d.rect, 0) {
-						e.copyBlock(d.id)
-						return true
-					}
-					if d.mermaidHidden && ev.Clicks >= 2 && in(d.rect) {
-						return e.openMermaidPreview(d.id)
-					}
-					continue
-				}
-				if d.kind != "code" {
-					continue
-				}
-				if d.foldable && in(e.codeFoldButton(d)) {
-					e.ToggleCodeFold(d.id)
-					return true
-				}
-				if canShowWrapButton(d) && in(wrapButton(d)) && (e.hovered(d.rect, 0) || e.isCodeNoWrap(e.blockByID(d.id))) {
-					e.ToggleCodeWrap(d.id)
-					return true
-				}
-				if in(copyButton(d)) && e.hovered(d.rect, 0) {
-					e.copyBlock(d.id)
-					return true
+				r := d.rect
+				if d.id != "" && d.kind == "mermaid" && d.mermaidHidden && ev.X >= r.X && ev.X <= r.X+r.W && ev.Y >= r.Y && ev.Y <= r.Y+r.H {
+					return e.openMermaidPreview(d.id)
 				}
 			}
 		}

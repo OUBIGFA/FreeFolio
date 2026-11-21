@@ -118,6 +118,35 @@ func (e *Editor) revealCodeCaret() {
 	}
 }
 
+// codeScrollbarAt is the unwrapped code block whose horizontal scrollbar
+// track holds x, y, and that bar, for the press that drags it and the arrow
+// shown over it.
+func (e *Editor) codeScrollbarAt(x, y float32) (string, ui.Scrollbar, bool) {
+	if len(e.codeWrapOverride)+boolToInt(e.codeNoWrap) == 0 {
+		return "", ui.Scrollbar{}, false
+	}
+	for di := range e.visibleDecorations(20) {
+		d := *e.indexedDecoration(di)
+		if d.kind != "code" || d.id == "" {
+			continue
+		}
+		idx, ok := e.rowIDs[d.id]
+		if !ok {
+			continue
+		}
+		r := *e.indexedRow(idx)
+		barBox, _, availW, contentW, scrollX, noWrap := e.codeScrollFor(r)
+		if !noWrap || contentW <= availW+1 {
+			continue
+		}
+		track := ui.Rect{X: barBox.X, Y: barBox.Y + barBox.H - 14, W: barBox.W, H: 14}
+		if x >= track.X && x <= track.X+track.W && y >= track.Y && y <= track.Y+track.H {
+			return d.id, ui.Scrollbar{Box: barBox, Horizontal: true, View: availW, Content: contentW, Offset: scrollX}, true
+		}
+	}
+	return "", ui.Scrollbar{}, false
+}
+
 func (e *Editor) handleCodeScrollInput(ev ui.InputEvent) bool {
 	if e.codeBarDrag != "" {
 		idx, ok := e.rowIDs[e.codeBarDrag]
@@ -142,34 +171,17 @@ func (e *Editor) handleCodeScrollInput(ev ui.InputEvent) bool {
 		}
 	}
 
-	if ev.Kind == ui.InputPointerDown && ev.Button == 0 && len(e.codeWrapOverride)+boolToInt(e.codeNoWrap) > 0 {
-		for di := range e.visibleDecorations(20) {
-			d := *e.indexedDecoration(di)
-			if d.kind != "code" || d.id == "" {
-				continue
+	if ev.Kind == ui.InputPointerDown && ev.Button == 0 {
+		if id, bar, ok := e.codeScrollbarAt(ev.X, ev.Y); ok {
+			start, length := bar.Thumb()
+			e.codeBarDrag = id
+			if ev.X >= bar.Box.X+start && ev.X <= bar.Box.X+start+length {
+				e.codeBarGrab = ev.X - (bar.Box.X + start)
+			} else {
+				e.codeBarGrab = length / 2
+				e.setCodeScrollX(id, bar.OffsetAt(ev.X-bar.Box.X-e.codeBarGrab), bar.Content-bar.View)
 			}
-			idx, ok := e.rowIDs[d.id]
-			if !ok {
-				continue
-			}
-			r := *e.indexedRow(idx)
-			barBox, _, availW, contentW, scrollX, noWrap := e.codeScrollFor(r)
-			if !noWrap || contentW <= availW+1 {
-				continue
-			}
-			track := ui.Rect{X: barBox.X, Y: barBox.Y + barBox.H - 14, W: barBox.W, H: 14}
-			if ev.X >= track.X && ev.X <= track.X+track.W && ev.Y >= track.Y && ev.Y <= track.Y+track.H {
-				bar := ui.Scrollbar{Box: barBox, Horizontal: true, View: availW, Content: contentW, Offset: scrollX}
-				start, length := bar.Thumb()
-				e.codeBarDrag = d.id
-				if ev.X >= barBox.X+start && ev.X <= barBox.X+start+length {
-					e.codeBarGrab = ev.X - (barBox.X + start)
-				} else {
-					e.codeBarGrab = length / 2
-					e.setCodeScrollX(d.id, bar.OffsetAt(ev.X-barBox.X-e.codeBarGrab), contentW-availW)
-				}
-				return true
-			}
+			return true
 		}
 	}
 

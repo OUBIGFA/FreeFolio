@@ -93,21 +93,29 @@ func (e *Editor) barsShown(d decoration) bool {
 // overTableStrip reports whether x, y is on a table's strip of row or
 // column controls, or one of its pins, where a press selects or inserts.
 func (e *Editor) overTableStrip(x, y float32) bool {
-	in := func(r ui.Rect) bool { return x >= r.X && x <= r.X+r.W && y >= r.Y && y <= r.Y+r.H }
 	for i := range e.visibleDecorations(24) {
-		d := *e.indexedDecoration(i)
-		if d.kind != "table" || len(d.cols) < 2 || !e.barsShown(d) {
-			continue
+		if d := *e.indexedDecoration(i); d.kind == "table" && e.tableStripAt(d, x, y) {
+			return true
 		}
-		for k := range d.cols {
-			if in(pin(d, true, k)) || k < len(d.cols)-1 && in(columnBar(d, k)) {
-				return true
-			}
+	}
+	return false
+}
+
+// tableStripAt reports whether x, y is on table d's pins or bars, where
+// tableControl acts.
+func (e *Editor) tableStripAt(d decoration, x, y float32) bool {
+	if len(d.cols) < 2 || !e.barsShown(d) {
+		return false
+	}
+	in := func(r ui.Rect) bool { return x >= r.X && x <= r.X+r.W && y >= r.Y && y <= r.Y+r.H }
+	for k := range d.cols {
+		if in(pin(d, true, k)) || k < len(d.cols)-1 && in(columnBar(d, k)) {
+			return true
 		}
-		for k := range d.rows {
-			if in(pin(d, false, k)) || k < len(d.rows)-1 && in(rowBar(d, k)) {
-				return true
-			}
+	}
+	for k := range d.rows {
+		if in(pin(d, false, k)) || k < len(d.rows)-1 && in(rowBar(d, k)) {
+			return true
 		}
 	}
 	return false
