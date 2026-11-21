@@ -547,8 +547,12 @@ func (a *App) updateWindowView(c *ui.Context) {
 				if updaterButtonView(c, i18n.T("取消"), false) {
 					a.closeUpdateWindow()
 				}
-			case phaseUpToDate:
-				status(i18n.T("FreeMD 已是最新版本"))
+			case phaseUpToDate, phaseNoRelease:
+				if u.phase == phaseNoRelease {
+					status(i18n.T("暂未发布适用于此平台的安装包。"))
+				} else {
+					status(i18n.T("FreeMD 已是最新版本"))
+				}
 				if updaterButtonView(c, i18n.T("好"), false) {
 					a.closeUpdateWindow()
 				}
@@ -560,7 +564,7 @@ func (a *App) updateWindowView(c *ui.Context) {
 					status(i18n.T("有新版本可用"))
 				}
 				if updaterButtonView(c, i18n.T("下载并安装"), false) {
-					a.downloadUpdate()
+					a.installUpdate()
 				}
 				if laterButton(c, i18n.T("以后再说")) {
 					a.closeUpdateWindow()
@@ -582,8 +586,14 @@ func (a *App) updateWindowView(c *ui.Context) {
 				if laterButton(c, i18n.T("以后再说")) {
 					a.closeUpdateWindow()
 				}
+			case phaseInstalling:
+				progress(-1, i18n.T("正在启动更新安装器…"))
 			case phaseFailed:
 				status(u.failure)
+				if u.release != nil && laterButton(c, i18n.T("重试")) {
+					u.ready = ""
+					a.installUpdate()
+				}
 				if updaterButtonView(c, i18n.T("手动下载"), false) {
 					a.closeUpdateWindow()
 					a.openUpdatePage(update.ReleaseURL(""))
@@ -592,7 +602,7 @@ func (a *App) updateWindowView(c *ui.Context) {
 					a.closeUpdateWindow()
 				}
 			case phaseDisabled:
-				status(i18n.T("这个版本无法自动更新：开发版本，或安装在无法写入的位置。可以从 GitHub 下载新版本。"))
+				status(i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本。"))
 				if updaterButtonView(c, i18n.T("前往下载页面"), false) {
 					a.closeUpdateWindow()
 					a.openUpdatePage(update.ReleaseURL(""))
@@ -625,7 +635,7 @@ func updaterButtonView(c *ui.Context, label string, disabled bool) bool {
 // laterButton is the plain choice under the wide button.
 func laterButton(c *ui.Context, label string) bool {
 	t := c.Theme()
-	b := ui.Box(c.Key("updater-later")).Margin(12, 0, 0, 0).PaddingX(8).Height(20).Center().
+	b := ui.Box(c.Key("updater-later-"+label)).Margin(12, 0, 0, 0).PaddingX(8).Height(20).Center().
 		Focusable().Role(ui.RoleButton).Label(label).Cursor(ui.CursorPointer)
 	ink := t.Text.Alpha(0.5)
 	if b.Hovered() {

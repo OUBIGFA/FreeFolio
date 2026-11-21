@@ -18,11 +18,10 @@ import (
 // says so in a card above the spaces at the foot of the sidebar, or in a
 // toast while the sidebar is hidden. Clicking it restarts into the new
 // version, whose first launch says "FreeMD 已更新！". "检查更新…" opens the
-// update window. MyGo's Updater downloads, checks the signature and
-// replaces the app; the views are in updateview.go.
+// update window. Windows downloads a verified full installer; other platforms
+// use MyGo's signed bundle updates. The views are in updateview.go.
 
-// updateService finds and installs new versions: MyGo's Updater, or a
-// fake in tests.
+// updateService finds new versions for the current platform.
 type updateService interface {
 	// Enabled reports whether this build can update itself.
 	Enabled() bool
@@ -35,30 +34,10 @@ type updateRelease interface {
 	Version() string
 	// Notes are the release notes, in Markdown.
 	Notes() string
-	// Install downloads the release and puts it in place of the app; it
-	// runs at the next launch.
-	Install(ctx context.Context, progress func(done, total int64)) error
-}
-
-// mygoUpdates is MyGo's Updater.
-type mygoUpdates struct{}
-
-func (mygoUpdates) Enabled() bool { return mygo.Updater.Enabled() }
-
-func (mygoUpdates) Check(ctx context.Context) (updateRelease, error) {
-	up, err := mygo.Updater.Check(ctx)
-	if err != nil || up == nil {
-		return nil, err
-	}
-	return mygoRelease{up}, nil
-}
-
-type mygoRelease struct{ up *mygo.Update }
-
-func (r mygoRelease) Version() string { return r.up.Version }
-func (r mygoRelease) Notes() string   { return r.up.Notes }
-func (r mygoRelease) Install(ctx context.Context, progress func(done, total int64)) error {
-	return r.up.Install(ctx, progress)
+	// Download stages and verifies the release without interrupting the app.
+	Download(ctx context.Context, progress func(done, total int64)) error
+	// Apply rechecks and launches the installer after documents are saved.
+	Apply() error
 }
 
 // updatePhase is what the update window shows (Cra's UpdaterWindowView).
@@ -72,6 +51,8 @@ const (
 	phaseReady
 	phaseFailed
 	phaseDisabled
+	phaseNoRelease
+	phaseInstalling
 )
 
 // updateState is the updater's state.
@@ -80,13 +61,17 @@ type updateState struct {
 	// async runs checks and downloads on goroutines, as the running app
 	// does; tests run them at once.
 	async bool
-	// enabled is svc.Enabled, asked once: it probes the disk.
+	// enabled is svc.Enabled, asked once: some platforms probe the disk.
 	enabled, asked bool
 	// next is when the next background check is due.
 	next time.Time
 	// checking and downloading are the work under way; cancel stops it.
 	checking, downloading bool
 	cancel                context.CancelFunc
+	// generation ignores callbacks from a canceled download after a retry.
+	generation uint64
+	// installAfterDownload is explicit consent from Download and Install.
+	installAfterDownload, installing bool
 	// release is the newer version found, downloading or downloaded;
 	// received and total its download's progress.
 	release         updateRelease
@@ -182,6 +167,8 @@ func (a *App) checkForUpdates() {
 	u := &a.updates
 	u.window = true
 	switch {
+	case u.installing:
+		u.phase = phaseInstalling
 	case u.ready != "":
 		u.phase = phaseReady
 	case !a.updatesEnabled():
@@ -219,6 +206,10 @@ func (a *App) checked(rel updateRelease, err error) {
 	u.lastCheck, u.checkErr = a.now, err
 	asked := u.window && u.phase == phaseChecking
 	switch {
+	case errors.Is(err, update.ErrNoInstaller):
+		if asked {
+			u.phase = phaseNoRelease
+		}
 	case err != nil:
 		if asked {
 			u.phase, u.failure = phaseFailed, i18n.T("无法检查更新：")+err.Error()
@@ -247,6 +238,8 @@ func (a *App) downloadUpdate() {
 	}
 	rel := u.release
 	u.downloading = true
+	u.generation++
+	generation := u.generation
 	u.received, u.total = 0, 0
 	if u.window {
 		u.phase = phaseDownloading
@@ -256,7 +249,7 @@ func (a *App) downloadUpdate() {
 	var shown atomic.Int64
 	shown.Store(-1)
 	a.runUpdate(func() func() {
-		err := rel.Install(ctx, func(done, total int64) {
+		err := rel.Download(ctx, func(done, total int64) {
 			// Tell the window as the percentage changes, not every block.
 			pct := int64(0)
 			if total > 0 {
@@ -268,9 +261,17 @@ func (a *App) downloadUpdate() {
 				}
 				return
 			}
-			a.win.Update(func() { u.received, u.total = done, total })
+			a.win.Update(func() {
+				if generation == u.generation {
+					u.received, u.total = done, total
+				}
+			})
 		})
-		return func() { a.downloaded(rel, err) }
+		return func() {
+			if generation == u.generation {
+				a.downloaded(rel, err)
+			}
+		}
 	})
 }
 
@@ -283,6 +284,7 @@ func (a *App) downloaded(rel updateRelease, err error) {
 		u.cancel = nil
 	}
 	if err != nil {
+		u.installAfterDownload = false
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -296,6 +298,10 @@ func (a *App) downloaded(rel updateRelease, err error) {
 	if u.window {
 		u.phase = phaseReady
 	}
+	if u.installAfterDownload {
+		u.installAfterDownload = false
+		a.installUpdate()
+	}
 }
 
 // installUpdate restarts into the downloaded version, or downloads the one
@@ -303,29 +309,60 @@ func (a *App) downloaded(rel updateRelease, err error) {
 // be saved keeps FreeMD open.
 func (a *App) installUpdate() {
 	u := &a.updates
+	if u.installing {
+		return
+	}
+	if u.release == nil {
+		u.ready = ""
+		a.checkForUpdates()
+		return
+	}
 	if u.ready == "" {
+		u.installAfterDownload = true
 		a.downloadUpdate()
 		return
 	}
 	if !a.leaveDocs(a.residentDocuments(), a.installUpdate) {
+		// The save dialog must be the top modal, so its Cancel remains usable.
+		u.window = false
 		return
 	}
 	a.prefs.PendingUpdate = u.ready
 	a.savePrefs()
-	if u.relaunch != nil {
-		u.relaunch()
-		return
-	}
-	mygo.App.Relaunch()
+	u.installing, u.window, u.phase = true, true, phaseInstalling
+	release := u.release
+	a.runUpdate(func() func() {
+		err := release.Apply()
+		return func() {
+			if err != nil {
+				u.installing = false
+				u.phase, u.failure = phaseFailed, i18n.T("安装更新失败：")+err.Error()
+				a.prefs.PendingUpdate = ""
+				a.savePrefs()
+				return
+			}
+			if u.relaunch != nil {
+				u.relaunch()
+			} else {
+				restartAfterUpdate()
+			}
+		}
+	})
 }
 
 // closeUpdateWindow is the window's Later, Cancel and Close: a download
 // under way stops, and an update found and put off leaves the banner.
 func (a *App) closeUpdateWindow() {
 	u := &a.updates
+	if u.installing {
+		return
+	}
+	u.installAfterDownload = false
 	if u.downloading && u.cancel != nil {
 		u.cancel()
+		u.cancel = nil
 		u.downloading = false
+		u.generation++
 	}
 	if u.phase == phaseFound {
 		u.found = ""
@@ -410,9 +447,11 @@ func (a *App) updateSummary() string {
 	u := &a.updates
 	switch {
 	case !a.updatesEnabled():
-		return i18n.T("开发版本或无法写入的安装位置不会自动更新。")
+		return i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本。")
+	case u.installing:
+		return i18n.T("正在启动更新安装器…")
 	case u.ready != "":
-		return "FreeMD " + u.ready + i18n.T(" 已下载，重新启动后安装。")
+		return "FreeMD " + u.ready + i18n.T(" 已下载，可以安装。")
 	case u.downloading:
 		return i18n.T("正在下载新版本…")
 	case u.found != "":
@@ -421,6 +460,8 @@ func (a *App) updateSummary() string {
 		return i18n.T("正在检查更新…")
 	case u.lastCheck.IsZero():
 		return i18n.T("从 GitHub Releases 获取新版本。")
+	case errors.Is(u.checkErr, update.ErrNoInstaller):
+		return i18n.T("暂未发布适用于此平台的安装包。")
 	case u.checkErr != nil:
 		return i18n.T("上次检查失败：") + u.checkErr.Error()
 	}

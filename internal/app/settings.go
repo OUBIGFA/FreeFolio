@@ -655,7 +655,7 @@ func (a *App) settingsUpdates(c *ui.Context) {
 	settingsHeading(c, i18n.T("更新"), "")
 	settingsGroup(c, "updates", func() {
 		auto := !a.prefs.NoAutoUpdate
-		toggleRow(c, "auto-update", i18n.T("自动更新 FreeMD"), i18n.T("在后台下载新版本，重新启动后安装。关闭后只提示有新版本。"), &auto, nil)
+		toggleRow(c, "auto-update", i18n.T("自动更新 FreeMD"), i18n.T("在后台下载新版本，准备好后由你安装。关闭后只提示有新版本。"), &auto, nil)
 		if auto == a.prefs.NoAutoUpdate {
 			a.toggleAutoUpdate()
 		}

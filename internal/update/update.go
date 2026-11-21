@@ -2,8 +2,8 @@
 // window: what the sidebar's update banner says and when that goes into a
 // toast (after Cra's UpdateNotice, MIT), how often the releases are
 // checked, and the release notes made plain for the update window. The
-// downloading and replacing of the app is MyGo's Updater; this package has
-// no dependency on it.
+// Windows installer downloads are verified against GitHub's asset digest;
+// this package has no dependency on the window framework.
 package update
 
 import (

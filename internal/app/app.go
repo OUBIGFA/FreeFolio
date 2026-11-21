@@ -546,7 +546,7 @@ func (a *App) Run() error {
 		// finds text at once.
 		a.search.async = true
 		a.refreshSearch()
-		a.updates.svc, a.updates.async = mygoUpdates{}, true
+		a.updates.svc, a.updates.async = newUpdateService(a.cfg.ConfigDir), true
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
 		a.win.OnClose(func(event *mygo.CloseEvent) {

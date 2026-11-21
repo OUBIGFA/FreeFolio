@@ -10,6 +10,7 @@ import (
 
 	"github.com/OUBIGFA/FreeMD/internal/prefs"
 	"github.com/OUBIGFA/FreeMD/internal/update"
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -34,15 +35,29 @@ type fakeRelease struct {
 	version, notes string
 	installs       int
 	err            error
+	applies        int
+	applyErr       error
+	onDownload     func()
 }
 
 func (r *fakeRelease) Version() string { return r.version }
 func (r *fakeRelease) Notes() string   { return r.notes }
-func (r *fakeRelease) Install(_ context.Context, progress func(done, total int64)) error {
+func (r *fakeRelease) Download(ctx context.Context, progress func(done, total int64)) error {
 	r.installs++
+	if r.onDownload != nil {
+		r.onDownload()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	progress(512, 1024)
 	progress(1024, 1024)
 	return r.err
+}
+
+func (r *fakeRelease) Apply() error {
+	r.applies++
+	return r.applyErr
 }
 
 // withUpdates gives a test app a fake update service, a relaunch it
@@ -65,7 +80,7 @@ func TestUpdateBackgroundDownloadsAndRestarts(t *testing.T) {
 	}
 	tt.Advance(update.FirstCheck)
 	tt.Frame()
-	if f.checks != 1 || f.release.installs != 1 {
+	if f.checks != 1 || f.release.installs != 1 || f.release.applies != 0 || *relaunched != 0 {
 		t.Fatalf("checks %d, installs %d: a background check downloads the update", f.checks, f.release.installs)
 	}
 	tt.Advance(time.Second)
@@ -92,7 +107,7 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.prefs.NoAutoUpdate = true
 	f := &fakeUpdates{release: &fakeRelease{version: "0.3.0", notes: "## 新功能\n\n- 自动更新"}}
-	withUpdates(a, f)
+	relaunched, _ := withUpdates(a, f)
 	tt.Frame()
 	tt.Advance(update.FirstCheck)
 	tt.Frame()
@@ -110,13 +125,8 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	}
 	tt.Click("下载并安装")
 	tt.Frame()
-	if f.release.installs != 1 || !tt.HasText("安装并重新启动") {
-		t.Fatalf("downloaded, ready to install: %q", tt.Texts())
-	}
-	tt.Click("以后再说")
-	tt.Frame()
-	if a.updates.window || !tt.HasText("更新已准备就绪！") {
-		t.Fatalf("later leaves the ready card: %q", tt.Texts())
+	if f.release.installs != 1 || *relaunched != 1 || a.prefs.PendingUpdate != "0.3.0" {
+		t.Fatalf("download and install must finish from one click: downloads=%d restarts=%d pending=%q", f.release.installs, *relaunched, a.prefs.PendingUpdate)
 	}
 }
 
@@ -161,6 +171,108 @@ func TestUpdateManualCheck(t *testing.T) {
 	}
 }
 
+func TestUpdateInstallFailureKeepsAppOpen(t *testing.T) {
+	a, tt := newTestApp(t)
+	release := &fakeRelease{version: "0.2.0", applyErr: errors.New("installer blocked")}
+	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if err := tt.Click("下载并安装"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if *relaunched != 0 || a.prefs.PendingUpdate != "" || !tt.HasText("安装更新失败：installer blocked") {
+		t.Fatalf("failed launch must keep the app open with an error: %q", tt.Texts())
+	}
+	release.applyErr = nil
+	if err := tt.Click("重试"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if *relaunched != 1 || release.applies != 2 {
+		t.Fatalf("retry must apply once more: restarts=%d applies=%d", *relaunched, release.applies)
+	}
+	a.installUpdate()
+	if release.applies != 2 {
+		t.Fatal("repeated install clicks must not launch another installer")
+	}
+}
+
+func TestUpdateCanceledDownloadNeedsAnotherInstallClick(t *testing.T) {
+	a, tt := newTestApp(t)
+	release := &fakeRelease{version: "0.2.0", onDownload: a.closeUpdateWindow}
+	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if err := tt.Click("下载并安装"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if *relaunched != 0 || release.applies != 0 || a.updates.ready != "" || a.updates.downloading || a.updates.installAfterDownload {
+		t.Fatal("canceling a download must also cancel its installation")
+	}
+	release.onDownload = nil
+	a.checkForUpdates()
+	tt.Frame()
+	if err := tt.Click("下载并安装"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if *relaunched != 1 || release.applies != 1 {
+		t.Fatal("a new explicit click must be able to retry the canceled update")
+	}
+}
+
+func TestUpdateInstallWaitsForUnsavedDocuments(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.prefs.NoAutosave = true
+	release := &fakeRelease{version: "0.2.0"}
+	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
+	tt.Frame()
+	caretAtEnd(a, tt)
+	tt.Type(" Keep this before updating.")
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if err := tt.Click("下载并安装"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if release.applies != 0 || *relaunched != 0 || !a.unsaved.open {
+		t.Fatal("installing must wait for the save decision")
+	}
+	if err := tt.Click("取消"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if release.applies != 0 || a.prefs.PendingUpdate != "" {
+		t.Fatal("canceling the save must cancel installation")
+	}
+	a.installUpdate()
+	tt.Frame()
+	if err := tt.Click("保存"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	text, err := vault.Read(root(a), "Welcome.md")
+	if err != nil || !strings.Contains(text, "Keep this before updating.") || release.applies != 1 || *relaunched != 1 {
+		t.Fatalf("save must precede installation: %q, %v applies=%d restarts=%d", text, err, release.applies, *relaunched)
+	}
+}
+
+func TestUpdateNoInstallerDoesNotReportUpToDate(t *testing.T) {
+	a, tt := newTestApp(t)
+	withUpdates(a, &fakeUpdates{err: update.ErrNoInstaller})
+	tt.Frame()
+	a.checkForUpdates()
+	tt.Frame()
+	if !tt.HasText("暂未发布适用于此平台的安装包。") || tt.HasText("FreeMD 已是最新版本") {
+		t.Fatalf("empty release feed must stay distinct: %q", tt.Texts())
+	}
+}
+
 func TestUpdateDisabledBuild(t *testing.T) {
 	a, tt := newTestApp(t)
 	f := &fakeUpdates{disabled: true}
@@ -187,6 +299,7 @@ func TestUpdateToastWhileSidebarHidden(t *testing.T) {
 	a, tt := newTestApp(t)
 	relaunched, _ := withUpdates(a, &fakeUpdates{})
 	a.updates.ready = "0.2.0"
+	a.updates.release = &fakeRelease{version: "0.2.0"}
 	tt.Frame()
 	if a.updates.toast != nil {
 		t.Fatal("the banner says it while the sidebar shows")
@@ -210,6 +323,7 @@ func TestUpdateToastWhileSidebarHidden(t *testing.T) {
 		t.Fatal("a notice toasts once")
 	}
 	a.updates.ready = "0.2.1"
+	a.updates.release = &fakeRelease{version: "0.2.1"}
 	tt.Frame()
 	tt.Advance(time.Second)
 	if a.updates.toast == nil {

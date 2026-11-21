@@ -37,6 +37,9 @@
   "macos": {
     "icon": "resources/icon.icns"
   },
+  "windows": {
+    "installerInclude": "resources/installer.nsh"
+  },
   "linux": {
     "webview": false
   }
