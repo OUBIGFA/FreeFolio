@@ -194,8 +194,8 @@ func TestToolbarCorner(t *testing.T) {
 	if !ok || r.Y > 46 {
 		t.Fatalf("format menu at %v, found %v", r, ok)
 	}
-	if _, ok := tt.Find("预览 Markdown 导出 (⇧⌘M)"); ok {
-		t.Fatal("the source toggle is still in the toolbar")
+	if _, ok := tt.Find("Markdown 源码"); !ok {
+		t.Fatal("the source toggle is missing from the toolbar")
 	}
 	if err := tt.Click("更多格式"); err != nil {
 		t.Fatal(err)

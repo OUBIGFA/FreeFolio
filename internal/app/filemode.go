@@ -383,7 +383,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		}
 		ui.Spacer(c)
 		d := a.doc
-		if d != nil && !d.source && d.loadErr == nil {
+		if d != nil && d.loadErr == nil {
 			a.documentCorner(c, d)
 		}
 		a.fileMenu(c, f)
@@ -485,7 +485,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 		if m.Item(i18n.T("另存为…")).Disabled(noDoc).Chosen() {
 			a.chooseSaveAs()
 		}
-		if m.Item(i18n.T("预览 Markdown 导出")).Checked(d != nil && d.source).Disabled(noDoc).Chosen() {
+		if m.Item(i18n.T("Markdown 源码")).Checked(d != nil && d.source).Disabled(noDoc).Chosen() {
 			a.toggleSource()
 		}
 		if m.Item(i18n.T("目录")).Checked(a.outlineOpen()).Disabled(noDoc || d.source).Chosen() {

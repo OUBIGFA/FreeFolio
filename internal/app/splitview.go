@@ -180,7 +180,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 		if address.Clicked() {
 			run(func() { a.openPalette(); a.palette.pane = pane })
 		}
-		if d != nil && full && width >= 480 && d.loadErr == nil && !d.source {
+		if d != nil && full && width >= 480 && d.loadErr == nil {
 			a.documentCorner(c, d)
 		}
 		if full {

@@ -25,7 +25,7 @@ func TestPaperFollowsSystemAppearance(t *testing.T) {
 			tt.Frame()
 			label := "文档"
 			if source {
-				label = "Markdown 导出预览"
+				label = "Markdown 源码编辑区"
 			}
 			bounds, ok := tt.Find(label)
 			if !ok {

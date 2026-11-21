@@ -591,25 +591,25 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 			}
 		}
 	}
-	if d.source {
+	if d.source && !d.sourceEditable() {
+		// A page source mode cannot edit shows its Markdown export, with
+		// a way straight back.
 		box := ui.Column(c.Key("source-page")).Grow(1).Padding(24).Gap(12)
 		applyModeFade(box)
 		box.Children(func() {
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("Markdown 导出预览")).Grow(1)
 				if ui.Button(c, i18n.T("导出 Markdown 文件")).Clicked() {
 					a.activateDocument(d)
 					a.exportMarkdown()
 				}
+				if iconButton(c, "source-exit", iconX, i18n.T("退出 Markdown 导出预览"), a.withKey(i18n.T("返回富文本编辑"), "source"), false).Clicked() {
+					d.toggleMode()
+				}
 			})
 			ta := ui.TextArea(c.Key("export-preview"), &d.preview).Grow(1).ReadOnly(true).
 				TrackScroll(&d.previewScroll).Label(i18n.T("Markdown 导出预览"))
-			if d.previewCaretPending {
-				d.previewCaretPending = false
-				ta.SetTextSelection(d.previewCaret, d.previewCaret)
-			} else if d.previewEnteredY < 0 {
-				d.previewEnteredY = d.previewScroll.Y
-			}
+			d.placePreviewCaret(ta)
 		})
 		return
 	}
@@ -692,7 +692,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	actions := func() {
 		ui.Box(c).Width(4)
 		// A narrow pane, as beside the library, keeps its room for the path.
-		if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && !a.library.open && toolbar.LayoutBounds().W >= 560 {
+		if a.doc != nil && a.doc.loadErr == nil && !a.library.open && toolbar.LayoutBounds().W >= 560 {
 			a.documentCorner(c, a.doc)
 			ui.Box(c).Size(1, 14).Margin(0, 2).Background(separator(c.Theme())).Shrink(0)
 		}
@@ -829,6 +829,44 @@ func (a *App) address(c *ui.Context) {
 
 // iconButton is a quiet button showing only an icon, named by label for
 // assistive technology, with tip as its tooltip.
+// sourceApplyDelay is the pause in typing Markdown source after which the
+// editor takes it in.
+const sourceApplyDelay = 300 * time.Millisecond
+
+// sourceView edits the page's Markdown in place of the rich text: the same
+// text column, size and line height, set in monospace.
+func (a *App) sourceView(c *ui.Context, d *document, width float32) {
+	pad := editor.TextPadding(width, a.prefs.Column())
+	ta := ui.TextAreaBase(c.Key(d.viewKey()+":source"), &d.preview).Grow(1).MinHeight(0).Padding(48, pad, 160, pad).
+		Font("monospace").FontSize(a.prefs.ReadingSize()).LineHeight(a.prefs.ReadingLine()).
+		TrackScroll(&d.previewScroll).Label(i18n.T("Markdown 源码编辑区"))
+	// Typed source goes into the editor once typing pauses, so each
+	// keystroke does not parse the whole page again; saving and leaving
+	// apply it at once.
+	if ta.Changed() {
+		d.sourceEdited = c.Now()
+	}
+	if d.preview != d.sourceApplied {
+		if wait := sourceApplyDelay - c.Now().Sub(d.sourceEdited); wait > 0 {
+			c.After(wait)
+		} else {
+			d.applySource()
+		}
+	}
+	d.placePreviewCaret(ta)
+}
+
+// placePreviewCaret puts the caret at the block the rich text had on
+// entering source mode, then notes where the source scrolled from.
+func (d *document) placePreviewCaret(ta ui.Element) {
+	if d.previewCaretPending {
+		d.previewCaretPending = false
+		ta.SetTextSelection(d.previewCaret, d.previewCaret)
+	} else if d.previewEnteredY < 0 {
+		d.previewEnteredY = d.previewScroll.Y
+	}
+}
+
 func iconButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, disabled bool) ui.Element {
 	return quietButton(c, key, func(b ui.Element) ui.Element {
 		return b.Size(30, 30).Padding(0).Center().Label(label).Tooltip(tip).Disabled(disabled).

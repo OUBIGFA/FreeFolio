@@ -471,3 +471,56 @@ func TestPaletteFollowsArrowKeysInShortWindow(t *testing.T) {
 		t.Fatalf("last palette item %q rect %+v not visible in 900x320 (want H>=28)", lastTitle, r)
 	}
 }
+
+// The button left of the mind map turns the page itself into editable
+// Markdown source and back; edits reach the editor and the file as typed.
+// A page source mode cannot edit shows the export preview, which its own
+// exit icon leaves.
+func TestSourceModeButtonEditsInPlace(t *testing.T) {
+	a, tt := newTestApp(t)
+	const source = "# Note\n\nKeep this exact.\n"
+	if err := vault.Write(root(a), "Note.md", source); err != nil {
+		t.Fatal(err)
+	}
+	a.open("Note.md")
+	tt.Frame()
+	if err := tt.Click("Markdown 源码"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.doc.source {
+		t.Fatal("button did not enter source mode")
+	}
+	if _, ok := tt.Find("Markdown 源码编辑区"); !ok || tt.HasText("Markdown 导出预览") {
+		t.Fatal("source mode is not the page itself")
+	}
+	const edited = "# Note\n\nKeep this exact.\n\n* typed   *star* item\n"
+	a.doc.preview = edited
+	tt.Frame()
+	tt.Advance(sourceApplyDelay + time.Millisecond)
+	tt.Advance(autosaveDelay + time.Millisecond)
+	if text, _ := vault.Read(root(a), "Note.md"); text != edited {
+		t.Fatalf("source edit not saved as typed: %q", text)
+	}
+	if err := tt.Click("Markdown 源码"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc.source || !strings.Contains(a.doc.ed.Text(), "typed") {
+		t.Fatal("button did not return to rich text with the edit", a.doc.source, a.doc.ed.Text())
+	}
+
+	a.doc.ed.ReadOnly = true
+	a.doc.toggleMode()
+	tt.Frame()
+	if !tt.HasText("Markdown 导出预览") {
+		t.Fatal("read-only page did not show the export preview")
+	}
+	if err := tt.Click("退出 Markdown 导出预览"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.doc.source {
+		t.Fatal("exit icon did not leave the export preview")
+	}
+}

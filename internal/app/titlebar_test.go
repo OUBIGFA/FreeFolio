@@ -305,14 +305,18 @@ func TestBrandStaysAtWindowStart(t *testing.T) {
 // The title follows the page's center, independently of the width taken
 // by caption buttons and document actions; those actions hug the right.
 func TestLeftSidebarTitleCentersOverPage(t *testing.T) {
+	// Windows' caption buttons take room on the right: a page narrower
+	// than about 780 DIP brings the actions past its center, where the
+	// title takes the gap left (centeredTitle), so its widths start wider.
 	for _, profile := range []struct {
-		name string
-		bar  ui.TitleBar
+		name   string
+		bar    ui.TitleBar
+		widths []int
 	}{
-		{"windows", windowsTitleBar},
-		{"macos", ui.TitleBar{Height: 46, Left: 78}},
+		{"windows", windowsTitleBar, []int{1300, 1440}},
+		{"macos", ui.TitleBar{Height: 46, Left: 78}, []int{980, 1240}},
 	} {
-		for _, width := range []int{980, 1240} {
+		for _, width := range profile.widths {
 			t.Run(fmt.Sprintf("%s/%d", profile.name, width), func(t *testing.T) {
 				a, tt := titleBarTestApp(t, "normal", width, profile.bar)
 				a.prefs.SidebarLeft = true

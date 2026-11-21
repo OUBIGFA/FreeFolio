@@ -422,7 +422,7 @@ func (a *App) actions() []action {
 			cmd(i18n.T("重新保存到原位置"), "", a.keepMine)
 			danger(i18n.T("放弃修改并关闭"), "", a.useDisk)
 		}
-		mode := i18n.T("预览 Markdown 导出")
+		mode := i18n.T("Markdown 源码")
 		if a.doc.source {
 			mode = i18n.T("返回富文本编辑")
 		}

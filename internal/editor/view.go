@@ -1016,7 +1016,7 @@ func (e *Editor) layout(o Options) {
 	e.laidProps = e.propsKey()
 	// The text column is 820 wide unless the reader picked another.
 	e.column = columnWidth(o.Column)
-	e.padding = max(46, (o.Width-e.column)/2)
+	e.padding = TextPadding(o.Width, o.Column)
 	width := max(80, o.Width-2*e.padding)
 	clear(e.rows)
 	clear(e.decorations)
@@ -2488,6 +2488,13 @@ func (e *Editor) UnfoldAll() {
 
 // columnWidth is the text column's width: the reader's, kept between 560
 // and 1200, or 820.
+// TextPadding is the margin either side of the text column in a page
+// width wide, column as Options.Column: Markdown source mode sets its text
+// where the rich text was.
+func TextPadding(width, column float32) float32 {
+	return max(46, (width-columnWidth(column))/2)
+}
+
 func columnWidth(w float32) float32 {
 	if w <= 0 {
 		return 820

@@ -73,6 +73,11 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 			d.mindMap = &editor.MindMap{}
 		}
 	}
+	if d.source {
+		// Source mode has the page to itself, as the mind map hides.
+		a.sourceView(c, d, width)
+		return
+	}
 	if d.mindMap == nil {
 		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
 		return
@@ -180,6 +185,19 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 			board.ReadOnly = target.ed.ReadOnly
 		}
 		return
+	}
+	// Left of the mind map: rich text and Markdown source, either way. The
+	// eye shows the page rendered; struck through, its source.
+	icon := iconEye
+	if d.source {
+		icon = iconEyeOff
+	}
+	src := iconButton(c, "source-mode", icon, i18n.T("Markdown 源码"), a.withKey(i18n.T("富文本 ⇄ Markdown 源码"), "source"), false)
+	if d.source {
+		src.Background(c.Theme().Accent.Alpha(.14))
+	}
+	if src.Clicked() {
+		d.toggleMode()
 	}
 	if !d.source {
 		b := iconButton(c, "document-map", iconListTree, i18n.T("思维导图"), a.withKey(i18n.T("思维导图"), "mindmap"), false)

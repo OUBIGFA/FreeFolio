@@ -82,8 +82,13 @@ type document struct {
 	previewCaret        int
 	previewCaretPending bool
 	previewEnteredY     float32
-	modeSwitchPending   bool
-	modeAt              time.Time
+	// sourceApplied is the Markdown source the editor last took in source
+	// mode; preview differing from it holds edits not yet applied, and
+	// sourceEdited is when the latest of them was typed.
+	sourceApplied     string
+	sourceEdited      time.Time
+	modeSwitchPending bool
+	modeAt            time.Time
 	// conflict is set when the file changed elsewhere while the document
 	// has unsaved edits, diskNow holding what the file says; missing when
 	// the file went. Saving waits for the user either way (conflictBar).
@@ -137,6 +142,7 @@ func openDocument(sp *space.Space, rel, text string, preferSource bool) *documen
 	d.initLazyBaseline()
 	if preferSource {
 		d.preview = editor.ExportMarkdown(d.ed.Doc)
+		d.sourceApplied = d.preview
 	}
 	return d
 }
@@ -402,12 +408,14 @@ func (d *document) toggleMode() {
 		targetID := d.ed.ActiveOrTopBlockID()
 		doc := d.ed.Committed()
 		d.preview = editor.ExportMarkdown(doc)
+		d.sourceApplied = d.preview
 		d.previewCaret = markdownBlockRuneOffset(doc, d.preview, targetID)
 		d.previewCaretPending = true
 		d.previewEnteredY = -1
 		d.source = true
 		return
 	}
+	d.applySource()
 	if d.previewScroll.MaxY > 0 && (d.previewEnteredY < 0 || abs32Doc(d.previewScroll.Y-d.previewEnteredY) > 4) {
 		frac := min(max(d.previewScroll.Y/d.previewScroll.MaxY, 0), 1)
 		if id := markdownBlockAtFraction(d.ed.Committed(), d.preview, frac); id != "" {
@@ -416,6 +424,34 @@ func (d *document) toggleMode() {
 	}
 	d.source = false
 	d.ed.RequestFocus = true
+}
+
+// sourceEditable reports whether source mode edits the Markdown itself:
+// a Markdown page that is not read-only. An .arcmd page shows its export,
+// which cannot hold all of it, read-only.
+func (d *document) sourceEditable() bool {
+	return d.loadErr == nil && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
+}
+
+// applySource puts the Markdown typed in source mode into the editor as one
+// step of the history. The source becomes the import source, so saving
+// writes back what was typed: unchanged blocks keep their bytes.
+func (d *document) applySource() {
+	if !d.source || d.preview == d.sourceApplied || !d.sourceEditable() {
+		return
+	}
+	d.ed.Engine.ReplaceDocument(editor.ImportMarkdown(d.preview))
+	d.ed.Doc.ImportSource = d.preview
+	d.sourceApplied = d.preview
+}
+
+// refreshSource shows the saved text in source mode, unless edits typed
+// since are still to apply: those stay as typed.
+func (d *document) refreshSource() {
+	if d.source && d.preview == d.sourceApplied {
+		d.preview = d.text()
+		d.sourceApplied = d.preview
+	}
 }
 
 func abs32Doc(v float32) float32 {
@@ -572,9 +608,7 @@ func (d *document) applyAsyncSave(res asyncSaveResult) {
 			d.textDirtyKnown = false
 			d.skeletonDirty = false
 		}
-		if d.source {
-			d.preview = d.text()
-		}
+		d.refreshSource()
 	}
 }
 
@@ -595,6 +629,7 @@ func (d *document) write(force bool) error {
 	if d.board != nil {
 		return d.writeWhiteboard(force)
 	}
+	d.applySource()
 	if !force {
 		if d.conflict {
 			return errConflict
@@ -668,9 +703,7 @@ func (d *document) write(force bool) error {
 	}
 	d.diskText, d.baseline, d.saveErr = text, baseline, nil
 	d.savedWrites++
-	if d.source {
-		d.preview = d.text()
-	}
+	d.refreshSource()
 	d.recordVersion(before)
 	d.conflict, d.missing, d.diskNow = false, false, ""
 	d.rememberBaseline(committed)
