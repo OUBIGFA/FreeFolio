@@ -327,3 +327,42 @@ func TestScriptsHaveDistinctBaselinesAndPrintableText(t *testing.T) {
 		t.Fatal("script PDF text", text.String())
 	}
 }
+
+// Footnote definitions gather at the end of the page, as GFM renders them;
+// the source stays untouched until the page is edited.
+func TestFootnoteDefinitionsGatherAtTheEnd(t *testing.T) {
+	src := "Text[^proof] here.\n\n[^proof]: Proof note body.\n\nAfter paragraph.\n"
+	doc := ImportMarkdown(src)
+	if n := len(doc.Blocks); n != 3 || doc.Blocks[2].Kind != "footnote" || doc.Blocks[1].Text() != "After paragraph." {
+		t.Fatal("definition not moved to the end", doc.Blocks)
+	}
+	if got := ExportMarkdown(doc); got != src {
+		t.Fatalf("unedited page rewritten: %q", got)
+	}
+	doc.Blocks[0].Runs[0].Text = "Edited" + doc.Blocks[0].Runs[0].Text
+	if got := ExportMarkdown(doc); got != "EditedText[^proof] here.\n\nAfter paragraph.\n\n[^proof]: Proof note body.\n" {
+		t.Fatalf("edited page: %q", got)
+	}
+}
+
+// Hovering a footnote mark shows a hand and the note at once; leaving it
+// hides the note at once.
+func TestFootnoteHoverPreview(t *testing.T) {
+	e, tt := newTester("Text[^proof] here.\n\nAfter paragraph.\n\n[^proof]: Proof note body.")
+	if tt.HasText("Proof note body.") {
+		t.Fatal("preview shows before hover")
+	}
+	b, _ := tt.Find("文档")
+	r := e.rows[0]
+	o := r.layout.objects[0]
+	tt.Move(b.X+r.x+o.rect.X+2, b.Y+r.y+o.rect.Y+2)
+	tt.Frame()
+	if !tt.HasText("Proof note body.") || tt.Cursor() != ui.CursorPointer {
+		t.Fatal("hover did not preview the note", tt.Cursor())
+	}
+	tt.Move(b.X+r.x+o.rect.X+120, b.Y+r.y+o.rect.Y+2)
+	tt.Frame()
+	if tt.HasText("Proof note body.") {
+		t.Fatal("preview stayed after the pointer left")
+	}
+}

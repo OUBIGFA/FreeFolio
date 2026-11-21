@@ -850,6 +850,9 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					case e.overTableStrip(px, py):
 						// The strips paint nothing; the hand shows they act.
 						surface.Cursor(ui.CursorPointer)
+					case e.overFootnote(px, py):
+						// A reference mark jumps to its note, a note's mark back.
+						surface.Cursor(ui.CursorPointer)
 					case !e.overText(px, py):
 						// The surface spans the whole pane for presses in the
 						// margins, but only the text column reads as editable.
@@ -920,6 +923,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.mermaidPreview(c)
 	e.cropView(c)
 	e.wikiPreview(c, surface, o.PreviewWiki)
+	e.footnotePreview(c, surface)
 	return pane
 }
 

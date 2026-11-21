@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -293,10 +294,10 @@ func (e *Editor) wikiPreview(c *ui.Context, surface ui.Element, load func(string
 	})
 }
 
-func (e *Editor) inlineClick(x, y float32) bool {
-	if e.clickInlineMathPopover(x, y) {
-		return true
-	}
+// footnoteAt finds the footnote control under x, y: a definition's return
+// mark (back) or a reference mark, which only shows for a defined note. ref
+// is the reference's leaf offset and mark its rect, in surface space.
+func (e *Editor) footnoteAt(x, y float32) (back bool, ref int, label string, mark ui.Rect, ok bool) {
 	// A footnote's return target stays 26 DIP high even with small fonts;
 	// include its overhang before applying the original exact hit tests.
 	var candidates []int
@@ -306,7 +307,7 @@ func (e *Editor) inlineClick(x, y float32) bool {
 	for _, i := range candidates {
 		r := e.ensureRow(i)
 		if r.leaf.Block.Kind == "footnote" && x >= r.rect.X && x < r.x && y >= r.y && y < r.y+26 {
-			return e.ReturnFootnote()
+			return true, 0, "", ui.Rect{}, true
 		}
 		for _, o := range r.layout.objects {
 			if o.note == "" {
@@ -316,10 +317,66 @@ func (e *Editor) inlineClick(x, y float32) bool {
 			p.X += r.x
 			p.Y += r.y
 			if x >= p.X && x <= p.X+p.W && y >= p.Y && y <= p.Y+p.H {
-				e.SetSelection(r.leaf.Start+o.start, r.leaf.Start+o.start)
-				return e.FollowFootnote()
+				return false, r.leaf.Start + o.start, o.note, p, true
 			}
 		}
 	}
-	return false
+	return false, 0, "", ui.Rect{}, false
+}
+
+func (e *Editor) overFootnote(x, y float32) bool {
+	_, _, _, _, ok := e.footnoteAt(x, y)
+	return ok
+}
+
+func (e *Editor) inlineClick(x, y float32) bool {
+	if e.clickInlineMathPopover(x, y) {
+		return true
+	}
+	back, ref, _, _, ok := e.footnoteAt(x, y)
+	switch {
+	case !ok:
+		return false
+	case back:
+		return e.ReturnFootnote()
+	}
+	e.SetSelection(ref, ref)
+	return e.FollowFootnote()
+}
+
+// footnotePreview shows the note under the pointer's reference mark while
+// the pointer stays on it: no delay to open and none to close, since the
+// panel sits beside the mark and holds nothing to act on.
+func (e *Editor) footnotePreview(c *ui.Context, surface ui.Element) {
+	if !e.pointerInside || !surface.Hovered() || e.dragging || e.dragID != "" || e.printing {
+		return
+	}
+	back, _, label, mark, ok := e.footnoteAt(e.pointer.X, e.pointer.Y)
+	note, defined := e.notes[label]
+	if !ok || back || !defined {
+		return
+	}
+	leaf := e.Engine.LeafAt(note.start)
+	if leaf.Block == nil || leaf.Block.ID != note.id {
+		return
+	}
+	text := strings.TrimSpace(strings.ReplaceAll(leaf.Block.Text(), "\u2028", "\n"))
+	if text == "" {
+		text = i18n.T("这条脚注还是空的")
+	}
+	w, h := c.Size()
+	pw := min(float32(360), w-24)
+	b := surface.Bounds()
+	x := max(float32(12), min(w-pw-12, b.X+mark.X))
+	y := b.Y + mark.Y + mark.H + 6
+	if y+180 > h-12 {
+		// Above the mark when the space below runs out.
+		y = max(float32(12), b.Y+mark.Y-186)
+	}
+	ui.Overlay(c, func() {
+		ui.Column(c.Key("footnote-preview")).Absolute().Left(x).Top(y).Width(pw).MaxHeight(180).Padding(12).Gap(6).Radius(10).Background(e.page.Popover).Border(1, e.page.MathBorder).Shadow(0, 6, 20, 0, e.page.MathShadow).Label(i18n.T("脚注预览")).Children(func() {
+			ui.Text(c, fmt.Sprintf("%s %d", i18n.T("脚注"), note.number)).FontSize(11).TextColor(c.Theme().TextMuted).MaxLines(1)
+			ui.Text(c, text).FontSize(13).MaxLines(7)
+		})
+	})
 }

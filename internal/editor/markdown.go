@@ -371,7 +371,7 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 		return out
 	}
 
-	rawBlocks := blocks(0, "", 0)
+	rawBlocks := footnotesLast(blocks(0, "", 0))
 	structured, chunks := buildStructuredBlocks(rawBlocks, topSpans, text, forSearch, explicitLeft)
 	result.Blocks = structured
 	if len(result.Blocks) == 0 {
@@ -379,6 +379,25 @@ func parseMarkdownSourceMode(source string, forSearch bool) parsedMarkdown {
 		chunks = nil
 	}
 	return parsedMarkdown{doc: result, rawFrontmatter: rawFM, chunks: chunks}
+}
+
+// footnotesLast moves top-level footnote definitions to the end of the page,
+// in order, as GFM renders them wherever they are written. The export
+// compares against a source parse moved the same way, so an unedited page
+// keeps its bytes and an edited one writes its definitions last.
+func footnotesLast(blocks []*document.Block) []*document.Block {
+	var body, notes []*document.Block
+	for _, b := range blocks {
+		if b.Kind == "footnote" {
+			notes = append(notes, b)
+		} else {
+			body = append(body, b)
+		}
+	}
+	if len(notes) == 0 {
+		return blocks
+	}
+	return append(body, notes...)
 }
 
 // extraBlankLines counts the blank lines between two blocks, past the one

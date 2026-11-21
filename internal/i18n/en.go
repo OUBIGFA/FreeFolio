@@ -1177,6 +1177,8 @@ var en = map[string]string{
 	"置顶":          "Pin",
 	"置顶文档":        "Pin Document",
 	"脚注":          "Footnote",
+	"脚注预览":        "Footnote preview",
+	"这条脚注还是空的":    "This footnote is empty",
 	"自动更新 FreeMD": "Update FreeMD automatically",
 	"自定义…":        "Custom…",
 	"自然":          "Nature",
