@@ -743,7 +743,6 @@ var en = map[string]string{
 	"在新窗口中打开":             "Open in New Window",
 	"在新窗口中打开当前文档":         "Open Current Document in New Window",
 	"在浏览器中打开 GitHub 开源仓库": "Open the GitHub repository in your browser",
-	"在此处新建文档":             "New Document Here",
 	"在文件管理器中显示":           "Show in File Manager",
 	"在文件管理器中显示 ":          "Show in File Manager: ",
 	"在文件管理器中显示文档":         "Show Document in File Manager",

@@ -197,12 +197,20 @@ type App struct {
 	dividerY     float32
 	rows         []rowFrame
 	rowsBefore   []rowFrame
-	slot         slotState
-	dragGrab     dragGrab
-	dragSettle   dragSettle
-	insertSeam   insertSeam
-	newDocPulse  time.Time
-	favDrop      *favDrop
+	// rowWin is the window of the section of the list being built, and
+	// spaced the rows it left out (rowwindow.go); rowFocus is the focused
+	// row's place in the frame before, rowFocusNow in this one. rowsAll
+	// builds every row: tests compare against it.
+	rowWin      *rowWindow
+	spaced      map[string]spacedRow
+	rowFocus    rowFocus
+	rowFocusNow rowFocus
+	rowsAll     bool
+	slot        slotState
+	dragGrab    dragGrab
+	dragSettle  dragSettle
+	newDocPulse time.Time
+	favDrop     *favDrop
 	// preview is the card a folder or a document shows when the pointer
 	// rests on it (preview.go).
 	preview preview
@@ -313,8 +321,7 @@ func New(cfg Config) (*App, error) {
 		bin:       trashbin.Bin{Dir: filepath.Join(cfg.ConfigDir, "trash")},
 		qa:        qaState{secrets: prefs.Secrets{Dir: filepath.Join(cfg.ConfigDir, "credentials")}},
 		// The spaces fade in on coming back from the library, not at start.
-		library:    library{frames: 1},
-		insertSeam: insertSeam{index: -1},
+		library: library{frames: 1},
 	}
 	// The search index kept from the last run is read while the rest
 	// loads: it is one file as long as all the documents' text.
@@ -1074,12 +1081,6 @@ func (a *App) toggleSource() {
 // newDoc makes a document in the folder dir of the active space and
 // opens it.
 func (a *App) newDoc(dir string) {
-	a.newDocAt(dir, -1)
-}
-
-// newDocAt makes a document in the folder dir of the active space, placed
-// at index among dir's entries when index >= 0, and opens it.
-func (a *App) newDocAt(dir string, index int) {
 	sp := a.state.ActiveSpace()
 	if sp == nil {
 		return
@@ -1087,14 +1088,6 @@ func (a *App) newDocAt(dir string, index int) {
 	if sp.IsExternal() {
 		a.notify("请在普通空间中新建文档。")
 		return
-	}
-	var names []string
-	if index >= 0 {
-		kids := a.childrenOf(dir)
-		names = make([]string, len(kids))
-		for i, n := range kids {
-			names[i] = n.Name
-		}
 	}
 	// An empty title to type, its placeholder showing, and the starter
 	// below; the file is named for the title once it has one.
@@ -1110,10 +1103,6 @@ func (a *App) newDocAt(dir string, index int) {
 	}
 	if dir != "" {
 		sp.SetExpanded(dir, true)
-	}
-	if index >= 0 {
-		sp.Place(dir, names, path.Base(rel), index)
-		a.saveState()
 	}
 	a.refreshTree()
 	a.open(rel)
