@@ -37,6 +37,11 @@ computer. You can write notes without an internet connection.
 
 - **Write notes.** Add pictures, tables, and lists of tasks to your class notes
   or meeting notes.
+- **Browse files.** Open a note from any folder on your computer. You do not
+  need to add the folder first. FreeMD shows selected files in separate tabs.
+  Save changes to the original file. Use **Save As** to save a copy. FreeMD
+  opens only the files you select. It does not scan the whole folder. Close
+  file browsing to return to the space you used before.
 - **Find notes.** Use different folders for work notes and personal notes.
   Enter words from a note in the search box.
 - **Find a section in a long note.** Use a diagram to see the headings and
@@ -59,8 +64,11 @@ computer. You can write notes without an internet connection.
 Open FreeMD.
 
 - For a new note, select **+** above the list of files.
-- To open a note, select the folder icon below the list of files. Select a
-  file with a name that ends in **.md**.
+- To open a note in a space, select the folder icon below the list of files.
+  Select a file with a name that ends in **.md**.
+- To open a note outside a space, select **Open File…**. FreeMD opens file
+  browsing. The file stays in its original folder.
+- Close file browsing to return to the space you used before.
 
 ## Options
 
