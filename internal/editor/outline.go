@@ -215,13 +215,16 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 		return
 	}
 	t := c.Theme()
+	// Keep the full scrollbar hit area clear, including while the outline fades.
+	// An overlay in this lane steals hover and presses from the page scroll.
+	barWidth := (ui.ScrollbarStyle{}).Resolve(t).TrackWidth
 	target := float32(0)
 	if e.OutlineOpen() {
 		target = 1
 	}
 	shown := pane.Animate("outline-open", target, outlineSlide)
 	if shown < 1 {
-		open := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(16).Top(s.buttonTop).Size(28, 28).Radius(6).Center().
+		open := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(barWidth+16).Top(s.buttonTop).Size(28, 28).Radius(6).Center().
 			Label(i18n.T("展开目录")).Tooltip(i18n.T("展开目录")).KeepFocus().Cursor(ui.CursorPointer).Opacity(1 - shown)
 		color := t.Text.Alpha(.55)
 		if open.Hovered() {
@@ -242,8 +245,8 @@ func (e *Editor) outlineView(c *ui.Context, pane ui.Element) {
 	if e.scrollEndsShown() {
 		bottom += scrollEndsH + 16
 	}
-	panel := ui.Column(c.Key("outline")).Absolute().Right(0).Top(0).Width(s.width).Height(e.viewport).
-		Padding(s.buttonTop, 16, bottom, 12).Gap(8).Opacity(shown).Translate((1-shown)*24, 0)
+	panel := ui.Column(c.Key("outline")).Absolute().Right(barWidth).Top(0).Width(s.width).Height(e.viewport).
+		Padding(s.buttonTop, 16, bottom, 12).Gap(8).Opacity(shown)
 	panel.Children(func() {
 		close := ui.ButtonBase(c.Key("outline-close")).Size(28, 28).Radius(6).Center().AlignSelf(ui.End).
 			Label(i18n.T("收起目录")).Tooltip(i18n.T("收起目录")).KeepFocus().Cursor(ui.CursorPointer)
@@ -278,6 +281,7 @@ const (
 func (e *Editor) floatingOutline(c *ui.Context, pane ui.Element) {
 	s := &e.outlineState
 	t := c.Theme()
+	right := max(float32(6), (ui.ScrollbarStyle{}).Resolve(t).TrackWidth)
 	n := len(e.outline)
 	active := e.activeOutline()
 	top := e.outlineTopLevel()
@@ -287,7 +291,7 @@ func (e *Editor) floatingOutline(c *ui.Context, pane ui.Element) {
 	step := min(float32(railStepMax), max(railStepMin, railMax/float32(max(n, 1))))
 	count := min(n, max(1, int(railMax/step)))
 	from := min(max(0, active-count/2), n-count)
-	rail := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(6).Top(s.buttonTop).
+	rail := ui.ButtonBase(c.Key("outline-open")).Absolute().Right(right).Top(s.buttonTop).
 		Width(railWidth).Height(float32(count)*step + 12).
 		Label(i18n.T("展开目录")).KeepFocus().Cursor(ui.CursorPointer).Expanded(s.floating)
 	railHovered := rail.Hovered()
@@ -318,10 +322,10 @@ func (e *Editor) floatingOutline(c *ui.Context, pane ui.Element) {
 	}
 	// As tall as its entries, within floatPanelMax of the view: the list
 	// scrolls past that.
-	panel := ui.Column(c.Key("outline")).Absolute().Right(6).Top(s.buttonTop-6).
-		Width(min(float32(outlineWidth), s.width-12)).MaxHeight(max(120, e.viewport*floatPanelMax)).Padding(6).Radius(10).
+	panel := ui.Column(c.Key("outline")).Absolute().Right(right).Top(s.buttonTop-6).
+		Width(min(float32(outlineWidth), s.width-right-6)).MaxHeight(max(120, e.viewport*floatPanelMax)).Padding(6).Radius(10).
 		Background(e.page.Popover).Border(1, t.Text.Alpha(.12)).KeepFocus().
-		Role(ui.RoleDialog).Label(i18n.T("目录")).Opacity(shown).Translate((1-shown)*8, 0)
+		Role(ui.RoleDialog).Label(i18n.T("目录")).Opacity(shown)
 	panel.Children(func() { e.outlineList(c) })
 	s.panelHovered = panel.Hovered()
 	if s.floating && !railHovered && panel.PressedOutside() || s.floating && c.Shortcut(0, ui.KeyEscape) {

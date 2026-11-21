@@ -97,6 +97,8 @@ func (e *Editor) scrollEnds(c *ui.Context) {
 	pg := e.page
 	w := float32(scrollEndsSize + 2*scrollEndsPad + 2)
 	right := min(16, max(4, (e.padding-w)/2))
+	// These buttons share the margin with the scrollbar, never its hit area.
+	right = max(right, (ui.ScrollbarStyle{}).Resolve(t).TrackWidth)
 	group := ui.Column(c.Key("scroll-ends")).Absolute().Right(right).Bottom(16).Width(w).Padding(scrollEndsPad).Gap(2).
 		Radius(8).Background(pg.Popover).Border(1, pg.CodeBorder).Role(ui.RoleGroup).Label(i18n.T("页面位置"))
 	group.Children(func() {

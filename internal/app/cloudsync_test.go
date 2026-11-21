@@ -15,7 +15,124 @@ import (
 
 	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
 	"github.com/egoist/mygo/ui"
+	"golang.org/x/net/webdav"
 )
+
+// Load the saved settings before the first frame, as a real launch does.
+func newCloudScheduleTestApp(t *testing.T, configure func(*cloudsync.Config)) (*App, *ui.Tester) {
+	t.Helper()
+	a, _ := newTestApp(t)
+	server := httptest.NewServer(&webdav.Handler{FileSystem: webdav.Dir(t.TempDir()), LockSystem: webdav.NewMemLS()})
+	t.Cleanup(server.Close)
+	cfg := cloudsync.DefaultConfig()
+	cfg.Enabled, cfg.Automatic = true, true
+	cfg.WebDAVURL = server.URL
+	cfg.Spaces[a.state.Active] = "Notes"
+	configure(&cfg)
+	if err := cloudsync.SaveConfig(a.cfg.ConfigDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(a.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		a.cancelCloudSync()
+		if a.cloud.busy {
+			select {
+			case <-a.cloud.done:
+			case <-time.After(3 * time.Second):
+				t.Error("sync worker did not stop")
+			}
+		}
+	})
+	tt := ui.NewTester(a.View, 1200, 760)
+	return a, tt
+}
+
+func TestCloudEnablingWaitsForFutureSchedule(t *testing.T) {
+	for _, toggle := range []string{"automatic", "enabled"} {
+		for _, schedule := range []string{"interval", "daily"} {
+			t.Run(toggle+"/"+schedule, func(t *testing.T) {
+				a, tt := newCloudScheduleTestApp(t, func(cfg *cloudsync.Config) {
+					cfg.Automatic = toggle != "automatic"
+					cfg.Enabled = toggle != "enabled"
+					cfg.Schedule, cfg.DailyTime = schedule, "00:00"
+				})
+				tt.Advance(24 * time.Hour)
+				a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
+				tt.Frame()
+				want := a.now.Add(30 * time.Minute)
+				if schedule == "daily" {
+					want = time.Date(a.now.Year(), a.now.Month(), a.now.Day()+1, 0, 0, 0, 0, a.now.Location())
+				}
+				tt.Advance(3 * time.Second)
+				if a.cloud.busy || !a.cloud.due.IsZero() || !a.cloud.next.Equal(want) {
+					t.Fatalf("enabling sync ran or queued an immediate job: busy=%v due=%v next=%v want=%v", a.cloud.busy, a.cloud.due, a.cloud.next, want)
+				}
+				tt.Advance(want.Sub(a.now))
+				if a.cloud.count != 1 {
+					t.Fatalf("the next scheduled sync did not start: now=%v next=%v count=%d message=%q", a.now, a.cloud.next, a.cloud.count, a.cloud.message)
+				}
+			})
+		}
+	}
+}
+
+func TestCloudDisablingDiscardsPendingSync(t *testing.T) {
+	for _, pending := range []string{"startup", "save", "retry", "interval"} {
+		for _, toggle := range []string{"automatic", "enabled"} {
+			t.Run(pending+"/"+toggle, func(t *testing.T) {
+				a, tt := newCloudScheduleTestApp(t, func(cfg *cloudsync.Config) {
+					cfg.SyncOnStart = pending == "startup"
+				})
+				switch pending {
+				case "save":
+					a.doc.justSaved = true
+					a.cloudSaved(a.doc)
+				case "retry":
+					a.cloud.busy = true
+					a.cloud.done = make(chan cloudOutcome, 1)
+					a.cloud.done <- cloudOutcome{err: errors.New("temporary connection failure")}
+					tt.Frame()
+				}
+				if toggle == "automatic" {
+					a.cloud.config.Automatic = false
+				} else {
+					a.cloud.config.Enabled = false
+				}
+				tt.Frame()
+				if !a.cloud.due.IsZero() || !a.cloud.next.IsZero() || a.cloud.retries != 0 {
+					t.Fatalf("disabled sync retained pending work: due=%v next=%v retries=%d", a.cloud.due, a.cloud.next, a.cloud.retries)
+				}
+				tt.Advance(24 * time.Hour)
+				a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
+				tt.Frame()
+				want := a.now.Add(30 * time.Minute)
+				tt.Advance(3 * time.Second)
+				if a.cloud.busy || !a.cloud.due.IsZero() || !a.cloud.next.Equal(want) {
+					t.Fatalf("reenabling sync replayed pending work: busy=%v due=%v next=%v", a.cloud.busy, a.cloud.due, a.cloud.next)
+				}
+			})
+		}
+	}
+}
+
+func TestCloudStartupSyncRunsOnceAtLaunch(t *testing.T) {
+	a, tt := newCloudScheduleTestApp(t, func(*cloudsync.Config) {})
+	tt.Advance(2*time.Second - time.Millisecond)
+	if a.cloud.busy {
+		t.Fatal("startup sync ran before its delay")
+	}
+	tt.Advance(time.Millisecond)
+	if a.cloud.count != 1 {
+		t.Fatal("enabled startup sync did not run at launch")
+	}
+	tt.Advance(3 * time.Second)
+	if a.cloud.count != 1 {
+		t.Fatal("startup sync ran more than once")
+	}
+}
 
 func TestCloudProgressAndManualCancellation(t *testing.T) {
 	a, tt := newTestApp(t)

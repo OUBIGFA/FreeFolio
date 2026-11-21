@@ -199,6 +199,20 @@ func (a *App) startCloudSync(probe, manual bool) {
 func (a *App) cloudTick(c *ui.Context) {
 	s := &a.cloud
 	now := c.Now()
+	if !s.started {
+		// Startup is a one-time launch decision, even when automatic sync is off.
+		s.started = true
+		if s.config.Enabled && s.config.Automatic && !s.broken && s.config.SyncOnStart {
+			s.due = now.Add(2 * time.Second)
+		}
+	}
+	if !s.config.Enabled || !s.config.Automatic || s.broken {
+		// Turning sync off cancels pending work, so enabling it cannot replay
+		// startup, save, retry or overdue scheduled jobs from before the pause.
+		s.next = time.Time{}
+		s.due = time.Time{}
+		s.retries = 0
+	}
 	if s.busy {
 		if s.progress != nil {
 			if p := s.progress.Swap(nil); p != nil {
@@ -297,12 +311,8 @@ func (a *App) cloudTick(c *ui.Context) {
 		s.day = day
 		s.count = 0
 	}
-	if !s.started {
-		s.started = true
+	if s.next.IsZero() {
 		s.next = s.config.Next(now)
-		if s.config.SyncOnStart {
-			s.due = now.Add(2 * time.Second)
-		}
 	}
 	if s.config.DailyLimit > 0 && s.count >= s.config.DailyLimit {
 		c.After(time.Minute)
@@ -512,7 +522,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 	// Automatic schedule.
 	settingsSection(c, i18n.T("自动同步"))
 	settingsGroup(c, "cloud-schedule", func() {
-		settingRow(c, "auto", i18n.T("自动同步"), i18n.T("保存文档后自动同步，并按计划定期检查远端更新。"), func() {
+		settingRow(c, "auto", i18n.T("自动同步"), i18n.T("开启时不会立即同步；之后保存文档或到达计划时间时同步。"), func() {
 			ui.Switch(c.Key("control"), &cfg.Automatic).Label(i18n.T("自动同步")).Disabled(locked)
 		})
 		if cfg.Automatic {
@@ -540,7 +550,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 			settingsSeparator(c)
 			cloudNumberRow(c, "retry", i18n.T("失败重试次数"), "", &cfg.RetryLimit, 0, 10, locked)
 			settingsSeparator(c)
-			settingRow(c, "startup", i18n.T("启动后同步一次"), "", func() {
+			settingRow(c, "startup", i18n.T("启动后同步一次"), i18n.T("仅在应用启动时执行；运行期间开启自动同步不会补跑。"), func() {
 				ui.Switch(c.Key("control"), &cfg.SyncOnStart).Label(i18n.T("启动后同步一次")).Disabled(locked)
 			})
 		}
