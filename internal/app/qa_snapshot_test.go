@@ -110,7 +110,7 @@ func TestQAWindowResizeSnapshot(t *testing.T) {
 
 func TestQASnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the question panel")
-	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "orb", "orb-dark", "orb-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
+	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "polished", "polished-dark", "polished-narrow", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "orb", "orb-dark", "orb-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
 		t.Run(name, func(t *testing.T) {
 			replyText := "发布**延期到 12 月 2 日**，主要有两个原因 [发布计划.md#L5]：\n\n- 支付联调需要排查回调 [发布计划.md#L7]，目前已在周报确认修复 [项目/周报.md#L5]\n- 证书审批还在走流程 [发布计划.md#L11]\n\n目前唯一的阻塞是证书，`payments` 模块已经修好。"
 			if strings.HasPrefix(name, "citations-") {
@@ -153,6 +153,23 @@ func TestQASnapshot(t *testing.T) {
 				if strings.HasPrefix(name, "steps") {
 					a.qaSession(sp).turns[0].expanded = true
 				}
+			case "polished", "polished-dark", "polished-narrow":
+				s := a.qaSession(sp)
+				t1 := &qaTurn{
+					model:             "test-model",
+					question:          "请简要总结之前的背景问题",
+					answer:            "先前讨论完成了需求范围确认，下文开启新主题。",
+					contextBreakAfter: true,
+				}
+				t2 := &qaTurn{
+					model:    "gemini-2.5-pro",
+					question: "这篇文章的核心结构与代码示例是什么？",
+					answer:   "## 1. 核心维度概览\n\n核心结论基于已梳理文档 [发布计划.md#L5]。\n\n---\n\n> 保持段落、引用与分隔线的视觉层次清晰，不要出现厚重色块。\n\n---\n\n```go\nfunc RenderRule() {\n\tprintln(\"hairline\")\n}\n```",
+				}
+				t1.stream.sync(t1.answer, tt.Now())
+				t2.stream.sync(t2.answer, tt.Now())
+				s.turns = []*qaTurn{t1, t2}
+				s.contextStart = 2
 			case "error":
 				s := a.qaSession(sp)
 				s.turns = append(s.turns, &qaTurn{question: "总结一下本周的笔记", err: &agent.APIError{Status: 401, Message: "Incorrect API key provided"}})

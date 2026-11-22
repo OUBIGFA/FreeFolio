@@ -14,6 +14,14 @@ import (
 // selector, and expandable changes attached to assistant messages. See the
 // pinned source record in third_party/opencode/README.md.
 func (a *App) oneBotHeaderMenu(c *ui.Context) {
+	sp := a.state.ActiveSpace()
+	var sess *qaSession
+	if sp != nil {
+		sess = a.qaSession(sp.ID)
+	}
+	hasTurns := sess != nil && len(sess.turns) > 0
+	busy := sess != nil && sess.running()
+	alreadyCleared := !hasTurns || sess.turns[len(sess.turns)-1].contextBreakAfter
 	iconButton(c, "onebot-menu", iconEllipsis, i18n.T("OneBot 菜单"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 		if m.Item(i18n.T("OneBot 设置…")).Chosen() {
 			a.openSettings(tabAI)
@@ -22,6 +30,13 @@ func (a *App) oneBotHeaderMenu(c *ui.Context) {
 			a.loadOneBotHistory()
 			a.qa.historyOpen = false
 			a.qa.editHistoryOpen = true
+		}
+		m.Separator()
+		if m.Item(i18n.T("清除上下文")).Disabled(busy || alreadyCleared).Chosen() && sp != nil {
+			a.clearOneBotContext(sp.ID)
+		}
+		if m.Item(i18n.T("复制完整对话")).Disabled(!hasTurns).Chosen() {
+			a.copyQAText(c, "conv-copy", exportOneBotConversationMarkdown(sess))
 		}
 		m.Separator()
 		if m.Item(i18n.T("直接修改")).Checked(a.prefs.AI.Direct).Chosen() {
@@ -188,11 +203,22 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 						a.qa.editOptionsOpen = true
 					}
 				})
-				a.oneBotCompactModel(c)
-				ui.Spacer(c)
 				busy := s.running()
 				if task := a.qa.editTask; task != nil && (task.Running || task.Applying) {
 					busy = true
+				}
+				ctxCleared := len(s.turns) == 0 || s.turns[len(s.turns)-1].contextBreakAfter
+				if iconButton(c, "qa-clear-context", iconEraser, i18n.T("清除上下文"), i18n.T("清除上下文（保留上方记录，重新开始对话）"), busy || ctxCleared).Size(28, 28).Clicked() {
+					a.clearOneBotContext(s.spaceID)
+				}
+				a.oneBotCompactModel(c)
+				ui.Spacer(c)
+				if len(s.turns) > 0 {
+					ctxLabel := i18n.T("新上下文")
+					if n := activeContextTurns(s); n > 0 {
+						ctxLabel = fmt.Sprintf(i18n.T("%d 轮上下文"), n)
+					}
+					ui.Text(c, ctxLabel).FontSize(11).TextColor(t.TextMuted.Alpha(0.68)).NoWrap().Padding(0, 4, 0, 0)
 				}
 				sendDisabled := strings.TrimSpace(a.qa.input) == "" && (a.qa.editMode || len(a.qa.attachments) == 0)
 				if busy {
@@ -323,7 +349,7 @@ func (a *App) attachOneBotTask(task *oneBotTask) {
 			return
 		}
 	}
-	s.turns = append(s.turns, &qaTurn{question: task.Instruction, edit: task})
+	s.turns = append(s.turns, &qaTurn{model: a.qaSettings().Model, start: len(s.history), question: task.Instruction, edit: task})
 	s.list.ScrollToEnd()
 	a.saveOneBotConversation(task.SpaceID, s)
 }

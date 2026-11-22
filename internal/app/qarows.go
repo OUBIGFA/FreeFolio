@@ -17,6 +17,7 @@ const (
 	qaSourcesRow
 	qaStatusRow
 	qaEditRow
+	qaContextBreakRow
 )
 
 // A row's identity belongs to its turn and block, so inserting tool results
@@ -90,12 +91,11 @@ type qaTurnView struct {
 }
 
 type qaRowsState struct {
-	turn                   *qaTurn
-	epoch                  uint64
-	answer                 string
-	running                bool
-	steps, sources, status bool
-	edit                   bool
+	turn                                 *qaTurn
+	epoch                                uint64
+	answer                               string
+	running                              bool
+	steps, sources, status, edit, cbreak bool
 }
 
 func (t *qaTurn) rowsState() qaRowsState {
@@ -108,9 +108,10 @@ func (t *qaTurn) rowsState() qaRowsState {
 		answer:  t.displayAnswer(),
 		running: active,
 		steps:   hasSteps,
-		sources: !active,
+		sources: !active && (len(t.view.refs) > 0 || t.answer != "" || t.stopped || t.edit != nil),
 		status:  (waiting && !hasSteps) || t.stopped || t.err != nil,
 		edit:    t.edit != nil,
+		cbreak:  t.contextBreakAfter,
 	}
 }
 
@@ -175,11 +176,14 @@ func (s *qaSession) visibleRowsWith(fs func() *spacefs.FS) []qaRow {
 		if turn.edit != nil {
 			s.rows = append(s.rows, qaRow{turn: turn, kind: qaEditRow})
 		}
-		if !active && len(turn.view.refs) > 0 {
-			s.rows = append(s.rows, qaRow{turn: turn, kind: qaSourcesRow})
-		}
 		if turn.stopped || turn.err != nil {
 			s.rows = append(s.rows, qaRow{turn: turn, kind: qaStatusRow})
+		}
+		if !active && (len(turn.view.refs) > 0 || turn.answer != "" || turn.stopped || turn.edit != nil) {
+			s.rows = append(s.rows, qaRow{turn: turn, kind: qaSourcesRow})
+		}
+		if turn.contextBreakAfter {
+			s.rows = append(s.rows, qaRow{turn: turn, kind: qaContextBreakRow})
 		}
 	}
 	return s.rows

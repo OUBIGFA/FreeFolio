@@ -25,14 +25,18 @@ func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *q
 	}
 	switch b.kind {
 	case qaRule:
-		ui.Box(c).Height(1).Background(separator(t)).PaddingY(7)
+		ui.Column(c).Padding(8, 0, 8, 0).Children(func() {
+			ui.Box(c.Key("hr")).Height(1).Background(separator(t).Alpha(0.75))
+		})
 	case qaCodeBlock:
-		ui.Column(c).Opacity(qaFadeAlpha(c.Now(), b.fade.blockBirth)).Children(func() { qaMarkdownCode(c, b) })
+		ui.Column(c).Opacity(qaFadeAlpha(c.Now(), b.fade.blockBirth)).Children(func() {
+			a.qaMarkdownCode(c, fmt.Sprintf("code-%p-%d", turn, b.start), b)
+		})
 	case qaHeading:
-		text("text", b.runs, t.Text, b.size).FontSize(b.size).FontWeight(700).LineHeight(1.38).Padding(7, 0, 7, 0)
+		text("text", b.runs, t.Text, b.size).FontSize(b.size).FontWeight(600).LineHeight(1.38).Padding(10, 0, 2, 0)
 	case qaQuote:
-		ui.Row(c).Gap(14).Children(func() {
-			ui.Box(c).Width(4).Radius(2).AlignSelf(ui.Stretch).Background(t.Accent.Alpha(0.35))
+		ui.Row(c).Gap(10).Padding(6, 10).Radius(6).Background(t.Text.Alpha(0.024)).Children(func() {
+			ui.Box(c).Width(3).Radius(1.5).AlignSelf(ui.Stretch).Background(t.Accent.Alpha(0.45))
 			text("text", b.runs, t.TextMuted, 14).Shrink(1).MinWidth(0)
 		})
 	case qaListItem:
@@ -41,13 +45,13 @@ func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *q
 			text("text", b.runs, t.Text, 14).Shrink(1).MinWidth(0)
 		})
 	case qaTableRow:
-		row := ui.Row(c).Border(1, t.Border.Alpha(0.5))
+		row := ui.Row(c).Border(1, t.Border.Alpha(0.45))
 		if b.header {
 			row.Background(t.Text.Alpha(0.04)).FontWeight(600)
 		}
 		row.Children(func() {
 			for i, cell := range b.cells {
-				ui.Box(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Padding(8).Children(func() {
+				ui.Box(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Padding(6, 10).Children(func() {
 					e := text("cell", cell.runs, t.Text, 14)
 					switch cell.align {
 					case parser.AlignCenter:
@@ -257,18 +261,39 @@ func qaWebLink(url string) bool {
 	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "mailto:")
 }
 
-func qaMarkdownCode(c *ui.Context, b *qaBlock) {
+func (a *App) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
 	t := c.Theme()
-	ui.Column(c).Radius(8).Background(t.Text.Alpha(0.04)).Border(1, t.Border.Alpha(0.5)).Clip().Children(func() {
-		ui.Row(c).Padding(6, 10).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, b.language).FontSize(12).TextColor(t.TextMuted)
+	lang := strings.TrimSpace(b.language)
+	if lang == "" {
+		lang = "text"
+	}
+	copied := a.isQACopied(c, key)
+	ui.Column(c).Radius(8).Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.45)).Clip().Children(func() {
+		ui.Row(c).Padding(5, 10).AlignItems(ui.Center).Background(t.Text.Alpha(0.03)).Children(func() {
+			ui.Text(c, lang).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 			ui.Spacer(c)
-			if ui.Button(c.Key("copy"), i18n.T("复制代码")).FontSize(11).Clicked() {
-				c.WriteClipboard(b.text)
+			copyBtn := ui.Row(c.Key("copy")).Height(22).Padding(0, 7).Gap(4).Radius(5).AlignItems(ui.Center).
+				Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("复制代码"))
+			if copyBtn.Hovered() {
+				copyBtn.Background(hoverFill(t))
+			}
+			icon, label, ink := iconCopy, i18n.T("复制代码"), t.TextMuted
+			if copied {
+				icon, label, ink = iconCheck, i18n.T("已复制"), t.Accent
+			} else if copyBtn.Hovered() {
+				ink = t.Text
+			}
+			copyBtn.Children(func() {
+				ui.Icon(c, icon).FontSize(11.5).TextColor(ink)
+				ui.Text(c, label).FontSize(11).TextColor(ink).NoWrap()
+			})
+			if copyBtn.Clicked() {
+				a.copyQAText(c, key, b.text)
 			}
 		})
+		ui.Box(c).Height(1).Background(separator(t).Alpha(0.6))
 		ui.ScrollHorizontal(c).Children(func() {
-			ui.Text(c, b.text).Font("monospace").FontSize(12.25).LineHeight(1.6).NoWrap().Selectable().Padding(8, 12, 12, 12)
+			ui.Text(c, b.text).Font("monospace").FontSize(12.25).LineHeight(1.6).NoWrap().Selectable().Padding(10, 12, 10, 12)
 		})
 	})
 }

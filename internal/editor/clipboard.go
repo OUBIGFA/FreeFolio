@@ -294,3 +294,20 @@ func sameTrimmedLines(a, b string) bool {
 	}
 	return true
 }
+
+// InsertMarkdown parses md and inserts the resulting blocks at the caret.
+func (e *Editor) InsertMarkdown(md string) bool {
+	if e == nil || e.ReadOnly || strings.TrimSpace(md) == "" {
+		return false
+	}
+	e.UnmarkText()
+	doc := ImportMarkdown(normalizeLineBreaks(md))
+	if len(doc.Blocks) > 0 {
+		e.Engine.Paste(doc)
+		e.sync()
+		return true
+	}
+	e.Buffer.ReplaceText(nil, md)
+	e.sync()
+	return true
+}

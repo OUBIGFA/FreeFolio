@@ -67,7 +67,7 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 				if histBtn.Clicked() {
 					a.toggleOneBotHistory()
 				}
-				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话"), len(s.turns) == 0 && !a.qa.historyOpen).Clicked() {
+				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话（清空界面并重新开始）"), len(s.turns) == 0 && !a.qa.historyOpen).Clicked() {
 					a.clearQA()
 				}
 				if iconButton(c, "qa-close", iconX, i18n.T("关闭 OneBot"), a.withKey(i18n.T("关闭 OneBot"), "ask"), false).Clicked() {
@@ -141,31 +141,33 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 		s.preview.panelRect = r
 	})
 	wrap.Children(func() {
-		list := ui.List(c.Key("qa-scroll-"+spaceID+"-"+s.id), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(14).
+		list := ui.List(c.Key("qa-scroll-"+spaceID+"-"+s.id), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(16, 18).
 			Label(i18n.T("OneBot")).ItemKey(func(i int) any { return rows[i] })
 		list.Rows(func(row ui.ListRow) {
 			c := row.Context
 			r := rows[row.Index]
 			gap := r.gap()
 			if row.Index+1 < len(rows) && rows[row.Index+1].turn != r.turn {
-				gap = 18
+				gap = 22
 			}
 			ui.Column(c.Key("content")).Padding(0, 0, gap, 0).Children(func() {
 				switch r.kind {
 				case qaEmptyRow:
 					a.qaEmpty(c, name)
 				case qaQuestionRow:
-					a.qaQuestion(c, r.turn)
+					a.qaQuestion(c, spaceID, s, r.turn)
 				case qaStepsRow:
 					a.qaSteps(c, spaceID, r.turn)
 				case qaAnswerRow:
 					a.qaAnswerBlock(c, spaceID, s, r.turn, &r.turn.view.blocks[r.index])
 				case qaSourcesRow:
-					a.qaSources(c, spaceID, r.turn)
+					a.qaTurnFooter(c, spaceID, s, r.turn)
 				case qaStatusRow:
 					a.qaStatus(c, spaceID, r.turn)
 				case qaEditRow:
 					a.oneBotReply(c, r.turn.edit)
+				case qaContextBreakRow:
+					a.qaContextBreak(c, spaceID, s, r.turn)
 				}
 			})
 		})
@@ -269,7 +271,32 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 	})
 }
 
-func (a *App) qaQuestion(c *ui.Context, turn *qaTurn) {
+func qaQuietIconAction(c *ui.Context, key string, icon *ui.SVG, label, tooltip string, active, disabled bool) ui.Element {
+	t := c.Theme()
+	b := ui.Box(c.Key(key)).Size(24, 24).Radius(6).Center().Focusable().
+		Role(ui.RoleButton).Label(label).Tooltip(tooltip).Disabled(disabled)
+	ink := t.TextMuted.Alpha(0.72)
+	switch {
+	case disabled:
+		ink = t.Text.Alpha(0.26)
+	case active:
+		ink = t.Accent
+		b.Cursor(ui.CursorPointer)
+		if b.Hovered() {
+			b.Background(hoverFill(t))
+		}
+	default:
+		b.Cursor(ui.CursorPointer)
+		if b.Hovered() {
+			b.Background(hoverFill(t))
+			ink = t.Text
+		}
+	}
+	b.Children(func() { ui.Icon(c, icon).FontSize(12.5).TextColor(ink) })
+	return b
+}
+
+func (a *App) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
 	ui.Column(c.Key("q")).Gap(5).AlignItems(ui.End).Transition(ui.ElementTransition{
 		Duration: 180 * time.Millisecond,
@@ -277,12 +304,167 @@ func (a *App) qaQuestion(c *ui.Context, turn *qaTurn) {
 	}).Children(func() {
 		a.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
 		a.oneBotAttachmentBadges(c, "q-attachments", turn.attachments, nil)
+		if a.qa.editingTurn == turn {
+			ui.Column(c.Key("q-edit")).WidthPercent(100).MaxWidth(520).Padding(10, 12).Radius(12).
+				Background(field(t)).Border(1, t.Accent.Alpha(0.55)).Gap(8).Children(func() {
+				edIn := ui.TextInput(c.Key("edit-turn-input"), &a.qa.editingText).Multiline(true).MinHeight(56).
+					Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("编辑问题"))
+				if a.qa.focusEditTurn {
+					a.qa.focusEditTurn = false
+					edIn.Focus()
+				}
+				if edIn.Focused() && c.Shortcut(0, ui.KeyEscape) {
+					a.cancelEditQATurn()
+					return
+				}
+				canSave := strings.TrimSpace(a.qa.editingText) != "" || len(turn.attachments) > 0 || len(turn.quotes) > 0
+				if (edIn.Submitted() || (edIn.Focused() && c.Shortcut(ui.Cmd, ui.KeyEnter))) && canSave {
+					a.submitEditQATurn(spaceID)
+					return
+				}
+				ui.Row(c.Key("edit-actions")).Gap(6).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+					if ui.Button(c.Key("edit-cancel"), i18n.T("取消")).FontSize(12).Clicked() {
+						a.cancelEditQATurn()
+					}
+					if ui.PrimaryButton(c.Key("edit-save"), i18n.T("保存并发送")).FontSize(12).Disabled(!canSave).Clicked() {
+						a.submitEditQATurn(spaceID)
+					}
+				})
+			})
+			return
+		}
 		if turn.question != "" {
-			ui.Box(c.Key("bubble")).Padding(9, 13).Radius(13).
-				Background(t.Accent.Alpha(0.13)).Border(1, t.Accent.Alpha(0.20)).MaxWidth(304).Children(func() {
+			ui.Box(c.Key("bubble")).Padding(9, 13).Radius(14).
+				Background(t.Accent.Alpha(0.11)).Border(1, t.Accent.Alpha(0.18)).MaxWidth(520).Children(func() {
 				ui.Text(c, turn.question).FontSize(13.5).LineHeight(1.5).Selectable()
 			})
+			if !turn.running && !turn.revealing {
+				copyKey := fmt.Sprintf("qcopy-%p", turn)
+				copied := a.isQACopied(c, copyKey)
+				ui.Row(c.Key("q-actions")).Gap(2).AlignItems(ui.Center).Children(func() {
+					copyTip, copyIcon := i18n.T("复制问题"), iconCopy
+					if copied {
+						copyTip, copyIcon = i18n.T("已复制"), iconCheck
+					}
+					if qaQuietIconAction(c, "q-copy", copyIcon, i18n.T("复制问题"), copyTip, copied, false).Clicked() {
+						a.copyQAText(c, copyKey, turn.question)
+					}
+					if qaQuietIconAction(c, "q-edit", iconPencil, i18n.T("编辑并重发"), i18n.T("编辑并重发"), false, s.running()).Clicked() {
+						a.beginEditQATurn(turn)
+					}
+				})
+			}
 		}
+	})
+}
+
+func (a *App) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
+	t := c.Theme()
+	ui.Column(c.Key("turn-footer")).Gap(6).Children(func() {
+		if len(turn.view.refs) > 0 {
+			a.qaSources(c, spaceID, turn)
+		}
+		isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
+		canRegen := turn.answer != "" || turn.stopped || turn.err != nil || len(turn.steps) > 0
+		ui.Row(c.Key("qa-actions")).Gap(2).Wrap().AlignItems(ui.Center).Children(func() {
+			if turn.answer != "" {
+				copyKey := fmt.Sprintf("acopy-%p", turn)
+				copied := a.isQACopied(c, copyKey)
+				copyIcon, copyTip := iconCopy, i18n.T("复制")
+				if copied {
+					copyIcon, copyTip = iconCheck, i18n.T("已复制")
+				}
+				if qaQuietIconAction(c, "copy", copyIcon, i18n.T("复制"), copyTip, copied, false).Clicked() {
+					a.copyQAText(c, copyKey, qaCleanCopyMarkdown(turn.answer))
+				}
+			}
+			if canRegen {
+				if qaQuietIconAction(c, "regenerate", iconReload, i18n.T("重新生成"), i18n.T("重新生成回复"), false, s.running()).Clicked() {
+					a.retryQA(spaceID, turn)
+				}
+			}
+			if !s.running() && isLast && (turn.stopped || turn.finishReason == "length") {
+				cont := ui.Row(c.Key("continue")).Height(24).Padding(0, 8).Gap(4).Radius(6).AlignItems(ui.Center).
+					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("继续生成"))
+				if cont.Hovered() {
+					cont.Background(hoverFill(t))
+				}
+				cont.Children(func() {
+					ui.Icon(c, iconForward).FontSize(12).TextColor(t.Text.Alpha(0.82))
+					ui.Text(c, i18n.T("继续生成")).FontSize(11.5).FontWeight(500).TextColor(t.Text.Alpha(0.82)).NoWrap()
+				})
+				if cont.Clicked() {
+					a.continueQA(spaceID, turn)
+				}
+			}
+			if turn.answer != "" && a.canInsertQAToDoc() {
+				insKey := fmt.Sprintf("ains-%p", turn)
+				inserted := a.isQACopied(c, insKey)
+				insIcon, insTip := iconFilePlus, i18n.T("插入到当前文档")
+				if inserted {
+					insIcon, insTip = iconCheck, i18n.T("已插入到文档")
+				}
+				if qaQuietIconAction(c, "insert-doc", insIcon, i18n.T("插入到当前文档"), insTip, inserted, false).Clicked() {
+					a.insertQATurnToDoc(c, insKey, turn)
+				}
+			}
+			more := qaQuietIconAction(c, "more", iconEllipsis, i18n.T("更多操作"), i18n.T("更多操作"), false, false)
+			more.Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
+				if turn.answer != "" {
+					if m.Item(i18n.T("复制纯文本")).Chosen() {
+						a.copyQAText(c, fmt.Sprintf("acopy-%p", turn), qaPlainCopyText(turn.answer))
+					}
+				}
+				if isLast && (turn.answer != "" || turn.stopped) {
+					if m.Item(i18n.T("从此轮继续生成")).Disabled(s.running()).Chosen() {
+						a.continueQA(spaceID, turn)
+					}
+				}
+				if m.Item(i18n.T("从此轮新建分支对话")).Disabled(s.running()).Chosen() {
+					a.forkOneBotFromTurn(spaceID, turn)
+				}
+				if isLast {
+					if m.Item(i18n.T("清除上下文（从此处重新开始）")).Disabled(s.running() || turn.contextBreakAfter).Chosen() {
+						a.clearOneBotContext(spaceID)
+					}
+				}
+				m.Separator()
+				if m.Item(i18n.T("删除此轮及后续")).Disabled(s.running()).Chosen() {
+					a.deleteQATurnFrom(spaceID, turn)
+				}
+			})
+			ui.Spacer(c)
+			if turn.model != "" {
+				ui.Text(c, turn.model).FontSize(11).TextColor(t.TextMuted.Alpha(0.68)).SingleLine().Shrink(1).MinWidth(0).Tooltip(turn.model)
+			}
+		})
+	})
+}
+
+func (a *App) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
+	t := c.Theme()
+	isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
+	ui.Row(c.Key("context-break")).Gap(8).Padding(4, 0).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Grow(1).Height(1).Background(separator(t).Alpha(0.7))
+		ui.Row(c.Key("pill")).Gap(6).Padding(2, 9).Radius(999).AlignItems(ui.Center).
+			Background(t.Text.Alpha(0.045)).Border(1, t.Border.Alpha(0.35)).Children(func() {
+			ui.Icon(c, iconEraser).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("以上上下文已清除 · 重新开始")).FontSize(11).TextColor(t.TextMuted).NoWrap()
+			if isLast && !s.running() {
+				undo := ui.Row(c.Key("undo")).Padding(1, 5).Radius(4).Cursor(ui.CursorPointer).
+					Focusable().Role(ui.RoleButton).Label(i18n.T("撤销"))
+				if undo.Hovered() {
+					undo.Background(t.Accent.Alpha(0.12))
+				}
+				undo.Children(func() {
+					ui.Text(c, i18n.T("撤销")).FontSize(11).FontWeight(600).TextColor(t.Accent).NoWrap()
+				})
+				if undo.Clicked() {
+					a.undoOneBotContextBreak(spaceID, turn)
+				}
+			}
+		})
+		ui.Box(c).Grow(1).Height(1).Background(separator(t).Alpha(0.7))
 	})
 }
 

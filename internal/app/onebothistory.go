@@ -24,23 +24,26 @@ const (
 )
 
 type oneBotConversation struct {
-	Version int               `json:"version"`
-	ID      string            `json:"id"`
-	SpaceID string            `json:"space"`
-	Title   string            `json:"title"`
-	Preview string            `json:"preview,omitempty"`
-	Created time.Time         `json:"created"`
-	Updated time.Time         `json:"updated"`
-	Source  string            `json:"source,omitempty"`
-	History []agent.Message   `json:"history,omitempty"`
-	Turns   []oneBotSavedTurn `json:"turns"`
+	Version      int               `json:"version"`
+	ID           string            `json:"id"`
+	SpaceID      string            `json:"space"`
+	Title        string            `json:"title"`
+	Preview      string            `json:"preview,omitempty"`
+	Created      time.Time         `json:"created"`
+	Updated      time.Time         `json:"updated"`
+	Source       string            `json:"source,omitempty"`
+	ContextStart int               `json:"contextStart,omitempty"`
+	History      []agent.Message   `json:"history,omitempty"`
+	Turns        []oneBotSavedTurn `json:"turns"`
 }
 
 type oneBotSavedTurn struct {
+	Model        string                  `json:"model,omitempty"`
 	Question     string                  `json:"question"`
 	Quotes       []oneBotQuote           `json:"quotes,omitempty"`
 	Attachments  []oneBotAttachmentBadge `json:"attachments,omitempty"`
 	Start        int                     `json:"start"`
+	ContextBreak bool                    `json:"contextBreak,omitempty"`
 	Steps        []oneBotSavedStep       `json:"steps,omitempty"`
 	Answer       string                  `json:"answer,omitempty"`
 	FinishReason string                  `json:"finishReason,omitempty"`
@@ -222,10 +225,12 @@ func (a *App) saveOneBotConversation(spaceID string, s *qaSession) {
 	savedTurns := make([]oneBotSavedTurn, len(s.turns))
 	for i, turn := range s.turns {
 		st := oneBotSavedTurn{
+			Model:        turn.model,
 			Question:     turn.question,
 			Quotes:       append([]oneBotQuote(nil), turn.quotes...),
 			Attachments:  append([]oneBotAttachmentBadge(nil), turn.attachments...),
 			Start:        turn.start,
+			ContextBreak: turn.contextBreakAfter,
 			Answer:       turn.answer,
 			FinishReason: turn.finishReason,
 			Stopped:      turn.stopped,
@@ -251,16 +256,17 @@ func (a *App) saveOneBotConversation(spaceID string, s *qaSession) {
 	}
 
 	conv := oneBotConversation{
-		Version: oneBotConversationVersion,
-		ID:      s.id,
-		SpaceID: spaceID,
-		Title:   oneBotConversationTitle(s.turns),
-		Preview: oneBotConversationPreview(s.turns),
-		Created: s.created,
-		Updated: s.updated,
-		Source:  s.source,
-		History: sanitizeOneBotHistoryMessages(s.history),
-		Turns:   savedTurns,
+		Version:      oneBotConversationVersion,
+		ID:           s.id,
+		SpaceID:      spaceID,
+		Title:        oneBotConversationTitle(s.turns),
+		Preview:      oneBotConversationPreview(s.turns),
+		Created:      s.created,
+		Updated:      s.updated,
+		Source:       s.source,
+		ContextStart: s.contextStart,
+		History:      sanitizeOneBotHistoryMessages(s.history),
+		Turns:        savedTurns,
 	}
 	data, err := json.MarshalIndent(conv, "", "  ")
 	if err != nil {
@@ -449,13 +455,15 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 	turns := make([]*qaTurn, len(conv.Turns))
 	for i, st := range conv.Turns {
 		turn := &qaTurn{
-			question:     st.Question,
-			quotes:       append([]oneBotQuote(nil), st.Quotes...),
-			attachments:  append([]oneBotAttachmentBadge(nil), st.Attachments...),
-			start:        st.Start,
-			answer:       st.Answer,
-			finishReason: st.FinishReason,
-			stopped:      st.Stopped,
+			model:             st.Model,
+			question:          st.Question,
+			quotes:            append([]oneBotQuote(nil), st.Quotes...),
+			attachments:       append([]oneBotAttachmentBadge(nil), st.Attachments...),
+			start:             st.Start,
+			contextBreakAfter: st.ContextBreak,
+			answer:            st.Answer,
+			finishReason:      st.FinishReason,
+			stopped:           st.Stopped,
 		}
 		if st.Error != "" {
 			turn.err = errors.New(st.Error)
@@ -479,14 +487,18 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 	}
 
 	loaded := &qaSession{
-		id:      conv.ID,
-		spaceID: spaceID,
-		created: conv.Created,
-		updated: conv.Updated,
-		source:  conv.Source,
-		history: append([]agent.Message(nil), conv.History...),
-		turns:   turns,
-		list:    ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth},
+		id:           conv.ID,
+		spaceID:      spaceID,
+		created:      conv.Created,
+		updated:      conv.Updated,
+		source:       conv.Source,
+		contextStart: min(max(conv.ContextStart, 0), len(conv.History)),
+		history:      append([]agent.Message(nil), conv.History...),
+		turns:        turns,
+		list:         ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth},
+	}
+	if loaded.contextStart == 0 {
+		recomputeContextStart(loaded)
 	}
 	a.qa.sessions[spaceID] = loaded
 	a.qa.editTask = nil
