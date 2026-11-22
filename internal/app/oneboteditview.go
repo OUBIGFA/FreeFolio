@@ -217,6 +217,15 @@ func (a *App) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index
 func (a *App) keepOneBotTask(task *oneBotTask) {
 	if err := a.persistOneBotTask(task); err != nil {
 		task.Error = err.Error()
+		return
+	}
+	if s := a.qa.sessions[task.SpaceID]; s != nil {
+		for _, turn := range s.turns {
+			if turn.edit == task {
+				a.saveOneBotConversation(task.SpaceID, s)
+				break
+			}
+		}
 	}
 }
 func (a *App) restartOneBotTask(task *oneBotTask) {
@@ -439,6 +448,18 @@ func (a *App) oneBotHistoryView(c *ui.Context) {
 					a.qa.editScope = task.Scope
 					a.qa.editNewPath = task.NewPath
 					task.Stopped = false
+				}
+				del := ui.Box(c.Key("delete")).Size(26, 26).Radius(6).Center().Shrink(0).
+					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
+					Label(i18n.T("删除记录：") + task.Instruction).Tooltip(i18n.T("删除记录"))
+				delInk := t.TextMuted.Alpha(0.65)
+				if del.Hovered() || del.FocusVisible() {
+					del.Background(t.Danger.Alpha(0.12))
+					delInk = t.Danger
+				}
+				del.Children(func() { ui.Icon(c, iconTrash).FontSize(13.5).TextColor(delInk) })
+				if del.Clicked() {
+					a.deleteOneBotEditTask(task.ID)
 				}
 			})
 		}

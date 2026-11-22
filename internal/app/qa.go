@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
 	model "github.com/OUBIGFA/FreeMD/internal/document"
@@ -40,21 +41,30 @@ type secretStore interface {
 }
 
 type qaState struct {
-	editOptionsOpen   bool
-	attachments       []agent.ContentPart
-	editMode          bool
-	editScope         string
-	editPaths         []string
-	editTask          *oneBotTask
-	editHistory       []*oneBotTask
-	editHistoryOpen   bool
-	editFollow        bool
-	editCount         int
-	editNewPath       string
-	editDocumentsOpen bool
-	editDocQuery      string
-	open              bool
-	input             string
+	editOptionsOpen     bool
+	attachments         []agent.ContentPart
+	editMode            bool
+	editScope           string
+	editPaths           []string
+	editTask            *oneBotTask
+	editHistory         []*oneBotTask
+	editHistoryOpen     bool
+	historyOpen         bool
+	historyLoading      bool
+	historyLoaded       bool
+	historyErr          error
+	historyEpoch        uint64
+	history             []oneBotConversationSummary
+	historyQuery        string
+	historyConfirmClear bool
+	historyList         ui.ListState
+	editFollow          bool
+	editCount           int
+	editNewPath         string
+	editDocumentsOpen   bool
+	editDocQuery        string
+	open                bool
+	input               string
 	// quotes are selections added to the input, sent with the next message.
 	quotes []oneBotQuote
 	// sessions are the conversations by space ID.
@@ -107,6 +117,11 @@ type qaState struct {
 
 // qaSession is one space's conversation.
 type qaSession struct {
+	id       string
+	spaceID  string
+	created  time.Time
+	updated  time.Time
+	deleted  bool
 	source   string
 	history  []agent.Message
 	turns    []*qaTurn
@@ -220,7 +235,7 @@ func (a *App) qaSession(spaceID string) *qaSession {
 	}
 	s := q.sessions[spaceID]
 	if s == nil {
-		s = &qaSession{list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+		s = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
 		q.sessions[spaceID] = s
 	}
 	return s
@@ -365,6 +380,7 @@ func (a *App) askQA() {
 		turn := &qaTurn{question: text, quotes: quotes, edit: task}
 		s.turns = append(s.turns, turn)
 		s.list.ScrollToEnd()
+		a.saveOneBotConversation(task.SpaceID, s)
 		a.runOneBotEdit(task, text, count, a.qa.editFollow)
 		a.qa.editFollow = false
 		return
@@ -385,11 +401,13 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	s.list.ScrollToEnd()
 	if err := a.qaReady(); err != nil {
 		turn.running, turn.err = false, err
+		a.saveOneBotConversation(spaceID, s)
 		return
 	}
 	fs := a.qaSpace(spaceID)
 	if fs == nil {
 		turn.running, turn.err = false, errors.New(i18n.T("空间已不存在"))
+		a.saveOneBotConversation(spaceID, s)
 		return
 	}
 	settings := a.qaSettings()
@@ -413,6 +431,7 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	}
 	s.history = append(s.history, agent.Message{Role: agent.User, Text: text, Parts: a.qa.attachments})
 	a.qa.attachments = nil
+	a.saveOneBotConversation(spaceID, s)
 	history := append([]agent.Message(nil), s.history...)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -469,6 +488,7 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 				candidate, e := a.prepareOneBotFileCandidate(editTask, agent.FileDraft{Summary: turn.answer, Changes: workspace.Changes()})
 				if e != nil {
 					turn.err = e
+					a.saveOneBotConversation(spaceID, s)
 					return
 				}
 				editTask.Instruction = question
@@ -480,6 +500,7 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 						turn.err = e
 					}
 				}
+				a.saveOneBotConversation(spaceID, s)
 			}
 		})
 	}
@@ -552,6 +573,7 @@ func (a *App) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error
 	case err != nil:
 		t.err = err
 	}
+	a.saveOneBotConversation(s.spaceID, s)
 }
 
 // stopQA stops the active space's question.
@@ -571,6 +593,7 @@ func (a *App) stopQA() {
 			t.stopped = true
 		}
 		t.stream.sync(t.answer, a.now)
+		a.saveOneBotConversation(sp.ID, s)
 	}
 }
 
@@ -599,9 +622,15 @@ func (a *App) clearQA() {
 		s.cancel()
 	}
 	if len(s.turns) > 0 && s.turns[len(s.turns)-1].running {
+		s.turns[len(s.turns)-1].running = false
 		s.turns[len(s.turns)-1].stopped = true
 	}
-	a.qa.sessions[sp.ID] = &qaSession{list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+	if len(s.turns) > 0 {
+		a.saveOneBotConversation(sp.ID, s)
+	}
+	a.qa.sessions[sp.ID] = &qaSession{spaceID: sp.ID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+	a.qa.historyOpen = false
+	a.qa.historyConfirmClear = false
 	a.qa.focusInput = true
 	if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
 		a.stopOneBotEdit()
@@ -616,6 +645,9 @@ func (a *App) clearQA() {
 // openCitation opens the cited document of the space at the cited block.
 func (a *App) openCitation(spaceID string, c agent.Citation) {
 	fs := a.qa.spaces[spaceID]
+	if fs == nil {
+		fs = a.qaSpace(spaceID)
+	}
 	if fs == nil || !a.openAnywhere(spaceID, c.Path) || a.doc == nil || a.doc.loadErr != nil {
 		a.notify("找不到引用的文档：%s", c.Path)
 		return

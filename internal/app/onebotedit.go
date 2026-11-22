@@ -233,6 +233,7 @@ func (a *App) beginOneBotEdit(scope string) bool {
 	a.qa.editTask = t
 	a.qa.editScope = scope
 	a.qa.open = true
+	a.qa.historyOpen = false
 	a.qa.focusInput = true
 	a.qa.editMode = true
 	return true

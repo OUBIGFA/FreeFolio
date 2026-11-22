@@ -19,6 +19,7 @@ func (a *App) oneBotHeaderMenu(c *ui.Context) {
 		}
 		if m.Item(i18n.T("编辑记录")).Chosen() {
 			a.loadOneBotHistory()
+			a.qa.historyOpen = false
 			a.qa.editHistoryOpen = true
 		}
 		m.Separator()
@@ -247,6 +248,7 @@ func (a *App) attachOneBotTask(task *oneBotTask) {
 	}
 	s.turns = append(s.turns, &qaTurn{question: task.Instruction, edit: task})
 	s.list.ScrollToEnd()
+	a.saveOneBotConversation(task.SpaceID, s)
 }
 
 func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {

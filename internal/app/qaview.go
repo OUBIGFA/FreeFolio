@@ -59,7 +59,14 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 				ui.Text(c, sp.Name).FontSize(12.5).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				a.oneBotHeaderMenu(c)
-				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话"), len(s.turns) == 0).Clicked() {
+				histBtn := iconButton(c, "qa-history", iconHistory, i18n.T("历史记录"), i18n.T("历史记录"), false)
+				if a.qa.historyOpen {
+					histBtn.Background(t.Accent.Alpha(0.14)).TextColor(t.Accent)
+				}
+				if histBtn.Clicked() {
+					a.toggleOneBotHistory()
+				}
+				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话"), len(s.turns) == 0 && !a.qa.historyOpen).Clicked() {
 					a.clearQA()
 				}
 				if iconButton(c, "qa-close", iconX, i18n.T("关闭 OneBot"), a.withKey(i18n.T("关闭 OneBot"), "ask"), false).Clicked() {
@@ -68,6 +75,10 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 			})
 			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(pick(t, white.Alpha(0.88), t.Surface)).
 				Border(1, t.Border).Clip().Children(func() {
+				if a.qa.historyOpen {
+					a.oneBotHistoryPanel(c, sp.ID, s)
+					return
+				}
 				a.qaBody(c, sp.ID, sp.Name, s)
 			})
 		})
@@ -102,7 +113,7 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 		s.preview.panelRect = r
 	})
 	wrap.Children(func() {
-		list := ui.List(c.Key("qa-scroll-"+spaceID), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(14).
+		list := ui.List(c.Key("qa-scroll-"+spaceID+"-"+s.id), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(14).
 			Label(i18n.T("OneBot")).ItemKey(func(i int) any { return rows[i] })
 		list.Rows(func(row ui.ListRow) {
 			c := row.Context

@@ -52,12 +52,12 @@ func (a *App) addSelectionToOneBot(d *document) {
 	}
 	for _, old := range a.qa.quotes {
 		if old == q {
-			a.qa.open, a.qa.focusInput = true, true
+			a.qa.open, a.qa.historyOpen, a.qa.focusInput = true, false, true
 			return
 		}
 	}
 	a.qa.quotes = append(a.qa.quotes, q)
-	a.qa.open, a.qa.focusInput = true, true
+	a.qa.open, a.qa.historyOpen, a.qa.focusInput = true, false, true
 }
 
 // oneBotQuotePrompt renders the quotes before the question, in
