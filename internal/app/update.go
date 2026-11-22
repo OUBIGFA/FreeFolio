@@ -95,7 +95,7 @@ type updateState struct {
 	told, toast *update.Notice
 	toastFrames int
 	// shown is the banner shown last frame and since when, for its
-	// entrance and the heart's first beat.
+	// entrance animation.
 	shown      string
 	shownSince time.Time
 	// lastCheck is when the last check answered.
@@ -115,7 +115,11 @@ func (a *App) startUpdates() {
 		}
 		a.prefs.PendingUpdate = ""
 		if !a.prefsBroken {
-			a.savePrefs()
+			if a.cfg.DeferStartup {
+				a.launch.savePrefs = true
+			} else {
+				a.savePrefs()
+			}
 		}
 	}
 }

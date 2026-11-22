@@ -1611,4 +1611,10 @@ var en = map[string]string{
 	"删除对话：":       "Delete conversation: ",
 	"删除记录":        "Delete record",
 	"删除记录：":       "Delete record: ",
+	// OneBot drag-and-drop & attachments.
+	"松开以引用到 OneBot（支持多文件、图片）": "Drop to reference in OneBot (supports multiple files & images)",
+	"发送消息、拖入文件或图片，或描述要修改的内容…": "Send a message, drop files or images, or describe what to edit…",
+	"打开附件：":         "Open attachment: ",
+	"移除附件：":         "Remove attachment: ",
+	"一次最多添加 %d 个附件": "You can attach up to %d files at once",
 }

@@ -125,6 +125,9 @@ func (c *ChatCompletions) body(req Request) chatRequest {
 
 // Complete sends the request and reads the streamed reply.
 func (c *ChatCompletions) Complete(ctx context.Context, req Request, onDelta func(Delta)) (Response, error) {
+	if onDelta == nil {
+		onDelta = func(Delta) {}
+	}
 	if err := validateParameters(c.Parameters, c.Capabilities, req); err != nil {
 		return Response{}, err
 	}
@@ -182,13 +185,18 @@ func (c *ChatCompletions) Complete(ctx context.Context, req Request, onDelta fun
 			if len(m.Parts) == 0 {
 				continue
 			}
-			parts := []any{map[string]any{"type": "text", "text": m.Text}}
+			var parts []any
+			if m.Text != "" {
+				parts = append(parts, map[string]any{"type": "text", "text": m.Text})
+			}
 			for _, p := range m.Parts {
 				switch p.Type {
 				case "text":
 					parts = append(parts, map[string]any{"type": "text", "text": p.Text})
 				case "image":
 					parts = append(parts, map[string]any{"type": "image_url", "image_url": map[string]any{"url": p.Data}})
+				case "file":
+					parts = append(parts, map[string]any{"type": "file", "file": map[string]any{"filename": p.Name, "file_data": p.Data}})
 				case "audio":
 					mime, data, err := dataPart(p)
 					if err != nil {

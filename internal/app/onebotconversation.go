@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -86,10 +87,19 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 	}
 	ui.Column(c.Key("composer-margin")).Padding(8, 12, 12, 12).Shrink(0).Children(func() {
 		composer := ui.Column(c.Key("composer")).Radius(12).Border(1, t.Border.Alpha(0.85)).Background(field(t)).Padding(10, 12, 7, 12).Gap(6)
-		if composer.FocusWithin() {
+		if a.qa.dropHover {
+			composer.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.06))
+		} else if composer.FocusWithin() {
 			composer.Border(1, t.Accent.Alpha(0.45))
 		}
 		composer.Children(func() {
+			if a.qa.dropHover {
+				ui.Row(c.Key("drop-hint")).Gap(6).Padding(4, 8).Radius(7).AlignItems(ui.Center).
+					Background(t.Accent.Alpha(0.10)).Children(func() {
+					ui.Icon(c, iconPlus).FontSize(13).TextColor(t.Accent)
+					ui.Text(c, i18n.T("松开以引用到 OneBot（支持多文件、图片）")).FontSize(12).FontWeight(500).TextColor(t.Accent)
+				})
+			}
 			if task := a.qa.editTask; a.qa.editMode && task != nil && len(task.Targets) > 0 {
 				label := task.Targets[0].Path
 				if len(task.Targets) > 1 {
@@ -114,25 +124,29 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 			}
 			a.oneBotQuoteBadges(c, "quotes", a.qa.quotes, true)
 			if len(a.qa.attachments) > 0 {
-				ui.Row(c.Key("attachments")).Gap(6).Wrap().Children(func() {
-					for i, p := range a.qa.attachments {
-						chip := ui.Row(c.Key(fmt.Sprint(i))).Height(24).Padding(0, 8).Radius(6).AlignItems(ui.Center).
-							Background(t.Text.Alpha(0.055)).Border(1, t.Border.Alpha(0.45)).
-							Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(p.Name + " ×")
-						if chip.Hovered() {
-							chip.Background(hoverFill(t)).Border(1, t.Border.Alpha(0.75))
-						}
-						chip.Children(func() {
-							ui.Text(c, p.Name+" ×").FontSize(11.5).TextColor(t.Text.Alpha(0.82)).NoWrap()
-						})
-						if chip.Clicked() {
-							a.qa.attachments = append(a.qa.attachments[:i], a.qa.attachments[i+1:]...)
-							break
-						}
-					}
+				badges := make([]oneBotAttachmentBadge, len(a.qa.attachments))
+				for i, item := range a.qa.attachments {
+					badges[i] = item.badge()
+				}
+				a.oneBotAttachmentBadges(c, "attachments", badges, func(i int) {
+					a.qa.attachments = append(a.qa.attachments[:i:i], a.qa.attachments[i+1:]...)
 				})
 			}
-			in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Multiline(true).Height(58).Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或描述要修改的内容…"))
+			svc := c.Services()
+			in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Multiline(true).Height(58).Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息、拖入文件或图片，或描述要修改的内容…")).OnPaste(func(text string) bool {
+				data := svc.ReadClipboardData(transfer.FileList, transfer.PNG)
+				if files, err := data.Files(); err == nil && len(files) > 0 {
+					a.addOneBotFiles(files)
+					return true
+				}
+				if text == "" {
+					if raw, err := data.Read(transfer.PNG); err == nil && len(raw) > 0 {
+						a.addOneBotClipboardImage(raw)
+						return true
+					}
+				}
+				return false
+			})
 			if a.qa.focusInput {
 				a.qa.focusInput = false
 				in.Focus()
@@ -180,6 +194,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 				if task := a.qa.editTask; task != nil && (task.Running || task.Applying) {
 					busy = true
 				}
+				sendDisabled := strings.TrimSpace(a.qa.input) == "" && (a.qa.editMode || len(a.qa.attachments) == 0)
 				if busy {
 					if qaRoundButton(c, "qa-stop", iconStop, i18n.T("停止"), false).Clicked() {
 						if task := a.qa.editTask; task != nil && (task.Running || task.Applying) {
@@ -188,11 +203,73 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 							a.stopQA()
 						}
 					}
-				} else if qaRoundButton(c, "qa-send", iconArrowUp, i18n.T("发送 (Enter)"), strings.TrimSpace(a.qa.input) == "").Clicked() {
+				} else if qaRoundButton(c, "qa-send", iconArrowUp, i18n.T("发送 (Enter)"), sendDisabled).Clicked() {
 					a.askQA()
 				}
 			})
 		})
+	})
+}
+
+func oneBotAttachmentIcon(kind string) *ui.SVG {
+	if kind == "image" {
+		return iconImage
+	}
+	return iconFile
+}
+
+func (a *App) oneBotAttachmentBadges(c *ui.Context, key string, badges []oneBotAttachmentBadge, onRemove func(int)) {
+	if len(badges) == 0 {
+		return
+	}
+	t := c.Theme()
+	ui.Row(c.Key(key)).Gap(6).Wrap().Children(func() {
+		for i, b := range badges {
+			clickable := b.SpaceID != "" && b.RelPath != ""
+			var removed bool
+			ui.Row(c.Key(fmt.Sprint(i))).Height(24).Radius(6).AlignItems(ui.Center).
+				Background(t.Text.Alpha(0.055)).Border(1, t.Border.Alpha(0.45)).Children(func() {
+				var body ui.Element
+				if clickable {
+					body = ui.Row(c.Key("open")).Height(24).PaddingX(7).Gap(5).Radius(6).AlignItems(ui.Center).
+						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("打开附件：") + b.Name).Tooltip(b.RelPath)
+					if body.Hovered() {
+						body.Background(hoverFill(t))
+					}
+				} else {
+					body = ui.Row(c.Key("info")).Height(24).PaddingX(7).Gap(5).Radius(6).AlignItems(ui.Center)
+					if b.MIME != "" {
+						body.Tooltip(b.MIME)
+					}
+				}
+				body.Children(func() {
+					if b.Thumb != nil {
+						ui.Image(c, b.Thumb).Size(16, 16).Radius(3).Shrink(0)
+					} else {
+						ui.Icon(c, oneBotAttachmentIcon(b.Kind)).FontSize(12).TextColor(t.TextMuted)
+					}
+					ui.Text(c, b.Name).FontSize(11.5).TextColor(t.Text.Alpha(0.82)).SingleLine().MaxWidth(160)
+				})
+				if clickable && body.Clicked() {
+					a.openAnywhere(b.SpaceID, b.RelPath)
+				}
+				if onRemove != nil {
+					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(6).Center().Cursor(ui.CursorPointer).
+						Focusable().Role(ui.RoleButton).Label(i18n.T("移除附件：") + b.Name)
+					if x.Hovered() {
+						x.Background(hoverFill(t))
+					}
+					x.Children(func() { ui.Icon(c, iconX).FontSize(11).TextColor(t.TextMuted) })
+					if x.Clicked() {
+						onRemove(i)
+						removed = true
+					}
+				}
+			})
+			if removed {
+				break
+			}
+		}
 	})
 }
 

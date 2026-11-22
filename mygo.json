@@ -12,7 +12,8 @@
   },
   "resources": [
     "LICENSE",
-    "third_party"
+    "third_party",
+    "internal/editor/boardfonts/Xiaolai-Regular.ttf.zlib"
   ],
   "fileAssociations": [
     {

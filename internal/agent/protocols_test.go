@@ -156,3 +156,49 @@ func TestNativeCancellationAndIncompleteResponses(t *testing.T) {
 		})
 	}
 }
+
+func TestChatCompletionsEncodesMultimodalPartsAndAllowsTextWithImageCatalog(t *testing.T) {
+	var seen map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&seen); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	settings := Settings{
+		BaseURL:      srv.URL,
+		Model:        "m",
+		Protocol:     Chat,
+		Capabilities: Capabilities{Input: []string{"image", "pdf"}},
+	}
+	res, err := settings.NewProvider().Complete(context.Background(), Request{
+		Messages: []Message{{
+			Role: User,
+			Text: "请分析这些内容",
+			Parts: []ContentPart{
+				{Type: "text", Text: "文档内容"},
+				{Type: "image", Name: "pic.png", MIME: "image/png", Data: "data:image/png;base64,AAAA"},
+				{Type: "file", Name: "doc.pdf", MIME: "application/pdf", Data: "data:application/pdf;base64,JVBERg=="},
+			},
+		}},
+	}, nil)
+	if err != nil || res.Message.Text != "ok" {
+		t.Fatalf("complete failed: %+v %v", res, err)
+	}
+	msgs, _ := seen["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("messages = %+v", msgs)
+	}
+	content, _ := object(msgs[0])["content"].([]any)
+	if len(content) != 4 {
+		t.Fatalf("expected 4 content parts, got %+v", content)
+	}
+	if object(content[1])["type"] != "text" || object(content[2])["type"] != "image_url" || object(content[3])["type"] != "file" {
+		t.Fatalf("unexpected content types: %+v", content)
+	}
+	if object(object(content[3])["file"])["filename"] != "doc.pdf" {
+		t.Fatalf("missing filename in file part: %+v", content[3])
+	}
+}

@@ -17,7 +17,8 @@ import (
 // space's documents, and the hits last found, which the bar asks for
 // every frame.
 type searchState struct {
-	index *search.Index
+	index       *search.Index
+	cacheLoaded bool
 	// A pointer move or viewport resize does not change searchable text.
 	liveBase, overlay *search.Index
 	liveDocs          map[*document]liveStamp
@@ -96,9 +97,10 @@ func (a *App) refreshSearch() {
 	}
 	prev := s.index
 	cachePath := a.searchCachePath()
+	loadCache := prev == nil && !s.cacheLoaded && cachePath != ""
 	s.busy = true
 	done := func(ix *search.Index) {
-		s.index, s.busy = ix, false
+		s.index, s.cacheLoaded, s.busy = ix, true, false
 		if s.again {
 			s.again = false
 			a.refreshSearch()
@@ -109,6 +111,11 @@ func (a *App) refreshSearch() {
 		post = a.win.Update
 	}
 	if !s.async || post == nil {
+		if loadCache {
+			if cached, err := search.LoadCache(cachePath); err == nil {
+				prev = cached
+			}
+		}
 		ix, changed := search.RefreshChanged(prev, roots, extractText)
 		if changed && cachePath != "" {
 			_ = search.SaveCache(cachePath, ix)
@@ -117,6 +124,11 @@ func (a *App) refreshSearch() {
 		return
 	}
 	go func() {
+		if loadCache {
+			if cached, err := search.LoadCache(cachePath); err == nil {
+				prev = cached
+			}
+		}
 		ix, changed := search.RefreshChanged(prev, roots, extractText)
 		if changed && cachePath != "" {
 			_ = search.SaveCache(cachePath, ix)

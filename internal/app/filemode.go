@@ -364,7 +364,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	}
 	row.Children(func() {
 		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
-			ui.Image(c, brandLogo).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
+			ui.Image(c, brandLogo()).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
 		})
 		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
 			if d := a.doc; d != nil && d.loadErr == nil {
@@ -549,7 +549,7 @@ func (a *App) fileEmpty(c *ui.Context) {
 		a.openSystemFile(file)
 	}
 	area.Children(func() {
-		ui.Image(c, brandLogo).Size(44, 44)
+		ui.Image(c, brandLogo()).Size(44, 44)
 		ui.Text(c, i18n.T("没有打开的文件")).FontSize(17).FontWeight(600)
 		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑。")).FontSize(13).TextColor(t.TextMuted)
 		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件…")).Margin(6, 0, 0, 0).Clicked() {

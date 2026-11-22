@@ -16,8 +16,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
 	model "github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/history"
@@ -42,6 +44,12 @@ type Config struct {
 	ConfigDir string
 	// DocumentsDir is where the folders of new spaces go by default.
 	DocumentsDir string
+	// DeferStartup postpones non-essential startup I/O until after the
+	// first window frame so cold starts paint immediately.
+	DeferStartup bool
+	// InstanceLocked reports that the caller already claimed MyGo's
+	// single-instance lock before calling New.
+	InstanceLocked bool
 }
 
 // DefaultConfig returns the user's usual places: the system's
@@ -69,10 +77,16 @@ type place struct{ space, rel string }
 type spaceSession struct {
 	// doc is the document the space showed when it was left: its own, or
 	// a favorite of another space, which it shows again on coming back.
-	doc        *document
-	tree       ui.ScrollState
-	split      *splitGroup
-	splitShown bool
+	doc           *document
+	tree          ui.ScrollState
+	split         *splitGroup
+	splitShown    bool
+	splitRestored bool
+}
+
+type startupDocPrefetch struct {
+	spaceID, rel, text string
+	err                error
 }
 
 // App is FreeMD's state.
@@ -285,7 +299,8 @@ type App struct {
 	// tour introduces the sidebar on the first run (tour.go).
 	tour tour
 	// launch is what waits for the window's first frame (launch.go).
-	launch launch
+	launch          launch
+	startupPrefetch *startupDocPrefetch
 
 	runAsync             func(func())
 	navDir               int
@@ -324,37 +339,43 @@ func New(cfg Config) (*App, error) {
 		// The spaces fade in on coming back from the library, not at start.
 		library: library{frames: 1},
 	}
-	// The search index kept from the last run is read while the rest
-	// loads: it is one file as long as all the documents' text.
-	var cached chan *search.Index
-	if p := a.searchCachePath(); p != "" {
-		cached = make(chan *search.Index, 1)
-		go func() {
-			ix, _ := search.LoadCache(p)
-			cached <- ix
-		}()
-	}
-	if p, err := a.prefStore.Load(); err == nil {
-		a.prefs = p
+	var (
+		loadedPrefs  *prefs.Prefs
+		prefsErr     error
+		loadedSpaces *space.State
+		spacesErr    error
+		loadedCloud  cloudsync.Config
+		cloudErr     error
+		wg           sync.WaitGroup
+	)
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		loadedPrefs, prefsErr = a.prefStore.Load()
+	}()
+	go func() {
+		defer wg.Done()
+		loadedSpaces, spacesErr = a.store.Load()
+	}()
+	go func() {
+		defer wg.Done()
+		loadedCloud, cloudErr = cloudsync.LoadConfig(cfg.ConfigDir)
+	}()
+	wg.Wait()
+	if prefsErr == nil {
+		a.prefs = loadedPrefs
 	} else {
 		a.prefs, a.prefsBroken = &prefs.Prefs{Version: prefs.CurrentVersion}, true
-		a.notify("读取偏好设置失败，本次使用默认设置且不会覆盖原文件。%v", err)
+		a.notify("读取偏好设置失败，本次使用默认设置且不会覆盖原文件。%v", prefsErr)
 	}
 	a.systemLanguage = "zh-Hans"
 	a.applyLanguage()
-	a.loadCloudSync()
-	st, err := a.store.Load()
-	if err != nil {
-		return nil, err
+	a.applyLoadedCloudSync(loadedCloud, cloudErr)
+	if spacesErr != nil {
+		return nil, spacesErr
 	}
+	st := loadedSpaces
 	a.state = st
-	// Spaces made before the rebrand keep their versions and templates in
-	// the legacy system folder; it moves once, before anything reads it.
-	for _, sp := range st.Spaces {
-		if err := vault.MigrateSystemDir(sp.Root); err != nil {
-			a.notify("迁移空间 %s 的系统文件夹失败。%v", sp.Name, err)
-		}
-	}
 	// Older installations kept loose paths in a built-in collection. Drop
 	// its references only; the referenced files always belong to the user.
 	if st.DetachExternal() && len(st.Spaces) > 0 {
@@ -369,9 +390,42 @@ func New(cfg Config) (*App, error) {
 		}
 	}
 	a.startUpdates()
-	a.reloadPlugins()
+	if cfg.DeferStartup {
+		a.launch.migrateSpaces = true
+		a.launch.loadPlugins = true
+		a.launch.deferSearch = true
+	} else {
+		// Spaces made before the rebrand keep their versions and templates in
+		// the legacy system folder; it moves once, before anything reads it.
+		for _, sp := range st.Spaces {
+			if err := vault.MigrateSystemDir(sp.Root); err != nil {
+				a.notify("迁移空间 %s 的系统文件夹失败。%v", sp.Name, err)
+			}
+		}
+		a.reloadPlugins()
+		if p := a.searchCachePath(); p != "" {
+			if cached, err := search.LoadCache(p); err == nil {
+				a.search.index = cached
+			}
+			a.search.cacheLoaded = true
+		}
+	}
+	var prefetchCh chan startupDocPrefetch
+	if sp := a.state.ActiveSpace(); sp != nil && sp.LastOpen != "" && (first || !a.prefs.StartAtHome) && (sp.Split == nil || !sp.Split.Shown) {
+		lastRel := sp.LastOpen
+		spCopy := *sp
+		prefetchCh = make(chan startupDocPrefetch, 1)
+		go func() {
+			text, readErr := readFile(&spCopy, lastRel)
+			prefetchCh <- startupDocPrefetch{spaceID: spCopy.ID, rel: lastRel, text: text, err: readErr}
+		}()
+	}
 	a.syncTree()
 	a.restoreSplits()
+	if prefetchCh != nil {
+		p := <-prefetchCh
+		a.startupPrefetch = &p
+	}
 	// A launch picks up reading where it stopped: the active space's last
 	// document, scrolled to where it was read to, unless the preference
 	// starts at the space's home page. The first run opens its welcome page.
@@ -383,13 +437,11 @@ func New(cfg Config) (*App, error) {
 	} else {
 		a.showSpaceHome()
 	}
+	a.startupPrefetch = nil
 	// The tour shows until it was seen once. Preferences that cannot be
 	// saved could not remember that, and would show it at every launch.
 	if !a.prefs.TourSeen && !a.prefsBroken {
 		a.startTour()
-	}
-	if cached != nil {
-		a.search.index = <-cached
 	}
 	return a, nil
 }
@@ -435,11 +487,15 @@ func (a *App) showSpaceHome() bool {
 
 // Run opens the window and runs the app until it quits.
 func (a *App) Run() error {
-	go warmIcons()
-	mygo.App.SetName("FreeMD")
-	mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
-	if !mygo.App.RequestSingleInstanceLock() {
-		return nil
+	if !a.cfg.InstanceLocked {
+		mygo.App.SetName("FreeMD")
+		mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
+		if !mygo.App.RequestSingleInstanceLock() {
+			return nil
+		}
+	} else {
+		mygo.App.SetName("FreeMD")
+		mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 	}
 	// An installed app shares one taskbar button with its pinned
 	// shortcuts; a development run keeps the shell's own ID, apart.
@@ -542,10 +598,14 @@ func (a *App) Run() error {
 				}
 			})
 		}
-		// Index the documents now, on a goroutine, so that the first search
-		// finds text at once.
+		// Index the documents after the first frame when DeferStartup is enabled,
+		// otherwise start right away.
 		a.search.async = true
-		a.refreshSearch()
+		if a.cfg.DeferStartup {
+			a.launch.deferSearch = true
+		} else {
+			a.refreshSearch()
+		}
 		a.updates.svc, a.updates.async = newUpdateService(a.cfg.ConfigDir), true
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
@@ -880,15 +940,20 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		}
 	}
 	if !a.paneNavigation {
-		if group := a.session(a.state.ActiveSpace().ID).split; group != nil {
-			a.syncSplit()
-			for i, p := range group.panes {
-				if p.doc != nil && p.doc.space == sp && p.doc.rel == rel {
-					if a.split != group {
-						return a.restoreSplit(group, i)
+		if active := a.state.ActiveSpace(); active != nil {
+			if !a.session(active.ID).splitRestored {
+				a.restoreSpaceSplit(active)
+			}
+			if group := a.session(active.ID).split; group != nil {
+				a.syncSplit()
+				for i, p := range group.panes {
+					if p.doc != nil && p.doc.space == sp && p.doc.rel == rel {
+						if a.split != group {
+							return a.restoreSplit(group, i)
+						}
+						a.focusPane(i, false)
+						return true
 					}
-					a.focusPane(i, false)
-					return true
 				}
 			}
 		}
@@ -903,7 +968,14 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		return false
 	}
 	restoring := a.doc == nil && sp.LastOpen == rel
-	text, err := readFile(sp, rel)
+	var text string
+	var err error
+	if p := a.startupPrefetch; p != nil && p.spaceID == sp.ID && p.rel == rel {
+		a.startupPrefetch = nil
+		text, err = p.text, p.err
+	} else {
+		text, err = readFile(sp, rel)
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			if sp.IsExternal() {
@@ -1368,6 +1440,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 	a.suspendSplit()
 	a.state.SetActive(id)
 	a.saveState()
+	a.restoreSpaceSplit(next)
 	a.syncOpen()
 	a.doc = nil
 	a.renaming = ""
@@ -1535,10 +1608,17 @@ func (a *App) revealIn(sp *space.Space, rel string) {
 
 // reloadPlugins scans the plugins folder again.
 func (a *App) reloadPlugins() {
+	a.launch.loadPlugins = false
 	var err error
 	a.installed, a.brokenPlugins, err = a.plugins.Scan()
 	if err != nil {
 		a.notify("读取插件文件夹失败。%v", err)
+	}
+}
+
+func (a *App) ensurePluginsLoaded() {
+	if a.launch.loadPlugins {
+		a.reloadPlugins()
 	}
 }
 

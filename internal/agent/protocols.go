@@ -43,6 +43,9 @@ func validateParameters(p Parameters, c Capabilities, req Request) error {
 	for _, m := range req.Messages {
 		for _, part := range m.Parts {
 			modality := part.Type
+			if modality == "text" {
+				continue
+			}
 			if modality == "file" && part.MIME == "application/pdf" {
 				modality = "pdf"
 			}

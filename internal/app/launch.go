@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -14,7 +15,12 @@ const launchSettle = 150 * time.Millisecond
 // window's icon and making the tray icon take the system about a tenth of
 // a second, which the first frame used to wait for.
 type launch struct {
-	pending bool
+	pending       bool
+	warmed        bool
+	savePrefs     bool
+	loadPlugins   bool
+	migrateSpaces bool
+	deferSearch   bool
 	// shown is when the first frame was built, and asked whether the
 	// window's thread was asked to finish.
 	shown time.Time
@@ -25,8 +31,8 @@ type launch struct {
 }
 
 // warmIcons renders the logo at the sizes the window and the tray take, on
-// a goroutine of its own while the window is made: iconPNG keeps them, so
-// finishLaunch finds both ready.
+// a goroutine of its own after the first frame is scheduled: iconPNG keeps
+// them, so finishLaunch finds both ready.
 func warmIcons() {
 	windowIcon()
 	trayIcon()
@@ -42,6 +48,10 @@ func (a *App) launchTick(c *ui.Context) {
 	now := c.Now()
 	if l.shown.IsZero() {
 		l.shown = now
+		if !l.warmed && a.win != nil && l.finish == nil {
+			l.warmed = true
+			go warmIcons()
+		}
 	}
 	if wait := l.shown.Add(launchSettle).Sub(now); wait > 0 {
 		c.After(wait)
@@ -57,16 +67,96 @@ func (a *App) launchTick(c *ui.Context) {
 	go a.win.Update(a.finishLaunch)
 }
 
-// finishLaunch sets the window's icon and shows the tray icon, once. Closing
-// the window asks for it too: whether the window hides or the app quits
-// depends on the tray icon being there.
+// finishLaunch sets the window's icon, shows the tray icon, and starts
+// deferred background startup work once the first frame is on screen.
 func (a *App) finishLaunch() {
-	if !a.launch.pending {
+	if a.launch.pending {
+		a.launch.pending = false
+		if a.win != nil {
+			if err := a.win.SetIcon(windowIcon()); err != nil {
+				a.notify("无法设置窗口图标。%v", err)
+			}
+			a.syncTray()
+		}
+	}
+	a.runDeferredStartup()
+}
+
+func (a *App) runDeferredStartup() {
+	if a.launch.savePrefs {
+		a.launch.savePrefs = false
+		if !a.prefsBroken {
+			a.savePrefs()
+		}
+	}
+	if a.quitting {
 		return
 	}
-	a.launch.pending = false
-	if err := a.win.SetIcon(windowIcon()); err != nil {
-		a.notify("无法设置窗口图标。%v", err)
+	a.syncWatches()
+	if a.launch.deferSearch {
+		a.launch.deferSearch = false
+		a.refreshSearch()
 	}
-	a.syncTray()
+	if a.launch.loadPlugins {
+		a.launch.loadPlugins = false
+		if a.win != nil {
+			win := a.win
+			plugins := a.plugins
+			go func() {
+				installed, broken, err := plugins.Scan()
+				win.Update(func() {
+					if err != nil {
+						a.notify("读取插件文件夹失败。%v", err)
+						return
+					}
+					a.installed, a.brokenPlugins = installed, broken
+				})
+			}()
+		} else {
+			a.reloadPlugins()
+		}
+	}
+	if a.launch.migrateSpaces {
+		a.launch.migrateSpaces = false
+		type spaceTarget struct{ name, root string }
+		var targets []spaceTarget
+		for _, sp := range a.state.Spaces {
+			if !sp.IsExternal() && sp.Root != "" {
+				targets = append(targets, spaceTarget{sp.Name, sp.Root})
+			}
+		}
+		if len(targets) == 0 {
+			return
+		}
+		type migrateErr struct {
+			name string
+			err  error
+		}
+		run := func() []migrateErr {
+			var errs []migrateErr
+			for _, sp := range targets {
+				if err := vault.MigrateSystemDir(sp.root); err != nil {
+					errs = append(errs, migrateErr{sp.name, err})
+				}
+			}
+			return errs
+		}
+		if a.win != nil {
+			win := a.win
+			go func() {
+				errs := run()
+				if len(errs) > 0 {
+					win.Update(func() {
+						for _, e := range errs {
+							a.notify("迁移空间 %s 的系统文件夹失败。%v", e.name, e.err)
+						}
+					})
+				}
+			}()
+		} else {
+			for _, e := range run() {
+				a.notify("迁移空间 %s 的系统文件夹失败。%v", e.name, e.err)
+			}
+		}
+	}
 }

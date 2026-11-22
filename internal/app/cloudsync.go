@@ -57,6 +57,10 @@ type cloudState struct {
 
 func (a *App) loadCloudSync() {
 	c, err := cloudsync.LoadConfig(a.cfg.ConfigDir)
+	a.applyLoadedCloudSync(c, err)
+}
+
+func (a *App) applyLoadedCloudSync(c cloudsync.Config, err error) {
 	a.cloud.config = c
 	if err != nil {
 		a.cloud.broken = true

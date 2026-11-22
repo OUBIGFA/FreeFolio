@@ -155,7 +155,9 @@ func (a *App) beginSplit() bool {
 	}
 	s := &splitGroup{panes: []*splitPane{{doc: a.doc, history: slices.Clone(a.history), at: a.at, factor: 1, shownFactor: 1, shownReady: true}}}
 	a.split = s
-	a.session(a.state.ActiveSpace().ID).split = s
+	session := a.session(a.state.ActiveSpace().ID)
+	session.split = s
+	session.splitRestored = true
 	a.focus = false
 	return true
 }

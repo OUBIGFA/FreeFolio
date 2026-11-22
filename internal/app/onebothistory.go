@@ -37,15 +37,16 @@ type oneBotConversation struct {
 }
 
 type oneBotSavedTurn struct {
-	Question     string            `json:"question"`
-	Quotes       []oneBotQuote     `json:"quotes,omitempty"`
-	Start        int               `json:"start"`
-	Steps        []oneBotSavedStep `json:"steps,omitempty"`
-	Answer       string            `json:"answer,omitempty"`
-	FinishReason string            `json:"finishReason,omitempty"`
-	Stopped      bool              `json:"stopped,omitempty"`
-	Error        string            `json:"error,omitempty"`
-	EditTaskID   string            `json:"editTaskId,omitempty"`
+	Question     string                  `json:"question"`
+	Quotes       []oneBotQuote           `json:"quotes,omitempty"`
+	Attachments  []oneBotAttachmentBadge `json:"attachments,omitempty"`
+	Start        int                     `json:"start"`
+	Steps        []oneBotSavedStep       `json:"steps,omitempty"`
+	Answer       string                  `json:"answer,omitempty"`
+	FinishReason string                  `json:"finishReason,omitempty"`
+	Stopped      bool                    `json:"stopped,omitempty"`
+	Error        string                  `json:"error,omitempty"`
+	EditTaskID   string                  `json:"editTaskId,omitempty"`
 }
 
 type oneBotSavedStep struct {
@@ -113,6 +114,17 @@ func oneBotConversationTitle(turns []*qaTurn) string {
 	for _, turn := range turns {
 		if q := collapseSingleLine(turn.question, 120); q != "" {
 			return q
+		}
+		if len(turn.attachments) > 0 {
+			names := make([]string, 0, len(turn.attachments))
+			for _, att := range turn.attachments {
+				if att.Name != "" {
+					names = append(names, att.Name)
+				}
+			}
+			if q := collapseSingleLine(strings.Join(names, ", "), 120); q != "" {
+				return q
+			}
 		}
 	}
 	return ""
@@ -212,6 +224,7 @@ func (a *App) saveOneBotConversation(spaceID string, s *qaSession) {
 		st := oneBotSavedTurn{
 			Question:     turn.question,
 			Quotes:       append([]oneBotQuote(nil), turn.quotes...),
+			Attachments:  append([]oneBotAttachmentBadge(nil), turn.attachments...),
 			Start:        turn.start,
 			Answer:       turn.answer,
 			FinishReason: turn.finishReason,
@@ -438,6 +451,7 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 		turn := &qaTurn{
 			question:     st.Question,
 			quotes:       append([]oneBotQuote(nil), st.Quotes...),
+			attachments:  append([]oneBotAttachmentBadge(nil), st.Attachments...),
 			start:        st.Start,
 			answer:       st.Answer,
 			finishReason: st.FinishReason,

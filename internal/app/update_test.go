@@ -471,39 +471,36 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	}
 }
 
-func TestArrowCutsOutOfHeart(t *testing.T) {
-	area := func(pts [][2]float32) float32 {
-		var s float32
-		for i := range pts {
-			p, q := pts[i], pts[(i+1)%len(pts)]
-			s += p[0]*q[1] - q[0]*p[1]
-		}
-		return s / 2
+func TestUpdateReadyCardDismissDoesNotAct(t *testing.T) {
+	a, tt := newTestApp(t)
+	relaunch, _ := withUpdates(a, &fakeUpdates{release: &fakeRelease{version: "0.3.0"}})
+	a.updates.ready = "0.2.0"
+	tt.Frame()
+	if !tt.HasText("更新已准备就绪！") || !tt.HasText("点击重新启动") {
+		t.Fatal("expected ready banner to render")
 	}
-	var heart [][2]float32
-	for _, s := range heartSegments {
-		heart = append(heart, s[0])
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatal(err)
 	}
-	arrow := arrowOutline(0)
-	if h, w := area(heart), area(arrow); h*w >= 0 || -w > h/4 {
-		t.Fatalf("heart %v, arrow %v: the arrow must run the other way, within the heart", h, w)
+	tt.Frame()
+	if *relaunch != 0 || !a.updates.dismissed || tt.HasText("更新已准备就绪！") {
+		t.Fatalf("expected dismiss without relaunch: relaunch=%d dismissed=%v", *relaunch, a.updates.dismissed)
 	}
-	for _, p := range arrow {
-		if p[0] < 60 || p[0] > 190 || p[1] < 60 || p[1] > 170 {
-			t.Fatalf("arrow point %v outside the heart's middle", p)
-		}
+
+	a.updates.ready = ""
+	a.updates.dismissed = false
+	a.updates.found = "0.3.0"
+	a.updates.release = &fakeRelease{version: "0.3.0"}
+	tt.Frame()
+	if !tt.HasText("FreeMD 有新版本") {
+		t.Fatal("expected available banner to render")
 	}
-	if dy, scale, alpha := heartPose(0); dy != 0 || scale != 1 || alpha != 0 {
-		t.Fatal("at rest")
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatal(err)
 	}
-	if dy, _, _ := heartPose(15.0 / 120); dy != -10 {
-		t.Fatalf("lifted %v", dy)
-	}
-	if dy, _, _ := heartPose(45.0 / 120); dy != 17.5 {
-		t.Fatalf("dipped %v", dy)
-	}
-	if _, scale, alpha := heartPose(1); scale != 1.29 || alpha != 0 {
-		t.Fatal("the ripple ends grown and gone")
+	tt.Frame()
+	if a.settingsOpen || a.updates.found != "" || a.updates.release != nil || tt.HasText("FreeMD 有新版本") {
+		t.Fatalf("expected dismiss without opening settings: settings=%v found=%q release=%v", a.settingsOpen, a.updates.found, a.updates.release)
 	}
 }
 

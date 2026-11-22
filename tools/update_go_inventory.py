@@ -14,6 +14,7 @@ import re
 KNOWN_LICENSES = {
     "github.com/ebitengine/purego": "Apache-2.0",
     "github.com/egoist/mygo": "MIT",
+    "github.com/gabriel-vasile/mimetype": "MIT",
     "github.com/go-text/typesetting": "Unlicense OR BSD-3-Clause",
     "github.com/go-text/typesetting-utils": "Unlicense OR BSD-3-Clause",
     "golang.org/x/image": "BSD-3-Clause",

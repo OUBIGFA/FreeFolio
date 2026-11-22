@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/OUBIGFA/FreeMD/internal/editor"
@@ -37,26 +38,30 @@ type emojiCategory struct {
 var (
 	emojiAll        []emojiEntry
 	emojiCategories []emojiCategory
+	emojiOnce       sync.Once
 )
 
-func init() {
-	icons := map[string][2]string{
-		"smileys": {"face-slightly-smiling", "表情"}, "nature": {"sun", "自然"}, "food": {"coffee", "食物"},
-		"activities": {"trophy", "活动"}, "travel": {"truck", "旅行"}, "objects": {"gift", "物品"},
-		"symbols": {"heart", "符号"}, "flags": {"flag", "旗帜"},
-	}
-	for _, d := range emojiData {
-		emojiCategories = append(emojiCategories, emojiCategory{id: d.id, icon: icons[d.id][0], label: icons[d.id][1], first: len(emojiAll)})
-		for line := range strings.SplitSeq(d.lines, "\n") {
-			if e, name, ok := strings.Cut(line, " "); ok {
-				emojiAll = append(emojiAll, emojiEntry{e, name})
+func ensureEmojiData() {
+	emojiOnce.Do(func() {
+		icons := map[string][2]string{
+			"smileys": {"face-slightly-smiling", "表情"}, "nature": {"sun", "自然"}, "food": {"coffee", "食物"},
+			"activities": {"trophy", "活动"}, "travel": {"truck", "旅行"}, "objects": {"gift", "物品"},
+			"symbols": {"shapes", "符号"}, "flags": {"flag", "旗帜"},
+		}
+		for _, d := range emojiData {
+			emojiCategories = append(emojiCategories, emojiCategory{id: d.id, icon: icons[d.id][0], label: icons[d.id][1], first: len(emojiAll)})
+			for line := range strings.SplitSeq(d.lines, "\n") {
+				if e, name, ok := strings.Cut(line, " "); ok {
+					emojiAll = append(emojiAll, emojiEntry{e, name})
+				}
 			}
 		}
-	}
+	})
 }
 
 // searchEmoji returns the emoji whose names hold every word of the query.
 func searchEmoji(query string) []int {
+	ensureEmojiData()
 	words := strings.Fields(strings.ToLower(query))
 	if len(words) == 0 {
 		return nil
@@ -79,6 +84,7 @@ func searchEmoji(query string) []int {
 
 // emojiIndex is the place of the emoji in emojiAll, or -1.
 func emojiIndex(emoji string) int {
+	ensureEmojiData()
 	for i, e := range emojiAll {
 		if e.emoji == emoji {
 			return i
@@ -93,7 +99,7 @@ func (a *App) spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size 
 	if bmp := a.spaceIconImage(image); bmp != nil {
 		return ui.Image(c, bmp).Size(size*1.1, size*1.1).Radius(size * 0.22).Shrink(0)
 	}
-	if svg := lucideIcons[symbol]; svg != nil {
+	if svg := lucideIcon(symbol); svg != nil {
 		return ui.Icon(c, svg).FontSize(size * 0.92).TextColor(color)
 	}
 	if emoji != "" {
@@ -197,7 +203,7 @@ func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
 	ui.Row(c).Padding(0, 0, 0, 2).Gap(2).AlignItems(ui.Center).Children(func() {
 		ui.Tabs(c.Key("icon-tabs"), &f.picker.tab, i18n.T("表情符号"), i18n.T("图标集"), i18n.T("自定义")).Label(i18n.T("图标类型")).Shrink(1).MinWidth(0)
 		ui.Spacer(c)
-		if iconButton(c, "remove-icon", lucideIcons["trash"], i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
+		if iconButton(c, "remove-icon", lucideIcon("trash"), i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
 			f.icon, f.symbol, f.image = "", "", ""
 			f.iconsOpen = false
 		}
@@ -207,6 +213,7 @@ func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
 // emojiGrid is the Emoji tab: the search field, the grid and the category
 // bar.
 func emojiGrid(c *ui.Context, f *spaceForm) {
+	ensureEmojiData()
 	t := c.Theme()
 	p := &f.picker
 	query := ui.TextInput(c.Key("emoji-query"), &p.query).Height(26).Margin(8, 0, 0, 0).Padding(2, 6).Radius(10).
@@ -276,7 +283,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 			if b.Hovered() {
 				color = t.Text
 			}
-			b.Children(func() { ui.Icon(c, lucideIcons[cat.icon]).FontSize(14).TextColor(color) })
+			b.Children(func() { ui.Icon(c, lucideIcon(cat.icon)).FontSize(14).TextColor(color) })
 			if b.Clicked() {
 				p.query = ""
 				p.scroll = cat.first
@@ -304,7 +311,7 @@ func symbolGrid(c *ui.Context, f *spaceForm) {
 						p.Fill(tile, t.Text.Alpha(0.1), 5)
 					}
 				})
-				b.Children(func() { ui.Icon(c, lucideIcons[name]).FontSize(15).TextColor(t.Text) })
+				b.Children(func() { ui.Icon(c, lucideIcon(name)).FontSize(15).TextColor(t.Text) })
 				if b.Clicked() {
 					f.icon, f.symbol, f.image = "", name, ""
 					f.iconsOpen = false
@@ -344,6 +351,7 @@ func shortcode(name string) string {
 // common ones and the catalog's names, those starting with what is typed
 // before those holding it, at most eight.
 func suggestEmoji(typed string) []editor.EmojiItem {
+	ensureEmojiData()
 	typed = strings.ToLower(typed)
 	var first, then []editor.EmojiItem
 	seen := map[string]bool{}

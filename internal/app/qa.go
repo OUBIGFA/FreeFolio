@@ -42,7 +42,8 @@ type secretStore interface {
 
 type qaState struct {
 	editOptionsOpen     bool
-	attachments         []agent.ContentPart
+	attachments         []oneBotAttachmentItem
+	dropHover           bool
 	editMode            bool
 	editScope           string
 	editPaths           []string
@@ -143,6 +144,8 @@ type qaTurn struct {
 	finishReason string
 	question     string
 	quotes       []oneBotQuote
+	attachments  []oneBotAttachmentBadge
+	parts        []agent.ContentPart
 	// start is the length of the history before the question, to which a
 	// retry rolls it back.
 	start    int
@@ -314,7 +317,10 @@ func (a *App) toggleQA() {
 func (a *App) askQA() {
 	text := strings.TrimSpace(a.qa.input)
 	sp := a.state.ActiveSpace()
-	if text == "" || sp == nil || a.qaSession(sp.ID).running() {
+	if sp == nil || a.qaSession(sp.ID).running() {
+		return
+	}
+	if text == "" && (a.qa.editMode || len(a.qa.attachments) == 0) {
 		return
 	}
 	if a.qa.editMode {
@@ -376,9 +382,14 @@ func (a *App) askQA() {
 		a.qa.input = ""
 		quotes := a.qa.quotes
 		a.qa.quotes = nil
+		items := a.qa.attachments
+		a.qa.attachments = nil
+		parts, badges, _ := splitOneBotAttachmentItems(items)
+		a.mergeOneBotEditableAttachments(task, items)
+		task.Parts = parts
 		task.Quotes = oneBotQuotePrompt(quotes)
 		s := a.qaSession(task.SpaceID)
-		turn := &qaTurn{question: text, quotes: quotes, edit: task}
+		turn := &qaTurn{question: text, quotes: quotes, attachments: badges, parts: parts, edit: task}
 		s.turns = append(s.turns, turn)
 		s.list.ScrollToEnd()
 		a.saveOneBotConversation(task.SpaceID, s)
@@ -389,16 +400,49 @@ func (a *App) askQA() {
 	a.qa.input = ""
 	quotes := a.qa.quotes
 	a.qa.quotes = nil
-	a.ask(sp.ID, text, quotes)
+	items := a.qa.attachments
+	a.qa.attachments = nil
+	parts, badges, writableRels := splitOneBotAttachmentItems(items)
+	a.askWithAttachments(sp.ID, text, quotes, parts, badges, writableRels)
+}
+
+func splitOneBotAttachmentItems(items []oneBotAttachmentItem) (parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
+	if len(items) == 0 {
+		return nil, nil, nil
+	}
+	parts = make([]agent.ContentPart, 0, len(items))
+	badges = make([]oneBotAttachmentBadge, 0, len(items))
+	seenRel := map[string]bool{}
+	for _, item := range items {
+		parts = append(parts, item.Part)
+		badges = append(badges, item.badge())
+		if item.Editable && item.RelPath != "" && !seenRel[item.RelPath] {
+			seenRel[item.RelPath] = true
+			writableRels = append(writableRels, item.RelPath)
+		}
+	}
+	return parts, badges, writableRels
 }
 
 // ask runs a question in the space with the ID. Quoted selections go
 // before the question in the model's copy only; the turn shows badges.
 func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
+	a.askWithAttachments(spaceID, question, quotes, nil, nil, nil)
+}
+
+func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote, parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
 	s := a.qaSession(spaceID)
 	offset := a.qa.orbSeed
 	a.qa.orbSeed++
-	turn := &qaTurn{question: question, quotes: quotes, start: len(s.history), running: true, orb: qaOrbState{baseOffset: offset}}
+	turn := &qaTurn{
+		question:    question,
+		quotes:      quotes,
+		attachments: badges,
+		parts:       parts,
+		start:       len(s.history),
+		running:     true,
+		orb:         qaOrbState{baseOffset: offset},
+	}
 	s.turns = append(s.turns, turn)
 	s.list.FollowEnd = true
 	s.list.ScrollToEnd()
@@ -429,11 +473,13 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	}
 	s.source = settings.Signature()
 	text := question
-	if len(quotes) > 0 {
-		text = oneBotQuotePrompt(quotes) + "\n" + question
+	if text == "" && len(parts) > 0 {
+		text = "请结合附件内容回答。"
 	}
-	s.history = append(s.history, agent.Message{Role: agent.User, Text: text, Parts: a.qa.attachments})
-	a.qa.attachments = nil
+	if len(quotes) > 0 {
+		text = oneBotQuotePrompt(quotes) + "\n" + text
+	}
+	s.history = append(s.history, agent.Message{Role: agent.User, Text: text, Parts: parts})
 	a.saveOneBotConversation(spaceID, s)
 	history := append([]agent.Message(nil), s.history...)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -442,10 +488,14 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	if !a.qa.sync && a.win != nil {
 		deliver = func(f func()) { a.win.Update(f) }
 	}
-	var editTask *oneBotTask
+	var writableAll []string
 	if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
-		editTask, _ = a.captureOneBotTask("document")
+		writableAll = append(writableAll, a.doc.rel)
 	}
+	for _, rel := range writableRels {
+		writableAll = append(writableAll, rel)
+	}
+	editTask := a.captureOneBotEditableDocs(spaceID, writableAll)
 	run := func() {
 		overview, _ := fs.Overview(6000)
 		tools := agent.SpaceTools(fs)
@@ -611,7 +661,13 @@ func (a *App) retryQA(spaceID string, t *qaTurn) {
 	}
 	s.turns = s.turns[:len(s.turns)-1]
 	s.history = s.history[:t.start]
-	a.ask(spaceID, t.question, t.quotes)
+	var writableRels []string
+	for _, b := range t.attachments {
+		if b.SpaceID == spaceID && b.RelPath != "" && isEditableSpaceDoc(b.RelPath, false) {
+			writableRels = append(writableRels, b.RelPath)
+		}
+	}
+	a.askWithAttachments(spaceID, t.question, t.quotes, t.parts, t.attachments, writableRels)
 }
 
 // clearQA starts a new conversation in the active space.

@@ -50,7 +50,8 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 		if !a.prefs.SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}
-		ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0).Children(func() {
+		qaCol := ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0)
+		qaCol.Children(func() {
 			s := a.qaSession(sp.ID)
 			ui.Row(c.Key("qa-head")).Height(max(bar.Height, mainBarHeight)).Padding(0, bar.Right, 0, 8).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
 				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Accent.Alpha(0.88))
@@ -73,8 +74,35 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 					a.qa.open = false
 				}
 			})
-			ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(pick(t, white.Alpha(0.88), t.Surface)).
-				Border(1, t.Border).Clip().Children(func() {
+			card := ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(pick(t, white.Alpha(0.88), t.Surface)).
+				Border(1, t.Border).Clip()
+			if !a.qa.historyOpen {
+				fileOver := card.FileDragOver()
+				droppedFiles := card.DroppedFiles()
+				_, appOver := ui.DragOver[dragged](card)
+				droppedDrag, isAppDrop := ui.Drop[dragged](card)
+				_, favOver := ui.DragOver[favoriteDrag](qaCol)
+				droppedFav, isFavDrop := ui.Drop[favoriteDrag](qaCol)
+				a.qa.dropHover = fileOver || appOver || favOver
+				if len(droppedFiles) > 0 {
+					a.addOneBotFiles(droppedFiles)
+				}
+				if isAppDrop {
+					a.dragGrab.consumed = true
+					rels := a.oneBotDraggedRels(droppedDrag)
+					if len(rels) > 1 {
+						a.clearPicks("")
+					}
+					a.addOneBotSpaceRefs(droppedDrag.space, rels)
+				}
+				if isFavDrop && droppedFav.index >= 0 && droppedFav.index < len(a.state.Favorites) {
+					fav := a.state.Favorites[droppedFav.index]
+					a.addOneBotSpaceRefs(fav.Space, []string{fav.Path})
+				}
+			} else {
+				a.qa.dropHover = false
+			}
+			card.Children(func() {
 				if a.qa.historyOpen {
 					a.oneBotHistoryPanel(c, sp.ID, s)
 					return
@@ -248,10 +276,13 @@ func (a *App) qaQuestion(c *ui.Context, turn *qaTurn) {
 		Enter:    &ui.Motion{Y: 5, Opacity: 0},
 	}).Children(func() {
 		a.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
-		ui.Box(c.Key("bubble")).Padding(9, 13).Radius(13).
-			Background(t.Accent.Alpha(0.13)).Border(1, t.Accent.Alpha(0.20)).MaxWidth(304).Children(func() {
-			ui.Text(c, turn.question).FontSize(13.5).LineHeight(1.5).Selectable()
-		})
+		a.oneBotAttachmentBadges(c, "q-attachments", turn.attachments, nil)
+		if turn.question != "" {
+			ui.Box(c.Key("bubble")).Padding(9, 13).Radius(13).
+				Background(t.Accent.Alpha(0.13)).Border(1, t.Accent.Alpha(0.20)).MaxWidth(304).Children(func() {
+				ui.Text(c, turn.question).FontSize(13.5).LineHeight(1.5).Selectable()
+			})
+		}
 	})
 }
 

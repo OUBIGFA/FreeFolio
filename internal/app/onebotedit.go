@@ -206,6 +206,86 @@ func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
 	return t, nil
 }
 
+func (a *App) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTask {
+	sp := a.state.Get(spaceID)
+	if sp == nil || len(rels) == 0 {
+		return nil
+	}
+	t := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: sp.ID, Direct: a.prefs.AI.Direct, Created: time.Now()}
+	seen := map[string]bool{}
+	for _, rel := range rels {
+		if rel == "" || seen[rel] || (!vault.IsMarkdown(rel) && !strings.EqualFold(path.Ext(rel), ".arcmd")) {
+			continue
+		}
+		seen[rel] = true
+		var d *document
+		for _, open := range a.residentDocuments() {
+			if open.space == sp && open.rel == rel {
+				d = open
+				break
+			}
+		}
+		if d == nil {
+			text, err := readFile(sp, rel)
+			if err != nil {
+				continue
+			}
+			d = openDocument(sp, rel, text, false)
+		}
+		if d.loadErr != nil || d.ed.ReadOnly || d.ed.Composing() || d.conflict || d.missing || len(d.ed.Doc.Blocks) == 0 {
+			continue
+		}
+		leaves := d.ed.Doc.Leaves()
+		if len(leaves) == 0 {
+			continue
+		}
+		target, err := d.ed.CaptureEdit(leaves[0].Start, leaves[len(leaves)-1].End)
+		if err != nil {
+			continue
+		}
+		captured := makeOneBotTarget(d, target)
+		captured.Whole = true
+		captured.Native = d.ed.Committed().Clone()
+		captured.Markdown = editor.ExportMarkdown(captured.Native)
+		t.Targets = append(t.Targets, captured)
+	}
+	if len(t.Targets) == 0 {
+		return nil
+	}
+	if len(t.Targets) == 1 {
+		t.Scope = "document"
+	} else {
+		t.Scope = "documents"
+	}
+	return t
+}
+
+func (a *App) mergeOneBotEditableAttachments(task *oneBotTask, items []oneBotAttachmentItem) {
+	if task == nil || (task.Scope != "document" && task.Scope != "documents") {
+		return
+	}
+	existing := map[string]bool{}
+	for _, target := range task.Targets {
+		existing[target.Path] = true
+	}
+	var extraRels []string
+	for _, item := range items {
+		if item.Editable && item.SpaceID == task.SpaceID && item.RelPath != "" && !existing[item.RelPath] {
+			existing[item.RelPath] = true
+			extraRels = append(extraRels, item.RelPath)
+		}
+	}
+	if len(extraRels) == 0 {
+		return
+	}
+	if extra := a.captureOneBotEditableDocs(task.SpaceID, extraRels); extra != nil {
+		task.Targets = append(task.Targets, extra.Targets...)
+		if len(task.Targets) > 1 {
+			task.Scope = "documents"
+		}
+	}
+}
+
 func makeOneBotTarget(d *document, target model.EditTarget) oneBotTarget {
 	e := model.NewEngine(d.ed.Committed())
 	a, z, _ := e.ResolveEdit(target)
@@ -372,7 +452,8 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 	epoch := task.Generation
 	settings := a.qaSettings()
 	if len(a.qa.attachments) > 0 {
-		task.Parts = append([]agent.ContentPart(nil), a.qa.attachments...)
+		parts, _, _ := splitOneBotAttachmentItems(a.qa.attachments)
+		task.Parts = parts
 		a.qa.attachments = nil
 	}
 	provider := settings.NewProvider()

@@ -88,7 +88,9 @@ func (a *App) View(c *ui.Context) {
 	t := spaceTheme(base, a.look)
 	c.SetTheme(t)
 	a.syncTree()
-	a.syncWatches()
+	if !a.launch.pending {
+		a.syncWatches()
+	}
 	post := a.asyncPost()
 	for _, d := range a.residentDocuments() {
 		if a.win != nil {

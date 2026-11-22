@@ -1,18 +1,21 @@
 package app
 
 import (
+	"sync"
+
 	"github.com/OUBIGFA/FreeMD/resources"
 	"github.com/egoist/mygo/ui"
 )
 
-// Decode the shipped logo once, at a resolution that stays sharp on HiDPI.
-var brandLogo = func() *ui.Bitmap {
+// Decode the shipped logo lazily on first use at a resolution that stays sharp
+// on HiDPI, keeping package init free of PNG decode/resize work.
+var brandLogo = sync.OnceValue(func() *ui.Bitmap {
 	b, err := ui.DecodeBitmapScaled(resources.Icon, 128)
 	if err != nil {
 		panic(err)
 	}
 	return b
-}()
+})
 
 func brand(c *ui.Context, context string, compact bool) {
 	size := float32(32)
@@ -20,7 +23,7 @@ func brand(c *ui.Context, context string, compact bool) {
 		size = 22
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Image(c, brandLogo).Size(size, size).Shrink(0)
+		ui.Image(c, brandLogo()).Size(size, size).Shrink(0)
 		ui.Column(c).Gap(1).Children(func() {
 			ui.Text(c, "FreeMD").FontSize(15).FontWeight(600).NoWrap()
 			if context != "" {

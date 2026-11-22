@@ -7,6 +7,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -17,10 +20,42 @@ import (
 
 // Font bytes are unchanged from Quiet.md e59c49a's Excalidraw font bundle.
 // Source, OFL and Comic Shanns MIT notices are under third_party/whiteboard.
+// Xiaolai-Regular.ttf.zlib (~14 MB) is shipped as an external app resource
+// rather than embedded inside the executable so cold-start binary scanning
+// stays fast.
 //
-//go:embed boardfonts/*
+//go:embed boardfonts/Virgil-Regular.ttf boardfonts/CascadiaCode-Regular.ttf boardfonts/Excalifont-Regular.ttf boardfonts/Nunito-Medium.ttf boardfonts/LilitaOne-Regular.ttf boardfonts/ComicShanns-Regular.ttf boardfonts/Assistant-Regular.ttf
 var boardFonts embed.FS
 var boardFontFiles = map[int]string{1: "Virgil-Regular.ttf", 3: "CascadiaCode-Regular.ttf", 5: "Excalifont-Regular.ttf", 6: "Nunito-Medium.ttf", 7: "LilitaOne-Regular.ttf", 8: "ComicShanns-Regular.ttf", 10: "Assistant-Regular.ttf", 100: "Xiaolai-Regular.ttf.zlib"}
+
+func readExternalBoardFont(name string) ([]byte, error) {
+	var candidates []string
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(dir, name),
+			filepath.Join(dir, "boardfonts", name),
+			filepath.Join(dir, "..", "Resources", name),
+			filepath.Join(dir, "..", "Resources", "boardfonts", name),
+		)
+	}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		candidates = append(candidates, filepath.Join(filepath.Dir(file), "boardfonts", name))
+	}
+	candidates = append(candidates, filepath.Join("internal", "editor", "boardfonts", name))
+	var lastErr error
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err == nil {
+			return data, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = os.ErrNotExist
+	}
+	return nil, lastErr
+}
 
 type loadedBoardFont struct {
 	data   []byte
@@ -41,7 +76,13 @@ func boardFont(id int) loadedBoardFont {
 	if !ok {
 		return loadedBoardFont{}
 	}
-	data, err := boardFonts.ReadFile("boardfonts/" + name)
+	var data []byte
+	var err error
+	if id == 100 {
+		data, err = readExternalBoardFont(name)
+	} else {
+		data, err = boardFonts.ReadFile("boardfonts/" + name)
+	}
 	if err == nil && id == 100 {
 		var z io.ReadCloser
 		z, err = zlib.NewReader(bytes.NewReader(data))

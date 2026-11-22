@@ -15,6 +15,7 @@ import (
 	// the file properties are in; imported, they also give MyGo's own
 	// controls and menus those languages.
 	_ "github.com/OUBIGFA/FreeMD/resources/locales"
+	"github.com/egoist/mygo"
 )
 
 func main() {
@@ -30,6 +31,15 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "ask" {
 		os.Exit(ask(os.Args[2:], cfg, os.Stdout, os.Stderr))
 	}
+	// Claim the single-instance lock before reading configuration or space trees
+	// so a second launch exits immediately instead of warming disk caches twice.
+	mygo.App.SetName("FreeMD")
+	mygo.App.SetPath(mygo.PathUserData, cfg.ConfigDir)
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+	cfg.DeferStartup = true
+	cfg.InstanceLocked = true
 	a, err := app.New(cfg)
 	if err != nil {
 		log.Fatal(err)

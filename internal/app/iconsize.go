@@ -15,10 +15,15 @@ import (
 // icons blurred and ragged, so each place gets the logo rendered at the
 // exact pixel size it shows, filtered as it shrinks.
 
-var iconCache = struct {
-	sync.Mutex
-	sizes map[int][]byte
-}{sizes: map[int][]byte{}}
+var (
+	decodedResourceIcon = sync.OnceValues(func() (image.Image, error) {
+		return png.Decode(bytes.NewReader(resources.Icon))
+	})
+	iconCache = struct {
+		sync.Mutex
+		sizes map[int][]byte
+	}{sizes: map[int][]byte{}}
+)
 
 // iconPNG returns the logo as a PNG of size×size pixels, or the original
 // logo should rendering fail. Renderings are kept by size.
@@ -29,7 +34,7 @@ func iconPNG(size int) []byte {
 		return data
 	}
 	data := resources.Icon
-	if src, err := png.Decode(bytes.NewReader(resources.Icon)); err == nil && size > 0 {
+	if src, err := decodedResourceIcon(); err == nil && size > 0 {
 		dst := image.NewNRGBA(image.Rect(0, 0, size, size))
 		// Catmull-Rom widens its kernel with the scale, so shrinking
 		// 1024 px to 16 averages every source pixel instead of skipping

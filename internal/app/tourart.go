@@ -457,3 +457,17 @@ func (d *tourDraw) done() {
 		star(d.p, cx+s[0], cy+s[1], s[2]*k*pulse, faded(tl.ink.Mix(tl.accent, 0.5), 0.75*k))
 	}
 }
+
+// star fills a four-point star with concave sides, size across.
+func star(p *ui.Painter, cx, cy, size float32, c ui.Color) {
+	r := size / 2
+	k := r * 0.1
+	path := &ui.Path{}
+	path.MoveTo(cx, cy-r)
+	path.QuadTo(cx+k, cy-k, cx+r, cy)
+	path.QuadTo(cx+k, cy+k, cx, cy+r)
+	path.QuadTo(cx-k, cy+k, cx-r, cy)
+	path.QuadTo(cx-k, cy-k, cx, cy-r)
+	path.Close()
+	p.FillPath(path, c)
+}

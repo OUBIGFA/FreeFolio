@@ -499,7 +499,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 	icon := func(svg *ui.SVG) { ui.Icon(c, svg).FontSize(10).TextColor(t.TextMuted) }
 	previewBrand := func() {
 		ui.Row(c.Key("preview-brand")).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
-			ui.Image(c, brandLogo).Size(14, 14)
+			ui.Image(c, brandLogo()).Size(14, 14)
 			ui.Text(c, "FreeMD").FontSize(10).FontWeight(600)
 		})
 	}
@@ -668,7 +668,7 @@ func (a *App) settingsUpdates(c *ui.Context) {
 func (a *App) settingsAbout(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c.Key("about-product")).Gap(14).AlignItems(ui.Center).Padding(0, 0, 4, 0).Children(func() {
-		ui.Image(c, brandLogo).Size(48, 48).Shrink(0)
+		ui.Image(c, brandLogo()).Size(48, 48).Shrink(0)
 		ui.Column(c).Gap(3).Children(func() {
 			ui.Text(c, "FreeMD").FontSize(20).FontWeight(600)
 			ui.Text(c, i18n.T("版本 ")+Version+" · "+i18n.T("安静地写作，有序地整理。")).FontSize(13).TextColor(t.TextMuted)

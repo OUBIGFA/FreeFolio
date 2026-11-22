@@ -551,17 +551,17 @@ func darkPageStyle() editor.Page {
 type bannerLook struct {
 	// fill and hover grade from the card's top-left to its bottom-right.
 	fill, hover                [2]ui.Color
+	border, divider            ui.Color
 	title, secondary, tertiary ui.Color
-	accent, icon, hoverIcon    ui.Color
-	heart, tile                ui.Color
+	badgeFill, badgeInk        ui.Color
+	readyFill, readyInk        ui.Color
+	icon, hoverIcon            ui.Color
+	tileHover                  ui.Color
 }
 
-// bannerColors take the banner's colors from the space, as Cra measures
-// Arc's on its purple space: a white card fading toward the bottom right,
-// text a dark tint of the space, the heart a paler space color, icons the
-// space color. On a pale space those tones would vanish into the white
-// card, so their brightness is capped where the icon keeps the purple
-// space's contrast on white.
+// bannerColors builds light and dark palettes for the sidebar update card
+// from the active space's accent color, capping light-theme brightness so
+// semantic badges and text retain crisp contrast on translucent cards.
 func bannerColors(l spaceLook) bannerLook {
 	h, s, v := space.HSB(0.55, 0.45, 0.75) // a purple, for a space without one
 	if space.ValidHex(l.Look.Accent) {
@@ -596,22 +596,42 @@ func bannerColors(l spaceLook) bannerLook {
 	}
 	if dark {
 		accent := hsb(s*0.55, 0.95, 1)
+		readyInk := ui.RGB(0x34, 0xD3, 0x99)
 		return bannerLook{
-			fill:  [2]ui.Color{white.Alpha(0.12), white.Alpha(0.07)},
-			hover: [2]ui.Color{white.Alpha(0.16), white.Alpha(0.11)},
-			title: l.text, secondary: l.text.Alpha(0.7), tertiary: l.text.Alpha(0.4),
-			accent: accent, icon: accent, hoverIcon: hsb(s*0.4, 1, 1),
-			heart: hsb(s*0.5, 0.95, 0.45), tile: white.Alpha(0.03),
+			fill:      [2]ui.Color{white.Alpha(0.11), white.Alpha(0.06)},
+			hover:     [2]ui.Color{white.Alpha(0.15), white.Alpha(0.1)},
+			border:    white.Alpha(0.14),
+			divider:   white.Alpha(0.1),
+			title:     l.text,
+			secondary: l.text.Alpha(0.72),
+			tertiary:  l.text.Alpha(0.45),
+			badgeFill: accent.Alpha(0.18),
+			badgeInk:  accent,
+			readyFill: readyInk.Alpha(0.18),
+			readyInk:  readyInk,
+			icon:      accent,
+			hoverIcon: hsb(s*0.4, 1, 1),
+			tileHover: white.Alpha(0.08),
 		}
 	}
 	ink := hsb(s*1.2, 0.216, 1)
+	accent := hsb(s*0.9, min(1, max(v, 0.55)*1.04), 1)
+	readyInk := ui.RGB(0x05, 0x96, 0x69)
 	return bannerLook{
-		fill:  [2]ui.Color{white.Alpha(0.94), white.Alpha(0.58)},
-		hover: [2]ui.Color{white.Alpha(0.96), white.Alpha(0.66)},
-		title: ink, secondary: ink.Alpha(0.7), tertiary: ink.Alpha(0.36),
-		accent: hsb(s*0.9, min(1, max(v, 0.55)*1.04), 1),
-		icon:   hsb(s*0.89, v*0.913, 1), hoverIcon: hsb(s*1.28, v*0.78, 1),
-		heart: hsb(s*0.735, v, 0.6), tile: black.Alpha(0.015),
+		fill:      [2]ui.Color{white.Alpha(0.94), white.Alpha(0.68)},
+		hover:     [2]ui.Color{white.Alpha(0.98), white.Alpha(0.78)},
+		border:    ink.Alpha(0.1),
+		divider:   ink.Alpha(0.08),
+		title:     ink,
+		secondary: ink.Alpha(0.72),
+		tertiary:  ink.Alpha(0.42),
+		badgeFill: accent.Alpha(0.14),
+		badgeInk:  accent,
+		readyFill: readyInk.Alpha(0.12),
+		readyInk:  readyInk,
+		icon:      hsb(s*0.89, v*0.913, 1),
+		hoverIcon: hsb(s*1.28, v*0.78, 1),
+		tileHover: black.Alpha(0.05),
 	}
 }
 

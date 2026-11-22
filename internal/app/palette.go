@@ -63,6 +63,7 @@ type action struct {
 type palettePillMatch struct{}
 
 func (a *App) openPalette() {
+	a.ensurePluginsLoaded()
 	a.palette = palette{open: true}
 	// Other spaces' folders are read again for their documents' names,
 	// and the index takes in what changed since.
