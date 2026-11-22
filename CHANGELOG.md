@@ -7,7 +7,7 @@
 - Respect scheduled cloud sync when enabling or disabling sync, and keep document scrollbars usable while dragging.
 - Include the sidebar icon and folder-label refinements.
 - Continue to support native Markdown and legacy `.arcmd` documents. Back up notes and configuration before upgrading.
-- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.1-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+- Provide the locally built Windows x64 installer, `FreeMD-0.1.1-Setup.exe`, for downloads and verified in-app updates. Keep its checksum and build record local; no separate update manifest is shipped.
 
 ## FreeMD 0.1.0
 
