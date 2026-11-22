@@ -1,5 +1,14 @@
 # Changelog
 
+## FreeMD 0.1.1
+
+- Add verified Windows in-app updates: download and validate the official installer, then install it from Settings → Update. Show update status and progress in that page instead of a separate popup. Other platforms open the release page when no signed update source is configured.
+- Improve file browsing with centered, adaptive tabs, a visible Open File button, and outlines that stay clear of wide content. Keep links feeling clickable in read-only documents.
+- Respect scheduled cloud sync when enabling or disabling sync, and keep document scrollbars usable while dragging.
+- Include the sidebar icon and folder-label refinements.
+- Continue to support native Markdown and legacy `.arcmd` documents. Back up notes and configuration before upgrading.
+- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.1-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+
 ## FreeMD 0.1.0
 
 FreeMD's first public release: a local-first native Markdown editor based on ArcMD, built with Go and MyGo.

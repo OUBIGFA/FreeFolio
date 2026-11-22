@@ -850,7 +850,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				}
 				ui.Icon(c, chevron).FontSize(14).TextColor(t.Text)
 				ui.Icon(c, folder).FontSize(17).TextColor(a.sidebarFolderIconColor(t))
-			} else if icon := ui.Icon(c, iconFile).FontSize(16).TextColor(t.TextMuted); dim {
+			} else if icon := ui.Icon(c, iconFileSimple).FontSize(16).TextColor(t.TextMuted); dim {
 				icon.Opacity(closedIconAlpha)
 			}
 			if renaming {
@@ -861,10 +861,10 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			if dim {
 				ink = closedInk(t)
 			}
-			name := ui.Text(c, docName(n.Title())).FontSize(14).TextColor(ink).SingleLine().Grow(1).MinWidth(0)
-			if n.Dir || chosen {
-				name.FontWeight(500)
+			if n.Dir && open && len(n.Children) > 0 {
+				ink = t.Text.Alpha(0.7)
 			}
+			ui.Text(c, docName(n.Title())).FontSize(14).TextColor(ink).SingleLine().Grow(1).MinWidth(0)
 			if n.Dir && !open && hovered {
 				// A closed folder tells how many documents it holds.
 				ui.Text(c, fmt.Sprint(docCount(n))).FontSize(11).FontWeight(500).TextColor(t.TextMuted)
