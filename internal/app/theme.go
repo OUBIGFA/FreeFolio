@@ -22,9 +22,6 @@ var (
 	black = ui.RGB(0, 0, 0)
 )
 
-// qaBotInk is bot-avatars' original autoInk for the white ghost material.
-func qaBotInk() ui.Color { return ui.Hex("#1E1A33") }
-
 func splitFocus(t *ui.Theme) ui.Color { return t.Accent }
 func splitEmpty(t *ui.Theme) ui.Color { return glass(t) }
 func splitDropColors(t *ui.Theme) (ui.Color, ui.Color) {

@@ -220,6 +220,59 @@
           "sha256": "b7f55afa3373021e11ae6b67f078a2ee64dce429e4430fe51776214074873d56"
         }
       ]
+    },
+    {
+      "name": "Thinking Orbs",
+      "purpose": "Native Go + MyGo 3D dotted thought-orb status indicator for OneBot",
+      "sourceUrl": "https://github.com/Jakubantalik/thinking-orbs",
+      "tag": "v0.3.1",
+      "revision": "de85557ca220332586d070d8788c0e1d6e877a0d",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/thinking-orbs/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/thinking-orbs/LICENSE",
+          "bytes": 1070,
+          "sha256": "915a283980628a0ca9e7b423ebafc6f3a0fa1e630ff17d34e59034808d92011c"
+        }
+      ],
+      "adaptedFiles": [
+        {
+          "path": "src/presets.ts",
+          "sha256": "f8cb9f7116647923b93ffc5ace86193aaccbb879350abeb44bc518ad8a824920",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/core.ts",
+          "sha256": "c1ba22c1729f32e776c075288f65a0d98f5ee07a597b4e16934b064bda794b68",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/profiles.ts",
+          "sha256": "1e88a4f7ad35495785d4b9eca75131f4c4ae2ae7ac6936b073f9f26e581b3cbc",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/orbits.ts",
+          "sha256": "3c658755adaa9892b6a901863f09c0cb61a1ee9c76eecc4a19324f57a68e7f3e",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/lattice.ts",
+          "sha256": "9def15c20232b742655c4790bceb62e12b036638b85602909ac573af03db6719",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/ribbon.ts",
+          "sha256": "379e3019cd6c3a2285648375e5d0b719e25a1fe590495cc14a8197aa4d111d86",
+          "destination": "internal/app/qaorb.go"
+        },
+        {
+          "path": "src/engine/web.ts",
+          "sha256": "e821e2bf7908e8c827e9814a5cf16730e73bfdda0dd694a84c685499fd76c607",
+          "destination": "internal/app/qaorb.go"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

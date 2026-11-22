@@ -58,6 +58,7 @@ type qaState struct {
 	historyQuery        string
 	historyConfirmClear bool
 	historyList         ui.ListState
+	orbSeed             int
 	editFollow          bool
 	editCount           int
 	editNewPath         string
@@ -156,7 +157,7 @@ type qaTurn struct {
 	epoch     uint64
 	stopped   bool
 	err       error
-	avatar    qaBotState
+	orb       qaOrbState
 	// expanded and userToggled control whether the exploration timeline is open.
 	expanded        bool
 	userToggled     bool
@@ -395,7 +396,9 @@ func (a *App) askQA() {
 // before the question in the model's copy only; the turn shows badges.
 func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 	s := a.qaSession(spaceID)
-	turn := &qaTurn{question: question, quotes: quotes, start: len(s.history), running: true}
+	offset := a.qa.orbSeed
+	a.qa.orbSeed++
+	turn := &qaTurn{question: question, quotes: quotes, start: len(s.history), running: true, orb: qaOrbState{baseOffset: offset}}
 	s.turns = append(s.turns, turn)
 	s.list.FollowEnd = true
 	s.list.ScrollToEnd()

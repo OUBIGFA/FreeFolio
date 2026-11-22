@@ -110,7 +110,7 @@ func TestQAWindowResizeSnapshot(t *testing.T) {
 
 func TestQASnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the question panel")
-	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "ghost", "ghost-dark", "ghost-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
+	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "orb", "orb-dark", "orb-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
 		t.Run(name, func(t *testing.T) {
 			replyText := "发布**延期到 12 月 2 日**，主要有两个原因 [发布计划.md#L5]：\n\n- 支付联调需要排查回调 [发布计划.md#L7]，目前已在周报确认修复 [项目/周报.md#L5]\n- 证书审批还在走流程 [发布计划.md#L11]\n\n目前唯一的阻塞是证书，`payments` 模块已经修好。"
 			if strings.HasPrefix(name, "citations-") {
@@ -164,7 +164,7 @@ func TestQASnapshot(t *testing.T) {
 					{call: agent.ToolCall{Name: agent.ToolGrep, Args: `{"pattern":"- [ ]"}`}, done: true, result: "12 matches in 4 documents."},
 					{call: agent.ToolCall{Name: agent.ToolRead, Args: `{"path":"项目/周报.md","start_line":20,"end_line":60}`}},
 				}})
-			case "ghost", "ghost-dark", "ghost-narrow", "thinking":
+			case "orb", "orb-dark", "orb-narrow", "thinking":
 				s := a.qaSession(sp)
 				s.cancel = func() {}
 				s.turns = append(s.turns, &qaTurn{question: "这个空间里有哪些还没完成的任务？", running: true, thinking: name == "thinking"})

@@ -3,10 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"image/png"
 	"math"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -15,155 +12,194 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestGhostMatchesUpstreamPictures(t *testing.T) {
-	data, err := os.ReadFile("testdata/qabot/poses.json")
-	if err != nil {
-		t.Fatal(err)
+func TestThinkingOrbMatchesUpstreamGoldenVectors(t *testing.T) {
+	// Reference vectors extracted verbatim from upstream thinking-orbs v0.3.1
+	// spec/orbs-golden.json (commit de85557ca220332586d070d8788c0e1d6e877a0d).
+	type vec struct {
+		name      string
+		style     qaOrbStyle
+		size      int
+		t         float64
+		dotCount  int
+		lineCount int
+		firstDot  [6]float64
+		lastDot   [6]float64
+		firstLine [7]float64
 	}
-	var frames []struct {
-		Name string
-		Pose botPose
+	cases := []vec{
+		{
+			name: "working-64-0.6", style: orbWorking, size: 64, t: 0.6,
+			dotCount: 516, lineCount: 0,
+			firstDot: [6]float64{32.34438, 30.683937, -24.13443, 0.356187, 0.72, 0.200238},
+			lastDot:  [6]float64{31.65562, 33.316063, 24.13443, 0.356187, 0.72, 0.499762},
+		},
+		{
+			name: "working-20-3.3", style: orbWorking, size: 20, t: 3.3,
+			dotCount: 39, lineCount: 0,
+			firstDot: [6]float64{9.799297, 10.124795, -7.550283, 0.567387, 0.299946, 1},
+			lastDot:  [6]float64{11.100429, 10.065749, 7.473109, 0.425401, 0.72, 0.498394},
+		},
+		{
+			name: "solving-64-0.6", style: orbSolving, size: 64, t: 0.6,
+			dotCount: 138, lineCount: 0,
+			firstDot: [6]float64{32.999536, 35.206761, -0.991773, 0.3, 0.617779, 1},
+			lastDot:  [6]float64{34.395262, 28.752372, 0.988104, 0.951566, 0.083212, 1},
+		},
+		{
+			name: "solving-20-3.3", style: orbSolving, size: 20, t: 3.3,
+			dotCount: 30, lineCount: 0,
+			firstDot: [6]float64{8.017374, 7.144441, -0.905688, 0.366774, 0.454536, 1},
+			lastDot:  [6]float64{11.717005, 8.646124, 0.963792, 0.849134, 0.089776, 1},
+		},
+		{
+			name: "thinking-ribbon-64-3.3", style: orbThinking, size: 64, t: 3.3,
+			dotCount: 566, lineCount: 0,
+			firstDot: [6]float64{37.322389, 30.655967, -24.348868, 0.31661, 0.78, 0.102693},
+			lastDot:  [6]float64{32, 25.854149, 24.19153, 0.699834, 0.266773, 0.990764},
+		},
+		{
+			name: "thinking-ribbon-20-0.6", style: orbThinking, size: 20, t: 0.6,
+			dotCount: 208, lineCount: 0,
+			firstDot: [6]float64{7.795005, 12.112063, -7.177547, 0.3, 0.682444, 0.42394},
+			lastDot:  [6]float64{10, 6.759833, 7.095162, 0.431603, 0.27988, 0.972891},
+		},
+		{
+			name: "agent-thinking-ring-64-0.6", style: orbAgentThinking, size: 64, t: 0.6,
+			dotCount: 484, lineCount: 0,
+			firstDot: [6]float64{41.791591, 53.440594, -8.838984, 0.467922, 0.557908, 0.593762},
+			lastDot:  [6]float64{55.395251, 28.636271, 8.863436, 0.638987, 0.401877, 0.806532},
+		},
+		{
+			name: "agent-thinking-ring-20-3.3", style: orbAgentThinking, size: 20, t: 3.3,
+			dotCount: 120, lineCount: 0,
+			firstDot: [6]float64{9.201663, 17.595667, -2.004845, 0.414845, 0.536547, 0.622891},
+			lastDot:  [6]float64{16.910423, 13.076719, 1.985655, 0.519031, 0.423994, 0.776371},
+		},
+		{
+			name: "connecting-web-64-0.6", style: orbConnecting, size: 64, t: 0.6,
+			dotCount: 48, lineCount: 81,
+			firstDot:  [6]float64{23.99695, 34.67833, -0.944099, 0.662966, 0.537422, 1},
+			lastDot:   [6]float64{31.723599, 32.180593, 0.999917, 1.490098, 0.100019, 1},
+			firstLine: [7]float64{40.743047, 12.360858, 25.929776, 13.006921, 0.42, 0.137696, 0.6},
+		},
 	}
-	if err = json.Unmarshal(data, &frames); err != nil {
-		t.Fatal(err)
+
+	const tol = 1e-4
+	checkDot := func(t *testing.T, label string, got orbDot, want [6]float64) {
+		t.Helper()
+		vals := [6]float64{got.x, got.y, got.z, got.r, got.white, got.a}
+		for i := range 6 {
+			if math.Abs(vals[i]-want[i]) > tol {
+				t.Fatalf("%s[%d] = %.6f, want %.6f", label, i, vals[i], want[i])
+			}
+		}
 	}
-	for _, f := range frames {
-		t.Run(f.Name, func(t *testing.T) {
-			var renderer botPainter
-			tt := ui.NewTester(func(c *ui.Context) {
-				c.Root().Background(white)
-				ui.Box(c).Size(48, 48).Draw(func(p *ui.Painter, r ui.Rect) {
-					renderer.draw(p, ui.Rect{X: r.X + 8, Y: r.Y + 11.2, W: 32, H: 32}, f.Pose)
-				})
-			}, 48, 48)
-			tt.SetScale(2)
-			got := tt.Image()
-			file, err := os.Open(filepath.Join("testdata/qabot", f.Name+".png"))
-			if err != nil {
-				t.Fatal(err)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			preset := resolveOrbPreset(tc.style, tc.size)
+			frame := orbComputeFrame(tc.style, float64(tc.size), tc.t, preset.opts)
+			if len(frame.dots) != tc.dotCount || len(frame.lines) != tc.lineCount {
+				t.Fatalf("counts = (%d dots, %d lines), want (%d, %d)", len(frame.dots), len(frame.lines), tc.dotCount, tc.lineCount)
 			}
-			defer file.Close()
-			want, err := png.Decode(file)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got.Bounds() != want.Bounds() {
-				t.Fatal("reference size differs")
-			}
-			var diff, ink float64
-			for y := range 96 {
-				for x := range 96 {
-					gr, gg, gb, _ := got.At(x, y).RGBA()
-					wr, wg, wb, _ := want.At(x, y).RGBA()
-					diff += (math.Abs(float64(gr)-float64(wr)) + math.Abs(float64(gg)-float64(wg)) + math.Abs(float64(gb)-float64(wb))) / 3 / 257
-					ink += (65535 - float64(wr) + 65535 - float64(wg) + 65535 - float64(wb)) / 3 / 257
+			checkDot(t, "firstDot", frame.dots[0], tc.firstDot)
+			checkDot(t, "lastDot", frame.dots[len(frame.dots)-1], tc.lastDot)
+			if tc.lineCount > 0 {
+				l := frame.lines[0]
+				vals := [7]float64{l.x1, l.y1, l.x2, l.y2, l.white, l.a, l.w}
+				for i := range 7 {
+					if math.Abs(vals[i]-tc.firstLine[i]) > tol {
+						t.Fatalf("firstLine[%d] = %.6f, want %.6f", i, vals[i], tc.firstLine[i])
+					}
 				}
-			}
-			t.Logf("pixel MAE %.4f/255, relative ink difference %.4f", diff/(96*96), diff/ink)
-			if dir := os.Getenv("FREEMD_SNAPSHOT"); dir != "" {
-				if err := os.MkdirAll(dir, 0755); err != nil {
-					t.Fatal(err)
-				}
-				savePNG(t, filepath.Join(dir, "ghost-"+f.Name+".png"), tt)
-			}
-			// Material views interpolate; native path/image antialiasing also differs
-			// from Canvas. Fail if the shape, eyes or pose materially diverge.
-			if diff/(96*96) > 1.3 || diff/ink > .1 {
-				t.Fatal("ghost differs from original renderer")
 			}
 		})
 	}
 }
 
-func TestGhostPointerClickAndReducedMotion(t *testing.T) {
-	var s qaBotState
+func TestThinkingOrbClickCycleCrossfadeAndReducedMotion(t *testing.T) {
+	var s qaOrbState
 	hidden, clipped := false, false
 	builds := 0
+	desired := orbWorking
 	tt := ui.NewTester(func(c *ui.Context) {
 		builds++
 		c.Root().Background(white)
-		ui.Column(c).Fill().Clip().Padding(70).Children(func() {
+		ui.Column(c).Fill().Clip().Padding(40).Children(func() {
 			if clipped {
 				ui.Box(c).Height(400).Shrink(0)
 			}
-			qaGhostAvatar(c, &s).Hidden(hidden)
+			qaThinkingOrb(c, &s, desired).Hidden(hidden)
 		})
-	}, 220, 220)
-	label := "小幽灵，点击跳跃"
+	}, 200, 200)
+
+	label := "切换思考动效"
 	r, ok := tt.Find(label)
-	if !ok || r.W != 32 || r.H != 32 {
-		t.Fatalf("ghost must be 32×32: %+v", r)
+	if !ok || r.W != qaOrbBoxSize || r.H != qaOrbBoxSize {
+		t.Fatalf("orb box must be %d×%d: %+v", qaOrbBoxSize, qaOrbBoxSize, r)
 	}
-	advance := func(n int) {
-		for range n {
-			tt.Advance(time.Second / 60)
-		}
+	if s.style != orbWorking {
+		t.Fatalf("initial style = %v, want orbWorking", s.style)
 	}
-	tt.Move(r.X+r.W+12, r.Y+4)
-	advance(60)
-	if s.motion.ptrS < .9 || s.motion.ptrX < .5 || s.motion.pose.LookX <= 0 {
-		t.Fatalf("pointer did not attract head and eyes: %+v", s.motion.pose)
-	}
-	right := s.motion.pose.Yaw
-	tt.Move(r.X-12, r.Y+4)
-	advance(60)
-	if s.motion.pose.Yaw >= right || s.motion.ptrX > -.5 {
-		t.Fatal("head did not turn left with pointer")
-	}
-	tt.Move(215, 215)
-	advance(60)
-	if s.motion.ptrS > .01 {
-		t.Fatal("pointer outside three head widths still attracts the ghost")
-	}
+
+	// Clicking cycles to Solving and starts a smooth crossfade.
 	if err := tt.Click(label); err != nil {
 		t.Fatal(err)
 	}
-	if !s.motion.flip.active() || !s.motion.flipPoked {
-		t.Fatal("click did not start the original hop")
+	if s.style != orbSolving || !s.morphing || s.prevStyle != orbWorking {
+		t.Fatalf("click did not crossfade to Solving: %+v", s)
 	}
-	advance(32)
-	if s.motion.pose.Y > -15 {
-		t.Fatalf("click did not jump: y=%v", s.motion.pose.Y)
+	tt.Advance(qaOrbMorphDuration + 20*time.Millisecond)
+	if s.morphing {
+		t.Fatal("crossfade did not finish")
 	}
-	advance(90)
-	if s.motion.flip.active() {
-		t.Fatal("jump failed to land")
-	}
-	// The same action is keyboard accessible.
+
+	// Keyboard activation cycles to Thinking.
 	tt.Key(0, ui.KeyEnter)
-	if !s.motion.flip.active() {
-		t.Fatal("Enter did not activate the focused ghost")
+	if s.style != orbThinking {
+		t.Fatalf("Enter did not advance style to Thinking: %v", s.style)
 	}
+
+	// Reduced motion rests on a deterministic frame without scheduling animation.
 	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tt.Frame()
 	before := bytes.Clone(tt.Image().Pix)
 	built := builds
-	advance(60)
+	for range 10 {
+		tt.Advance(time.Second / 60)
+	}
 	if !bytes.Equal(before, tt.Image().Pix) || tt.FramePending() || builds != built {
-		t.Fatal("reduced-motion avatar did not rest")
+		t.Fatal("reduced-motion orb did not rest")
 	}
 	if err := tt.Click(label); err != nil {
 		t.Fatal(err)
 	}
-	if tt.FramePending() {
-		t.Fatal("reduced-motion click scheduled animation")
+	if s.style != orbAgentThinking || tt.FramePending() {
+		t.Fatalf("reduced-motion click failed: style=%v pending=%v", s.style, tt.FramePending())
 	}
+
+	// Live animation repaints without rebuilding the UI tree.
 	tt.SetPreferences(ui.Preferences{})
-	advance(1)
+	tt.Advance(time.Second / 60)
 	built = builds
-	advance(10)
+	for range 10 {
+		tt.Advance(time.Second / 60)
+	}
 	if builds != built || !tt.FramePending() {
 		t.Fatal("animation must repaint without rebuilding the view")
 	}
+
+	// Hidden or clipped offscreen stops requesting frames.
 	for _, kind := range []string{"hidden", "clipped"} {
 		hidden, clipped = kind == "hidden", kind == "clipped"
 		tt.Frame()
 		if tt.FramePending() {
-			t.Fatalf("%s ghost kept requesting frames", kind)
+			t.Fatalf("%s orb kept requesting frames", kind)
 		}
 	}
 }
 
-func TestGhostFollowsWaitingTurn(t *testing.T) {
+func TestThinkingOrbFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	a, tt := qaApp(t, &scripted{})
 	tt.Key(ui.Cmd, ui.KeyJ)
 	tt.Advance(slide)
@@ -173,31 +209,89 @@ func TestGhostFollowsWaitingTurn(t *testing.T) {
 	stopped := false
 	s.cancel = func() { stopped = true }
 	tt.Frame()
-	if !turn.avatar.initialized || !tt.HasText("正在查找…") || !tt.HasText("停止") {
-		t.Fatal("waiting ghost missing")
+	if !turn.orb.initialized || !tt.HasText("正在查找…") || !tt.HasText("停止") {
+		t.Fatal("waiting orb missing")
 	}
+	if turn.orb.style != orbWorking {
+		t.Fatalf("initial waiting style = %v, want orbWorking", turn.orb.style)
+	}
+
+	// Auto-cycles across the 4 primary styles during a long wait.
+	tt.Advance(qaOrbCyclePeriod + 50*time.Millisecond)
+	tt.Frame()
+	if turn.orb.style != orbSolving {
+		t.Fatalf("auto-cycle after period = %v, want orbSolving", turn.orb.style)
+	}
+
+	// Thinking phase shifts to Thinking (ribbon) or Agent thinking (ring).
 	turn.apply(agent.Event{Kind: agent.ReasoningDelta, Text: "reasoning"})
 	tt.Frame()
-	if !tt.HasText("思考中…") {
-		t.Fatal("reasoning status missing")
+	if !tt.HasText("思考中…") || (turn.orb.style != orbThinking && turn.orb.style != orbAgentThinking) {
+		t.Fatalf("reasoning status/orb unexpected: style=%v", turn.orb.style)
 	}
+
+	// Streaming answer replaces waiting status card.
 	turn.apply(agent.Event{Kind: agent.TextDelta, Text: "正在整理结果"})
 	tt.Frame()
 	qaAdvance(tt, 700*time.Millisecond)
 	if tt.HasText("思考中…") || !tt.HasText("正在整理结果") {
 		t.Fatal("streaming did not replace status")
 	}
+
+	// Tool call round restores waiting status with phase-matched orb.
 	turn.apply(agent.Event{Kind: agent.StepDone, Message: agent.Message{Calls: []agent.ToolCall{{Name: agent.ToolRead}}}})
+	turn.apply(agent.Event{Kind: agent.ToolStart, Call: agent.ToolCall{ID: "r1", Name: agent.ToolRead, Args: `{"path":"Welcome.md"}`}})
 	tt.Frame()
-	if !tt.HasText("正在查找…") {
-		t.Fatal("tool round did not restore ghost")
+	if !tt.HasText("正在阅读 Welcome") || (turn.orb.style != orbAgentThinking && turn.orb.style != orbThinking) {
+		t.Fatalf("tool round orb unexpected: style=%v texts=%q", turn.orb.style, tt.Texts())
 	}
+
 	if err := tt.Click("停止"); err != nil || !stopped {
 		t.Fatal("stop did not cancel")
 	}
 	a.finishQA(s, turn, nil, context.Canceled)
 	tt.Frame()
 	if tt.HasText("正在查找…") || !tt.HasText("已停止") {
-		t.Fatal("stopped turn retained its ghost")
+		t.Fatal("stopped turn retained its orb")
+	}
+}
+
+func TestQAOrbStylesSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect Thinking Orbs styles")
+	styles := []struct {
+		name  string
+		style qaOrbStyle
+	}{
+		{"Working", orbWorking},
+		{"Solving", orbSolving},
+		{"Thinking", orbThinking},
+		{"Agent thinking", orbAgentThinking},
+		{"Connecting", orbConnecting},
+	}
+	for _, dark := range []bool{false, true} {
+		mode := "light"
+		if dark {
+			mode = "dark"
+		}
+		t.Run(mode, func(t *testing.T) {
+			tt := ui.NewTester(func(c *ui.Context) {
+				th := c.Theme()
+				c.Root().Background(th.Background)
+				ui.Column(c).Padding(16).Gap(10).Children(func() {
+					for i, item := range styles {
+						ui.Row(c.Key(i)).Gap(10).Padding(8, 12).Radius(11).AlignItems(ui.Center).
+							Background(th.Text.Alpha(0.032)).Border(1, th.Border.Alpha(0.32)).Children(func() {
+							var st qaOrbState
+							qaThinkingOrb(c, &st, item.style)
+							ui.Text(c, item.name+" · 正在查找…").FontSize(12.5).FontWeight(500).TextColor(th.Text.Alpha(0.85))
+						})
+					}
+				})
+			}, 340, 300)
+			tt.SetDark(dark)
+			tt.SetScale(2)
+			tt.Frame()
+			savePNG(t, filepath.Join(dir, "qa-orbs-"+mode+".png"), tt)
+		})
 	}
 }

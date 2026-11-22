@@ -1382,7 +1382,7 @@ var en = map[string]string{
 	"模型":                                 "Model",
 	"模型名称":                               "Model name",
 	"输入模型名称":                             "Enter model name",
-	"小幽灵，点击跳跃":                           "Ghost, click to jump",
+	"切换思考动效":                             "Switch thinking animation",
 	"正在查找…":                              "Looking…",
 	"空间已不存在":                             "The space no longer exists",
 	"粘贴 API Key":                         "Paste API key",
