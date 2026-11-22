@@ -1309,6 +1309,7 @@ func (d *document) imageResourceFrom(full, url string, post func(func())) editor
 		}
 		decoded := decodeLocalImageSync(full)
 		<-imageDecodeSem
+		imageDecodesDone.Add(1)
 		if d.closed.Load() {
 			return
 		}

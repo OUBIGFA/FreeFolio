@@ -129,6 +129,7 @@ func (r *remoteImages) resource(url string, post func(func()), redraw func(), ow
 		}
 		res := r.fetch(url)
 		<-imageDecodeSem
+		imageDecodesDone.Add(1)
 		if e.retired.Load() {
 			return
 		}

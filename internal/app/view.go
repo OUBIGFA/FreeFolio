@@ -37,6 +37,7 @@ func (a *App) View(c *ui.Context) {
 	a.rowFocus, a.rowFocusNow = a.rowFocusNow, rowFocus{}
 	a.launchTick(c)
 	a.cloudTick(c)
+	a.memTrim.tick(c)
 	if a.win != nil {
 		a.remote.releasePixels(c.Now())
 	}

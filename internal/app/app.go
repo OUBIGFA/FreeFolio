@@ -121,6 +121,8 @@ type App struct {
 	quitting bool
 	// remote fetches and keeps the documents' pictures from the web.
 	remote *remoteImages
+	// memTrim returns decoding's freed memory to the system (memtrim.go).
+	memTrim memTrim
 	// spaceIcons are the pictures chosen as space icons, decoded, by name.
 	spaceIcons map[string]*ui.Bitmap
 	// closeMain closes the main window, as the file browser does when its
