@@ -62,7 +62,9 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			if showBrand {
 				brand(c, "", true)
 			}
-			ui.Spacer(c)
+			if a.prefs.SidebarLeft {
+				ui.Spacer(c)
+			}
 			label := i18n.T("收起侧边栏")
 			if floating {
 				label = i18n.T("固定侧边栏")

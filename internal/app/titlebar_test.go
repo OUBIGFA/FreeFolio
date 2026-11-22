@@ -202,7 +202,8 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 		if !ok || back.Y > 40 {
 			t.Fatalf("left=%v: folded, toggle %v %+v, back %+v", left, ok, show, back)
 		}
-		if left && show.X > back.X || !left && show.X < more.X {
+		ask, _ := tt.Find("OneBot")
+		if left && show.X > back.X || !left && (show.X+show.W > ask.X || ask.X+ask.W > more.X) {
 			t.Errorf("left=%v: the toggle %+v is not on the sidebar's side (back %+v, more %+v)", left, show, back, more)
 		}
 	}

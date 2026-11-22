@@ -653,7 +653,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		}
 	}
 	leading := func() {
-		if !a.prefs.SidebarLeft || docked < 0.5 {
+		if (!a.prefs.SidebarLeft || docked < 0.5) && !(a.folded() && !a.prefs.SidebarLeft && toolbar.LayoutBounds().W < 680) {
 			ui.Row(c.Key("brand")).PaddingX(8).Shrink(0).Children(func() { brand(c, "", true) })
 		}
 		if a.prefs.SidebarLeft {
@@ -671,6 +671,9 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	}
 	actions := func() {
 		ui.Box(c).Width(4)
+		if !a.prefs.SidebarLeft {
+			showSidebar()
+		}
 		// A narrow pane, as beside the library, keeps its room for the path.
 		if a.doc != nil && a.doc.loadErr == nil && !a.library.open && toolbar.LayoutBounds().W >= 560 {
 			a.documentCorner(c, a.doc)
@@ -684,9 +687,6 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.toggleQA()
 		}
 		a.moreMenu(c)
-		if !a.prefs.SidebarLeft {
-			showSidebar()
-		}
 	}
 	toolbar.Children(func() {
 		if a.prefs.SidebarLeft {

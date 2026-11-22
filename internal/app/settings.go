@@ -512,9 +512,12 @@ func (a *App) appearancePreview(c *ui.Context) {
 			ui.Row(c).Height(height).AlignItems(ui.Center).Children(func() {
 				if a.prefs.SidebarLeft {
 					previewBrand()
+					ui.Spacer(c)
 				}
-				ui.Spacer(c)
 				icon(a.sidebarIcon())
+				if !a.prefs.SidebarLeft {
+					ui.Spacer(c)
+				}
 			})
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 				icon(iconBack)

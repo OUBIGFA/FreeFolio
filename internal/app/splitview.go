@@ -21,10 +21,18 @@ func (a *App) splitView(c *ui.Context) {
 	bar := c.TitleBar()
 	if a.folded() {
 		ui.Row(c.Key("split-window-bar")).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left+4).AlignItems(ui.Center).DragWindow().Children(func() {
-			if iconButton(c, "sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
-				a.toggleSidebar()
+			show := func() {
+				if iconButton(c, "sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+					a.toggleSidebar()
+				}
+			}
+			if a.prefs.SidebarLeft {
+				show()
 			}
 			ui.Spacer(c)
+			if !a.prefs.SidebarLeft {
+				show()
+			}
 			a.moreMenu(c)
 		})
 	} else {
