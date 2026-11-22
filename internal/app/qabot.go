@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	qaOrbBoxSize       = 26
-	qaOrbCanonicalSize = 20
+	qaOrbBoxSize       = 28
+	qaOrbCanonicalSize = 64
 	qaOrbMorphDuration = 240 * time.Millisecond
 	qaOrbCyclePeriod   = 4500 * time.Millisecond
 	qaOrbReducedTime   = 0.6
@@ -74,14 +74,28 @@ func (t *qaTurn) orbStyle(now time.Time) qaOrbStyle {
 	return cycle[slot%len(cycle)]
 }
 
-func qaOrbColor(white, alpha float64, dark bool) ui.Color {
+func qaOrbColor(white, baseAlpha, opacity float64, dark bool) ui.Color {
 	w := min(1.0, max(0.0, white))
+	a := min(1.0, max(0.0, baseAlpha))
+	op := min(1.0, max(0.0, opacity))
 	if dark {
-		w = 1 - w
+		// Dark theme: mirror ink (1 - w) into crisp matte silver-white depth.
+		inv := 1 - w
+		r := uint8(math.Round(orbLerp(62, 244, inv)))
+		g := uint8(math.Round(orbLerp(66, 246, inv)))
+		b := uint8(math.Round(orbLerp(76, 250, inv)))
+		return ui.RGBA(r, g, b, float32(a*op))
 	}
-	g := uint8(math.Round(w * 255))
-	a := float32(min(1.0, max(0.0, alpha)))
-	return ui.RGBA(g, g, g, a)
+	// Light theme: map matte ink into soft graphite (avoiding harsh pure black
+	// specks on light cards) and gently lift far-dot alpha so the 3D back
+	// hemisphere remains cohesive and legible on light surfaces.
+	r := uint8(math.Round(orbLerp(34, 168, w)))
+	g := uint8(math.Round(orbLerp(38, 174, w)))
+	b := uint8(math.Round(orbLerp(46, 184, w)))
+	if a > 0.02 {
+		a = min(1.0, 0.14+0.86*a)
+	}
+	return ui.RGBA(r, g, b, float32(a*op))
 }
 
 func paintOrbFrame(p *ui.Painter, r ui.Rect, style qaOrbStyle, tSec float64, opacity float64, dark bool, canonicalSize int) {
@@ -89,51 +103,33 @@ func paintOrbFrame(p *ui.Painter, r ui.Rect, style qaOrbStyle, tSec float64, opa
 		return
 	}
 	preset := resolveOrbPreset(style, canonicalSize)
-	// Inline 26px tuning: keep Working's orbital rings rich and Connecting's
-	// constellation edges visible at compact size, while canonical presets stay
-	// verbatim for upstream golden-vector parity.
-	opts := preset.opts
-	if canonicalSize <= 20 {
-		switch style {
-		case orbWorking:
-			opts.orbitN = 5
-			opts.ghostN = 16
-			opts.ghostR = 1.45
-			opts.partR = 2.2
-			opts.partRDepth = 2.8
-		case orbConnecting:
-			opts.nodeN = 16
-			opts.thr = 0.95
-			opts.signals = 2
-			opts.nodeR = 1.65
-			opts.nodeRDepth = 2.1
-			opts.lineW = 0.75
-		}
-	}
-	frame := orbComputeFrame(style, float64(canonicalSize), tSec*preset.speed, opts)
+	frame := orbComputeFrame(style, float64(canonicalSize), tSec*preset.speed, preset.opts)
 	sx := float64(r.W) / float64(canonicalSize)
 	sy := float64(r.H) / float64(canonicalSize)
 	scale := min(sx, sy)
+	// Sub-linear dot radius scaling preserves the fine 64px 3D halftone density
+	// while keeping dots crisp and legible at 28px on both 1x and HiDPI screens.
+	dotScale := math.Pow(scale, 0.72)
 	ox := float64(r.X) + (float64(r.W)-float64(canonicalSize)*scale)/2
 	oy := float64(r.Y) + (float64(r.H)-float64(canonicalSize)*scale)/2
 
+	var seg [2][2]float32
 	for _, l := range frame.lines {
-		col := qaOrbColor(l.white, l.a*opacity, dark)
+		col := qaOrbColor(l.white, l.a, opacity, dark)
 		if col.A == 0 {
 			continue
 		}
-		p.Line(
-			float32(ox+l.x1*scale), float32(oy+l.y1*scale),
-			float32(ox+l.x2*scale), float32(oy+l.y2*scale),
-			float32(l.w*scale), col,
-		)
+		seg[0] = [2]float32{float32(ox + l.x1*scale), float32(oy + l.y1*scale)}
+		seg[1] = [2]float32{float32(ox + l.x2*scale), float32(oy + l.y2*scale)}
+		lw := max(float32(0.5), float32(l.w*dotScale))
+		p.StrokePolyline(seg[:], lw, col)
 	}
 	for _, d := range frame.dots {
-		col := qaOrbColor(d.white, d.a*opacity, dark)
+		col := qaOrbColor(d.white, d.a, opacity, dark)
 		if col.A == 0 {
 			continue
 		}
-		rad := float32(d.r * scale)
+		rad := max(float32(0.35), float32(d.r*dotScale))
 		cx := float32(ox + d.x*scale)
 		cy := float32(oy + d.y*scale)
 		p.Fill(ui.Rect{X: cx - rad, Y: cy - rad, W: rad * 2, H: rad * 2}, col, rad)

@@ -256,6 +256,22 @@ func TestThinkingOrbFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	}
 }
 
+func TestThinkingOrbThemeColorsAndCrossfadeOpacity(t *testing.T) {
+	lightNear := qaOrbColor(0, 1, 1, false)
+	lightFar := qaOrbColor(1, 0.2, 1, false)
+	if lightNear.R < 20 || lightNear.R >= lightFar.R {
+		t.Fatalf("light theme matte graphite range invalid: near=%+v far=%+v", lightNear, lightFar)
+	}
+	darkNear := qaOrbColor(0, 1, 1, true)
+	darkFar := qaOrbColor(1, 0.2, 1, true)
+	if darkNear.R <= darkFar.R || darkNear.R < 220 {
+		t.Fatalf("dark theme matte silver inversion invalid: near=%+v far=%+v", darkNear, darkFar)
+	}
+	if faded := qaOrbColor(0.2, 0.8, 0, false); faded.A != 0 {
+		t.Fatalf("zero crossfade opacity should produce transparent color: %+v", faded)
+	}
+}
+
 func TestQAOrbStylesSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect Thinking Orbs styles")
 	styles := []struct {
