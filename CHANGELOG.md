@@ -1,5 +1,16 @@
 # Changelog
 
+## FreeMD 0.1.2
+
+- Browse OneBot conversations in a new history view: search, continue, fork from a turn, or delete a conversation or a single record. Typed prompts are saved automatically.
+- Reference files and images in OneBot by dropping them onto the conversation. Attachments open on click, can be removed before sending, and stop at a per-message limit. Retry, regenerate, continue and clear context from the conversation itself, copy a prompt or the whole conversation, and insert a reply into the open document.
+- Replace the thinking avatar with lightweight LDRS loaders (Tail Chase, Dot Stream, Mirage) drawn natively in Go, honoring the light and dark accent color, reduced motion, and pausing when hidden or clipped.
+- Start faster: defer work past the first frame, ship the large Xiaolai whiteboard font as an app resource instead of embedding it, and redesign the sidebar update notice.
+- Return idle heap memory to the system after image decoding settles and when the window is hidden, so documents with many large pictures no longer hold hundreds of megabytes after closing.
+- Keep the sidebar toggle on the sidebar's side when the sidebar is docked on the right.
+- Continue to support native Markdown and legacy `.arcmd` documents; no format change in this release. Back up notes and configuration before upgrading.
+- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.2-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+
 ## FreeMD 0.1.1
 
 - Add verified Windows in-app updates: download and validate the official installer, then install it from Settings → Update. Show update status and progress in that page instead of a separate popup. Other platforms open the release page when no signed update source is configured.
