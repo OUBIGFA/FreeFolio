@@ -485,7 +485,7 @@ func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 				Enter:    &ui.Motion{Y: 4, Opacity: 0},
 				Exit:     &ui.Motion{Collapse: true, Opacity: 0},
 			}).Children(func() {
-			qaThinkingOrb(c, &turn.orb, turn.orbStyle(c.Now()))
+			qaLoader(c, &turn.loader, turn.loaderStyle(c.Now()))
 			ui.Text(c, label).FontSize(12.5).FontWeight(500).TextColor(t.Text.Alpha(0.82)).Role(ui.RoleStatus)
 			ui.Spacer(c)
 			qaPulseDots(c, t.Accent)
@@ -618,7 +618,7 @@ func (a *App) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 				}).Children(func() {
 				ui.Row(c.Key("live-row")).Gap(8).Padding(7, 10).AlignItems(ui.Center).
 					Background(t.Accent.Alpha(0.05)).Children(func() {
-					qaThinkingOrb(c, &turn.orb, turn.orbStyle(c.Now()))
+					qaLoader(c, &turn.loader, turn.loaderStyle(c.Now()))
 					ui.Text(c, turn.liveStepHeadline()).FontSize(12.5).FontWeight(550).
 						TextColor(t.Text.Alpha(0.88)).SingleLine().Shrink(1).MinWidth(0).Role(ui.RoleStatus)
 					ui.Spacer(c)

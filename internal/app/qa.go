@@ -60,7 +60,7 @@ type qaState struct {
 	historyQuery        string
 	historyConfirmClear bool
 	historyList         ui.ListState
-	orbSeed             int
+	loaderSeed          int
 	editFollow          bool
 	editCount           int
 	editNewPath         string
@@ -172,7 +172,7 @@ type qaTurn struct {
 	epoch     uint64
 	stopped   bool
 	err       error
-	orb       qaOrbState
+	loader    qaLoaderState
 	// expanded and userToggled control whether the exploration timeline is open.
 	expanded        bool
 	userToggled     bool
@@ -457,8 +457,8 @@ func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
 func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote, parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
 	s := a.qaSession(spaceID)
 	s.contextStart = max(0, min(s.contextStart, len(s.history)))
-	offset := a.qa.orbSeed
-	a.qa.orbSeed++
+	offset := a.qa.loaderSeed
+	a.qa.loaderSeed++
 	settings := a.qaSettings()
 	turn := &qaTurn{
 		model:       settings.Model,
@@ -468,7 +468,7 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 		parts:       parts,
 		start:       len(s.history),
 		running:     true,
-		orb:         qaOrbState{baseOffset: offset},
+		loader:      qaLoaderState{baseOffset: offset},
 	}
 	s.turns = append(s.turns, turn)
 	s.list.FollowEnd = true

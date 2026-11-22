@@ -66,14 +66,13 @@ Icons are Lucide, under the ISC License. Attribution appears in
 `internal/app/icons.go`; `internal/app/spacesymbols.go` is generated from
 Lucide 1.70.0.
 
-The Q&A thinking indicator (`internal/app/qaorb.go`, `internal/app/qabot.go`)
-ports [Thinking Orbs](https://github.com/Jakubantalik/thinking-orbs/tree/de85557ca220332586d070d8788c0e1d6e877a0d)
-v0.3.1, Copyright (c) 2026 Jakub Antalik, MIT. Its 3D dot-orb geometry engine
-and tuned presets (`working`/`orbits`, `solving`/`rubik`, `composing`/`ribbon`,
-`breathing`/`ring`, `connecting`/`web`) are translated into native Go and drawn
-with MyGo vector primitives (`ui.Painter.Fill`, `ui.Painter.Line`), with no
-embedded bitmaps, JavaScript, or webview at runtime. The full notice is in
-`thinking-orbs/LICENSE`; source and port details are in `thinking-orbs/README.md`.
+The Q&A thinking indicator (`internal/app/qaloader.go`, `internal/app/qabot.go`)
+ports the `Tail Chase`, `Dot Stream`, and `Mirage` loaders from
+[LDRS](https://github.com/GriffinJohnston/ldrs/tree/f759f65beb8ab4f4a1f010438072180693ca01ec),
+Copyright (c) 2022 Griffin Johnston, MIT. They are implemented in native Go
+using MyGo vector circles and a reusable native Mirage ooze bitmap, with no
+JavaScript or webview at runtime. The full notice is in `ldrs/LICENSE`; source
+and port details are in `ldrs/README.md`.
 
 The Q&A Markdown stream ports Lobe UI's `StreamingPlayground` and LobeHub
 Streamdown's balanced smoother and per-character fade into native Go.

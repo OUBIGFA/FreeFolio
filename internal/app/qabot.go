@@ -1,7 +1,6 @@
 package app
 
 import (
-	"math"
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
@@ -10,37 +9,37 @@ import (
 )
 
 const (
-	qaOrbBoxSize       = 28
-	qaOrbCanonicalSize = 64
-	qaOrbMorphDuration = 240 * time.Millisecond
-	qaOrbCyclePeriod   = 4500 * time.Millisecond
-	qaOrbReducedTime   = 0.6
+	qaLoaderBoxW         = 32
+	qaLoaderBoxH         = 22
+	qaTailChaseSize      = 20.0
+	qaDotStreamSize      = 30.0
+	qaMirageSize         = 32.0
+	qaLoaderMorphDur     = 220 * time.Millisecond
+	qaLoaderCyclePeriod  = 4500 * time.Millisecond
+	qaLoaderReducedPhase = 0.55
 )
 
-// qaOrbState keeps per-turn Thinking Orb playback and crossfade state.
-type qaOrbState struct {
+// qaLoaderState keeps per-turn LDRS loader playback, crossfade, and Mirage bitmap state.
+type qaLoaderState struct {
 	initialized bool
 	origin      time.Time
 	baseOffset  int
 	manualStep  int
-	style       qaOrbStyle
-	prevStyle   qaOrbStyle
+	style       qaLoaderStyle
+	prevStyle   qaLoaderStyle
 	morphAt     time.Time
 	morphing    bool
+	mirage      ldrsMiragePainter
 }
 
-// orbStyle picks a semantic Thinking Orb style for the turn's live phase,
-// combining Working (orbits), Solving (rubik), Thinking (ribbon),
-// Agent thinking (ring), and Connecting (web) so long runs stay varied.
-func (t *qaTurn) orbStyle(now time.Time) qaOrbStyle {
+// loaderStyle picks an LDRS animation for OneBot's live phase, combining
+// Tail Chase, Dot Stream, and Mirage so long runs stay varied without shifting layout.
+func (t *qaTurn) loaderStyle(now time.Time) qaLoaderStyle {
 	if t.retrying {
-		return orbConnecting
+		return loaderTailChase
 	}
 	if t.thinking {
-		if (t.orb.baseOffset+len(t.steps))%2 == 0 {
-			return orbThinking
-		}
-		return orbAgentThinking
+		return loaderMirage
 	}
 	for i := len(t.steps) - 1; i >= 0; i-- {
 		st := t.steps[i]
@@ -48,98 +47,69 @@ func (t *qaTurn) orbStyle(now time.Time) qaOrbStyle {
 			continue
 		}
 		switch st.call.Name {
-		case agent.ToolSearch, agent.ToolGrep, agent.ToolGlob:
-			if (t.orb.baseOffset+i)%2 == 0 {
-				return orbWorking
+		case agent.ToolRead, agent.ToolOutline, agent.ToolLinks:
+			return loaderDotStream
+		case agent.ToolSearch, agent.ToolGrep, agent.ToolGlob, "edit", "write", "patch":
+			if (t.loader.baseOffset+i)%2 == 0 {
+				return loaderTailChase
 			}
-			return orbSolving
-		case agent.ToolRead, agent.ToolOutline:
-			if (t.orb.baseOffset+i)%2 == 0 {
-				return orbAgentThinking
-			}
-			return orbThinking
-		case agent.ToolLinks:
-			return orbConnecting
-		case "edit", "write", "patch":
-			return orbSolving
+			return loaderMirage
 		}
 	}
-	// Initial waiting or between steps: cycle through the four primary styles
-	// (Working, Solving, Thinking, Agent thinking) every 4.5s.
-	cycle := [4]qaOrbStyle{orbWorking, orbSolving, orbThinking, orbAgentThinking}
-	slot := t.orb.baseOffset
-	if !t.orb.origin.IsZero() && !now.Before(t.orb.origin) {
-		slot += int(now.Sub(t.orb.origin) / qaOrbCyclePeriod)
+	cycle := [3]qaLoaderStyle{loaderTailChase, loaderDotStream, loaderMirage}
+	slot := t.loader.baseOffset
+	if !t.loader.origin.IsZero() && !now.Before(t.loader.origin) {
+		slot += int(now.Sub(t.loader.origin) / qaLoaderCyclePeriod)
 	}
 	return cycle[slot%len(cycle)]
 }
 
-func qaOrbColor(white, baseAlpha, opacity float64, dark bool) ui.Color {
-	w := min(1.0, max(0.0, white))
-	a := min(1.0, max(0.0, baseAlpha))
-	op := min(1.0, max(0.0, opacity))
-	if dark {
-		// Dark theme: mirror ink (1 - w) into crisp matte silver-white depth.
-		inv := 1 - w
-		r := uint8(math.Round(orbLerp(62, 244, inv)))
-		g := uint8(math.Round(orbLerp(66, 246, inv)))
-		b := uint8(math.Round(orbLerp(76, 250, inv)))
-		return ui.RGBA(r, g, b, float32(a*op))
+func qaLoaderColor(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return t.Accent
 	}
-	// Light theme: map matte ink into soft graphite (avoiding harsh pure black
-	// specks on light cards) and gently lift far-dot alpha so the 3D back
-	// hemisphere remains cohesive and legible on light surfaces.
-	r := uint8(math.Round(orbLerp(34, 168, w)))
-	g := uint8(math.Round(orbLerp(38, 174, w)))
-	b := uint8(math.Round(orbLerp(46, 184, w)))
-	if a > 0.02 {
-		a = min(1.0, 0.14+0.86*a)
-	}
-	return ui.RGBA(r, g, b, float32(a*op))
+	return t.Accent.Alpha(0.92)
 }
 
-func paintOrbFrame(p *ui.Painter, r ui.Rect, style qaOrbStyle, tSec float64, opacity float64, dark bool, canonicalSize int) {
-	if opacity < 0.01 {
+func paintLoaderStyle(p *ui.Painter, box ui.Rect, s *qaLoaderState, style qaLoaderStyle, tSec, opacity float64, col ui.Color) {
+	if opacity <= 0.01 {
 		return
 	}
-	preset := resolveOrbPreset(style, canonicalSize)
-	frame := orbComputeFrame(style, float64(canonicalSize), tSec*preset.speed, preset.opts)
-	sx := float64(r.W) / float64(canonicalSize)
-	sy := float64(r.H) / float64(canonicalSize)
-	scale := min(sx, sy)
-	// Sub-linear dot radius scaling preserves the fine 64px 3D halftone density
-	// while keeping dots crisp and legible at 28px on both 1x and HiDPI screens.
-	dotScale := math.Pow(scale, 0.72)
-	ox := float64(r.X) + (float64(r.W)-float64(canonicalSize)*scale)/2
-	oy := float64(r.Y) + (float64(r.H)-float64(canonicalSize)*scale)/2
-
-	var seg [2][2]float32
-	for _, l := range frame.lines {
-		col := qaOrbColor(l.white, l.a, opacity, dark)
-		if col.A == 0 {
-			continue
+	drawCol := col.Alpha(float32(opacity))
+	switch style {
+	case loaderTailChase:
+		dots := ldrsTailChaseDots(qaTailChaseSize, tSec)
+		ox := float64(box.X) + (float64(box.W)-qaTailChaseSize)/2
+		oy := float64(box.Y) + (float64(box.H)-qaTailChaseSize)/2
+		for _, d := range dots {
+			rad := float32(d.r)
+			cx := float32(ox + d.x)
+			cy := float32(oy + d.y)
+			p.Fill(ui.Rect{X: cx - rad, Y: cy - rad, W: rad * 2, H: rad * 2}, drawCol, rad)
 		}
-		seg[0] = [2]float32{float32(ox + l.x1*scale), float32(oy + l.y1*scale)}
-		seg[1] = [2]float32{float32(ox + l.x2*scale), float32(oy + l.y2*scale)}
-		lw := max(float32(0.5), float32(l.w*dotScale))
-		p.StrokePolyline(seg[:], lw, col)
-	}
-	for _, d := range frame.dots {
-		col := qaOrbColor(d.white, d.a, opacity, dark)
-		if col.A == 0 {
-			continue
+	case loaderDotStream:
+		dots := ldrsDotStreamDots(qaDotStreamSize, tSec)
+		h := qaDotStreamSize * 0.18
+		ox := float64(box.X) + (float64(box.W)-qaDotStreamSize)/2
+		oy := float64(box.Y) + (float64(box.H)-h)/2
+		for _, d := range dots {
+			if d.r <= 0.05 {
+				continue
+			}
+			rad := float32(d.r)
+			cx := float32(ox + d.x)
+			cy := float32(oy + d.y)
+			p.Fill(ui.Rect{X: cx - rad, Y: cy - rad, W: rad * 2, H: rad * 2}, drawCol, rad)
 		}
-		rad := max(float32(0.35), float32(d.r*dotScale))
-		cx := float32(ox + d.x*scale)
-		cy := float32(oy + d.y*scale)
-		p.Fill(ui.Rect{X: cx - rad, Y: cy - rad, W: rad * 2, H: rad * 2}, col, rad)
+	case loaderMirage:
+		s.mirage.draw(p, box, qaMirageSize, tSec, col, opacity)
 	}
 }
 
-// qaThinkingOrb renders Thinking Orbs natively via MyGo vector primitives.
+// qaLoader renders the LDRS status loader natively via MyGo primitives.
 // Styles adapt to OneBot's live phase and smoothly crossfade; clicking cycles
-// through Working, Solving, Thinking, Agent thinking, and Connecting.
-func qaThinkingOrb(c *ui.Context, s *qaOrbState, desired qaOrbStyle) ui.Element {
+// through Tail Chase, Dot Stream, and Mirage.
+func qaLoader(c *ui.Context, s *qaLoaderState, desired qaLoaderStyle) ui.Element {
 	now := c.Now()
 	if !s.initialized {
 		s.initialized = true
@@ -147,7 +117,7 @@ func qaThinkingOrb(c *ui.Context, s *qaOrbState, desired qaOrbStyle) ui.Element 
 		s.style = desired
 	}
 	reduced := c.Preferences().ReduceMotion
-	box := ui.Box(c.Key("qa-thinking-orb")).Size(qaOrbBoxSize, qaOrbBoxSize).Shrink(0).Radius(6).
+	box := ui.Box(c.Key("qa-thinking-loader")).Size(qaLoaderBoxW, qaLoaderBoxH).Shrink(0).Radius(6).
 		Focusable().Role(ui.RoleButton).Label(i18n.T("切换思考动效")).Tooltip(i18n.T("切换思考动效")).Cursor(ui.CursorPointer)
 	if box.Focused() {
 		box.Border(1, c.Theme().Accent)
@@ -164,7 +134,7 @@ func qaThinkingOrb(c *ui.Context, s *qaOrbState, desired qaOrbStyle) ui.Element 
 	} else {
 		target := desired
 		if s.manualStep > 0 {
-			target = qaOrbStyle((int(desired) + s.manualStep) % int(orbStyleCount))
+			target = qaLoaderStyle((int(desired) + s.manualStep) % int(loaderStyleCount))
 		}
 		if target != s.style {
 			if !reduced {
@@ -177,30 +147,28 @@ func qaThinkingOrb(c *ui.Context, s *qaOrbState, desired qaOrbStyle) ui.Element 
 	}
 
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		dark := p.Theme().Dark
+		col := qaLoaderColor(p.Theme())
 		if reduced {
-			paintOrbFrame(p, r, s.style, qaOrbReducedTime, 1, dark, qaOrbCanonicalSize)
+			paintLoaderStyle(p, r, s, s.style, qaLoaderReducedPhase, 1, col)
 			return
 		}
 		pNow := p.Now()
-		tSec := max(0.0, pNow.Sub(s.origin).Seconds())
-		// Subtle 0.6s phase offset matches upstream's representative start frame.
-		tSec += qaOrbReducedTime
+		tSec := max(0.0, pNow.Sub(s.origin).Seconds()) + qaLoaderReducedPhase
 
 		if s.morphing {
-			f := pNow.Sub(s.morphAt).Seconds() / qaOrbMorphDuration.Seconds()
+			f := pNow.Sub(s.morphAt).Seconds() / qaLoaderMorphDur.Seconds()
 			if f >= 1 {
 				s.morphing = false
 			} else {
-				f = max(0, f)
+				f = max(0.0, f)
 				ease := f * f * (3 - 2*f)
-				paintOrbFrame(p, r, s.prevStyle, tSec, 1-ease, dark, qaOrbCanonicalSize)
-				paintOrbFrame(p, r, s.style, tSec, ease, dark, qaOrbCanonicalSize)
+				paintLoaderStyle(p, r, s, s.prevStyle, tSec, 1-ease, col)
+				paintLoaderStyle(p, r, s, s.style, tSec, ease, col)
 				p.AnimationFrame()
 				return
 			}
 		}
-		paintOrbFrame(p, r, s.style, tSec, 1, dark, qaOrbCanonicalSize)
+		paintLoaderStyle(p, r, s, s.style, tSec, 1, col)
 		p.AnimationFrame()
 	})
 	return box
