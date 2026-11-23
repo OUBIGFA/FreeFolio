@@ -92,6 +92,7 @@ func (a *App) runDeferredStartup() {
 	if a.quitting {
 		return
 	}
+	a.loadChatGPTSession(a.prefs.AI.Active, false)
 	a.syncWatches()
 	if a.launch.deferSearch {
 		a.launch.deferSearch = false

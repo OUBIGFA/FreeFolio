@@ -26,7 +26,9 @@ import (
 // robin, which a single key never notices, so version 9 migrates unchanged.
 // Version 11 adds NoAutosave; zero keeps background autosave, so version 10
 // migrates unchanged.
-const CurrentVersion = 11
+// Version 12 adds the ChatGPT first-use disclosure flag; existing connections
+// and all other preferences migrate unchanged.
+const CurrentVersion = 12
 
 // Prefs are the preferences.
 type Prefs struct {

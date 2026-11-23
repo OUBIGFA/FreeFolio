@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/OUBIGFA/FreeMD/internal/agent"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -101,6 +102,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 		})
 	}
 	ui.Column(c.Key("composer-margin")).Padding(8, 12, 12, 12).Shrink(0).Children(func() {
+		a.chatGPTUsageView(c)
 		composer := ui.Column(c.Key("composer")).Radius(12).Border(1, t.Border.Alpha(0.85)).Background(field(t)).Padding(10, 12, 7, 12).Gap(6)
 		if a.qa.dropHover {
 			composer.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.06))
@@ -304,6 +306,11 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 	label := i18n.T("选择模型")
 	if conn := a.prefs.AI.Current(); conn != nil && conn.Model != "" {
 		label = oneBotModelName(conn.Name, conn.Model)
+		if conn.Protocol == agent.ChatGPT {
+			if model := conn.CurrentModel(); model != nil && model.Name != "" {
+				label = oneBotModelName(conn.Name, model.Name)
+			}
+		}
 	}
 	b := ui.MenuButton(c.Key("onebot-model"), label, func(m *ui.Menu) {
 		for i, conn := range a.prefs.AI.Connections {
@@ -314,7 +321,11 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 				if !model.Enabled {
 					continue
 				}
-				if m.Item(oneBotModelName(conn.Name, model.ID)).Checked(conn.ID == a.prefs.AI.Active && conn.Model == model.ID).Chosen() {
+				name := model.ID
+				if conn.Protocol == agent.ChatGPT && model.Name != "" {
+					name = model.Name
+				}
+				if m.Item(oneBotModelName(conn.Name, name)).Checked(conn.ID == a.prefs.AI.Active && conn.Model == model.ID).Chosen() {
 					if a.prefs.AI.Active != conn.ID {
 						a.selectAIConnection(conn.ID)
 					}

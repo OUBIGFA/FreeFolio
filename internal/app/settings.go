@@ -30,6 +30,9 @@ const (
 func (a *App) openSettings(tab string) {
 	a.settingsOpen = true
 	a.settingsTab = tab
+	if tab == tabAI {
+		a.loadChatGPTSession(a.prefs.AI.Active, false)
+	}
 }
 
 // moreMenu keeps document actions at hand. Library and settings lead to

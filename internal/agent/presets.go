@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ type Preset struct {
 // from the service and models.dev instead of being guessed from their names.
 var Presets = []Preset{
 	{ID: "openai", Name: "OpenAI", BaseURL: "https://api.openai.com/v1", Protocol: Responses},
+	{ID: "chatgpt", Name: "ChatGPT", BaseURL: "https://api.openai.com/v1", Protocol: ChatGPT},
 	{ID: "anthropic", Name: "Anthropic", BaseURL: "https://api.anthropic.com/v1", Protocol: Anthropic},
 	{ID: "google", Name: "Google Gemini", BaseURL: "https://generativelanguage.googleapis.com/v1beta", Protocol: Gemini},
 	{ID: "deepseek", Name: "DeepSeek", BaseURL: "https://api.deepseek.com", Example: "deepseek-v4-pro"},
@@ -66,13 +68,19 @@ type Settings struct {
 	Parameters   Parameters
 	Capabilities Capabilities
 	Client       *http.Client
+	// TokenSource resolves the selected account on the request goroutine. OAuth
+	// tokens never pass through preferences or the API-key editor.
+	TokenSource interface {
+		AccessToken(context.Context) (string, error)
+	}
 }
 
 // Errors of settings that cannot be used.
 var (
-	ErrNoModel    = errors.New("no model is set")
-	ErrNoKey      = errors.New("no API key is set")
-	ErrBadAddress = errors.New("the address must start with https:// (http:// only for this computer)")
+	ErrNoModel       = errors.New("no model is set")
+	ErrNoKey         = errors.New("no API key is set")
+	ErrBadAddress    = errors.New("the address must start with https:// (http:// only for this computer)")
+	ErrChatGPTSignIn = errors.New("sign in with ChatGPT first")
 )
 
 // IsLocal reports an address on this computer, which may use plain http
@@ -108,6 +116,15 @@ func (s Settings) CheckService() error {
 	u, err := url.Parse(strings.TrimSpace(s.BaseURL))
 	if err != nil || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || (u.Scheme != "https" && !(u.Scheme == "http" && IsLocal(s.BaseURL))) {
 		return ErrBadAddress
+	}
+	if s.Protocol == ChatGPT {
+		if strings.TrimRight(s.BaseURL, "/") != "https://api.openai.com/v1" && !IsLocal(s.BaseURL) {
+			return ErrBadAddress
+		}
+		if s.TokenSource == nil {
+			return ErrChatGPTSignIn
+		}
+		return nil
 	}
 	if strings.TrimSpace(s.APIKey) == "" && !IsLocal(s.BaseURL) {
 		return ErrNoKey

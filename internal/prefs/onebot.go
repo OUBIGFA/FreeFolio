@@ -14,6 +14,8 @@ type AI struct {
 	Connections []AIConnection `json:"connections,omitempty"`
 	Direct      bool           `json:"direct,omitempty"`
 	Candidates  int            `json:"candidates,omitempty"`
+	// ChatGPTWelcomeSeen records the first-use plan disclosure, never identity.
+	ChatGPTWelcomeSeen bool `json:"chatGPTWelcomeSeen,omitempty"`
 }
 
 type AIConnection struct {

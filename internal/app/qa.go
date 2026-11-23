@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeMD/internal/chatgpt"
 	model "github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
@@ -222,6 +223,17 @@ func (a *App) qaReady() error {
 		return errors.New(i18n.T("请先添加供应商"))
 	}
 	settings := a.qaSettings()
+	if settings.Protocol == agent.ChatGPT {
+		if a.chatgpt.busyID == settings.ConnectionID {
+			return errors.New(i18n.T("正在处理 ChatGPT 连接…"))
+		}
+		if !a.chatGPTSession().Sharing && !a.chatGPTSession().Pending {
+			if a.chatGPTSession().Status == chatgpt.Connected {
+				return errors.New(i18n.T("已登录 ChatGPT，但尚未允许使用套餐。请在设置中授权。"))
+			}
+			return errors.New(i18n.T("请先登录 ChatGPT。"))
+		}
+	}
 	switch err := settings.Check(); {
 	case err == nil:
 		return nil
@@ -633,6 +645,9 @@ func (t *qaTurn) apply(e agent.Event) {
 // finishQA ends a run: its messages join the conversation, closed with an
 // answer even when it stopped, as a model must see every call answered.
 func (a *App) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error) {
+	if id, _, ok := strings.Cut(s.source, "|"); ok {
+		a.loadChatGPTSession(id, true)
+	}
 	s.cancel = nil
 	t.running, t.thinking, t.retrying = false, false, false
 	s.history = append(s.history, added...)
@@ -1392,9 +1407,36 @@ func cleanPreviewSnippet(s string) string {
 // qaErrorText says what went wrong with a question in the user's words,
 // the service's own message after it.
 func qaErrorText(err error) string {
+	var auth *chatgpt.Error
+	if errors.As(err, &auth) {
+		return chatGPTErrorText(err)
+	}
 	var api *agent.APIError
 	switch {
 	case errors.As(err, &api):
+		if api.Protocol == agent.ChatGPT || strings.HasPrefix(api.Code, "subscription_sharing_") || strings.HasPrefix(api.Code, "chatpass_") {
+			text := i18n.T("ChatGPT 套餐请求未获准，请检查账号权限或稍后重试。")
+			switch api.Code {
+			case "subscription_sharing_usage_limit_exceeded":
+				text = i18n.T("已达到 ChatGPT 套餐或此应用的用量限制。请打开「管理用量」查看。")
+			case "subscription_sharing_user_not_eligible":
+				text = i18n.T("此 ChatGPT 账号或工作区暂不支持套餐使用。请检查账号资格。")
+			case "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable":
+				text = i18n.T("ChatGPT 用量服务暂时不可用。连接已保留，请稍后重试。")
+			case "subscription_sharing_unsupported_capability":
+				text = i18n.T("ChatGPT 套餐暂不支持此次请求的模型、附件或工具。")
+			}
+			if api.RequestID != "" {
+				text += "\n" + i18n.T("请求编号：") + api.RequestID
+			}
+			if api.Code != "" {
+				text += "\n" + api.Code
+			}
+			if api.Param != "" {
+				text += " (" + api.Param + ")"
+			}
+			return text
+		}
 		head := fmt.Sprintf(i18n.T("模型服务出错（%d）"), api.Status)
 		switch {
 		case api.Status == 401 || api.Status == 403:

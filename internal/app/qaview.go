@@ -505,6 +505,9 @@ func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 				ui.Text(c, qaErrorText(turn.err)).FontSize(13).LineHeight(1.45).TextColor(t.Danger).Selectable().Shrink(1).MinWidth(0)
 			})
 			ui.Row(c).Gap(8).Children(func() {
+				if chatGPTUsageLimit(turn.err) && ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
+					a.openChatGPTUsage()
+				}
 				if ui.Button(c.Key("retry"), i18n.T("重试")).Clicked() {
 					a.retryQA(spaceID, turn)
 				}

@@ -86,6 +86,9 @@ func (a *App) qaSettings() agent.Settings {
 	if c == nil {
 		return agent.Settings{}
 	}
+	if c.Protocol == agent.ChatGPT {
+		return a.chatGPTSettings()
+	}
 	q := &a.qa
 	if !q.keyRead || q.keyID != c.ID {
 		q.keyRead = true
@@ -194,6 +197,11 @@ func (a *App) addAIConnection(preset string) {
 		protocol = agent.Chat
 	}
 	base, name := p.BaseURL, p.Name
+	if p.Protocol == agent.ChatGPT {
+		for suffix := 2; slices.ContainsFunc(a.prefs.AI.Connections, func(c prefs.AIConnection) bool { return c.Name == name }); suffix++ {
+			name = fmt.Sprintf("%s %d", p.Name, suffix)
+		}
+	}
 	c := prefs.AIConnection{ID: model.NewID(), Name: name, Vendor: preset, Protocol: protocol, BaseURL: base}
 	a.prefs.AI.Connections = append(a.prefs.AI.Connections, c)
 	a.selectAIConnection(c.ID)
@@ -214,11 +222,20 @@ func (a *App) selectAIConnection(id string) {
 	a.qa.modelsErr = nil
 	a.qa.catalogErr = nil
 	a.savePrefs()
+	loaded := a.chatgpt.loaded[id]
+	a.loadChatGPTSession(id, false)
+	if loaded && a.prefs.AI.Current().Protocol == agent.ChatGPT && a.chatGPTSession().Sharing {
+		a.fetchModels()
+	}
 }
 
 func (a *App) removeAIConnection() {
 	id := a.prefs.AI.Active
 	if id == "" {
+		return
+	}
+	if c := a.prefs.AI.Current(); c != nil && c.Protocol == agent.ChatGPT {
+		a.disconnectChatGPT(true)
 		return
 	}
 	if err := a.deleteAIKey(id); err != nil {
@@ -238,7 +255,7 @@ func (a *App) removeAIConnection() {
 }
 
 func modelsKey(s agent.Settings) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(s.Protocol+"\x00"+s.BaseURL+"\x00"+s.APIKey)))
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(s.ConnectionID+"\x00"+s.Protocol+"\x00"+s.BaseURL+"\x00"+s.APIKey)))
 }
 func (a *App) modelListSettings() agent.Settings {
 	s := a.qaSettings()
@@ -299,7 +316,7 @@ func (a *App) fetchModels() {
 			if err != nil {
 				return nil, err
 			}
-			if s.Vendor != "" && s.Vendor != "custom" && s.Vendor != "ollama" {
+			if s.Protocol != agent.ChatGPT && s.Vendor != "" && s.Vendor != "custom" && s.Vendor != "ollama" {
 				var catalog []agent.ModelInfo
 				catalog, catalogErr = agent.FetchCatalog(ctx, s.Vendor)
 				if catalogErr == nil {
@@ -331,6 +348,9 @@ func (a *App) fetchModels() {
 		}
 		q.modelsErr = err
 		q.catalogErr = catalogErr
+		if s.Protocol == agent.ChatGPT {
+			a.loadChatGPTSession(id, true)
+		}
 		if err != nil {
 			return
 		}
@@ -356,12 +376,17 @@ func (a *App) fetchModels() {
 			merged = append(merged, m)
 		}
 		for _, m := range c.Models {
-			if !seen[m.ID] && (m.Enabled || m.Source == "user") {
+			if s.Protocol != agent.ChatGPT && !seen[m.ID] && (m.Enabled || m.Source == "user") {
 				merged = append(merged, m)
 			}
 		}
-		slices.SortFunc(merged, func(a, b agent.ModelInfo) int { return strings.Compare(a.ID, b.ID) })
+		if s.Protocol != agent.ChatGPT {
+			slices.SortFunc(merged, func(a, b agent.ModelInfo) int { return strings.Compare(a.ID, b.ID) })
+		}
 		c.Models = merged
+		if s.Protocol == agent.ChatGPT && !seen[c.Model] {
+			c.Model = ""
+		}
 		q.models = models
 		a.savePrefs()
 	}
@@ -374,7 +399,7 @@ func (a *App) fetchModels() {
 
 func (a *App) fetchModelCapabilities() {
 	c := a.prefs.AI.Current()
-	if c == nil || a.qa.modelsBusy {
+	if c == nil || c.Protocol == agent.ChatGPT || a.qa.modelsBusy {
 		return
 	}
 	s := a.qaSettings()

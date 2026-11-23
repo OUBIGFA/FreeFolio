@@ -57,27 +57,28 @@ type oneBotCandidate struct {
 type oneBotTask struct {
 	// Quotes are the rendered selections quoted with the instruction:
 	// read-only context, not edit targets.
-	Quotes      string                        `json:"-"`
-	ShowDiff    bool                          `json:"-"`
-	Receipts    map[string]*model.EditReceipt `json:"receipts,omitempty"`
-	Parts       []agent.ContentPart           `json:"-"`
-	Applying    bool                          `json:"-"`
-	Version     int                           `json:"version"`
-	ID          string                        `json:"id"`
-	SpaceID     string                        `json:"space"`
-	Scope       string                        `json:"scope"`
-	Instruction string                        `json:"instruction"`
-	Targets     []oneBotTarget                `json:"targets"`
-	Candidates  []*oneBotCandidate            `json:"candidates"`
-	Selected    int                           `json:"selected"`
-	NewPath     string                        `json:"newPath,omitempty"`
-	Direct      bool                          `json:"direct"`
-	Running     bool                          `json:"-"`
-	Stopped     bool                          `json:"stopped,omitempty"`
-	Error       string                        `json:"error,omitempty"`
-	Created     time.Time                     `json:"created"`
-	Generation  uint64                        `json:"-"`
-	cancel      context.CancelFunc
+	Quotes       string                        `json:"-"`
+	ShowDiff     bool                          `json:"-"`
+	Receipts     map[string]*model.EditReceipt `json:"receipts,omitempty"`
+	Parts        []agent.ContentPart           `json:"-"`
+	Applying     bool                          `json:"-"`
+	Version      int                           `json:"version"`
+	ID           string                        `json:"id"`
+	SpaceID      string                        `json:"space"`
+	Scope        string                        `json:"scope"`
+	Instruction  string                        `json:"instruction"`
+	Targets      []oneBotTarget                `json:"targets"`
+	Candidates   []*oneBotCandidate            `json:"candidates"`
+	Selected     int                           `json:"selected"`
+	NewPath      string                        `json:"newPath,omitempty"`
+	Direct       bool                          `json:"direct"`
+	Running      bool                          `json:"-"`
+	Stopped      bool                          `json:"stopped,omitempty"`
+	Error        string                        `json:"error,omitempty"`
+	Created      time.Time                     `json:"created"`
+	Generation   uint64                        `json:"-"`
+	connectionID string                        `json:"-"`
+	cancel       context.CancelFunc
 }
 
 func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
@@ -451,6 +452,7 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 	task.Generation++
 	epoch := task.Generation
 	settings := a.qaSettings()
+	task.connectionID = settings.ConnectionID
 	if len(a.qa.attachments) > 0 {
 		parts, _, _ := splitOneBotAttachmentItems(a.qa.attachments)
 		task.Parts = parts
@@ -535,7 +537,7 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 						return
 					}
 					if resultErr != nil {
-						task.Candidates[i].Error = resultErr.Error()
+						task.Candidates[i].Error = qaErrorText(resultErr)
 						return
 					}
 					prepared, err := a.prepareOneBotFileCandidate(task, draft)
@@ -560,6 +562,7 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 				return
 			}
 			task.Running = false
+			a.loadChatGPTSession(settings.ConnectionID, true)
 			task.cancel = nil
 			cancel()
 			if task.Stopped {

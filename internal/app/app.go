@@ -185,7 +185,8 @@ type App struct {
 
 	palette palette
 	// qa is the panel of questions about the space (qa.go).
-	qa qaState
+	qa      qaState
+	chatgpt chatGPTState
 	// pager is the strip of spaces the sidebar pages along (spaceswitch.go),
 	// and pageTrees the folders of the spaces it shows beside the active
 	// one; now and reduceMotion are this frame's clock and the system's
@@ -609,6 +610,8 @@ func (a *App) Run() error {
 			a.refreshSearch()
 		}
 		a.updates.svc, a.updates.async = newUpdateService(a.cfg.ConfigDir), true
+		a.ensureChatGPT()
+		a.chatgpt.openBrowser = mygo.Shell.OpenExternal
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
 		a.win.OnClose(func(event *mygo.CloseEvent) {
@@ -639,6 +642,7 @@ func (a *App) Run() error {
 			}
 			a.cancelPDF()
 			a.cancelCloudSync()
+			a.cancelChatGPTSignIn()
 		})
 	})
 	return mygo.App.Run()

@@ -351,6 +351,7 @@ func (a *App) fileView(c *ui.Context) {
 		}
 	})
 	a.settingsView(c)
+	a.chatGPTWelcomeView(c)
 	a.pdfExportView(c)
 }
 

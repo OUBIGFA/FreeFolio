@@ -195,6 +195,7 @@ func (a *App) View(c *ui.Context) {
 	a.paletteView(c)
 	a.updateToast(c)
 	a.settingsView(c)
+	a.chatGPTWelcomeView(c)
 	a.replaceView(c)
 	a.unsavedPromptView(c)
 	a.tagRenameView(c)

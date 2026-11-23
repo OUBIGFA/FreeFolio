@@ -346,8 +346,10 @@ const omitted = "[Earlier result omitted to save space; call the tool again if y
 
 // APIError is a model service's refusal.
 type APIError struct {
-	Status  int
-	Message string
+	Status                        int
+	Message                       string
+	Code, Param, RequestID, Shape string
+	Protocol                      string
 }
 
 func (e *APIError) Error() string {
@@ -365,6 +367,10 @@ var ErrStreamCut = errors.New("the reply stopped before it was complete")
 func Retryable(err error) bool {
 	var api *APIError
 	if errors.As(err, &api) {
+		switch api.Code {
+		case "subscription_sharing_usage_limit_exceeded", "subscription_sharing_user_not_eligible", "subscription_sharing_unsupported_capability", "subscription_sharing_route_not_supported", "subscription_sharing_invalid_user", "chatpass_v2_scope_not_authorized", "chatpass_v2_invalid_authorization_context":
+			return false
+		}
 		return api.Status == 429 || api.Status == 408 || api.Status >= 500
 	}
 	return errors.Is(err, ErrStreamCut)

@@ -12,6 +12,8 @@ import re
 
 
 KNOWN_LICENSES = {
+    "github.com/coreos/go-oidc/v3": "Apache-2.0",
+    "github.com/go-jose/go-jose/v4": "Apache-2.0",
     "github.com/ebitengine/purego": "Apache-2.0",
     "github.com/egoist/mygo": "MIT",
     "github.com/gabriel-vasile/mimetype": "MIT",
@@ -19,6 +21,7 @@ KNOWN_LICENSES = {
     "github.com/go-text/typesetting-utils": "Unlicense OR BSD-3-Clause",
     "golang.org/x/image": "BSD-3-Clause",
     "golang.org/x/net": "BSD-3-Clause",
+    "golang.org/x/oauth2": "BSD-3-Clause",
     "golang.org/x/sys": "BSD-3-Clause",
     "golang.org/x/text": "BSD-3-Clause",
 }

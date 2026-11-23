@@ -18,6 +18,7 @@ import (
 const (
 	Chat      = "openai-chat"
 	Responses = "openai-responses"
+	ChatGPT   = "chatgpt"
 	Anthropic = "anthropic"
 	Gemini    = "gemini"
 	Ollama    = "ollama"
@@ -165,6 +166,20 @@ func (s Settings) httpClient() *http.Client {
 }
 
 func (s Settings) request(ctx context.Context, method, endpoint string, body any) (*http.Response, error) {
+	if s.Protocol == ChatGPT {
+		if err := s.CheckService(); err != nil {
+			return nil, err
+		}
+		base := strings.TrimRight(s.BaseURL, "/")
+		if !(method == http.MethodGet && endpoint == base+"/models" || method == http.MethodPost && endpoint == base+"/responses") {
+			return nil, ErrBadAddress
+		}
+		token, err := s.TokenSource.AccessToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+		s.APIKey = token
+	}
 	var data []byte
 	var err error
 	if body != nil {
@@ -189,13 +204,23 @@ func (s Settings) request(ctx context.Context, method, endpoint string, body any
 			req.Header.Set("Authorization", "Bearer "+s.APIKey)
 		}
 	}
-	res, err := s.httpClient().Do(req)
+	client := *s.httpClient()
+	if s.Protocol == ChatGPT {
+		// An OAuth grant is restricted to the official resource. Never forward
+		// its bearer token to a redirected endpoint, including the same host.
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		defer res.Body.Close()
-		return nil, apiError(res, s.APIKey)
+		err := apiError(res, s.APIKey)
+		if api, ok := err.(*APIError); ok {
+			api.Protocol = s.Protocol
+		}
+		return nil, err
 	}
 	return res, nil
 }
@@ -223,6 +248,9 @@ func (s Settings) readJSON(ctx context.Context, method, endpoint string, body an
 func (s Settings) DiscoverModels(ctx context.Context) ([]ModelInfo, error) {
 	if err := s.CheckService(); err != nil {
 		return nil, err
+	}
+	if s.Protocol == ChatGPT {
+		return s.chatGPTModels(ctx)
 	}
 	base := strings.TrimRight(s.BaseURL, "/")
 	endpoint := base + "/models"

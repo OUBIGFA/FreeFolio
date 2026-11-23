@@ -263,29 +263,45 @@ func (c *ChatCompletions) Complete(ctx context.Context, req Request, onDelta fun
 func apiError(res *http.Response, secrets ...string) error {
 	data, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	var body struct {
-		Error json.RawMessage `json:"error"`
+		Error  json.RawMessage `json:"error"`
+		Detail string          `json:"detail"`
 	}
+	out := &APIError{Status: res.StatusCode, RequestID: res.Header.Get("x-request-id"), Shape: "text"}
 	msg := strings.TrimSpace(string(data))
 	if json.Unmarshal(data, &body) == nil && len(body.Error) > 0 {
 		var e struct {
 			Message string `json:"message"`
+			Code    string `json:"code"`
+			Param   string `json:"param"`
 		}
 		var s string
 		if json.Unmarshal(body.Error, &e) == nil && e.Message != "" {
 			msg = e.Message
+			out.Code, out.Param, out.Shape = e.Code, e.Param, "error"
 		} else if json.Unmarshal(body.Error, &s) == nil {
 			msg = s
 		}
+	} else if body.Detail != "" {
+		msg, out.Shape = body.Detail, "detail"
 	}
-	for _, secret := range secrets {
-		if secret != "" {
-			msg = strings.ReplaceAll(msg, secret, "[redacted]")
+	out.Message = msg
+	redactAPIError(out, secrets...)
+	return out
+}
+
+// Error metadata is just as untrusted as the message. Redact before any part
+// can be displayed, persisted in conversation history or included in a report.
+func redactAPIError(e *APIError, secrets ...string) {
+	for _, field := range []*string{&e.Message, &e.Code, &e.Param, &e.RequestID} {
+		for _, secret := range secrets {
+			if secret != "" {
+				*field = strings.ReplaceAll(*field, secret, "[redacted]")
+			}
+		}
+		if len(*field) > 500 {
+			*field = (*field)[:500] + "…"
 		}
 	}
-	if len(msg) > 500 {
-		msg = msg[:500] + "…"
-	}
-	return &APIError{Status: res.StatusCode, Message: msg}
 }
 
 // readChatStream assembles the reply from its events: text and reasoning

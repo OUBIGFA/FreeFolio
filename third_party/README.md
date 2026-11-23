@@ -5,6 +5,11 @@ text shaping and system input transport. Its module cache stays untouched.
 The Markdown editor is implemented in `internal/editor` and has no vendored
 editor component or TeX engine.
 
+The ChatGPT connection follows OpenAI's public Sign in with ChatGPT protocol.
+It uses the official sign-in mark under separate brand terms, without the
+DevKit's noncommercial application code. Protocol references, asset provenance
+and OIDC dependency notices are in [chatgpt/](chatgpt/README.md).
+
 The Space theme algorithms and theme editor follow Cra, under the MIT License,
 Copyright (c) 2026 Victor Kildahl. Their implementation lives in
 `internal/space/theme.go` and `internal/app/spaceeditor.go`. The space icon

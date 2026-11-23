@@ -64,7 +64,7 @@ func (s Settings) Signature() string {
 // NewProvider selects an actual wire adapter, not merely a different URL.
 // Several API keys share one connection through a key pool.
 func (s Settings) NewProvider() Provider {
-	if len(s.APIKeys) > 1 {
+	if s.Protocol != ChatGPT && len(s.APIKeys) > 1 {
 		return &keyPool{settings: s, keys: s.keyOrder()}
 	}
 	return s.wireProvider()
@@ -112,6 +112,9 @@ func dataPart(p ContentPart) (string, string, error) {
 
 func (p *nativeProvider) Complete(ctx context.Context, req Request, onDelta func(Delta)) (Response, error) {
 	s := p.settings
+	if s.Protocol == ChatGPT && (s.Parameters.MaxOutput != 0 || s.Parameters.Temperature != nil || s.Parameters.ThinkingBudget != 0) {
+		return Response{}, errors.New("ChatGPT plan requests do not support output limits, temperature or thinking budgets")
+	}
 	if onDelta == nil {
 		onDelta = func(Delta) {}
 	}
@@ -137,6 +140,18 @@ func (p *nativeProvider) Complete(ctx context.Context, req Request, onDelta func
 		return state.response, ctx.Err()
 	}
 	if err != nil {
+		var api *APIError
+		if errors.As(err, &api) {
+			api.RequestID = res.Header.Get("x-request-id")
+			api.Protocol = s.Protocol
+			secret := s.APIKey
+			if res.Request != nil {
+				if bearer := res.Request.Header.Get("Authorization"); strings.HasPrefix(bearer, "Bearer ") {
+					secret = strings.TrimPrefix(bearer, "Bearer ")
+				}
+			}
+			redactAPIError(api, secret)
+		}
 		return state.response, err
 	}
 	if !state.finished {
@@ -165,7 +180,7 @@ func (p *nativeProvider) body(req Request) (map[string]any, string, error) {
 	tools := make([]any, 0, len(req.Tools))
 	messages := make([]any, 0, len(req.Messages))
 	switch s.Protocol {
-	case Responses:
+	case Responses, ChatGPT:
 		for _, t := range req.Tools {
 			tools = append(tools, map[string]any{"type": "function", "name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": false})
 		}
@@ -202,12 +217,19 @@ func (p *nativeProvider) body(req Request) (map[string]any, string, error) {
 				messages = append(messages, map[string]any{"role": string(m.Role), "content": parts})
 			}
 			for _, call := range m.Calls {
-				messages = append(messages, map[string]any{"type": "function_call", "call_id": call.ID, "name": call.Name, "arguments": call.Args})
+				item := map[string]any{"type": "function_call", "call_id": call.ID, "name": call.Name, "arguments": call.Args}
+				if s.Protocol == ChatGPT {
+					item["namespace"] = "onebot"
+				}
+				messages = append(messages, item)
 			}
 		}
 		body := map[string]any{"model": s.Model, "input": messages, "stream": true, "store": false, "instructions": req.System, "include": []string{"reasoning.encrypted_content"}}
 		if len(tools) > 0 {
 			body["tools"] = tools
+			if s.Protocol == ChatGPT {
+				body["tools"] = []any{map[string]any{"type": "namespace", "name": "onebot", "description": "Tools for the user's selected FreeMD documents", "tools": tools}}
+			}
 		}
 		if s.Parameters.MaxOutput > 0 {
 			body["max_output_tokens"] = s.Parameters.MaxOutput
@@ -531,10 +553,10 @@ func (s *nativeStream) consume(e map[string]any) error {
 		if msg == "" {
 			msg = str(object(errValue)["message"])
 		}
-		return &APIError{Status: 500, Message: msg}
+		return &APIError{Status: 500, Message: msg, Code: str(object(errValue)["code"]), Param: str(object(errValue)["param"]), Shape: "error"}
 	}
 	switch s.protocol {
-	case Responses:
+	case Responses, ChatGPT:
 		switch str(e["type"]) {
 		case "response.output_text.delta":
 			s.text(str(e["delta"]), false)
@@ -556,6 +578,9 @@ func (s *nativeStream) consume(e map[string]any) error {
 			s.call(number(e["output_index"])).Args += str(e["delta"])
 		case "response.completed", "response.incomplete":
 			r := object(e["response"])
+			if str(e["type"]) == "response.incomplete" && s.protocol == ChatGPT {
+				return ErrIncomplete
+			}
 			s.finished = true
 			s.response.FinishReason = "stop"
 			if str(e["type"]) == "response.incomplete" {
@@ -582,7 +607,8 @@ func (s *nativeStream) consume(e map[string]any) error {
 				}
 			}
 		case "response.failed":
-			return &APIError{Status: 500, Message: str(object(object(e["response"])["error"])["message"])}
+			e := object(object(e["response"])["error"])
+			return &APIError{Status: 500, Message: str(e["message"]), Code: str(e["code"]), Param: str(e["param"]), Shape: "response.error"}
 		}
 	case Anthropic:
 		i := number(e["index"])

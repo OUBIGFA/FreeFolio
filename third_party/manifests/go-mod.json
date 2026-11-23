@@ -1,11 +1,21 @@
 {
-  "goModSha256": "eefadc48a9795cc458cd9e2af6f54ce590f93008bfcdf549eec6b9192fcdf2c5",
-  "goSumSha256": "cb5fd2d2c82707c880d5975866058349c8d68c1051ef22b890c0de94df957a27",
+  "goModSha256": "5970143e16b79ad3ba713a35dc7c50029bfe80b9d7b93478e9391f6202fe564f",
+  "goSumSha256": "848af8722a69d3d3f85908100487be8f1ab5b68ffeb69fd5a1f5f1ff2862f724",
   "modules": [
+    {
+      "module": "github.com/coreos/go-oidc/v3",
+      "version": "v3.21.0",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/coreos/go-oidc/v3",
+      "archiveHash": "h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=",
+      "goModHash": "h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
     {
       "module": "github.com/ebitengine/purego",
       "version": "v0.11.1",
-      "relation": "transitive",
+      "relation": "indirect",
       "sourceUrl": "https://github.com/ebitengine/purego",
       "archiveHash": "h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=",
       "goModHash": "h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=",
@@ -30,6 +40,16 @@
       "archiveHash": "h1:5izNFuvA37st1dDRAcA7TtmngBmRgiIPDmTtiEvjx1E=",
       "goModHash": "h1:3oFFwxX8kTklZwzIl2aQEDZT0lKY8xH92ST88bAwba4=",
       "spdxLicenseId": "MIT",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.4",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/go-jose/go-jose/v4",
+      "archiveHash": "h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA=",
+      "goModHash": "h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=",
+      "spdxLicenseId": "Apache-2.0",
       "consumer": "FreeMD Go build (go.mod)"
     },
     {
@@ -69,6 +89,16 @@
       "sourceUrl": "https://golang.org/x/net",
       "archiveHash": "h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=",
       "goModHash": "h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeMD Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/oauth2",
+      "version": "v0.36.0",
+      "relation": "indirect",
+      "sourceUrl": "https://golang.org/x/oauth2",
+      "archiveHash": "h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=",
+      "goModHash": "h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7Q=",
       "spdxLicenseId": "BSD-3-Clause",
       "consumer": "FreeMD Go build (go.mod)"
     },

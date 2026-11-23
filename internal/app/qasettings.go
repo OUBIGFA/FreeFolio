@@ -42,7 +42,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			})
 			if conn != nil {
 				ui.Spacer(c)
-				if ui.Button(c.Key("remove"), i18n.T("移除供应商")).Clicked() {
+				if ui.Button(c.Key("remove"), i18n.T("移除供应商")).Disabled(conn.Protocol == agent.ChatGPT && a.chatgpt.busyID != "").Clicked() {
 					a.removeAIConnection()
 				}
 			}
@@ -69,6 +69,11 @@ func (a *App) settingsAI(c *ui.Context) {
 				a.savePrefs()
 			}
 		})
+		if conn.Protocol == agent.ChatGPT {
+			settingsSeparator(c)
+			a.chatGPTAccountView(c)
+			return
+		}
 		settingsSeparator(c)
 		formRow("protocol", "接口协议", func() {
 			// A select lines up with the text fields beside it; a menu button
@@ -199,7 +204,7 @@ func (a *App) settingsAI(c *ui.Context) {
 				conn.Model = ""
 				a.savePrefs()
 			}
-			if ui.Button(c.Key("capabilities"), i18n.T("更新模型能力")).Disabled(a.qa.modelsBusy || conn.Vendor == "" || conn.Vendor == "custom").Clicked() {
+			if ui.Button(c.Key("capabilities"), i18n.T("更新模型能力")).Disabled(a.qa.modelsBusy || conn.Protocol == agent.ChatGPT || conn.Vendor == "" || conn.Vendor == "custom").Clicked() {
 				a.fetchModelCapabilities()
 			}
 		})
@@ -213,6 +218,9 @@ func (a *App) settingsAI(c *ui.Context) {
 		}
 		if len(visible) == 0 {
 			msg := i18n.T("点击「获取模型」或在下方手动添加模型。")
+			if conn.Protocol == agent.ChatGPT {
+				msg = i18n.T("登录后点击「获取模型」，显示此账号可用的模型。")
+			}
 			if len(conn.Models) > 0 {
 				msg = i18n.T("没有匹配的模型。")
 			}
@@ -229,7 +237,11 @@ func (a *App) settingsAI(c *ui.Context) {
 				}
 				item.Children(func() {
 					before := model.Enabled
-					ui.Checkbox(c.Key("checked"), &model.Enabled, model.ID).Grow(1).MinWidth(0)
+					label := model.ID
+					if conn.Protocol == agent.ChatGPT && model.Name != "" {
+						label = model.Name
+					}
+					ui.Checkbox(c.Key("checked"), &model.Enabled, label).Tooltip(model.ID).Grow(1).MinWidth(0)
 					if before != model.Enabled {
 						if model.Enabled && conn.Model == "" {
 							conn.Model = model.ID
@@ -261,6 +273,9 @@ func (a *App) settingsAI(c *ui.Context) {
 		if a.qa.catalogErr != nil {
 			ui.Text(c, i18n.T("更新模型能力失败：")+qaErrorText(a.qa.catalogErr)).FontSize(12).TextColor(t.Danger).Padding(6, 16)
 		}
+		if conn.Protocol == agent.ChatGPT {
+			return
+		}
 		settingsSeparator(c)
 		ui.Row(c.Key("manual")).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.T("手动添加模型")).FontSize(13).FontWeight(500).Width(84).Shrink(0)
@@ -276,31 +291,37 @@ func (a *App) settingsAI(c *ui.Context) {
 
 	settingsSection(c, i18n.T("生成参数"))
 	settingsGroup(c, "params-group", func() {
-		settingRow(c, "parameters", i18n.T("输出上限"), i18n.T("0 为默认"), func() {
-			value := float64(conn.Parameters.MaxOutput)
-			if ui.NumberInput(c.Key("tokens"), &value, 0, 1000000, 256).Width(130).Label(i18n.T("输出上限（0 为默认）")).Changed() {
-				conn.Parameters.MaxOutput = int(value)
-				a.savePrefs()
-			}
-		})
-		settingsSeparator(c)
-		settingRow(c, "temperature", i18n.T("温度"), "", func() {
-			custom := conn.Parameters.Temperature != nil
-			if ui.Checkbox(c.Key("custom"), &custom, i18n.T("自定义温度")).Changed() {
-				if custom {
-					v := 0.7
-					conn.Parameters.Temperature = &v
-				} else {
-					conn.Parameters.Temperature = nil
+		if conn.Protocol != agent.ChatGPT {
+			settingRow(c, "parameters", i18n.T("输出上限"), i18n.T("0 为默认"), func() {
+				value := float64(conn.Parameters.MaxOutput)
+				if ui.NumberInput(c.Key("tokens"), &value, 0, 1000000, 256).Width(130).Label(i18n.T("输出上限（0 为默认）")).Changed() {
+					conn.Parameters.MaxOutput = int(value)
+					a.savePrefs()
 				}
-				a.savePrefs()
-			}
-			if conn.Parameters.Temperature != nil && ui.NumberInput(c.Key("value"), conn.Parameters.Temperature, 0, 2, 0.1).Width(110).Changed() {
-				a.savePrefs()
-			}
-		})
-		settingsSeparator(c)
-		settingRow(c, "reasoning", i18n.T("推理强度"), i18n.T("推理预算（0 为自动）"), func() {
+			})
+			settingsSeparator(c)
+			settingRow(c, "temperature", i18n.T("温度"), "", func() {
+				custom := conn.Parameters.Temperature != nil
+				if ui.Checkbox(c.Key("custom"), &custom, i18n.T("自定义温度")).Changed() {
+					if custom {
+						v := 0.7
+						conn.Parameters.Temperature = &v
+					} else {
+						conn.Parameters.Temperature = nil
+					}
+					a.savePrefs()
+				}
+				if conn.Parameters.Temperature != nil && ui.NumberInput(c.Key("value"), conn.Parameters.Temperature, 0, 2, 0.1).Width(110).Changed() {
+					a.savePrefs()
+				}
+			})
+			settingsSeparator(c)
+		}
+		note := i18n.T("推理预算（0 为自动）")
+		if conn.Protocol == agent.ChatGPT {
+			note = i18n.T("以所选模型支持的推理强度为准")
+		}
+		settingRow(c, "reasoning", i18n.T("推理强度"), note, func() {
 			values := []string{"", "off", "minimal", "low", "medium", "high", "xhigh", "max"}
 			if m := conn.CurrentModel(); m != nil && len(m.Capabilities.Efforts) > 0 {
 				values = append([]string{"", "off"}, m.Capabilities.Efforts...)
@@ -309,6 +330,9 @@ func (a *App) settingsAI(c *ui.Context) {
 			ui.Combobox(c.Key("field"), &conn.Parameters.Reasoning, values).Width(120).Placeholder(i18n.T("服务默认"))
 			if before != conn.Parameters.Reasoning {
 				a.savePrefs()
+			}
+			if conn.Protocol == agent.ChatGPT {
+				return
 			}
 			budget := float64(conn.Parameters.ThinkingBudget)
 			if ui.NumberInput(c.Key("budget"), &budget, 0, 1000000, 1024).Width(116).Label(i18n.T("推理预算（0 为自动）")).Changed() {
