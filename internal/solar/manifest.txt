@@ -21,6 +21,7 @@ arrows/restart
 arrows/sort-vertical
 arrows/square-alt-arrow-right
 arrows-action/arrow-down-to-line
+arrows-action/move-horizontal
 arrows-action/arrow-left-to-line
 arrows-action/arrow-right-to-line
 arrows-action/arrow-up-to-line

@@ -1750,4 +1750,8 @@ var en = map[string]string{
 	"导入到「%s」":                     "Import to “%s”",
 	"只能导入 FreeMD、Markdown 或 PDF 文档：%s 未导入。": "Only FreeMD, Markdown or PDF documents can be imported: %s not imported.",
 	"导入 %s 失败。%v": "Could not import %s. %v",
+	"页面宽度：%s":     "Page Width: %s",
+	"退出全宽显示":      "Exit Full Width",
+	"全宽":          "Full Width",
+	"切换全宽显示":      "Toggle Full Width",
 }

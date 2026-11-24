@@ -49,9 +49,12 @@ type motionState struct {
 	at         time.Time
 	doc        *document.Document
 	width      float32
-	resizing   bool
-	ready      bool
-	moving     bool
+	// column is the text column laid out; a new width snaps the blocks
+	// into place rather than sliding them (ArcMD 8e9fecf).
+	column   float32
+	resizing bool
+	ready    bool
+	moving   bool
 }
 
 func (e *Editor) motionWindow() (top, bottom float32) {
@@ -117,7 +120,7 @@ func (e *Editor) visibleDecRange(fn func(int)) {
 }
 
 // reset clears transient offsets when switching documents, printing, or resizing.
-func (m *motionState) reset(doc *document.Document, width float32, now time.Time) {
+func (m *motionState) reset(doc *document.Document, width, column float32, now time.Time) {
 	clear(m.blocks)
 	clear(m.indents)
 	clear(m.tableRows)
@@ -132,6 +135,7 @@ func (m *motionState) reset(doc *document.Document, width float32, now time.Time
 	m.wasDim = false
 	m.doc = doc
 	m.width = width
+	m.column = column
 	m.at = now
 	m.moving = false
 }
@@ -156,9 +160,9 @@ func (e *Editor) updateMotion(now time.Time, o Options) {
 	hs, he := e.visibleHandleRange(winTop, winBottom)
 	fs, fe := e.visibleFoldRange(winTop, winBottom)
 	resizing := o.Resizing || e.resizePending
-	if e.printing || e.reduceMotion || !m.ready || m.doc != e.Doc || m.width != e.width || resizing || m.resizing {
+	if e.printing || e.reduceMotion || !m.ready || m.doc != e.Doc || m.width != e.width || m.column != e.column || resizing || m.resizing {
 		e.unfoldPending = false
-		m.reset(e.Doc, e.width, now)
+		m.reset(e.Doc, e.width, e.column, now)
 		m.resizing = resizing
 		m.ready = true
 		for hi := hs; hi < he; hi++ {

@@ -201,6 +201,9 @@ type App struct {
 	// fileDrop is where files dragged in from the system would land
 	// (filedrop.go).
 	fileDrop fileDropState
+	// pageWidthBeforeFull is the page width full width returns to
+	// (pagewidth.go).
+	pageWidthBeforeFull string
 	// listDrop is where the file or folder dragged over the sidebar's list
 	// would land (treedrag.go), and favDrop the slot the favorites hold
 	// open for one dragged over them (favorites.go).

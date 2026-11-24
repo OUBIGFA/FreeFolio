@@ -124,7 +124,7 @@ func (e *Editor) fitOutline(o Options) {
 		s.floating, s.panelHovered = false, false
 		return
 	}
-	margin := (o.Width - columnWidth(o.Column)) / 2
+	margin := (o.Width - pageColumn(o.Width, o.Column)) / 2
 	// Query the existing viewport indexes after layout and scroll updates, so
 	// offscreen tables neither close the outline nor require a document scan.
 	for i := range e.visibleRows(0) {

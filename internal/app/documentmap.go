@@ -221,6 +221,7 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 		if b.Clicked() {
 			a.toggleDocumentMap(d)
 		}
+		a.pageWidthButton(c, d)
 		d.ed.ActionsCorner(c)
 	}
 }

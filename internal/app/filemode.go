@@ -337,6 +337,8 @@ func (a *App) fileView(c *ui.Context) {
 			a.stepFileTab(-1)
 		case a.pressed(c, "source"):
 			a.toggleSource()
+		case a.pressed(c, "full-width"):
+			a.toggleFullWidth()
 		case a.pressed(c, "outline"):
 			a.toggleOutline()
 		case a.pressed(c, "export-pdf"):
@@ -572,6 +574,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 		if m.Item(i18n.T("Markdown 源码")).Checked(d != nil && d.source).Disabled(noText).Chosen() {
 			a.toggleSource()
 		}
+		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(d))
 		if m.Item(i18n.T("目录")).Checked(a.outlineOpen()).Disabled(noDoc || d.source).Chosen() {
 			a.toggleOutline()
 		}

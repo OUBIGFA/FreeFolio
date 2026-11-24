@@ -549,7 +549,8 @@ type Options struct {
 	NoAutoPair           bool
 	CodeNoWrap           bool
 	FontSize, LineHeight float32
-	// Column is the text column's width, 0 for 820. Code keeps its monospace.
+	// Column is the text column's width, 0 for 820 and FullColumn for the
+	// page's. Code keeps its monospace.
 	FontFamily   string
 	DocTitle     string
 	Column       float32
@@ -1008,8 +1009,9 @@ func (e *Editor) layout(o Options) {
 	e.laidHTML = e.htmlEditing
 	e.laidFindKey = findKey
 	e.laidProps = e.propsKey()
-	// The text column is 820 wide unless the reader picked another.
-	e.column = columnWidth(o.Column)
+	// The text column is 820 wide unless the reader picked another, or
+	// spans the page with only its margins (FullColumn).
+	e.column = pageColumn(o.Width, o.Column)
 	e.padding, e.rightPadding = pagePadding(o.Width, e.column, e.printing)
 	width := e.bodyWidth()
 	clear(e.rows)
@@ -2571,7 +2573,7 @@ func (e *Editor) UnfoldAll() {
 // width wide, column as Options.Column: Markdown source mode sets its text
 // where the rich text was.
 func TextPadding(width, column float32) float32 {
-	left, _ := pagePadding(width, columnWidth(column), false)
+	left, _ := pagePadding(width, pageColumn(width, column), false)
 	return left
 }
 
@@ -2589,6 +2591,18 @@ func pagePadding(width, column float32, printing bool) (left, right float32) {
 	left = max(80, center)
 	right = max(min(float32(46), max(24, width*0.12)), center)
 	return left, right
+}
+
+// FullColumn as Options.Column spans the text column across the page,
+// keeping only the page's margins (ArcMD 8e9fecf).
+const FullColumn = -1
+
+// pageColumn is the text column of a page width wide for Options.Column.
+func pageColumn(width, column float32) float32 {
+	if column < 0 {
+		return width
+	}
+	return columnWidth(column)
 }
 
 func columnWidth(w float32) float32 {

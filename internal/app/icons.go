@@ -24,6 +24,7 @@ var (
 	iconSort         = solar.Must("sort-vertical")
 	iconBack         = solar.Must("arrow-left")
 	iconFileImport   = solar.Must("file-download")
+	iconPageWidth    = solar.Must("move-horizontal")
 	iconForward      = solar.Must("arrow-right")
 	iconReload       = solar.Must("restart")
 	iconCloudSync    = solar.Must("refresh")

@@ -95,7 +95,7 @@ func TestMoreMenuExport(t *testing.T) {
 			}
 			if keyboard {
 				tt.Key(0, ui.KeyHome)
-				for range 5 {
+				for range 6 {
 					tt.Key(0, ui.KeyDown)
 				}
 				tt.Key(0, ui.KeyEnter)

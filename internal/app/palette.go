@@ -293,6 +293,19 @@ func (a *App) actions() []action {
 			outline = i18n.T("收起目录")
 		}
 		cmd(outline, a.keyLabel("outline"), a.toggleOutline)
+		if a.prefs.FullWidth() {
+			cmd(i18n.T("退出全宽显示"), a.keyLabel("full-width"), a.toggleFullWidth)
+		}
+		for _, opt := range pageWidthChoices {
+			if opt.value == a.prefs.Page {
+				continue
+			}
+			key, page := "", opt.value
+			if page == "full" {
+				key = a.keyLabel("full-width")
+			}
+			cmd(fmt.Sprintf(i18n.T("页面宽度：%s"), i18n.T(opt.label)), key, func() { a.setPageWidth(page) })
+		}
 		mm := i18n.T("展开思维导图")
 		if a.doc.mindMap != nil {
 			mm = i18n.T("收起思维导图")

@@ -52,6 +52,7 @@ snapshots cannot show the compositor's decorations.
 | `relocate.go` | Document moves with attachments, undo states and snapshots |
 | `pdfexport.go` | Cancellable, page-by-page PDF export and printing |
 | `filedrop.go` | Documents dragged in from the file manager: import into a space, or tabs in the file browser |
+| `pagewidth.go` | Page width choices, including full width, and the corner button |
 | `pdfviewer.go` | Read-only PDF documents in spaces and the file browser |
 | `document.go` | The open rich document and read-only export preview: dirty tracking, autosave, images, links |
 | `split.go`, `splitview.go`, `splitstore.go` | Document pane lifecycle, native split cards and dividers, saved layout |

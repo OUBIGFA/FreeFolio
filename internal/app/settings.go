@@ -55,6 +55,7 @@ func (a *App) moreMenu(c *ui.Context) {
 		if a.menuKey(m.Item(mode), "source").Disabled(noText).Chosen() {
 			a.toggleSource()
 		}
+		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(a.doc))
 		if a.menuKey(m.Item(i18n.T("添加分屏")), "split-add").Disabled(a.doc == nil).Chosen() {
 			a.addSplitPane()
 		}
@@ -416,7 +417,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 	})
 	settingsSection(c, i18n.T("文档"))
 	settingsGroup(c, "appearance", func() {
-		choice := func(key, label, note string, values []string, names []string, current *string) {
+		choice := func(key, label, note string, values []string, names []string, current *string, set func(string)) {
 			at := 0
 			for i, v := range values {
 				if v == *current {
@@ -426,15 +427,17 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			settingRow(c, key, label, note, func() {
 				before := at
 				segmentedChoice(c.Key("choice"), &at, names...).Label(label)
-				if at != before {
+				if at != before && set != nil {
+					set(values[at])
+				} else if at != before {
 					*current = values[at]
 					a.savePrefs()
 				}
 			})
 		}
-		choice("font", i18n.T("正文字体"), "", prefs.Fonts, []string{i18n.T("系统"), i18n.T("衬线"), i18n.T("楷体"), i18n.T("等宽")}, &a.prefs.Font)
+		choice("font", i18n.T("正文字体"), "", prefs.Fonts, []string{i18n.T("系统"), i18n.T("衬线"), i18n.T("楷体"), i18n.T("等宽")}, &a.prefs.Font, nil)
 		settingsSeparator(c)
-		choice("page", i18n.T("页面宽度"), "", prefs.Pages, []string{i18n.T("窄"), i18n.T("标准"), i18n.T("宽")}, &a.prefs.Page)
+		choice("page", i18n.T("页面宽度"), "", prefs.Pages, []string{i18n.T("窄"), i18n.T("标准"), i18n.T("宽"), i18n.T("全宽")}, &a.prefs.Page, a.setPageWidth)
 		settingsSeparator(c)
 		for i, item := range []struct {
 			label string
@@ -583,6 +586,9 @@ func (a *App) appearancePreview(c *ui.Context) {
 			}
 			// The page's column as it is in a window about 1100 wide.
 			col := max(160, column*w/1100)
+			if column < 0 {
+				col = editor.FullColumn
+			}
 			sheet.Children(func() {
 				editor.View(c.Key("sample-text"), a.sampleEditor, editor.Options{
 					Width: w - 2, Theme: paper, Page: pageStyle(a.paperDark), Column: col,
