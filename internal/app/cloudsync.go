@@ -636,7 +636,7 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	}
 	syncBtn := iconButton(c, "sidebar-cloud-sync", syncIcon, syncLabel, syncTip, syncDisabled).Size(28, 28)
 	if s.busy {
-		syncBtn.TextColor(t.Accent).Background(t.Accent.Alpha(0.10))
+		syncBtn.TextColor(t.Success).Background(t.Success.Alpha(0.10))
 	}
 	if syncBtn.Clicked() {
 		if s.busy {
@@ -653,13 +653,13 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	}
 	cloudBtn := iconButton(c, "sidebar-cloud-menu", settingsIcons["cloud"], i18n.T("云端同步"), cloudTip, false).
 		Size(28, 28).Role(ui.RoleMenuButton)
+	// Green says sync is on whatever the space's accent is (which may be
+	// red); red stays for failures and conflicts.
 	switch {
 	case s.failed || len(s.conflicts) > 0:
 		cloudBtn.TextColor(t.Danger)
-	case s.busy:
-		cloudBtn.TextColor(t.Accent)
-	case cfg.Enabled:
-		cloudBtn.TextColor(t.Accent)
+	case s.busy || cfg.Enabled:
+		cloudBtn.TextColor(t.Success)
 	}
 	cloudBtn.PopoverMenuButton(func(m *ui.Menu) {
 		if s.busy {

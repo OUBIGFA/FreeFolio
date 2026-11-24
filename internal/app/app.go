@@ -503,8 +503,42 @@ func (a *App) showSpaceHome() bool {
 		a.library.open, a.library.frames = false, 0
 	}
 	a.suspendSplit()
+	// The document left behind closes unless something still holds it (a
+	// pin, a split, another window), so its editor and pixels do not linger.
+	old := a.doc
 	a.doc = nil
+	a.retireClosedDocuments(old)
 	return true
+}
+
+// closeShownDoc closes the shown document for the space's home page, as a
+// file tab closes: a pinned one closes and stays pinned, and its space
+// forgets it as the last document, so coming back shows the home page too.
+// In a split it closes the active pane instead, which has its own document.
+func (a *App) closeShownDoc() {
+	d := a.doc
+	if d == nil || a.files != nil {
+		return
+	}
+	if a.split != nil {
+		a.closePane(a.split.active)
+		return
+	}
+	if !a.leaveDocs([]*document{d}, a.closeShownDoc) {
+		return
+	}
+	sp, p := d.space, place{d.space.ID, d.rel}
+	if a.openDocs[p] != nil {
+		delete(a.openDocs, p)
+		a.bounce = bounce{p, a.now}
+	}
+	if !a.showSpaceHome() {
+		return
+	}
+	if sp.LastOpen == d.rel {
+		sp.LastOpen, sp.LastAt = "", 0
+		a.saveState()
+	}
 }
 
 // Run opens the window and runs the app until it quits.

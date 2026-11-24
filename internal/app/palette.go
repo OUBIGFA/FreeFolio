@@ -240,6 +240,9 @@ func (a *App) actions() []action {
 		cmd(i18n.T("取消侧边栏多选"), "Esc", func() { a.clearPicks("") })
 	}
 	if a.doc != nil {
+		if a.split == nil {
+			cmd(i18n.T("关闭文档"), combo(ui.Cmd, ui.KeyW).Label(), a.closeShownDoc)
+		}
 		cmd(i18n.T("添加分屏"), a.keyLabel("split-add"), a.addSplitPane)
 	}
 	if a.split != nil {

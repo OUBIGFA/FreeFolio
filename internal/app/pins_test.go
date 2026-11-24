@@ -263,6 +263,44 @@ func TestHeaderFoldsPins(t *testing.T) {
 	}
 }
 
+// A folded pinned folder keeps only the open document in sight, not its
+// whole body; the rows a shift-click ranges over are the rows shown.
+func TestFoldedPinnedFolderKeepsOpenDocument(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.state.Favorites = nil
+	sp := a.state.ActiveSpace()
+	os.WriteFile(filepath.Join(sp.Root, "Alpha.md"), []byte("# A\n"), 0o644)
+	os.WriteFile(filepath.Join(sp.Root, "Journal", "Beta.md"), []byte("# B\n"), 0o644)
+	a.refreshTree()
+	a.togglePin(sp, "Journal")
+	a.togglePin(sp, "Alpha.md")
+	sp.SetExpanded("Journal", true)
+	a.open("Journal/Ideas.md")
+	settle(tt)
+	if err := tt.Click("折叠或展开置顶"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if !sp.PinsCollapsed {
+		t.Fatal("the click did not fold the pinned section")
+	}
+	if sectionOf(a, "Alpha.md") != "" || sectionOf(a, "Journal/Beta.md") != "" {
+		t.Fatalf("folded: Alpha %q, Beta %q should be hidden", sectionOf(a, "Alpha.md"), sectionOf(a, "Journal/Beta.md"))
+	}
+	if sectionOf(a, "Journal") != "pinned" || sectionOf(a, "Journal/Ideas.md") != "pinned" {
+		t.Fatal("folded: the pinned folder and its open document must stay in sight")
+	}
+	if got := a.listedPaths(sp); !slices.Equal(got[:2], []string{"Journal", "Journal/Ideas.md"}) || slices.Contains(got, "Journal/Beta.md") {
+		t.Fatalf("listed rows %v differ from the rows shown", got)
+	}
+	sp.PinsCollapsed = false
+	sp.SetExpanded("Journal", false)
+	settle(tt)
+	if slices.Contains(a.listedPaths(sp), "Journal/Ideas.md") {
+		t.Fatal("a closed folder's open document is not shown, so it must not be listed")
+	}
+}
+
 // Collapsing a folder hides every descendant while its document stays open.
 func TestFolderDisclosure(t *testing.T) {
 	a, tt := newTestApp(t)

@@ -62,6 +62,7 @@ list/sort-from-bottom-to-top
 list/sort-from-top-to-bottom
 messages/pen
 messages/pen-2
+messages/pen-new-round
 messages/pen-new-square
 settings/columns-2
 settings/separator-horizontal

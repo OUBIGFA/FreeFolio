@@ -81,6 +81,9 @@ func (a *App) moreMenu(c *ui.Context) {
 			a.revealIn(a.doc.space, a.doc.rel)
 		}
 		m.Separator()
+		if m.Item(i18n.T("关闭文档")).Shortcut(ui.Cmd, ui.KeyW).Disabled(a.doc == nil).Chosen() {
+			a.closeShownDoc()
+		}
 		if m.Item(i18n.T("打开文件…")).Chosen() {
 			a.chooseExternalFiles()
 		}

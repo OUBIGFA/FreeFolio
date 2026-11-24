@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -277,7 +278,15 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 						if !a.rowWin.skip(n.Path, rowHeight) {
 							a.nodeRow(c, sp, n, 0, pinRoot, i, live, prev)
 						}
-						if n.Dir {
+						switch {
+						case !n.Dir:
+						case sp.PinsCollapsed:
+							// Folded, a pinned folder shows only the open
+							// document it holds, not the rest of its body.
+							if doc, parent, index := a.openPeek(sp, n); doc != nil && !a.rowWin.skip(doc.Path, rowHeight) {
+								a.nodeRow(c, sp, doc, 1, parent, index, live, prev)
+							}
+						default:
 							a.folderContent(c, sp, n, 1, live, prev)
 						}
 					}
@@ -566,6 +575,24 @@ func (a *App) nodes(c *ui.Context, sp *space.Space, nodes []*vault.Node, depth i
 // inside it.
 func (a *App) holdsOpen(sp *space.Space, rel string) bool {
 	return a.doc != nil && a.doc.space == sp && under(a.doc.rel, rel)
+}
+
+// openPeek is the open document inside the folder n with the folder it sits
+// in and its index there, for the single row a folded pinned folder keeps in
+// sight; nil when n does not hold the open document.
+func (a *App) openPeek(sp *space.Space, n *vault.Node) (*vault.Node, string, int) {
+	if !n.Dir || !a.holdsOpen(sp, n.Path) || a.doc.rel == n.Path {
+		return nil, "", 0
+	}
+	doc := vault.Find(n.Children, a.doc.rel)
+	if doc == nil || a.hidden(sp, doc) {
+		return nil, "", 0
+	}
+	parent, kids := parentDir(doc.Path), n.Children
+	if pn := vault.Find(n.Children, parent); pn != nil {
+		kids = pn.Children
+	}
+	return doc, parent, max(0, slices.IndexFunc(kids, func(k *vault.Node) bool { return k.Path == doc.Path }))
 }
 
 // folderContent is what a folder shows under its row: open, its rows; closed,
@@ -1271,7 +1298,16 @@ func (a *App) spaceBar(c *ui.Context) {
 		if draft {
 			a.spaceBarFor = "draft"
 		}
-		if iconButton(c, "add-space", iconPlus, i18n.T("新建空间"), i18n.T("新建空间"), false).Shrink(0).Clicked() {
+		add := iconButton(c, "add-space", iconPlus, i18n.T("新建空间"), i18n.T("新建空间；也可把文件夹拖到这里"), false).Shrink(0)
+		// A folder dragged from the file manager onto + becomes a space of
+		// its own; the button lights up instead of the import overlay,
+		// which would cover it.
+		if add.FileDragOver() {
+			add.Background(t.Accent.Alpha(0.16)).TextColor(t.Accent).Border(1, t.Accent.Alpha(0.6))
+		}
+		if dirs := add.DroppedFiles(); len(dirs) > 0 {
+			a.spacesFromFolders(dirs)
+		} else if add.Clicked() {
 			a.newSpaceForm()
 		}
 	})

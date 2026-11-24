@@ -379,6 +379,8 @@ func (a *App) shortcuts(c *ui.Context) {
 	switch {
 	case c.Shortcut(ui.Cmd, ui.KeyO):
 		a.chooseExternalFiles()
+	case c.Shortcut(ui.Cmd, ui.KeyW):
+		a.closeShownDoc()
 	case c.Shortcut(ui.Cmd|ui.Shift, ui.KeyS):
 		a.chooseSaveAs()
 	case a.pressed(c, "palette"):
@@ -722,6 +724,14 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			a.toggleQA()
 		}
 		a.moreMenu(c)
+		// Closing the document, at the page's top-right corner, shows the
+		// space's home page; a split closes its panes from their own bars.
+		if a.doc != nil {
+			close := iconButton(c, "close-doc", iconX, i18n.T("关闭文档"), i18n.T("关闭文档")+" ("+combo(ui.Cmd, ui.KeyW).Label()+")", false).Shrink(0)
+			if close.Clicked() {
+				a.closeShownDoc()
+			}
+		}
 	}
 	toolbar.Children(func() {
 		if a.prefs.SidebarLeft {

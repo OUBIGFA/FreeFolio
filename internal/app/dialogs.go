@@ -1,10 +1,13 @@
 package app
 
 import (
+	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
-	"os"
-	"strings"
 
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo"
@@ -141,6 +144,58 @@ func (a *App) submitSpace() {
 	f.open = false
 	a.saveState()
 	a.switchSpace(s.ID)
+}
+
+// spacesFromFolders makes a space of each folder dropped on the space bar's
+// +, in place (nothing is copied): named as the folder, with a random glyph
+// and a random preset color. A folder some space already uses switches to
+// that space instead; dropped files are not folders and are skipped.
+func (a *App) spacesFromFolders(paths []string) {
+	var skipped []string
+	for _, dir := range paths {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			skipped = append(skipped, filepath.Base(dir))
+			continue
+		}
+		if sp := a.spaceAt(info); sp != nil {
+			a.switchSpace(sp.ID)
+			continue
+		}
+		name := strings.TrimSpace(filepath.Base(dir))
+		if name == "" || name == "." || name == string(filepath.Separator) {
+			name = strings.TrimSpace(filepath.VolumeName(dir)) // a drive's root
+		}
+		if name == "" {
+			name = dir
+		}
+		// Greyscale, the last page, is left out: a random space should be colored.
+		pages := space.PresetPages[:len(space.PresetPages)-1]
+		swatches := pages[rand.IntN(len(pages))].Swatches
+		theme := space.Theme{Colors: swatches[rand.IntN(len(swatches))], Intensity: 0.8, Appearance: space.AppearanceAuto}
+		a.finishSpaceEdit()
+		a.spaceForm = spaceForm{open: true, name: name, symbol: spaceSymbols[rand.IntN(len(spaceSymbols))], root: dir, theme: theme, knob: -1}
+		a.submitSpace()
+		if a.spaceForm.open {
+			a.cancelSpaceForm() // its failure was told; no draft stays behind
+		}
+	}
+	if len(skipped) > 0 {
+		a.notify("只能用文件夹新建空间：%s 未添加。", strings.Join(skipped, "、"))
+	}
+}
+
+// spaceAt is the space whose folder is the one info describes, or nil.
+func (a *App) spaceAt(info os.FileInfo) *space.Space {
+	for _, sp := range a.state.Spaces {
+		if sp.IsExternal() {
+			continue
+		}
+		if si, err := os.Stat(sp.Root); err == nil && os.SameFile(si, info) {
+			return sp
+		}
+	}
+	return nil
 }
 
 // removeSpace takes a space out of FreeFolio; its folder stays on disk.

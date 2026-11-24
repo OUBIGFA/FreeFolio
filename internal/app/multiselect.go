@@ -54,7 +54,7 @@ func (a *App) rowHighlighted(sp *space.Space, rel string, chosen bool) bool {
 
 // listedNodes returns the visible folder and document nodes of sp's sidebar
 // list (pinned then today) in top-to-bottom visual order, descending into
-// expanded folders and closed folders' peeked open document.
+// expanded folders, as the sidebar builds them (sidebar.go).
 func (a *App) listedNodes(sp *space.Space) []*vault.Node {
 	if sp == nil {
 		return nil
@@ -75,15 +75,14 @@ func (a *App) listedNodes(sp *space.Space) []*vault.Node {
 				continue
 			}
 			out = append(out, n)
-			if !n.Dir {
-				continue
-			}
-			if sp.IsExpanded(n.Path) {
-				walk(n.Children, false)
-			} else if a.holdsOpen(sp, n.Path) && a.doc.rel != n.Path {
-				if doc := vault.Find(n.Children, a.doc.rel); doc != nil && !a.hidden(sp, doc) {
+			switch {
+			case !n.Dir:
+			case rootPins && sp.PinsCollapsed:
+				if doc, _, _ := a.openPeek(sp, n); doc != nil {
 					out = append(out, doc)
 				}
+			case sp.IsExpanded(n.Path):
+				walk(n.Children, false)
 			}
 		}
 	}

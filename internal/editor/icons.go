@@ -25,7 +25,7 @@ var (
 	iconCode          = solar.Must("code")
 	iconLink          = solar.Must("link")
 	iconPlus          = solar.Must("add")
-	iconFormat        = solar.Must("pen") // a writing pen: the More Formats menu
+	iconFormat        = solar.Must("pen-new-round") // a pen in a circle: the More Formats menu
 	iconSparkles      = solar.Must("sparkles")
 	iconChevron       = solar.Must("alt-arrow-down")
 	iconChevronUp     = solar.Must("alt-arrow-up")

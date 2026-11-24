@@ -314,7 +314,7 @@ func TestLeftSidebarTitleCentersOverPage(t *testing.T) {
 		bar    ui.TitleBar
 		widths []int
 	}{
-		{"windows", windowsTitleBar, []int{1300, 1440}},
+		{"windows", windowsTitleBar, []int{1340, 1440}},
 		{"macos", ui.TitleBar{Height: 46, Left: 78}, []int{980, 1240}},
 	} {
 		for _, width := range profile.widths {
@@ -329,7 +329,8 @@ func TestLeftSidebarTitleCentersOverPage(t *testing.T) {
 					if !found || math.Abs(float64(title.X+title.W/2-center)) > 1 {
 						t.Errorf("sidebar=%g: title %+v is not centered over the page at %g", sidebarWidth, title, center)
 					}
-					more, found := tt.Find("更多")
+					// Closing the document is the last action.
+					more, found := tt.Find("关闭文档")
 					right := float32(width) - profile.bar.Right
 					if !found || more.X+more.W > right || right-(more.X+more.W) > 8.5 {
 						t.Errorf("sidebar=%g: toolbar actions %+v are not at the right edge before native controls at %g", sidebarWidth, more, right)
