@@ -267,6 +267,37 @@
           "destination": "internal/app/qaloader.go"
         }
       ]
+    },
+    {
+      "name": "Solar Icons",
+      "purpose": "Interface icons (Linear style, plus Bold bookmark and play) generated into internal/solar by tools/solaricons from the pinned SVG set; the full set stays local in .local/upstream",
+      "sourceUrl": "https://github.com/saoudi-h/solar-icons",
+      "revision": "ab241e1bf578dcfe45b0197aee59bd9a08b5fe68",
+      "spdxLicenseId": "MIT AND CC-BY-4.0",
+      "licensePath": "third_party/solar-icons/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/solar-icons/LICENSE",
+          "bytes": 1322,
+          "sha256": "79ca906d7d543e10e4630cddb239c3765678fa18d624a33b99b65bf19e51741a"
+        },
+        {
+          "path": "third_party/solar-icons/LICENSE-THIRD-PARTY",
+          "bytes": 685,
+          "sha256": "055cc14f0eca227d9af49d408e3c5d3407fb688158e123b28f67177e1ec5f7d8"
+        }
+      ],
+      "sourceArchive": {
+        "url": "https://codeload.github.com/saoudi-h/solar-icons/tar.gz/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68",
+        "sha256": "3a2a416eda190d089eab9283cd99f2f1896ff9005e86fbe0e18195e477a0a4ba",
+        "bytes": 19355865
+      },
+      "adaptedFiles": [
+        {
+          "path": "packages/core/svgs",
+          "destination": "internal/solar/icons_gen.go"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

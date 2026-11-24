@@ -688,5 +688,5 @@ func dayLabel(t, now time.Time) string {
 // libraryFootButton shares the workspace toolbar's hit target and icon style.
 func (a *App) libraryFootButton(c *ui.Context) ui.Element {
 	label := i18n.T("资料库")
-	return iconButton(c, "library", lucideIcon("archive"), label, a.withKey(label, "library"), false).Shrink(0).Checked(a.library.open)
+	return iconButton(c, "library", symbolIcon("archive"), label, a.withKey(label, "library"), false).Shrink(0).Checked(a.library.open)
 }

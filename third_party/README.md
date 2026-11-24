@@ -67,9 +67,21 @@ package, inherited from ArcMD.
 
 [KaTeX source](https://github.com/KaTeX/KaTeX)
 
-Icons are Lucide, under the ISC License. Attribution appears in
-`internal/app/icons.go`; `internal/app/spacesymbols.go` is generated from
-Lucide 1.70.0.
+Interface icons are Solar Icons by 480 Design
+([Figma community file](https://www.figma.com/community/file/1166831539721848736)),
+under the Creative Commons Attribution 4.0 International License, as packaged by
+Hakim Saoudi's [solar-icons](https://github.com/saoudi-h/solar-icons) (MIT) at
+`ab241e1bf578dcfe45b0197aee59bd9a08b5fe68`. `tools/solaricons` verifies the pinned
+archive, keeps the whole set under `.local/upstream/` for later additions, and
+generates `internal/solar/icons_gen.go` from `internal/solar/manifest.txt`; black
+is replaced by `currentColor`, otherwise the shapes are unchanged. The credit is
+shown in Settings → About. Both notices are in `solar-icons/`.
+
+A few glyphs Solar has no counterpart for (headings, sigma, wrap, sequence,
+whiteboard and mind-map layouts, and five space symbols) remain Lucide, under the
+ISC License, drawn at Solar's 1.5 stroke; attribution appears in
+`internal/app/icons.go`. Space symbols keep their stored Lucide 1.70.0 names in
+`internal/app/spacesymbols.go`.
 
 The Q&A thinking indicator (`internal/app/qaloader.go`, `internal/app/qabot.go`)
 ports the `Tail Chase`, `Dot Stream`, and `Mirage` loaders from

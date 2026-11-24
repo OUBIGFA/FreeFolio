@@ -34,7 +34,7 @@ conflict behavior and recovery paths.
 | `app.go` | State, first run, window options, actions (open, new, switch space, pin, trash) |
 | `view.go` | Window layout, shortcuts, sidebar folding and peeking, toolbar and address, the card, writing surface |
 | `sidebar.go` | Space header, pinned rows, folder tree, drag/drop, space bar |
-| `icons.go` | Lucide icons |
+| `icons.go` | Interface icons (Solar via `internal/solar`, a few Lucide glyphs) |
 | `palette.go` | Command bar: actions, fuzzy ranking, keyboard navigation |
 | `dialogs.go`, `spacedraft.go`, `spaceeditor.go`, `spaceicons.go` | Space drafts and anchored property editors |
 | `favorites.go`, `library.go` | Global favorite tiles and the library |

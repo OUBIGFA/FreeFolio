@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/OUBIGFA/FreeMD/internal/solar"
 	"math"
 	"strings"
 	"time"
@@ -17,14 +18,14 @@ import (
 const qaWidth = 380
 
 var (
-	iconAsk          = lucide(`<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>`)
-	iconArrowUp      = lucide(`<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>`)
-	iconArrowDown    = lucide(`<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>`)
-	iconArrowUpRight = lucide(`<path d="M7 7h10v10"/><path d="M7 17 17 7"/>`)
-	iconStop         = lucide(`<rect width="14" height="14" x="5" y="5" rx="2"/>`)
-	iconList         = lucide(`<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>`)
-	iconListTree     = lucide(`<path d="M21 12h-8"/><path d="M21 6H8"/><path d="M21 18h-8"/><path d="M3 6v4c0 1.1.9 2 2 2h3"/><path d="M3 10v6c0 1.1.9 2 2 2h3"/>`)
-	iconNewChat      = lucide(`<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>`)
+	iconAsk          = solar.Must("dialog-2")
+	iconArrowUp      = solar.Must("arrow-up")
+	iconArrowDown    = solar.Must("arrow-down")
+	iconArrowUpRight = solar.Must("arrow-right-up")
+	iconStop         = solar.Must("stop")
+	iconList         = solar.Must("list")
+	iconListTree     = solar.Must("structure")
+	iconNewChat      = solar.Must("pen-new-square")
 )
 
 // qaExamples are questions the empty panel offers.

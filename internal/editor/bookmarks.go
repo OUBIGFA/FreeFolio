@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"github.com/OUBIGFA/FreeMD/internal/solar"
 	"strings"
 	"time"
 	"unicode"
@@ -28,8 +29,8 @@ const (
 )
 
 var (
-	iconBookmark       = lucide(`<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>`)
-	iconBookmarkFilled = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`))
+	iconBookmark       = solar.Must("bookmark")
+	iconBookmarkFilled = solar.Must("bookmark@bold")
 )
 
 // bookmarkState is the page's share of the bookmarks: which blocks have

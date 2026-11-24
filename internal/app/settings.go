@@ -686,6 +686,11 @@ func (a *App) settingsAbout(c *ui.Context) {
 				Label(i18n.T("GitHub 开源仓库")).Tooltip(i18n.T("在浏览器中打开 GitHub 开源仓库"))
 		})
 		settingsSeparator(c)
+		settingRow(c, "about-icons", i18n.T("图标"), i18n.T("Solar Icons，作者 480 Design，采用 CC BY 4.0 许可。"), func() {
+			ui.Link(c.Key("solar-icons"), i18n.T("打开"), "https://github.com/saoudi-h/solar-icons").FontSize(13).
+				Label(i18n.T("Solar Icons 项目")).Tooltip(i18n.T("在浏览器中打开 Solar Icons 项目"))
+		})
+		settingsSeparator(c)
 		settingRow(c, "about-tour", i18n.T("新手教程"), i18n.T("再看一遍空间、空间颜色、左右滑动、书签、置顶和收藏的介绍。"), func() {
 			if ui.Button(c.Key("replay-tour"), i18n.T("重新观看")).Disabled(a.files != nil).Clicked() {
 				a.startTour()

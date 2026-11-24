@@ -1688,4 +1688,7 @@ var en = map[string]string{
 	"已从此轮新建分支对话": "Forked conversation from this turn",
 	"删除此轮及后续":    "Delete from here",
 	"更多操作":       "More actions",
+	"Solar Icons，作者 480 Design，采用 CC BY 4.0 许可。": "Solar Icons by 480 Design, licensed under CC BY 4.0.",
+	"Solar Icons 项目":         "Solar Icons project",
+	"在浏览器中打开 Solar Icons 项目": "Open the Solar Icons project in your browser",
 }

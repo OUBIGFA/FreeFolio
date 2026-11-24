@@ -31,7 +31,7 @@ type emojiEntry struct{ emoji, name string }
 // on the category bar.
 type emojiCategory struct {
 	id, label string
-	icon      string // Lucide name
+	icon      string // symbol name
 	first     int    // index of its first emoji in emojiAll
 }
 
@@ -99,7 +99,7 @@ func (a *App) spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size 
 	if bmp := a.spaceIconImage(image); bmp != nil {
 		return ui.Image(c, bmp).Size(size*1.1, size*1.1).Radius(size * 0.22).Shrink(0)
 	}
-	if svg := lucideIcon(symbol); svg != nil {
+	if svg := symbolIcon(symbol); svg != nil {
 		return ui.Icon(c, svg).FontSize(size * 0.92).TextColor(color)
 	}
 	if emoji != "" {
@@ -203,7 +203,7 @@ func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
 	ui.Row(c).Padding(0, 0, 0, 2).Gap(2).AlignItems(ui.Center).Children(func() {
 		ui.Tabs(c.Key("icon-tabs"), &f.picker.tab, i18n.T("表情符号"), i18n.T("图标集"), i18n.T("自定义")).Label(i18n.T("图标类型")).Shrink(1).MinWidth(0)
 		ui.Spacer(c)
-		if iconButton(c, "remove-icon", lucideIcon("trash"), i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
+		if iconButton(c, "remove-icon", symbolIcon("trash"), i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
 			f.icon, f.symbol, f.image = "", "", ""
 			f.iconsOpen = false
 		}
@@ -283,7 +283,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 			if b.Hovered() {
 				color = t.Text
 			}
-			b.Children(func() { ui.Icon(c, lucideIcon(cat.icon)).FontSize(14).TextColor(color) })
+			b.Children(func() { ui.Icon(c, symbolIcon(cat.icon)).FontSize(14).TextColor(color) })
 			if b.Clicked() {
 				p.query = ""
 				p.scroll = cat.first
@@ -311,7 +311,7 @@ func symbolGrid(c *ui.Context, f *spaceForm) {
 						p.Fill(tile, t.Text.Alpha(0.1), 5)
 					}
 				})
-				b.Children(func() { ui.Icon(c, lucideIcon(name)).FontSize(15).TextColor(t.Text) })
+				b.Children(func() { ui.Icon(c, symbolIcon(name)).FontSize(15).TextColor(t.Text) })
 				if b.Clicked() {
 					f.icon, f.symbol, f.image = "", name, ""
 					f.iconsOpen = false

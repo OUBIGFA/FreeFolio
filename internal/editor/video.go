@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"github.com/OUBIGFA/FreeMD/internal/solar"
 	"strconv"
 
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
@@ -14,7 +15,7 @@ import (
 // pauses or resumes it.
 
 var (
-	iconPlay = lucide(`<polygon points="6 3 20 12 6 21 6 3" fill="currentColor"/>`)
+	iconPlay = solar.Must("play@bold")
 )
 
 // videoState is the video playing, or paused, in the page: key names its

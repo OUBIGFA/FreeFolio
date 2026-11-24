@@ -18,7 +18,7 @@ type spaceForm struct {
 	focused bool   // the inline name field has received focus
 	name    string
 	icon    string
-	// symbol is the Lucide name of the space's glyph; it wins over icon.
+	// symbol is the stored (Lucide) name of the space's glyph; it wins over icon.
 	// image, a picture's file name in space-icons, wins over both.
 	symbol string
 	image  string
