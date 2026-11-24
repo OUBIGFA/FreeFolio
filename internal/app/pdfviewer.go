@@ -88,6 +88,9 @@ func (a *App) pdfCorner(c *ui.Context, d *document) {
 		if side.Clicked() {
 			d.pdf.ToggleOutline()
 		}
+		if iconButton(c, "pdf-pages-edit", iconPencil, i18n.T("编辑 PDF 页面"), i18n.T("旋转、删除、提取、拆分、合并或加密页面"), d.pdf.PageCount() == 0).Clicked() {
+			a.openPDFPages(d)
+		}
 		find := iconButton(c, "pdf-find", iconSearch, i18n.T("在 PDF 中查找"), i18n.T("在 PDF 中查找")+"  ⌘F", d.pdf.PageCount() == 0)
 		if d.pdf.FindOpen {
 			find.Background(glass(t))
@@ -121,6 +124,9 @@ func (a *App) pdfActions(cmd func(string, string, func())) {
 		v.GoToPage(v.CurrentPage, true)
 	})
 	cmd(i18n.T("PDF：顺时针旋转 90°"), "", func() { v.RotateCW() })
+	if d := a.doc; d.loadErr == nil && v.PageCount() > 0 {
+		cmd(i18n.T("编辑 PDF 页面…"), "", func() { a.openPDFPages(d) })
+	}
 }
 
 // pdfTextPages bounds the pages of a PDF that search and Q&A read.

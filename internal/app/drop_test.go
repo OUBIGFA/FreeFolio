@@ -141,7 +141,7 @@ func TestDropSkipsOtherFiles(t *testing.T) {
 	}
 	// Neither pictures nor documents: nothing changes. (A lone document
 	// is imported instead, filedrop_test.go.)
-	plain := filepath.Join(t.TempDir(), "notes.txt")
+	plain := filepath.Join(t.TempDir(), "notes.bin")
 	if err := os.WriteFile(plain, []byte("plain"), 0o600); err != nil {
 		t.Fatal(err)
 	}

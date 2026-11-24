@@ -419,6 +419,10 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 		a.putThumb(key, thumb{d, rev})
 		return d
 	}
+	if vault.IsConverted(rel) {
+		// Converting a whole file on hover would stall the window.
+		return nil
+	}
 	full, err := p.path.resolve(sp, rel)
 	if err != nil {
 		return nil
@@ -446,6 +450,9 @@ func (a *App) thumbOf(sp *space.Space, rel string) *document {
 		if loadErr != nil {
 			doc = model.New()
 		}
+	} else if vault.IsSource(rel) {
+		body, _ := splitSource(sourceHead(text, 4096))
+		doc = sourceModel(rel, body)
 	} else {
 		doc = editor.ImportMarkdown(truncateMarkdownForPreview(text))
 	}

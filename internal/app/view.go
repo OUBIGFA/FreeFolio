@@ -213,6 +213,7 @@ func (a *App) View(c *ui.Context) {
 	a.tagRenameView(c)
 	a.versionsView(c)
 	a.pdfExportView(c)
+	a.pdfPagesView(c)
 	a.tourView(c)
 	a.mainWindowButtons(c)
 	if a.captureSplits() {
@@ -575,7 +576,11 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		return
 	}
 	if d.boardLoading {
-		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, i18n.T("正在加载白板…")).FontSize(14) })
+		loading := i18n.T("正在加载白板…")
+		if d.converted {
+			loading = i18n.T("正在读取文件…")
+		}
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, loading).FontSize(14) })
 		return
 	}
 	if d.loadErr != nil {

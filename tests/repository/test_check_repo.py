@@ -205,6 +205,29 @@ class RepositoryCheckTests(unittest.TestCase):
         self.git("add", "go.sum")
         self.assert_rejected("go.mod/go.sum registration mismatch")
 
+    def test_go_inventory_accepts_module_with_only_go_mod_hash(self):
+        self.write(
+            "go.mod",
+            "module example.com/app\n\ngo 1.26.2\n\nrequire github.com/egoist/mygo v0.7.4\n",
+        )
+        self.write(
+            "go.sum",
+            "github.com/egoist/mygo v0.7.4 h1:0qkDpDRo7C9g8PM8eu4V6FVouhLiTrUdqKD6I31Lv3Q=\n"
+            "github.com/egoist/mygo v0.7.4/go.mod h1:dVav53PwF2xEotjf4oA5lTY2Jp2exgzyjLhbSXhbMwE=\n"
+            "golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=\n",
+        )
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(GO_INVENTORY)],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.git("add", "go.mod", "go.sum", "third_party/manifests/go-mod.json")
+        checked = self.run_check()
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
     def test_link_examples_in_code_fences_are_not_links(self):
         self.write("README.md", "# Examples\n\n~~~markdown\n[Label](not-a-real-file.md)\n~~~\n")
         self.git("add", "README.md")

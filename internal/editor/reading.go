@@ -10,6 +10,9 @@ import (
 // SetReadOnly locks this editor instance, including commands and input methods.
 // It cancels provisional composition and leaves copy, find and navigation alive.
 func (e *Editor) SetReadOnly(on bool) {
+	if e.Locked {
+		on = true
+	}
 	if on {
 		e.cancelComposition()
 	}

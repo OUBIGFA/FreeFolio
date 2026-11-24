@@ -29,6 +29,16 @@ type Request struct {
 	// Document is the open document: its path in the space and its text
 	// (document:read).
 	Document *DocumentContext `json:"document,omitempty"`
+	// Convert asks a format plugin for the Markdown of a file of one of
+	// its contributed formats; the answer is Response.Markdown. The file's
+	// bytes go with the request: the plugin needs no file access.
+	Convert *ConvertRequest `json:"convert,omitempty"`
+}
+
+// ConvertRequest is a file to read into Markdown.
+type ConvertRequest struct {
+	Name string `json:"name"` // the file's base name, for its extension
+	Data []byte `json:"data"` // base64 in JSON
 }
 
 // DocumentContext is the open document as a plugin sees it.

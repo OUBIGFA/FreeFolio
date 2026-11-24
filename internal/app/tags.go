@@ -75,7 +75,7 @@ func (a *App) renameTag(from, to string) {
 		return true
 	})
 	for _, p := range places {
-		if resident[p] != nil {
+		if resident[p] != nil || vault.IsSource(p.rel) || vault.IsConverted(p.rel) {
 			continue
 		}
 		sp := a.state.Get(p.space)

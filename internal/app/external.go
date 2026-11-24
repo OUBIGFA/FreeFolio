@@ -66,7 +66,24 @@ func readFile(sp *space.Space, rel string) (string, error) {
 	if vault.IsPDF(name) {
 		return pdfStamp(root, name)
 	}
+	if vault.IsConverted(name) {
+		return fileStamp(root, name, "file")
+	}
 	return vault.Read(root, name)
+}
+
+// fileStamp stands for a converted file's content where documents compare
+// their text: its modification time and size.
+func fileStamp(root, name, kind string) (string, error) {
+	full, err := vault.Resolve(root, name)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s:%d:%d", kind, info.ModTime().UnixNano(), info.Size()), nil
 }
 
 // pdfStamp stands for a PDF's content where documents compare their text:
@@ -90,6 +107,9 @@ func writeFile(sp *space.Space, rel, text string) error {
 	}
 	if vault.IsPDF(name) {
 		return errPDFReadOnly
+	}
+	if vault.IsConverted(name) {
+		return errFormatReadOnly
 	}
 	return vault.Write(root, name, text)
 }
@@ -133,7 +153,7 @@ func (a *App) chooseExternalFiles() {
 	win := a.win
 	go func() {
 		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件…"), Multiple: true,
-			Filters: []mygo.FileFilter{{Name: "FreeFolio", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg", "pdf"}}, {Name: "PDF", Extensions: []string{"pdf"}}}})
+			Filters: openFilters()})
 		if err != nil {
 			return
 		}

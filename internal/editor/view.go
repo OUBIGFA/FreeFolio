@@ -38,6 +38,10 @@ func sameLayoutPageKey(a, b layoutPageKey) bool {
 }
 
 type Editor struct {
+	// Locked keeps the editor read-only for good: documents FreeFolio only
+	// shows through a converter, whose files it never writes. SetReadOnly
+	// cannot lift it and the lock button is disabled.
+	Locked           bool
 	exportErr        error
 	boardBlocks      map[string]*boardBlock
 	activeBoard      string

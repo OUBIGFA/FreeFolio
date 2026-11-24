@@ -111,6 +111,7 @@ func (a *App) runDeferredStartup() {
 						return
 					}
 					a.installed, a.brokenPlugins = installed, broken
+					a.syncFormatPlugins()
 				})
 			}()
 		} else {

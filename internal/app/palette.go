@@ -443,8 +443,11 @@ func (a *App) actions() []action {
 			cmd(i18n.T("重新保存到原位置"), "", a.keepMine)
 			danger(i18n.T("放弃修改并关闭"), "", a.useDisk)
 		}
+		formatDoc := a.doc.srcFile != nil || a.doc.converted
 		if a.doc.isPDF() {
 			a.pdfActions(cmd)
+		} else if formatDoc {
+			a.formatActions(cmd)
 		} else {
 			mode := i18n.T("Markdown 源码")
 			if a.doc.source {
@@ -456,7 +459,10 @@ func (a *App) actions() []action {
 			cmd(i18n.T("打印…"), "", a.printDoc)
 		}
 		cmd(i18n.T("重命名文档"), "", func() { a.renameIn(sp, rel) })
-		if !a.doc.isPDF() {
+		if formatDoc && a.doc.loadErr == nil && !a.doc.boardLoading {
+			a.editorActions(cmd)
+		}
+		if !a.doc.isPDF() && !formatDoc {
 			if a.doc.loadErr == nil && !a.doc.source {
 				a.editorActions(cmd)
 			}
@@ -736,11 +742,13 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	after := func(run func()) func() {
 		return func() { run(); ed.RequestFocus = true }
 	}
-	lock := i18n.T("锁定文档（只读）")
-	if ed.ReadOnly {
-		lock = i18n.T("解锁文档")
+	if !ed.Locked {
+		lock := i18n.T("锁定文档（只读）")
+		if ed.ReadOnly {
+			lock = i18n.T("解锁文档")
+		}
+		cmd(lock, "", func() { ed.SetReadOnly(!ed.ReadOnly) })
 	}
-	cmd(lock, "", func() { ed.SetReadOnly(!ed.ReadOnly) })
 	cmd(i18n.T("阅读设置…"), "", func() { a.openSettings(tabAppearance) })
 	cmd(i18n.T("跳转脚注 / 返回正文"), "", func() { ed.FollowFootnote() })
 	cmd(i18n.T("查找"), a.keyLabel("find"), func() { ed.OpenFind(false) })

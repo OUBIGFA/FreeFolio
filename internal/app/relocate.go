@@ -293,6 +293,12 @@ func (a *App) movingDocuments(sp *space.Space, rel string) ([]*movingDocument, e
 }
 
 func imageDocument(rel, text string) (*model.Document, error) {
+	if vault.IsSource(rel) || vault.IsConverted(rel) {
+		// Their pictures are not links FreeFolio keeps: nothing to move.
+		doc := model.New()
+		doc.Blocks = nil
+		return doc, nil
+	}
 	if vault.IsWhiteboard(rel) {
 		s, err := whiteboard.Decode(text)
 		if err != nil {
@@ -325,7 +331,7 @@ func relocateText(rel, text string, urls map[string]string) (string, error) {
 	for old, newURL := range urls {
 		changed = changed || old != newURL
 	}
-	if !changed {
+	if !changed || vault.IsSource(rel) || vault.IsConverted(rel) {
 		return text, nil
 	}
 	if vault.IsWhiteboard(rel) {

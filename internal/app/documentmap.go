@@ -181,6 +181,10 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 		a.pdfCorner(c, d)
 		return
 	}
+	if d.srcFile != nil || d.converted {
+		a.formatCorner(c, d)
+		return
+	}
 	if d.board != nil || d.boardOverlay != nil {
 		target := d
 		if d.boardOverlay != nil {

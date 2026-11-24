@@ -133,6 +133,10 @@ func (a *App) replaceEverywhere() {
 			n += k
 			return out
 		}
+		if vault.IsReadOnly(h.Path) {
+			skipped++
+			continue
+		}
 		if d := resident[place{h.Space, h.Path}]; d != nil {
 			if d.ed.ReadOnly {
 				skipped++

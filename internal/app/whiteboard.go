@@ -37,6 +37,9 @@ func (d *document) loadWhiteboard(text string) {
 }
 
 func (a *App) openDocumentForView(sp *space.Space, rel, text string, preferSource bool) *document {
+	if vault.IsConverted(rel) && a.win != nil {
+		return a.openConvertedAsync(sp, rel, text)
+	}
 	if !vault.IsWhiteboard(rel) || a.win == nil {
 		return openDocument(sp, rel, text, preferSource)
 	}

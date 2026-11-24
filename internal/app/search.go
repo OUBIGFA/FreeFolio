@@ -8,6 +8,7 @@ import (
 
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/pdfdoc"
 	"github.com/OUBIGFA/FreeFolio/internal/search"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
@@ -67,6 +68,19 @@ func extractText(name, content string) (search.Extracted, error) {
 			return search.Extracted{}, err
 		}
 		return search.Extracted{Text: s.PlainText()}, nil
+	}
+	if vault.IsConverted(name) {
+		// One that cannot be converted is still found by its title.
+		md, err := formats.Convert(name, []byte(content))
+		if err != nil {
+			return search.Extracted{}, nil
+		}
+		text, _ := editor.ExtractMarkdownText(md)
+		return search.Extracted{Text: text}, nil
+	}
+	if vault.IsSource(name) {
+		body, _ := splitSource(content)
+		return search.Extracted{Text: body}, nil
 	}
 	if strings.EqualFold(path.Ext(name), ".arcmd") {
 		doc, err := model.Decode(content)

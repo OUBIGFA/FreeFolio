@@ -86,6 +86,17 @@ type Manifest struct {
 type Contributes struct {
 	Commands []Command `json:"commands,omitempty"`
 	Panels   []Panel   `json:"panels,omitempty"`
+	// Formats are file types the plugin reads: FreeFolio opens them
+	// read-only, as the Markdown the plugin converts them to
+	// (Request.Convert).
+	Formats []FileFormat `json:"formats,omitempty"`
+}
+
+// FileFormat is a file type a plugin converts to Markdown.
+type FileFormat struct {
+	Name string `json:"name"`
+	// Extensions are lowercase, with the dot, as ".hwp".
+	Extensions []string `json:"extensions"`
 }
 
 // Command is an action in the command bar.
@@ -108,6 +119,7 @@ var (
 	idPattern      = regexp.MustCompile(`^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9-]+$`)
 	versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 	localID        = regexp.MustCompile(`^[a-z0-9][a-z0-9-_.]*$`)
+	extPattern     = regexp.MustCompile(`^\.[a-z0-9]{1,16}$`)
 )
 
 // ParseManifest decodes and validates a manifest.
@@ -172,6 +184,20 @@ func (m *Manifest) Validate() error {
 			bad("panel id %q is invalid or repeated", p.ID)
 		}
 		seen["p:"+p.ID] = true
+	}
+	for _, f := range m.Contributes.Formats {
+		if strings.TrimSpace(f.Name) == "" || len(f.Extensions) == 0 {
+			bad("a format needs a name and extensions")
+		}
+		for _, e := range f.Extensions {
+			if !extPattern.MatchString(e) || seen["f:"+e] {
+				bad("format extension %q is invalid or repeated", e)
+			}
+			seen["f:"+e] = true
+		}
+	}
+	if len(m.Contributes.Formats) > 0 && m.Runtime != RuntimeWASM {
+		bad("formats are converted by wasm plugins only")
 	}
 	if len(m.Contributes.Panels) > 0 && !slices.Contains(m.Permissions, PermUIPanel) {
 		bad("panels need the %q permission", PermUIPanel)

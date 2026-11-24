@@ -1,7 +1,17 @@
 {
-  "goModSha256": "bdbce050b632f98a90b18e084ac6d560300c4da017af5d78f9122aaef574a7da",
-  "goSumSha256": "685e5b5253ed2bf43e7912e4c5828574e786f4f25bbd9315c398574f224620b3",
+  "goModSha256": "9ed13b23c4bb70f5368cbfe629c3a7d7970acd171b15dc9599eacf9621972971",
+  "goSumSha256": "69dfbbe86809428aaa5becb0a51527cd9746ce2a4e03636e690bf1534b302b7b",
   "modules": [
+    {
+      "module": "github.com/clipperhouse/uax29/v2",
+      "version": "v2.7.0",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/clipperhouse/uax29/v2",
+      "archiveHash": "h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=",
+      "goModHash": "h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
     {
       "module": "github.com/coreos/go-oidc/v3",
       "version": "v3.21.0",
@@ -73,21 +83,191 @@
       "consumer": "FreeFolio Go build (go.mod)"
     },
     {
+      "module": "github.com/google/jsonschema-go",
+      "version": "v0.4.3",
+      "relation": "transitive",
+      "sourceUrl": "https://github.com/google/jsonschema-go",
+      "archiveHash": "h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=",
+      "goModHash": "h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/hhrutter/tiff",
+      "version": "v1.0.7",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/hhrutter/tiff",
+      "archiveHash": "h1:Oelnv46vb9gycPsotT0q1IoJ6Ywkzd77I1smgQvkP7g=",
+      "goModHash": "h1:XsBnsIe/pJedrn5ppmL1zu2DIGfwXqlfQFK60vztqCE=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/mattn/go-runewidth",
+      "version": "v0.0.31",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/mattn/go-runewidth",
+      "archiveHash": "h1:1oCV4ReTlosDBc6rYRw5cL8S/4y8iv5oRl4SJ5IBgwo=",
+      "goModHash": "h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/pdfcpu/pdfcpu",
+      "version": "v0.16.4",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/pdfcpu/pdfcpu",
+      "archiveHash": "h1:XW7q98xu3vNAimTSX93fIWnTDA2F0zz8mu88wiXoMjU=",
+      "goModHash": "h1:zMjQF5nYZ6A0yaG2d4GAj1QrzM5U8BZYDFHpuRwPuxQ=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/richardlehane/mscfb",
+      "version": "v1.0.10",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/richardlehane/mscfb",
+      "archiveHash": "h1:6VG0t9eKqVvpNWFDr/4UZP65k7bo1BmcmyXXvuXekL4=",
+      "goModHash": "h1:pe0+IUIc0AHh0+teNzBlJCtSyZdFOGgV4ZK9bsoV+Jo=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/richardlehane/msoleps",
+      "version": "v1.0.3",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/richardlehane/msoleps",
+      "archiveHash": "h1:aznSZzrwYRl3rLKRT3gUk9am7T/mLNSnJINvN0AQoVM=",
+      "goModHash": "h1:BWev5JBpU9Ko2WAgmZEuiz4/u3ZYTKbjLycmwiWUfWg=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/tetratelabs/wazero",
+      "version": "v1.12.0",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/tetratelabs/wazero",
+      "archiveHash": "h1:DuWcpNu/FzgEXgGBDp8J1Spc+CWOvvtvVyjKlaZopYU=",
+      "goModHash": "h1:LvKtzl2RqO4gyF27BiXU+nKAjcV8f38U+kP/q2vgxh0=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/xdg-go/stringprep",
+      "version": "v1.0.4",
+      "relation": "indirect",
+      "sourceUrl": "https://github.com/xdg-go/stringprep",
+      "archiveHash": "h1:XLI/Ng3O1Atzq0oBs3TWm+5ZVgkq2aqdlvP9JtoZ6c8=",
+      "goModHash": "h1:mPGuuIYwz7CmR2bT9j4GbQqutWS1zV24gijq1dTyGkM=",
+      "spdxLicenseId": "Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/yuin/goldmark",
+      "version": "v1.4.13",
+      "relation": "transitive",
+      "sourceUrl": "https://github.com/yuin/goldmark",
+      "archiveHash": "",
+      "goModHash": "h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "go.yaml.in/yaml/v3",
+      "version": "v3.0.5",
+      "relation": "indirect",
+      "sourceUrl": "https://go.yaml.in/yaml/v3",
+      "archiveHash": "h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=",
+      "goModHash": "h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=",
+      "spdxLicenseId": "MIT AND Apache-2.0",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "version": "v0.0.0-20190308221718-c2843e01d9a2",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/crypto",
+      "archiveHash": "",
+      "goModHash": "h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "version": "v0.0.0-20210921155107-089bfa567519",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/crypto",
+      "archiveHash": "",
+      "goModHash": "h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "version": "v0.58.0",
+      "relation": "indirect",
+      "sourceUrl": "https://golang.org/x/crypto",
+      "archiveHash": "h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54=",
+      "goModHash": "h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
       "module": "golang.org/x/image",
-      "version": "v0.46.0",
+      "version": "v0.47.0",
       "relation": "direct",
       "sourceUrl": "https://golang.org/x/image",
-      "archiveHash": "h1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=",
-      "goModHash": "h1:3B3W05VGVQyuXucLINLjXKrqISASfi4Xj+iCVkLMwew=",
+      "archiveHash": "h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=",
+      "goModHash": "h1:IkN5o4A7vq55vXN8FWjjnhg9Rs2GOtffqsSi9mWAKYE=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/mod",
+      "version": "v0.6.0-dev.0.20220419223038-86c51ed26bb4",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/mod",
+      "archiveHash": "",
+      "goModHash": "h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=",
       "spdxLicenseId": "BSD-3-Clause",
       "consumer": "FreeFolio Go build (go.mod)"
     },
     {
       "module": "golang.org/x/net",
-      "version": "v0.59.0",
+      "version": "v0.0.0-20190620200207-3b0461eec859",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/net",
+      "archiveHash": "",
+      "goModHash": "h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.0.0-20210226172049-e18ecbb05110",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/net",
+      "archiveHash": "",
+      "goModHash": "h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.0.0-20220722155237-a158d28d115b",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/net",
+      "archiveHash": "",
+      "goModHash": "h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.60.0",
       "relation": "direct",
       "sourceUrl": "https://golang.org/x/net",
-      "archiveHash": "h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=",
+      "archiveHash": "h1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=",
       "goModHash": "h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=",
       "spdxLicenseId": "BSD-3-Clause",
       "consumer": "FreeFolio Go build (go.mod)"
@@ -95,7 +275,7 @@
     {
       "module": "golang.org/x/oauth2",
       "version": "v0.36.0",
-      "relation": "transitive",
+      "relation": "indirect",
       "sourceUrl": "https://golang.org/x/oauth2",
       "archiveHash": "h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=",
       "goModHash": "h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7Q=",
@@ -103,12 +283,142 @@
       "consumer": "FreeFolio Go build (go.mod)"
     },
     {
+      "module": "golang.org/x/sync",
+      "version": "v0.0.0-20190423024810-112230192c58",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sync",
+      "archiveHash": "",
+      "goModHash": "h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.0.0-20220722155255-886fb9371eb4",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sync",
+      "archiveHash": "",
+      "goModHash": "h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
       "module": "golang.org/x/sys",
-      "version": "v0.48.0",
+      "version": "v0.0.0-20190215142949-d0b11bdaac8a",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "",
+      "goModHash": "h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.0.0-20201119102817-f84b799fce68",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "",
+      "goModHash": "h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.0.0-20210615035016-665e8c7367d1",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "",
+      "goModHash": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.0.0-20220520151302-bc2c85ada10a",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "",
+      "goModHash": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.0.0-20220722155257-8c9f86f7a55f",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/sys",
+      "archiveHash": "",
+      "goModHash": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.49.0",
       "relation": "direct",
       "sourceUrl": "https://golang.org/x/sys",
-      "archiveHash": "h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+      "archiveHash": "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=",
       "goModHash": "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/term",
+      "version": "v0.0.0-20201126162022-7de9c90e9dd1",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/term",
+      "archiveHash": "",
+      "goModHash": "h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/term",
+      "version": "v0.0.0-20210927222741-03fcf44c2211",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/term",
+      "archiveHash": "",
+      "goModHash": "h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.3.0",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/text",
+      "archiveHash": "",
+      "goModHash": "h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.3.3",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/text",
+      "archiveHash": "",
+      "goModHash": "h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.3.7",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/text",
+      "archiveHash": "",
+      "goModHash": "h1:u+2+/6zg+i71rQMx5EYifcz6MCKuco9NR6JIITiCfzQ=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.3.8",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/text",
+      "archiveHash": "",
+      "goModHash": "h1:E6s5w1FMmriuDzIBO73fBruAKo1PCIq6d2Q6DHfQ8WQ=",
       "spdxLicenseId": "BSD-3-Clause",
       "consumer": "FreeFolio Go build (go.mod)"
     },
@@ -119,6 +429,46 @@
       "sourceUrl": "https://golang.org/x/text",
       "archiveHash": "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
       "goModHash": "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.0.0-20180917221912-90fa682c2a6e",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/tools",
+      "archiveHash": "",
+      "goModHash": "h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.0.0-20191119224855-298f0cb1881e",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/tools",
+      "archiveHash": "",
+      "goModHash": "h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.1.12",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/tools",
+      "archiveHash": "",
+      "goModHash": "h1:hNGJHUnrk76NpqgfD5Aqm5Crs+Hm0VOH/i9J2+nxYbc=",
+      "spdxLicenseId": "BSD-3-Clause",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "golang.org/x/xerrors",
+      "version": "v0.0.0-20190717185122-a985d3407aa7",
+      "relation": "transitive",
+      "sourceUrl": "https://golang.org/x/xerrors",
+      "archiveHash": "",
+      "goModHash": "h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=",
       "spdxLicenseId": "BSD-3-Clause",
       "consumer": "FreeFolio Go build (go.mod)"
     }

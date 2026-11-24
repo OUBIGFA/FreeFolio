@@ -46,6 +46,11 @@ type document struct {
 	pdf        *editor.PDFViewer
 	pdfModNano int64
 	pdfSize    int64
+	// srcFile is set for a source file (code, configuration, data): how it
+	// stores its text; converted for a file read through a converter, which
+	// is never saved (formats.go).
+	srcFile   *sourceFile
+	converted bool
 	// Each document owns the map projection and its dock geometry.
 	mindMap                   *editor.MindMap
 	mapInitialized            bool
@@ -130,6 +135,12 @@ func openDocument(sp *space.Space, rel, text string, preferSource bool) *documen
 	if vault.IsPDF(rel) {
 		return openPDFDocument(sp, rel, text)
 	}
+	if vault.IsConverted(rel) {
+		return openConvertedDocument(sp, rel, text)
+	}
+	if vault.IsSource(rel) {
+		return openSourceDocument(sp, rel, text)
+	}
 	d := &document{space: sp, rel: rel, historyOff: sp.IsExternal() && sp.Root == "", diskText: text, source: preferSource}
 	var doc *model.Document
 	if vault.IsWhiteboard(rel) {
@@ -162,6 +173,9 @@ func (d *document) text() string {
 	if d.board != nil {
 		return d.board.Scene.PlainText()
 	}
+	if d.srcFile != nil {
+		return sourceText(d.ed.Committed())
+	}
 	return editor.ExportMarkdown(d.ed.Committed())
 }
 
@@ -179,7 +193,7 @@ func (d *document) ensureBodyParagraph() {
 // already dirty); other changes re-evaluate against the baseline once and
 // re-arm leaf-level tracking when the skeleton matches.
 func (d *document) dirty() bool {
-	if d.loadErr != nil || d.boardLoading || d.isPDF() {
+	if d.loadErr != nil || d.boardLoading || d.isPDF() || d.converted {
 		return false
 	}
 	if d.board != nil {
@@ -397,7 +411,7 @@ type cachedImage struct {
 
 // changed hashes the document and compares it with the saved baseline.
 func (d *document) changed() bool {
-	if d.isPDF() {
+	if d.isPDF() || d.converted {
 		return false
 	}
 	if d.board != nil {
@@ -412,7 +426,7 @@ func (d *document) changed() bool {
 }
 
 func (d *document) toggleMode() {
-	if d.board != nil || d.isPDF() {
+	if d.board != nil || d.isPDF() || d.srcFile != nil || d.converted {
 		return
 	}
 	d.ed.UnmarkText()
@@ -444,7 +458,7 @@ func (d *document) toggleMode() {
 // a Markdown page that is not read-only. An .arcmd page shows its Markdown
 // export, which cannot hold all of it, read-only.
 func (d *document) sourceEditable() bool {
-	return d.loadErr == nil && !d.isPDF() && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
+	return d.loadErr == nil && !d.isPDF() && d.srcFile == nil && !d.converted && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
 }
 
 // applySource puts the Markdown typed in source mode into the editor as one
@@ -634,7 +648,7 @@ func (d *document) save() error { return d.write(false) }
 // compared, a cheap read of one document.
 func (d *document) write(force bool) error {
 	d.waitAsyncSave()
-	if d.isPDF() {
+	if d.isPDF() || d.converted {
 		return nil
 	}
 	if d.loadErr != nil {
@@ -692,11 +706,15 @@ func (d *document) write(force bool) error {
 	var text string
 	var err error
 	arcmd := strings.EqualFold(path.Ext(d.rel), ".arcmd")
+	src := d.srcFile != nil
 	if arcmd {
 		text, err = committed.Encode()
 		if err == nil && d.baselinePending {
 			baseline, _ = committed.Digest()
 		}
+	} else if src {
+		text = d.srcFile.encode(sourceText(committed))
+		baseline, _ = committed.Digest()
 	} else {
 		err = committed.Validate()
 		if err == nil {
@@ -711,7 +729,7 @@ func (d *document) write(force bool) error {
 		return err
 	}
 	before := d.diskText
-	if !arcmd {
+	if !arcmd && !src {
 		committed.ImportSource = text
 		if d.ed.Doc != committed {
 			d.ed.Doc.ImportSource = text
@@ -742,7 +760,7 @@ func (d *document) viewKey() string {
 func (d *document) autosave(c *ui.Context) { d.autosaveWith(c, nil) }
 
 func (d *document) autosaveWith(c *ui.Context, post func(func())) {
-	if d.isPDF() {
+	if d.isPDF() || d.converted {
 		return
 	}
 	d.pollAsyncSave()
@@ -776,6 +794,7 @@ func (d *document) startAsyncAutosave(post func(func())) {
 	committed := d.ed.Committed()
 	snapshot := committed.Clone()
 	arcmd := strings.EqualFold(path.Ext(d.rel), ".arcmd")
+	src := d.srcFile
 	prevBaseline := d.ensureBaseline()
 
 	spClone := *d.space
@@ -818,6 +837,9 @@ func (d *document) startAsyncAutosave(post func(func())) {
 		if arcmd {
 			outText, prepErr = snapshot.Encode()
 			baseline = preBaseline
+		} else if src != nil {
+			outText = src.encode(sourceText(snapshot))
+			baseline = preBaseline
 		} else {
 			prepErr = snapshot.Validate()
 			if prepErr == nil {
@@ -830,9 +852,10 @@ func (d *document) startAsyncAutosave(post func(func())) {
 			text:      outText,
 			baseline:  baseline,
 			committed: committed,
-			arcmd:     arcmd,
-			version:   ver,
-			revision:  rev,
+			// A source file keeps no import source: it is the text itself.
+			arcmd:    arcmd || src != nil,
+			version:  ver,
+			revision: rev,
 		}
 		if prepErr != nil {
 			res.err = prepErr

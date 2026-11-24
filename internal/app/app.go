@@ -22,6 +22,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/history"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/plugin"
@@ -137,6 +138,13 @@ type App struct {
 
 	installed     []*plugin.Installed
 	brokenPlugins []plugin.Broken
+	// converters run the enabled format plugins; pluginFormats keys the
+	// formats they contribute, to refresh the spaces when it changes
+	// (formats.go).
+	converters    *plugin.Converters
+	pluginFormats string
+	// pdfPages is the window editing a PDF's pages (pdfpages.go).
+	pdfPages pdfPagesState
 
 	// tree and docs are the folders and documents of treeFor, the space
 	// they were read for; docs lists the documents in tree order.
@@ -339,15 +347,16 @@ func (a *App) trashItem(p string) error {
 // document on the first run.
 func New(cfg Config) (*App, error) {
 	a := &App{
-		cfg:       cfg,
-		store:     space.NewStore(filepath.Join(cfg.ConfigDir, "spaces.json")),
-		plugins:   plugin.NewManager(filepath.Join(cfg.ConfigDir, "plugins")),
-		sessions:  make(map[string]*spaceSession),
-		openDocs:  make(map[place]*document),
-		prefStore: prefs.Store{Path: filepath.Join(cfg.ConfigDir, "prefs.json")},
-		remote:    newRemoteImages(filepath.Join(cfg.ConfigDir, "cache", "images")),
-		bin:       trashbin.Bin{Dir: filepath.Join(cfg.ConfigDir, "trash")},
-		qa:        qaState{secrets: prefs.Secrets{Dir: filepath.Join(cfg.ConfigDir, "credentials")}},
+		cfg:        cfg,
+		store:      space.NewStore(filepath.Join(cfg.ConfigDir, "spaces.json")),
+		plugins:    plugin.NewManager(filepath.Join(cfg.ConfigDir, "plugins")),
+		converters: plugin.NewConverters(plugin.NewWASMHost()),
+		sessions:   make(map[string]*spaceSession),
+		openDocs:   make(map[place]*document),
+		prefStore:  prefs.Store{Path: filepath.Join(cfg.ConfigDir, "prefs.json")},
+		remote:     newRemoteImages(filepath.Join(cfg.ConfigDir, "cache", "images")),
+		bin:        trashbin.Bin{Dir: filepath.Join(cfg.ConfigDir, "trash")},
+		qa:         qaState{secrets: prefs.Secrets{Dir: filepath.Join(cfg.ConfigDir, "credentials")}},
 		// The spaces fade in on coming back from the library, not at start.
 		library: library{frames: 1},
 	}
@@ -455,6 +464,7 @@ func New(cfg Config) (*App, error) {
 	if !a.prefs.TourSeen && !a.prefsBroken {
 		a.startTour()
 	}
+	formats.SetPluginConverter(a.convertWithPlugin)
 	return a, nil
 }
 
@@ -1628,6 +1638,7 @@ func (a *App) reloadPlugins() {
 	if err != nil {
 		a.notify("读取插件文件夹失败。%v", err)
 	}
+	a.syncFormatPlugins()
 }
 
 func (a *App) ensurePluginsLoaded() {

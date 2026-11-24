@@ -181,6 +181,9 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 			ui.Box(c).Grow(1)
 			if d.isPDF() {
 				a.pdfCorner(c, d)
+			} else if (d.srcFile != nil || d.converted) && d.loadErr == nil {
+				a.formatCorner(c, d)
+				d.ed.Corner(c)
 			} else if d.loadErr == nil {
 				d.ed.Corner(c)
 			}

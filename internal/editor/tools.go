@@ -94,6 +94,10 @@ func (e *Editor) actionButtons(c *ui.Context) {
 	} else {
 		toolButton(c, "more", iconFormat, i18n.T("只读时不能修改格式"), false).Disabled(true).Opacity(.4)
 	}
+	if e.Locked {
+		toolButton(c, "reading-lock", iconLocked, i18n.T("此格式只读，可另存为可编辑的 Markdown 副本"), true).Disabled(true)
+		return
+	}
 	icon, tip := iconUnlocked, i18n.T("编辑中，点击设为只读")
 	if e.ReadOnly {
 		icon, tip = iconLocked, i18n.T("只读，点击恢复编辑")

@@ -237,7 +237,8 @@ def check_go_inventory(texts, blobs, errors):
             mod, ver_key, digest = line.split()
             is_mod = ver_key.endswith("/go.mod")
             ver = ver_key[: -len("/go.mod")] if is_mod else ver_key
-            slot = expected.setdefault((mod, ver), {})
+            # A module only resolved for its go.mod has no archive hash.
+            slot = expected.setdefault((mod, ver), {"archiveHash": "", "goModHash": ""})
             slot["goModHash" if is_mod else "archiveHash"] = digest
         registered = {}
         for item in record["modules"]:

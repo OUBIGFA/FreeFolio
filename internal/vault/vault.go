@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
@@ -24,10 +25,27 @@ import (
 var Extensions = []string{".md", ".markdown", ".mdx"}
 
 // IsDocument includes native rich documents, Markdown import sources,
-// whiteboards and PDFs: the files a space lists and opens.
+// whiteboards, PDFs and the formats of package formats: the files a space
+// lists and opens.
 func IsDocument(name string) bool {
-	return IsText(name) || IsPDF(name)
+	return IsText(name) || IsPDF(name) || IsSource(name) || IsConverted(name)
 }
+
+// IsSource is a plain-text file of another format (code, configuration,
+// data) that FreeFolio edits as text and writes back as typed. Native
+// documents, Markdown and whiteboards are not source files.
+func IsSource(name string) bool {
+	return !IsText(name) && !IsPDF(name) && formats.IsSource(name)
+}
+
+// IsConverted is a file FreeFolio reads through a converter and shows
+// read-only; it is never written.
+func IsConverted(name string) bool {
+	return !IsText(name) && !IsPDF(name) && formats.IsConverted(name)
+}
+
+// IsReadOnly reports whether FreeFolio never writes the document's file.
+func IsReadOnly(name string) bool { return IsPDF(name) || IsConverted(name) }
 
 // IsText is a document whose file is text FreeFolio reads and writes: every
 // document but a PDF, which is only read.

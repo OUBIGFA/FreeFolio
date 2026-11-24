@@ -87,7 +87,7 @@ func TestGlob(t *testing.T) {
 		"生活/旅行周报.md":      "x",
 		"readme.md":       "y",
 		".freefolio/h.md": "hidden",
-		"notes.txt":       "not a document",
+		"notes.xyz":       "not a document",
 		"工作/深/周报 9.md":    "z",
 	})
 	out, err := fs.Glob("*周报*", false, 0)
@@ -106,7 +106,7 @@ func TestGlob(t *testing.T) {
 		t.Fatalf("folder scope:\n%s", out)
 	}
 	out, _ = fs.Glob("", false, 0)
-	if !strings.HasPrefix(out, "5 documents.") || strings.Contains(out, ".arcmd") || strings.Contains(out, "notes.txt") {
+	if !strings.HasPrefix(out, "5 documents.") || strings.Contains(out, ".arcmd") || strings.Contains(out, "notes.xyz") {
 		t.Fatalf("every document:\n%s", out)
 	}
 	out, _ = fs.Glob("*.pdf", false, 0)
@@ -180,7 +180,7 @@ func TestReadPagesAndRefusesOutside(t *testing.T) {
 	if _, err := fs.Read("long.md", 2000, 0); err == nil {
 		t.Fatal("reading past the end is not an error")
 	}
-	for _, bad := range []string{"../outside.md", "/etc/passwd", ".freefolio/history/x.md", "notes.txt", "missing.md"} {
+	for _, bad := range []string{"../outside.md", "/etc/passwd", ".freefolio/history/x.md", "notes.xyz", "missing.md"} {
 		if _, err := fs.Read(bad, 0, 0); err == nil {
 			t.Errorf("%s was read", bad)
 		}

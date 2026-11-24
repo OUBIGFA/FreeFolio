@@ -16,6 +16,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
@@ -278,6 +279,17 @@ func QAPage(name, content string) (*spacefs.Page, error) {
 	}
 	if vault.IsWhiteboard(name) {
 		return whiteboardQAPage(name, content)
+	}
+	if vault.IsConverted(name) {
+		md, err := formats.Convert(name, []byte(content))
+		if err != nil {
+			return nil, convertError(err)
+		}
+		return pageOfDocument(name, editor.ImportMarkdown(md)), nil
+	}
+	if vault.IsSource(name) {
+		body, _ := splitSource(content)
+		return pageOfDocument(name, sourceModel(name, body)), nil
 	}
 	var doc *model.Document
 	if strings.EqualFold(path.Ext(name), ".arcmd") {
