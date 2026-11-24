@@ -51,6 +51,7 @@ snapshots cannot show the compositor's decorations.
 | `openfile.go` | System file-open routing into the deepest registered folder or an in-memory file session |
 | `relocate.go` | Document moves with attachments, undo states and snapshots |
 | `pdfexport.go` | Cancellable, page-by-page PDF export and printing |
+| `pdfviewer.go` | Read-only PDF documents in spaces and the file browser |
 | `document.go` | The open rich document and read-only export preview: dirty tracking, autosave, images, links |
 | `split.go`, `splitview.go`, `splitstore.go` | Document pane lifecycle, native split cards and dividers, saved layout |
 | `theme.go` | Design tokens: the space-tinted theme and chrome colors |
@@ -256,6 +257,17 @@ PDF in the system viewer.
 Unicode alphabet. An invisible Unicode text layer uses the editor's cluster
 positions for selection, copying and search; formula artwork and image pixels
 remain raster content. This is not a tagged PDF or a fully vector export.
+
+### PDF reading
+
+`.pdf` files are documents that a space lists and the file browser opens,
+but only for reading (`vault.IsDocument` includes them; `vault.IsText` does
+not). `readFile` returns a modification-time and size stamp instead of the
+bytes, `writeFile` refuses a PDF, and save, autosave, dirty checks and source
+mode skip it. `internal/pdfdoc` (ArcMD) parses geometry, text and outlines in
+pure Go and renders pages through the system library at run time via purego:
+PDFKit on macOS, Poppler on Linux, WinRT on Windows. `editor.PDFView` draws
+pages, thumbnails, contents and find.
 
 ## Plugins
 

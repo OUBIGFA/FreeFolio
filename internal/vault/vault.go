@@ -23,9 +23,22 @@ import (
 // Extensions are the file extensions the vault lists, lowercase.
 var Extensions = []string{".md", ".markdown", ".mdx"}
 
-// IsDocument includes native rich documents and Markdown import sources.
+// IsDocument includes native rich documents, Markdown import sources,
+// whiteboards and PDFs: the files a space lists and opens.
 func IsDocument(name string) bool {
+	return IsText(name) || IsPDF(name)
+}
+
+// IsText is a document whose file is text FreeMD reads and writes: every
+// document but a PDF, which is only read.
+func IsText(name string) bool {
 	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name) || IsWhiteboard(name)
+}
+
+// IsPDF reports whether name is a PDF document (ArcMD fcb7cd3).
+func IsPDF(name string) bool {
+	base := path.Base(filepath.ToSlash(name))
+	return len(base) > len(".pdf") && strings.EqualFold(path.Ext(base), ".pdf")
 }
 
 // IsWhiteboard recognizes editable scenes without treating arbitrary SVGs as documents.

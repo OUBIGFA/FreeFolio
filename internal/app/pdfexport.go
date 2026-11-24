@@ -39,7 +39,7 @@ func (a *App) printDoc()  { a.startPDF(true) }
 
 func (a *App) startPDF(printing bool) {
 	d := a.doc
-	if d == nil || d.loadErr != nil || a.pdfExport != nil {
+	if d == nil || d.loadErr != nil || d.isPDF() || a.pdfExport != nil {
 		return
 	}
 	d.ed.UnmarkText()

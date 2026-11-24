@@ -48,7 +48,11 @@ func (a *App) toggleFocus() {
 	a.finishSpaceEdit()
 	a.focus = !a.focus
 	if a.doc != nil {
-		a.doc.ed.RequestFocus = true
+		if a.doc.isPDF() {
+			a.doc.pdf.RequestFocus = true
+		} else {
+			a.doc.ed.RequestFocus = true
+		}
 	}
 }
 
@@ -68,6 +72,11 @@ func (a *App) setOutline(open bool) {
 
 // toggleOutline opens or collapses the outline of the document in front.
 func (a *App) toggleOutline() {
+	if a.doc.isPDF() {
+		// A PDF's outline is its sidebar of thumbnails and contents.
+		a.doc.pdf.ToggleOutline()
+		return
+	}
 	if a.doc != nil && a.doc.loadErr == nil && !a.doc.source {
 		a.doc.ed.ToggleOutline()
 	}
@@ -75,6 +84,9 @@ func (a *App) toggleOutline() {
 
 // outlineOpen reports whether the document in front shows its outline.
 func (a *App) outlineOpen() bool {
+	if a.doc.isPDF() {
+		return a.doc.pdf.SidebarOpen
+	}
 	return a.doc != nil && a.doc.ed.OutlineOpen()
 }
 

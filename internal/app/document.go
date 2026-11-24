@@ -41,6 +41,11 @@ type document struct {
 	boardDigestRev   uint64
 	boardDigestKnown bool
 	boardDigestValue [32]byte
+	// pdf reads a PDF document, which is never edited or saved; pdfModNano
+	// and pdfSize are its file's when opened (pdfviewer.go).
+	pdf        *editor.PDFViewer
+	pdfModNano int64
+	pdfSize    int64
 	// Each document owns the map projection and its dock geometry.
 	mindMap                   *editor.MindMap
 	mapInitialized            bool
@@ -122,6 +127,9 @@ type document struct {
 }
 
 func openDocument(sp *space.Space, rel, text string, preferSource bool) *document {
+	if vault.IsPDF(rel) {
+		return openPDFDocument(sp, rel, text)
+	}
 	d := &document{space: sp, rel: rel, historyOff: sp.IsExternal() && sp.Root == "", diskText: text, source: preferSource}
 	var doc *model.Document
 	if vault.IsWhiteboard(rel) {
@@ -148,6 +156,9 @@ func openDocument(sp *space.Space, rel, text string, preferSource bool) *documen
 }
 func (d *document) title() string { return vault.Title(d.rel) }
 func (d *document) text() string {
+	if d.isPDF() {
+		return ""
+	}
 	if d.board != nil {
 		return d.board.Scene.PlainText()
 	}
@@ -168,7 +179,7 @@ func (d *document) ensureBodyParagraph() {
 // already dirty); other changes re-evaluate against the baseline once and
 // re-arm leaf-level tracking when the skeleton matches.
 func (d *document) dirty() bool {
-	if d.loadErr != nil || d.boardLoading {
+	if d.loadErr != nil || d.boardLoading || d.isPDF() {
 		return false
 	}
 	if d.board != nil {
@@ -386,6 +397,9 @@ type cachedImage struct {
 
 // changed hashes the document and compares it with the saved baseline.
 func (d *document) changed() bool {
+	if d.isPDF() {
+		return false
+	}
 	if d.board != nil {
 		return d.whiteboardDirty()
 	}
@@ -398,7 +412,7 @@ func (d *document) changed() bool {
 }
 
 func (d *document) toggleMode() {
-	if d.board != nil {
+	if d.board != nil || d.isPDF() {
 		return
 	}
 	d.ed.UnmarkText()
@@ -430,7 +444,7 @@ func (d *document) toggleMode() {
 // a Markdown page that is not read-only. An .arcmd page shows its Markdown
 // export, which cannot hold all of it, read-only.
 func (d *document) sourceEditable() bool {
-	return d.loadErr == nil && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
+	return d.loadErr == nil && !d.isPDF() && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
 }
 
 // applySource puts the Markdown typed in source mode into the editor as one
@@ -620,6 +634,9 @@ func (d *document) save() error { return d.write(false) }
 // compared, a cheap read of one document.
 func (d *document) write(force bool) error {
 	d.waitAsyncSave()
+	if d.isPDF() {
+		return nil
+	}
 	if d.loadErr != nil {
 		return d.loadErr
 	}
@@ -715,11 +732,19 @@ func (d *document) write(force bool) error {
 // by its path: a path changes when the file follows the title, and a new
 // key would make the view a new element, taking the focus and ending an
 // input method's composition mid-word.
-func (d *document) viewKey() string { return fmt.Sprintf("editor:%p", d.ed) }
+func (d *document) viewKey() string {
+	if d.isPDF() {
+		return fmt.Sprintf("pdf:%p", d.pdf)
+	}
+	return fmt.Sprintf("editor:%p", d.ed)
+}
 
 func (d *document) autosave(c *ui.Context) { d.autosaveWith(c, nil) }
 
 func (d *document) autosaveWith(c *ui.Context, post func(func())) {
+	if d.isPDF() {
+		return
+	}
 	d.pollAsyncSave()
 	if version := d.contentVersion(); version != d.version {
 		d.version, d.edited = version, c.Now()
@@ -1196,6 +1221,9 @@ func (d *document) close() {
 	d.closed.Store(true)
 	if d.board != nil {
 		d.board.Close()
+	}
+	if d.pdf != nil {
+		d.pdf.Close()
 	}
 	clear(d.imgCache)
 	d.imgCache = nil

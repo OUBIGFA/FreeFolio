@@ -93,7 +93,7 @@ func (a *App) newFromTemplate(dir string, t templates.Template) {
 // space, named by its title.
 func (a *App) saveAsTemplate() {
 	d := a.doc
-	if d == nil || d.space.IsExternal() || d.loadErr != nil {
+	if d == nil || d.space.IsExternal() || d.loadErr != nil || d.isPDF() {
 		return
 	}
 	doc := d.ed.Committed().Clone()

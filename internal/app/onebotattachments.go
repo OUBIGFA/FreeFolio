@@ -197,7 +197,7 @@ func buildOneBotAttachment(filePath string, snap *oneBotSpaceSnapshot) (oneBotAt
 	name := filepath.Base(filePath)
 	ext := strings.ToLower(filepath.Ext(name))
 	relPath, inSpace := spaceRelForDiskPath(snap, canon)
-	if !inSpace || !vault.IsDocument(relPath) {
+	if !inSpace || !vault.IsText(relPath) {
 		relPath = ""
 	}
 	spaceID := ""
@@ -220,7 +220,7 @@ func parseOneBotAttachmentData(name, ext, canon, spaceID, relPath string, editab
 
 	// Live or native FreeMD documents take precedence so .arcmd/.excalidraw
 	// decode cleanly rather than passing raw JSON to the model.
-	if vault.IsDocument(name) {
+	if vault.IsText(name) {
 		var docText string
 		if snap != nil && relPath != "" {
 			if live, ok := snap.Live[relPath]; ok {

@@ -1,0 +1,397 @@
+package pdfdoc
+
+import (
+	"bytes"
+	"errors"
+	"image"
+	"image/color"
+	"image/draw"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/OUBIGFA/FreeMD/internal/pdf"
+)
+
+func buildSamplePDF(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := pdf.NewWriter(&buf, "FreeMD PDF Test")
+
+	// Page 0: A4 portrait with red top band, blue bottom band, and Unicode text.
+	p0 := image.NewRGBA(image.Rect(0, 0, 200, 280))
+	draw.Draw(p0, p0.Bounds(), &image.Uniform{C: color.RGBA{255, 255, 255, 255}}, image.Point{}, draw.Src)
+	draw.Draw(p0, image.Rect(0, 0, 200, 40), &image.Uniform{C: color.RGBA{220, 35, 35, 255}}, image.Point{}, draw.Src)
+	draw.Draw(p0, image.Rect(0, 240, 200, 280), &image.Uniform{C: color.RGBA{25, 70, 220, 255}}, image.Point{}, draw.Src)
+	if err := w.AddPage(pdf.Page{
+		Image:  p0,
+		Width:  pdf.A4Width,
+		Height: pdf.A4Height,
+		Text: []pdf.Text{
+			{Value: "架构总览 Architecture", X: 60, Y: 90, Width: 220, Height: 18},
+			{Value: "平滑滚动与分页预览", X: 60, Y: 130, Width: 180, Height: 14},
+		},
+	}); err != nil {
+		t.Fatalf("AddPage 0: %v", err)
+	}
+
+	// Page 1: Wide slide 800x450.
+	p1 := image.NewRGBA(image.Rect(0, 0, 320, 180))
+	draw.Draw(p1, p1.Bounds(), &image.Uniform{C: color.RGBA{245, 250, 245, 255}}, image.Point{}, draw.Src)
+	if err := w.AddPage(pdf.Page{
+		Image:  p1,
+		Width:  800,
+		Height: 450,
+		Text: []pdf.Text{
+			{Value: "性能基准 Benchmark", X: 80, Y: 100, Width: 200, Height: 18},
+		},
+	}); err != nil {
+		t.Fatalf("AddPage 1: %v", err)
+	}
+
+	w.SetOutlines([]pdf.OutlineItem{
+		{Title: "第一章 架构总览", Page: 0, Y: 80, Level: 1},
+		{Title: "1.1 分页预览", Page: 0, Y: 120, Level: 2},
+		{Title: "第二章 性能基准", Page: 1, Y: 90, Level: 1},
+	})
+	if err := w.Close(); err != nil {
+		t.Fatalf("Writer.Close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestOpenRenderExtractAndSearch(t *testing.T) {
+	data := buildSamplePDF(t)
+	pdfPath := filepath.Join(t.TempDir(), "sample.pdf")
+	if err := os.WriteFile(pdfPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify pure-Go structural parser directly as well.
+	raw, err := parseRawPDF(data)
+	if err != nil {
+		t.Fatalf("parseRawPDF: %v", err)
+	}
+	if len(raw.pageInfos) != 2 {
+		t.Fatalf("expected 2 pages in rawPDF, got %d", len(raw.pageInfos))
+	}
+	if rawTxt := raw.extractPageText(0); !strings.Contains(rawTxt, "架构总览") || !strings.Contains(rawTxt, "平滑滚动") {
+		t.Fatalf("pure-Go extractPageText missed CJK text, got %q", rawTxt)
+	}
+	if len(raw.outlines) != 2 || raw.outlines[0].Title != "第一章 架构总览" || len(raw.outlines[0].Children) != 1 {
+		t.Fatalf("unexpected raw outlines: %+v", raw.outlines)
+	}
+
+	// Open via disk path.
+	doc, err := Open(pdfPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer doc.Close()
+
+	if doc.PageCount() != 2 {
+		t.Fatalf("expected 2 pages, got %d", doc.PageCount())
+	}
+	info0 := doc.PageInfo(0)
+	if math.Abs(info0.Width-pdf.A4Width) > 1 || math.Abs(info0.Height-pdf.A4Height) > 1 {
+		t.Fatalf("unexpected page 0 size: %+v", info0)
+	}
+	info1 := doc.PageInfo(1)
+	if math.Abs(info1.Width-800) > 1 || math.Abs(info1.Height-450) > 1 {
+		t.Fatalf("unexpected page 1 size: %+v", info1)
+	}
+
+	// Render page 0 upright and verify top band is red and bottom band is blue.
+	img, err := doc.RenderPage(0, 400, 0)
+	if err != nil {
+		t.Fatalf("RenderPage(0): %v", err)
+	}
+	if img.Bounds().Dx() != 400 {
+		t.Fatalf("expected rendered width 400, got %v", img.Bounds())
+	}
+	topPx := img.RGBAAt(200, 16)
+	if topPx.R < 170 || topPx.G > 90 || topPx.B > 90 {
+		t.Fatalf("expected red top banner (upright orientation), got top pixel %+v", topPx)
+	}
+	botPx := img.RGBAAt(200, img.Bounds().Dy()-16)
+	if botPx.B < 170 || botPx.R > 90 {
+		t.Fatalf("expected blue bottom banner, got bottom pixel %+v", botPx)
+	}
+
+	// Render page 0 rotated 90 degrees clockwise: top red band moves to right edge.
+	rotImg, err := doc.RenderPage(0, 400, 90)
+	if err != nil {
+		t.Fatalf("RenderPage(0, rot=90): %v", err)
+	}
+	rightPx := rotImg.RGBAAt(rotImg.Bounds().Dx()-12, rotImg.Bounds().Dy()/2)
+	if rightPx.R < 170 || rightPx.B > 90 {
+		t.Fatalf("expected rotated red band on right edge, got %+v", rightPx)
+	}
+
+	// Outlines.
+	outlines := doc.Outlines()
+	if len(outlines) != 2 || outlines[1].Page != 1 {
+		t.Fatalf("unexpected outlines: %+v", outlines)
+	}
+
+	// Text extraction & Find.
+	fullTxt := doc.PlainText(0)
+	if !strings.Contains(fullTxt, "Architecture") || !strings.Contains(fullTxt, "Benchmark") {
+		t.Fatalf("PlainText missing expected words: %q", fullTxt)
+	}
+	matches := doc.Find("benchmark")
+	if len(matches) == 0 || matches[0].Page != 1 {
+		t.Fatalf("expected Find('benchmark') on page 1, got %+v", matches)
+	}
+	m0 := doc.Find("Architecture")
+	if len(m0) == 0 || m0[0].Page != 0 {
+		t.Fatalf("expected Find('Architecture') on page 0, got %+v", m0)
+	}
+	if len(m0[0].Rects) > 0 {
+		r := m0[0].Rects[0]
+		if r.Y < 0 || r.Y > 0.35 || r.W <= 0 || r.H <= 0 {
+			t.Fatalf("expected highlight rect near top of page 0, got %+v", r)
+		}
+	}
+
+	// OpenBytes parity.
+	memDoc, err := OpenBytes(data)
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer memDoc.Close()
+	if memDoc.PageCount() != 2 {
+		t.Fatalf("OpenBytes PageCount = %d", memDoc.PageCount())
+	}
+}
+
+func TestInvalidAndEncryptedPDF(t *testing.T) {
+	if _, err := OpenBytes([]byte("not a pdf at all")); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("expected ErrInvalid, got %v", err)
+	}
+
+	encPDF := "%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n" +
+		"4 0 obj\n<< /Filter /Standard /V 2 /R 3 /O <00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF> /U <FFEEDDCCBBAA9988776655443322110000000000000000000000000000000000> /P -4 >>\nendobj\n" +
+		"xref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000184 00000 n \n" +
+		"trailer\n<< /Size 5 /Root 1 0 R /Encrypt 4 0 R >>\nstartxref\n365\n%%EOF\n"
+	if _, err := parseRawPDF([]byte(encPDF)); !errors.Is(err, ErrEncrypted) {
+		t.Fatalf("expected ErrEncrypted from pure-Go parser, got %v", err)
+	}
+}
+
+func TestConcurrentRenderSearchAndClose(t *testing.T) {
+	data := buildSamplePDF(t)
+	pdfPath := filepath.Join(t.TempDir(), "concurrent.pdf")
+	if err := os.WriteFile(pdfPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := Open(pdfPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for g := range 8 {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for step := range 6 {
+				_, _ = doc.RenderPage(step%doc.PageCount(), 320+(worker%3)*128, (step%2)*90)
+				_ = doc.PageText(step % doc.PageCount())
+				_ = doc.Find("Architecture")
+			}
+		}(g)
+	}
+	// Concurrently close partway through worker execution to verify zero use-after-free or pool mismatch.
+	doc.Close()
+	wg.Wait()
+}
+
+type stubPartialPlatformDoc struct{ pages int }
+
+func (s *stubPartialPlatformDoc) PageCount() int                { return s.pages }
+func (s *stubPartialPlatformDoc) PageInfo(int) (PageInfo, bool) { return PageInfo{}, false }
+func (s *stubPartialPlatformDoc) RenderPage(int, int, int, int) (*image.RGBA, error) {
+	return image.NewRGBA(image.Rect(0, 0, 10, 10)), nil
+}
+func (s *stubPartialPlatformDoc) PageText(int) (string, bool)     { return "", false }
+func (s *stubPartialPlatformDoc) Outlines() ([]OutlineItem, bool) { return nil, false }
+func (s *stubPartialPlatformDoc) Find(string) ([]Match, bool)     { return nil, false }
+func (s *stubPartialPlatformDoc) Close()                          {}
+
+func TestOpenFallbackPageInfoAndOutlines(t *testing.T) {
+	data := buildSamplePDF(t)
+	pdfPath := filepath.Join(t.TempDir(), "fallback.pdf")
+	if err := os.WriteFile(pdfPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := openFileDoc(pdfPath, func(string) (platformDoc, error) {
+		return &stubPartialPlatformDoc{pages: 2}, nil
+	})
+	if err != nil {
+		t.Fatalf("openFileDoc: %v", err)
+	}
+	defer doc.Close()
+
+	info1 := doc.PageInfo(1)
+	if math.Abs(info1.Width-800) > 1 || math.Abs(info1.Height-450) > 1 {
+		t.Fatalf("expected fallback page 1 size 800x450, got %+v", info1)
+	}
+	outlines := doc.Outlines()
+	if len(outlines) != 2 || outlines[0].Title != "第一章 架构总览" || len(outlines[0].Children) != 1 || outlines[1].Page != 1 {
+		t.Fatalf("expected fallback outlines, got %+v", outlines)
+	}
+}
+
+func TestCorruptedAndTruncatedPDFsOpenAndOpenBytes(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name string
+		data []byte
+		want error
+	}{
+		{
+			name: "empty",
+			data: nil,
+			want: ErrInvalid,
+		},
+		{
+			name: "truncated-header-only",
+			data: []byte("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"),
+			want: ErrInvalid,
+		},
+		{
+			name: "zero-pages",
+			data: []byte("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\nxref\n0 3\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \ntrailer\n<< /Size 3 /Root 1 0 R >>\nstartxref\n112\n%%EOF\n"),
+			want: ErrInvalid,
+		},
+		{
+			name: "xrefstm-self-cycle",
+			data: []byte("%PDF-1.4\nxref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 1 /XRefStm 9 >>\nstartxref\n9\n%%EOF\n"),
+			want: ErrInvalid,
+		},
+		{
+			name: "encrypted",
+			data: []byte("%PDF-1.4\n" +
+				"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+				"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+				"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n" +
+				"4 0 obj\n<< /Filter /Standard /V 2 /R 3 /O <00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF> /U <FFEEDDCCBBAA9988776655443322110000000000000000000000000000000000> /P -4 >>\nendobj\n" +
+				"xref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000184 00000 n \n" +
+				"trailer\n<< /Size 5 /Root 1 0 R /Encrypt 4 0 R >>\nstartxref\n365\n%%EOF\n"),
+			want: ErrEncrypted,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			docB, errB := OpenBytes(tc.data)
+			if docB != nil {
+				docB.Close()
+			}
+			if !errors.Is(errB, tc.want) {
+				t.Fatalf("OpenBytes(%s): got err %v, want %v", tc.name, errB, tc.want)
+			}
+
+			p := filepath.Join(dir, tc.name+".pdf")
+			if err := os.WriteFile(p, tc.data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			docF, errF := Open(p)
+			if docF != nil {
+				docF.Close()
+			}
+			if !errors.Is(errF, tc.want) {
+				t.Fatalf("Open(%s): got err %v, want %v", tc.name, errF, tc.want)
+			}
+		})
+	}
+
+	// Guard against typed-nil platformDoc implementations from any OS backend.
+	validPath := filepath.Join(dir, "valid.pdf")
+	if err := os.WriteFile(validPath, buildSamplePDF(t), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := openFileDoc(validPath, func(string) (platformDoc, error) {
+		var typedNil *stubPartialPlatformDoc
+		return typedNil, ErrInvalid
+	})
+	if err != nil {
+		t.Fatalf("openFileDoc with typed-nil platformDoc should fall back to pure-Go, got err %v", err)
+	}
+	doc.Close()
+
+	doc2, err2 := openFileDoc(validPath, func(string) (platformDoc, error) {
+		var typedNil *stubPartialPlatformDoc
+		return typedNil, nil
+	})
+	if err2 != nil {
+		t.Fatalf("openFileDoc with (typed-nil, nil) should fall back to pure-Go, got err %v", err2)
+	}
+	doc2.Close()
+}
+
+func TestMalformedContentStreamAndCMapDelimitersTerminate(t *testing.T) {
+	cm := &fontCMap{entries: map[uint32]string{}}
+	parseToUnicodeCMap([]byte(") ] > { } beginbfchar <0041> <00480069> endbfchar ) ] >"), cm)
+	if got := cm.entries[0x0041]; got != "Hi" {
+		t.Fatalf("expected CMap entry 'Hi', got %q", got)
+	}
+
+	pdfBytes := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n" +
+		"4 0 obj\n<< /Length 44 >>\nstream\nBT ) ] > { } /F1 12 Tf (Hello Safe) Tj } ] ET\nendstream\nendobj\n" +
+		"trailer\n<< /Root 1 0 R >>\n%%EOF\n")
+	raw, err := parseRawPDF(pdfBytes)
+	if err != nil {
+		t.Fatalf("parseRawPDF: %v", err)
+	}
+	txt := raw.extractPageText(0)
+	if !strings.Contains(txt, "Hello Safe") {
+		t.Fatalf("expected 'Hello Safe' despite stray delimiters, got %q", txt)
+	}
+}
+
+type stubFailingRenderPlatformDoc struct{ stubPartialPlatformDoc }
+
+func (s *stubFailingRenderPlatformDoc) RenderPage(int, int, int, int) (*image.RGBA, error) {
+	return nil, ErrInvalid
+}
+
+func TestConcurrentPureGoFallbackExtractAndRender(t *testing.T) {
+	data := buildSamplePDF(t)
+	pdfPath := filepath.Join(t.TempDir(), "purego-concurrent.pdf")
+	if err := os.WriteFile(pdfPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := openFileDoc(pdfPath, func(string) (platformDoc, error) {
+		return &stubFailingRenderPlatformDoc{stubPartialPlatformDoc{pages: 2}}, nil
+	})
+	if err != nil {
+		t.Fatalf("openFileDoc: %v", err)
+	}
+	defer doc.Close()
+
+	var wg sync.WaitGroup
+	for g := range 8 {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for step := range 6 {
+				p := (worker + step) % doc.PageCount()
+				_, _ = doc.RenderPage(p, 240, 0)
+				_ = doc.PageText(p)
+				_ = doc.Find("Architecture")
+			}
+		}(g)
+	}
+	wg.Wait()
+}

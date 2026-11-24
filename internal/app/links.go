@@ -446,7 +446,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 		return true
 	})
 	for _, file := range files {
-		if resident[file] || !vault.IsDocument(file.rel) {
+		if resident[file] || !vault.IsText(file.rel) {
 			continue
 		}
 		sp := a.state.Get(file.space)

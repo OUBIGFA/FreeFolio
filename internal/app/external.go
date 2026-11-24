@@ -1,6 +1,9 @@
 package app
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
@@ -60,7 +63,24 @@ func readFile(sp *space.Space, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if vault.IsPDF(name) {
+		return pdfStamp(root, name)
+	}
 	return vault.Read(root, name)
+}
+
+// pdfStamp stands for a PDF's content where documents compare their text:
+// its modification time and size (ArcMD fcb7cd3).
+func pdfStamp(root, name string) (string, error) {
+	full, err := vault.Resolve(root, name)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("pdf:%d:%d", info.ModTime().UnixNano(), info.Size()), nil
 }
 
 func writeFile(sp *space.Space, rel, text string) error {
@@ -68,8 +88,15 @@ func writeFile(sp *space.Space, rel, text string) error {
 	if err != nil {
 		return err
 	}
+	if vault.IsPDF(name) {
+		return errPDFReadOnly
+	}
 	return vault.Write(root, name, text)
 }
+
+// errPDFReadOnly guards PDFs, which FreeMD only reads. Its text is
+// translated where errors are shown (errText).
+var errPDFReadOnly = errors.New("PDF 文件只读，FreeMD 不会修改它。")
 
 func renameFile(sp *space.Space, rel, name string) (string, error) {
 	root, disk, err := fileLocation(sp, rel)
@@ -106,7 +133,7 @@ func (a *App) chooseExternalFiles() {
 	win := a.win
 	go func() {
 		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件…"), Multiple: true,
-			Filters: []mygo.FileFilter{{Name: "FreeMD", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg"}}}})
+			Filters: []mygo.FileFilter{{Name: "FreeMD", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg", "pdf"}}, {Name: "PDF", Extensions: []string{"pdf"}}}})
 		if err != nil {
 			return
 		}

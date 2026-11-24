@@ -7,6 +7,7 @@ arrows/alt-arrow-down
 arrows/alt-arrow-left
 arrows/alt-arrow-right
 arrows/alt-arrow-up
+arrows/double-alt-arrow-left
 arrows/arrow-down
 arrows/arrow-left
 arrows/arrow-right
@@ -109,6 +110,7 @@ time/calendar
 time/history
 tools/circle
 tools/layers
+tools/rotate-clockwise
 ui/add
 ui/add-square
 ui/asterisk

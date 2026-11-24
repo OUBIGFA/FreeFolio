@@ -1245,7 +1245,7 @@ func isUntitled(name string) bool {
 // by hand keeps its name. A title taken by another file is numbered.
 func (a *App) followTitle() {
 	d := a.doc
-	if d == nil || d.space.IsExternal() || d.loadErr != nil || d.conflict || d.missing || !vault.IsDocument(d.rel) || d.dirty() {
+	if d == nil || d.space.IsExternal() || d.loadErr != nil || d.conflict || d.missing || !vault.IsText(d.rel) || d.dirty() {
 		return
 	}
 	if _, composing := d.ed.MarkedRange(); composing {
@@ -1676,7 +1676,7 @@ func writeNative(root, rel, markdown string) error {
 }
 
 func (a *App) exportMarkdown() {
-	if a.doc == nil || a.doc.loadErr != nil {
+	if a.doc == nil || a.doc.loadErr != nil || a.doc.isPDF() {
 		return
 	}
 	if a.doc.board != nil {

@@ -41,6 +41,7 @@ func (a *App) moreMenu(c *ui.Context) {
 	b := iconButton(c, "more", iconEllipsis, i18n.T("更多"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Shrink(0)
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		noDoc := a.doc == nil || a.doc.loadErr != nil
+		noText := noDoc || a.doc.isPDF()
 		if a.menuKey(m.Item(i18n.T("专注模式")), "focus").Checked(a.focus).Chosen() {
 			a.toggleFocus()
 		}
@@ -51,28 +52,28 @@ func (a *App) moreMenu(c *ui.Context) {
 		if a.doc != nil && a.doc.source {
 			mode = i18n.T("返回富文本编辑")
 		}
-		if a.menuKey(m.Item(mode), "source").Disabled(noDoc).Chosen() {
+		if a.menuKey(m.Item(mode), "source").Disabled(noText).Chosen() {
 			a.toggleSource()
 		}
 		if a.menuKey(m.Item(i18n.T("添加分屏")), "split-add").Disabled(a.doc == nil).Chosen() {
 			a.addSplitPane()
 		}
 		m.Separator()
-		if a.menuKey(m.Item(i18n.T("版本历史…")), "history").Disabled(noDoc).Chosen() {
+		if a.menuKey(m.Item(i18n.T("版本历史…")), "history").Disabled(noText).Chosen() {
 			a.openVersions()
 		}
 		m.Submenu(i18n.T("导出"), func(sub *ui.Menu) {
-			if sub.Item(i18n.T("导出 Markdown 文件")).Disabled(noDoc).Chosen() {
+			if sub.Item(i18n.T("导出 Markdown 文件")).Disabled(noText).Chosen() {
 				a.exportMarkdown()
 			}
-			if a.menuKey(sub.Item(i18n.T("导出 PDF")), "export-pdf").Disabled(noDoc).Chosen() {
+			if a.menuKey(sub.Item(i18n.T("导出 PDF")), "export-pdf").Disabled(noText).Chosen() {
 				a.exportPDF()
 			}
-			if sub.Item(i18n.T("导出 HTML 网页")).Disabled(noDoc).Chosen() {
+			if sub.Item(i18n.T("导出 HTML 网页")).Disabled(noText).Chosen() {
 				a.exportHTML()
 			}
-		}).Disabled(noDoc)
-		if m.Item(i18n.T("打印…")).Disabled(noDoc).Chosen() {
+		}).Disabled(noText)
+		if m.Item(i18n.T("打印…")).Disabled(noText).Chosen() {
 			a.printDoc()
 		}
 		if m.Item(i18n.T("在文件管理器中显示文档")).Disabled(noDoc).Chosen() {
@@ -82,7 +83,7 @@ func (a *App) moreMenu(c *ui.Context) {
 		if m.Item(i18n.T("打开文件…")).Chosen() {
 			a.chooseExternalFiles()
 		}
-		if m.Item(i18n.T("另存为…")).Disabled(noDoc).Chosen() {
+		if m.Item(i18n.T("另存为…")).Disabled(noText).Chosen() {
 			a.chooseSaveAs()
 		}
 		if a.menuKey(m.Item(i18n.T("资料库")), "library").Chosen() {

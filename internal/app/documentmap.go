@@ -170,11 +170,15 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 // hasWordCount reports whether d has an active rich-text editor whose word count
 // should be displayed.
 func hasWordCount(d *document) bool {
-	return d != nil && d.loadErr == nil && !d.boardLoading && d.board == nil && d.boardOverlay == nil && !d.source
+	return d != nil && d.loadErr == nil && !d.boardLoading && d.board == nil && d.boardOverlay == nil && !d.source && !d.isPDF()
 }
 
 func (a *App) documentCorner(c *ui.Context, d *document) {
 	if d == nil || d.loadErr != nil {
+		return
+	}
+	if d.isPDF() {
+		a.pdfCorner(c, d)
 		return
 	}
 	if d.board != nil || d.boardOverlay != nil {

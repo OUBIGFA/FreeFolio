@@ -199,7 +199,7 @@ func (a *App) closeOtherFileTabs(rel string, drop func(i, keep int) bool) {
 
 func (a *App) chooseSaveAs() {
 	d, win := a.doc, a.win
-	if d == nil || d.loadErr != nil || win == nil {
+	if d == nil || d.loadErr != nil || d.isPDF() || win == nil {
 		return
 	}
 	options := mygo.SaveDialogOptions{Parent: win, Title: i18n.T("另存为…"), DefaultPath: d.fullPath(), Filters: []mygo.FileFilter{{Name: "Markdown", Extensions: []string{"md", "markdown", "mdx"}}, {Name: "Legacy", Extensions: []string{"arcmd"}}}}
@@ -221,13 +221,13 @@ func (a *App) chooseSaveAs() {
 // can thus be rescued to a different file without overwriting the original.
 func (a *App) saveAs(dest string) bool {
 	d := a.doc
-	if d == nil || d.loadErr != nil {
+	if d == nil || d.loadErr != nil || d.isPDF() {
 		return false
 	}
 	if filepath.Ext(dest) == "" {
 		dest += ".md"
 	}
-	if !vault.IsDocument(dest) {
+	if !vault.IsText(dest) {
 		a.notify("请选择 Markdown 或兼容文档格式。")
 		return false
 	}
@@ -565,16 +565,17 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		d := a.doc
 		noDoc := d == nil || d.loadErr != nil
-		if m.Item(i18n.T("另存为…")).Disabled(noDoc).Chosen() {
+		noText := noDoc || d.isPDF()
+		if m.Item(i18n.T("另存为…")).Disabled(noText).Chosen() {
 			a.chooseSaveAs()
 		}
-		if m.Item(i18n.T("Markdown 源码")).Checked(d != nil && d.source).Disabled(noDoc).Chosen() {
+		if m.Item(i18n.T("Markdown 源码")).Checked(d != nil && d.source).Disabled(noText).Chosen() {
 			a.toggleSource()
 		}
 		if m.Item(i18n.T("目录")).Checked(a.outlineOpen()).Disabled(noDoc || d.source).Chosen() {
 			a.toggleOutline()
 		}
-		if m.Item(i18n.T("导出 PDF")).Disabled(noDoc).Chosen() {
+		if m.Item(i18n.T("导出 PDF")).Disabled(noText).Chosen() {
 			a.exportPDF()
 		}
 		m.Separator()

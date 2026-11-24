@@ -179,7 +179,9 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 			ui.Text(c, docName(d.title())).FontSize(13).FontWeight(600).SingleLine().Shrink(1).MinWidth(0)
 			ui.Text(c, d.space.Name).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 			ui.Box(c).Grow(1)
-			if d.loadErr == nil {
+			if d.isPDF() {
+				a.pdfCorner(c, d)
+			} else if d.loadErr == nil {
 				d.ed.Corner(c)
 			}
 			if iconButton(c, "window-main", iconWindowBack, i18n.T("在主窗口中打开"), i18n.T("在主窗口中打开"), false).Clicked() {
@@ -192,6 +194,10 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		})
 		if d.loadErr != nil {
 			ui.Text(c, i18n.T("文档无法打开。")+d.loadErr.Error()).TextColor(t.Danger).Padding(24)
+			return
+		}
+		if d.isPDF() {
+			editor.PDFView(c.Key(d.viewKey()), d.pdf, a.pdfOptionsFor(c, d))
 			return
 		}
 		width, _ := c.Size()

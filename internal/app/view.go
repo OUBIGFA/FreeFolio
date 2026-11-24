@@ -582,6 +582,10 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		editor.BoardView(c, child.board, o)
 		return
 	}
+	if d.isPDF() {
+		editor.PDFView(c.Key(d.viewKey()), d.pdf, a.pdfOptionsFor(c, d))
+		return
+	}
 	if d.board != nil {
 		a.whiteboardView(c, d)
 		return
