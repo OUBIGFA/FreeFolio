@@ -7,12 +7,14 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	model "github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
 	"github.com/OUBIGFA/FreeMD/internal/pdfdoc"
 	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeMD/internal/spacefs"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -119,4 +121,26 @@ func (a *App) pdfActions(cmd func(string, string, func())) {
 		v.GoToPage(v.CurrentPage, true)
 	})
 	cmd(i18n.T("PDF：顺时针旋转 90°"), "", func() { v.RotateCW() })
+}
+
+// pdfTextPages bounds the pages of a PDF that search and Q&A read.
+const pdfTextPages = 200
+
+// pdfQAPage is a PDF as the agent reads it: a section per page, each its
+// own part, so a citation names the page (ArcMD 14e92c1).
+func pdfQAPage(name, content string) (*spacefs.Page, error) {
+	doc, err := pdfdoc.OpenBytes([]byte(content))
+	if err != nil {
+		return nil, err
+	}
+	defer doc.Close()
+	var parts []spacefs.Part
+	for i := range min(doc.PageCount(), pdfTextPages) {
+		head := fmt.Sprintf("## Page %d", i+1)
+		if txt := strings.TrimSpace(doc.PageText(i)); txt != "" {
+			head += "\n" + txt
+		}
+		parts = append(parts, spacefs.Part{Block: fmt.Sprintf("page:%d", i+1), Text: head})
+	}
+	return spacefs.PageOf(name, parts), nil
 }

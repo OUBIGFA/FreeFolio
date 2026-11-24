@@ -8,6 +8,7 @@ import (
 
 	model "github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeMD/internal/pdfdoc"
 	"github.com/OUBIGFA/FreeMD/internal/search"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
@@ -50,6 +51,16 @@ type hitsKey struct {
 // blocks' text, a line each, as the editor's find box sees it, and its
 // page icon.
 func extractText(name, content string) (search.Extracted, error) {
+	if vault.IsPDF(name) {
+		// A PDF is searched by the text of its first pages (ArcMD 14e92c1);
+		// one that cannot be parsed is still found by its title.
+		doc, err := pdfdoc.OpenBytes([]byte(content))
+		if err != nil {
+			return search.Extracted{}, nil
+		}
+		defer doc.Close()
+		return search.Extracted{Text: doc.PlainText(pdfTextPages)}, nil
+	}
 	if vault.IsWhiteboard(name) {
 		s, err := whiteboard.Decode(content)
 		if err != nil {

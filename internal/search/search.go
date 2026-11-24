@@ -40,6 +40,9 @@ type Extracted struct {
 
 type key struct{ space, path string }
 
+// maxPDFIndexSize is the largest PDF whose text the index reads.
+const maxPDFIndexSize = 32 << 20
+
 type entry struct {
 	file  string
 	text  string
@@ -100,6 +103,14 @@ func RefreshChanged(prev *Index, roots []Root, extract Extract) (*Index, bool) {
 					next.order = append(next.order, k)
 					continue
 				}
+			}
+			// A huge PDF stays findable by its title without loading tens of
+			// megabytes during background indexing (ArcMD 14e92c1).
+			if vault.IsPDF(d.Path) && info.Size() > maxPDFIndexSize {
+				changed = true
+				next.entries[k] = &entry{file: fullFile, size: info.Size(), mod: info.ModTime(), space: r.Space, path: d.Path}
+				next.order = append(next.order, k)
+				continue
 			}
 			content, err := vault.Read(root, rel)
 			if err != nil {

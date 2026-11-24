@@ -273,6 +273,9 @@ func (a *App) qaSession(spaceID string) *qaSession {
 // QAPage is a document file as the agent reads it: its Markdown, each
 // line knowing its top-level block.
 func QAPage(name, content string) (*spacefs.Page, error) {
+	if vault.IsPDF(name) {
+		return pdfQAPage(name, content)
+	}
 	if vault.IsWhiteboard(name) {
 		return whiteboardQAPage(name, content)
 	}
@@ -1066,6 +1069,14 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 	}
 	at, ok := page.Locate(c.From)
 	if !ok {
+		return
+	}
+	if a.doc.isPDF() {
+		// A PDF's parts are its pages, "page:N" (pdfQAPage).
+		if n, err := strconv.Atoi(strings.TrimPrefix(at.Block, "page:")); err == nil && n >= 1 {
+			a.doc.pdf.GoToPage(n-1, false)
+		}
+		a.doc.pdf.RequestFocus = true
 		return
 	}
 	if a.doc.board != nil {

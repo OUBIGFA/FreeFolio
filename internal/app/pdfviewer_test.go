@@ -5,6 +5,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/OUBIGFA/FreeMD/internal/pdf"
@@ -62,4 +63,21 @@ func TestPDFOpensReadOnlyInSpaceAndFileBrowser(t *testing.T) {
 		tt.Frame()
 		check(t, a, full)
 	})
+}
+
+// Search and Q&A read a PDF's text, a part per page, not its bytes.
+func TestPDFTextForSearchAndQA(t *testing.T) {
+	data := string(samplePDF(t))
+	ex, err := extractText("Paper.pdf", data)
+	if err != nil || !strings.Contains(ex.Text, "Reader") {
+		t.Fatalf("search text %q, %v", ex.Text, err)
+	}
+	page, err := QAPage("Paper.pdf", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, ok := page.Locate(1)
+	if !ok || at.Block != "page:1" || !strings.Contains(strings.Join(page.Lines, " "), "Reader") {
+		t.Fatalf("Q&A page %+v %v", page.Lines, at)
+	}
 }
