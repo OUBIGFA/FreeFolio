@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/OUBIGFA/FreeMD/internal/app"
+	"github.com/OUBIGFA/FreeMD/internal/sysproxy"
 	// The catalogs of mygo.json's i18n name the languages the installer and
 	// the file properties are in; imported, they also give MyGo's own
 	// controls and menus those languages.
@@ -19,6 +20,9 @@ import (
 )
 
 func main() {
+	// Every HTTP client built on the default transport follows the proxy
+	// environment, else the system proxy (ArcMD 14e92c1).
+	sysproxy.Install()
 	cfg, err := app.DefaultConfig()
 	if err != nil {
 		log.Fatal(err)
