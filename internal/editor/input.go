@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"math"
 	"runtime"
 	"strings"
 	"unicode/utf8"
@@ -382,21 +383,16 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 				position = e.Len()
 			}
 		} else {
-			r, _, ok := e.BoundsForRange(ui.TextInputRange{Start: position, End: position})
+			dir := 1
+			if key == ui.KeyUp || key == ui.KeyPageUp {
+				dir = -1
+			}
+			page := key == ui.KeyPageUp || key == ui.KeyPageDown
+			next, ok := e.moveVertical(position, dir, page)
 			if !ok {
 				return false
 			}
-			if !e.vertical {
-				e.preferredX = r.X
-			}
-			distance := r.H
-			if key == ui.KeyPageUp || key == ui.KeyPageDown {
-				distance = max(r.H, e.viewport-48)
-			}
-			if key == ui.KeyUp || key == ui.KeyPageUp {
-				distance = -distance
-			}
-			position, _ = e.IndexForPoint(ui.Point{X: e.preferredX, Y: r.Y + r.H/2 + distance})
+			position = next
 			e.vertical = true
 		}
 	case ui.KeyHome, ui.KeyEnd:
@@ -711,4 +707,92 @@ func exitCapsuleMarks(cur, nextAfter document.Style) (document.Style, bool) {
 		changed = true
 	}
 	return cur, changed
+}
+
+// moveVertical moves the caret one visual line up (dir < 0) or down: within
+// a wrapped block first, then to the nearest row above or below by the
+// spatial index, so headings, code, callouts, table columns and pictures
+// are stepped through in order. Pictures, hidden diagrams and whiteboards
+// take the caret at their start. Ported from ArcMD 14e92c1.
+func (e *Editor) moveVertical(position, dir int, page bool) (int, bool) {
+	r, _, ok := e.BoundsForRange(ui.TextInputRange{Start: position, End: position})
+	if !ok {
+		return position, false
+	}
+	if !e.vertical {
+		e.preferredX = r.X
+	}
+	if page {
+		distance := max(r.H, e.viewport-48)
+		if dir < 0 {
+			distance = -distance
+		}
+		next, _ := e.IndexForPoint(ui.Point{X: e.preferredX, Y: r.Y + r.H/2 + distance})
+		if next != position {
+			return next, true
+		}
+	}
+	idx := e.rowIndexAt(position)
+	if idx < 0 {
+		return position, false
+	}
+	cur := e.ensureRow(idx)
+	opaque := func(row *row) bool {
+		return (row.picture != nil && !e.captionVisible(row.leaf.Block)) || row.mermaidHidden || isWhiteboardBlock(row.leaf.Block) || row.board != nil
+	}
+	if !opaque(cur) && cur.layout != nil {
+		lines := cur.layout.Lines()
+		if len(lines) > 1 {
+			local := max(0, min(position-cur.leaf.Start, cur.leaf.End-cur.leaf.Start))
+			caret := cur.layout.Caret(local)
+			cy := caret.Y + caret.H/2
+			lineIdx := 0
+			bestDist := float32(math.MaxFloat32)
+			for i, ln := range lines {
+				d := max(ln.Rect.Y-cy, cy-(ln.Rect.Y+ln.Rect.H), 0)
+				if d < bestDist {
+					bestDist = d
+					lineIdx = i
+				}
+			}
+			targetLine := lineIdx + dir
+			if targetLine >= 0 && targetLine < len(lines) {
+				px := e.preferredX - cur.x
+				if _, _, _, _, scrollX, noWrap := e.codeScrollFor(*cur); noWrap {
+					px += scrollX
+				}
+				ln := lines[targetLine]
+				return cur.leaf.Start + cur.layout.IndexAt(ui.Point{X: px, Y: ln.Rect.Y + ln.Rect.H/2}), true
+			}
+		}
+	}
+	boundY := cur.rect.Y
+	if dir > 0 {
+		boundY = cur.rect.Y + cur.rect.H
+	}
+	nextIdx := e.rowSpace.nearestVertical(e.preferredX, boundY, dir, idx)
+	if nextIdx < 0 {
+		return position, true
+	}
+	next := e.ensureRow(nextIdx)
+	if opaque(next) || next.layout == nil {
+		return next.leaf.Start, true
+	}
+	px := e.preferredX - next.x
+	if _, _, _, _, scrollX, noWrap := e.codeScrollFor(*next); noWrap {
+		px += scrollX
+	}
+	lines := next.layout.Lines()
+	var py float32
+	if len(lines) > 0 {
+		ln := lines[0]
+		if dir < 0 {
+			ln = lines[len(lines)-1]
+		}
+		py = ln.Rect.Y + ln.Rect.H/2
+	} else if dir < 0 {
+		_, h := next.layout.Size()
+		py = max(0, h-1)
+	}
+	return next.leaf.Start + next.layout.IndexAt(ui.Point{X: px, Y: py}), true
 }

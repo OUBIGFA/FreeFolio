@@ -54,7 +54,7 @@ var bindings = []binding{
 	{id: "split-close", label: "关闭此分屏", defaults: []editor.Combo{combo(ui.Ctrl|ui.Shift, ui.KeyMinus)}},
 	{id: "split-next", label: "下一个分屏", defaults: []editor.Combo{combo(ui.Ctrl|ui.Shift, ui.KeyTab)}},
 	{id: "save", label: "立即保存", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyS)}},
-	{id: "mindmap", label: "思维导图", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyM)}},
+	{id: "mindmap", label: "思维导图", defaults: []editor.Combo{combo(ctrlCmd(), ui.KeyM)}},
 	{id: "outline", label: "展开/收起目录", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyO)}},
 	{id: "bookmark", label: "添加/移除书签", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyD)}},
 	{id: "bookmarks", label: "书签列表", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyD)}},
@@ -275,6 +275,11 @@ func reservedCombos() []editor.Combo {
 	}
 	for _, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4} {
 		out = append(out, combo(ui.Ctrl|ui.Shift, k))
+	}
+	// macOS keeps ⌘M (Minimize) and ⌥⌘M (Minimize All) for its windows
+	// (ArcMD 14e92c1).
+	if ui.Cmd == ui.Super {
+		out = append(out, combo(ui.Cmd, ui.KeyM), combo(ui.Cmd|ui.Alt, ui.KeyM))
 	}
 	return out
 }
