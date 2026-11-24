@@ -295,6 +295,9 @@ func (a *App) saveAs(dest string) bool {
 	return true
 }
 
+// fileBarHeight is the least height of the file browser's bar.
+const fileBarHeight = 44
+
 // fileView is the file browser: one bar of tabs over the page. It shows no
 // paths, and "返回空间" is its only way back to the spaces.
 func (a *App) fileView(c *ui.Context) {
@@ -348,7 +351,8 @@ func (a *App) fileView(c *ui.Context) {
 		if a.fileBar(c, f); a.files != f {
 			return
 		}
-		// OneBot slides in beside the page, as in the spaces.
+		// The bar keeps the whole width; OneBot slides in flat beside the
+		// page, parted from it by a line, as the page lies flat under the bar.
 		body := ui.Row(c.Key("file-body")).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
 		body.Children(func() {
 			a.oneBotResizer(c, 0)
@@ -379,7 +383,7 @@ func (a *App) fileView(c *ui.Context) {
 // the way back. Its free stretch drags the window; files dropped on it open.
 func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	bar := c.TitleBar()
-	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, 44)).Shrink(0).Gap(6).AlignItems(ui.Center).DragWindow()
+	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, fileBarHeight)).Shrink(0).Gap(6).AlignItems(ui.Center).DragWindow()
 	for _, file := range row.DroppedFiles() {
 		a.openSystemFile(file)
 	}

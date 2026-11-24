@@ -22,7 +22,7 @@ func TestFileModeOpensOneBotOnOpenFiles(t *testing.T) {
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
-	if !a.qa.open || a.qa.shown < 1 || !tt.HasText(a.files.locations.Name) {
+	if !a.qa.open || a.qa.shown < 1 || !tt.HasText("向打开的文件提问") {
 		t.Fatalf("OneBot panel missing in file mode: open=%v shown=%v texts=%q", a.qa.open, a.qa.shown, tt.Texts())
 	}
 	args, _ := json.Marshal(map[string]any{"path": a.doc.rel, "offset": 1, "limit": 2000})

@@ -19,6 +19,15 @@ func (a *App) oneBotWidth(docked float32) float32 {
 	return max(minimum, min(maximum, w))
 }
 
+// oneBotResizerTop is where the divider starts: under the header in the
+// spaces, the panel's full height under the file bar.
+func (a *App) oneBotResizerTop(c *ui.Context) float32 {
+	if a.files != nil {
+		return 0
+	}
+	return a.oneBotHeadHeight(c)
+}
+
 // The divider uses the existing native splitter interaction. Handle input is
 // resolved before both panels are built, so dragging has no animated lag.
 func (a *App) oneBotResizer(c *ui.Context, docked float32) {
@@ -27,11 +36,7 @@ func (a *App) oneBotResizer(c *ui.Context, docked float32) {
 		return
 	}
 	hint := i18n.T("拖动调整宽度；双击恢复默认；方向键微调")
-	top := max(c.TitleBar().Height, mainBarHeight)
-	if a.files != nil {
-		top = mainBarHeight
-	}
-	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(top).Bottom(8).Right(a.qa.shown).Width(8).
+	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(a.oneBotResizerTop(c)).Bottom(8).Right(a.qa.shown).Width(8).
 		Cursor(ui.CursorResizeEW).Focusable().Role(ui.RoleSplitter).Label(i18n.T("调整 OneBot 宽度")).Description(hint)
 	set := func(w float32) {
 		a.prefs.OneBotWidth = w

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"github.com/OUBIGFA/FreeMD/internal/solar"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"math"
 	"strings"
 	"time"
@@ -35,6 +36,34 @@ var qaExamples = []string{
 	"有没有前后矛盾的记录？",
 }
 
+// fileQAExamples are the questions offered on the file browser's files.
+var fileQAExamples = []string{
+	"总结一下这篇文档",
+	"这篇文档里有哪些待办事项？",
+	"有没有前后矛盾的地方？",
+}
+
+// oneBotSpaceName names what OneBot reads: the open files in the file
+// browser, the space otherwise.
+func (a *App) oneBotSpaceName(sp *space.Space) string {
+	if a.files != nil && sp == a.files.locations {
+		return i18n.T("已打开的文件")
+	}
+	return sp.Name
+}
+
+// fileQAHeadHeight is the height of OneBot's header under the file bar.
+const fileQAHeadHeight = 40
+
+// oneBotHeadHeight keeps OneBot's header level with the toolbar beside it
+// in the spaces; under the file bar it needs no title bar room.
+func (a *App) oneBotHeadHeight(c *ui.Context) float32 {
+	if a.files != nil {
+		return fileQAHeadHeight
+	}
+	return max(c.TitleBar().Height, mainBarHeight)
+}
+
 // qaPanel is the question panel right of the document: its header level
 // with the toolbar, a card with the conversation and the question field.
 // It slides open as the sidebar does.
@@ -48,19 +77,31 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 			return
 		}
 		bar := c.TitleBar()
-		if a.files != nil {
-			bar.Height, bar.Right = 0, 0
-		} else if !a.prefs.SidebarLeft {
+		if !a.prefs.SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}
-		qaCol := ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0)
+		flat := a.files != nil
+		fill := pick(t, white.Alpha(0.88), t.Surface)
+		qaCol := ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0)
+		if flat {
+			qaCol.Background(fill).BorderWidth(0, 0, 0, 1).BorderColor(t.Border)
+		} else {
+			qaCol.Padding(0, 8, 8, 0)
+		}
 		qaCol.Children(func() {
 			s := a.qaSession(sp.ID)
-			ui.Row(c.Key("qa-head")).Height(max(bar.Height, mainBarHeight)).Padding(0, bar.Right, 0, 8).Gap(6).AlignItems(ui.Center).DragWindow().Children(func() {
+			name := a.oneBotSpaceName(sp)
+			head := ui.Row(c.Key("qa-head")).Height(a.oneBotHeadHeight(c)).Gap(6).AlignItems(ui.Center)
+			if flat {
+				head.Padding(0, 8, 0, 12).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.6))
+			} else {
+				head.Padding(0, bar.Right, 0, 8).DragWindow()
+			}
+			head.Children(func() {
 				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Accent.Alpha(0.88))
 				ui.Text(c, i18n.T("OneBot")).FontSize(13.5).FontWeight(600).NoWrap()
 				ui.Text(c, "·").FontSize(12).TextColor(t.TextMuted.Alpha(0.55)).NoWrap()
-				ui.Text(c, sp.Name).FontSize(12.5).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+				ui.Text(c, name).FontSize(12.5).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				a.oneBotHeaderMenu(c)
 				histBtn := iconButton(c, "qa-history", iconHistory, i18n.T("历史记录"), i18n.T("历史记录"), false)
@@ -77,8 +118,10 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 					a.qa.open = false
 				}
 			})
-			card := ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Radius(panelRadius).Background(pick(t, white.Alpha(0.88), t.Surface)).
-				Border(1, t.Border).Clip()
+			card := ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Clip()
+			if !flat {
+				card.Radius(panelRadius).Background(fill).Border(1, t.Border)
+			}
 			if !a.qa.historyOpen {
 				fileOver := card.FileDragOver()
 				droppedFiles := card.DroppedFiles()
@@ -110,7 +153,7 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 					a.oneBotHistoryPanel(c, sp.ID, s)
 					return
 				}
-				a.qaBody(c, sp.ID, sp.Name, s)
+				a.qaBody(c, sp.ID, a.oneBotSpaceName(sp), s)
 			})
 		})
 	})
@@ -237,8 +280,12 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			ui.Icon(c, iconAsk).FontSize(22).TextColor(t.Accent)
 		})
 		ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, fmt.Sprintf(i18n.T("向「%s」提问"), name)).FontSize(15).FontWeight(600).TextAlign(ui.Center)
-			ui.Text(c, i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")).
+			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")
+			if a.files != nil {
+				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeMD 会阅读已打开的文件来回答，并标出每句话的出处。")
+			}
+			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, hint).
 				FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(290)
 		})
 		if err := a.qaReady(); err != nil {
@@ -252,7 +299,11 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			return
 		}
 		ui.Column(c).Gap(7).Padding(6, 0, 0, 0).AlignItems(ui.Stretch).MaxWidth(320).WidthPercent(100).Children(func() {
-			for i, ex := range qaExamples {
+			examples := qaExamples
+			if a.files != nil {
+				examples = fileQAExamples
+			}
+			for i, ex := range examples {
 				ex := i18n.T(ex)
 				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(9, 12).Radius(10).Gap(8).AlignItems(ui.Center).
 					Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.45)).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
