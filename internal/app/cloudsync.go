@@ -608,6 +608,32 @@ func (a *App) cloudSummary() string {
 	return fmt.Sprintf(i18n.T("已启用 · 已选 %d 个空间"), selected)
 }
 
+// cloudFailure returns the first line of the last sync failure, or "" when
+// nothing failed or a run is in progress (its progress is shown instead).
+func (a *App) cloudFailure() string {
+	s := &a.cloud
+	if s.busy || !s.failed && !s.broken {
+		return ""
+	}
+	if msg := strings.TrimSpace(strings.SplitN(s.message, "\n", 2)[0]); msg != "" {
+		return msg
+	}
+	return i18n.T("同步出现问题")
+}
+
+// cloudProblem sums up what needs the user's attention: a failure and the
+// conflicts left to resolve, or "" when sync is fine.
+func (a *App) cloudProblem() string {
+	var parts []string
+	if f := a.cloudFailure(); f != "" {
+		parts = append(parts, f)
+	}
+	if n := len(a.cloud.conflicts); n > 0 && !a.cloud.busy {
+		parts = append(parts, fmt.Sprintf(i18n.T("%d 个冲突待处理"), n))
+	}
+	return strings.Join(parts, " · ")
+}
+
 // sidebarCloudActions renders compact cloud-sync icons in the sidebar footer:
 // a direct sync/cancel button and a quick menu for toggling spaces and settings.
 func (a *App) sidebarCloudActions(c *ui.Context) {
@@ -629,6 +655,8 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		}
 		syncIcon = iconX
 		syncDisabled = false
+	} else if p := a.cloudProblem(); p != "" {
+		syncTip = syncLabel + " · " + p
 	} else if syncDisabled {
 		syncTip = i18n.T("立即同步（未启用云端同步）")
 	} else if !s.last.IsZero() {
@@ -650,6 +678,8 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	cloudTip := i18n.T("云端同步") + " · " + a.cloudSummary()
 	if s.busy && s.message != "" {
 		cloudTip = i18n.T("云端同步") + " · " + strings.SplitN(s.message, "\n", 2)[0]
+	} else if p := a.cloudProblem(); p != "" {
+		cloudTip = i18n.T("云端同步") + " · " + p
 	}
 	cloudBtn := iconButton(c, "sidebar-cloud-menu", settingsIcons["cloud"], i18n.T("云端同步"), cloudTip, false).
 		Size(28, 28).Role(ui.RoleMenuButton)
@@ -662,6 +692,14 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		cloudBtn.TextColor(t.Success)
 	}
 	cloudBtn.PopoverMenuButton(func(m *ui.Menu) {
+		m.MaxWidth(340)
+		// Lead with the failure so it is seen before any action is chosen.
+		if f := a.cloudFailure(); f != "" {
+			if m.Item(i18n.T("同步出现问题")).Subtitle(f).Tooltip(f).Danger().Chosen() {
+				a.openSettings(tabCloud)
+			}
+			m.Separator()
+		}
 		if s.busy {
 			if m.Item(i18n.T("取消同步")).Chosen() {
 				a.cancelCloudSync()
@@ -704,7 +742,7 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		}
 		if len(s.conflicts) > 0 {
 			m.Separator()
-			if m.Item(fmt.Sprintf(i18n.T("待处理冲突（%d）"), len(s.conflicts))).Chosen() {
+			if m.Item(fmt.Sprintf(i18n.T("待处理冲突（%d）"), len(s.conflicts))).Danger().Chosen() {
 				a.openSettings(tabCloud)
 			}
 		}

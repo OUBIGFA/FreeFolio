@@ -126,7 +126,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
 		ui.Row(c.Key("sidebar-settings")).Padding(2, 12, 0, 12).Gap(2).AlignItems(ui.Center).Children(func() {
 			showWord := hasWordCount(a.doc)
-			// Keep "设置…" labeled when the sidebar has enough room; otherwise
+			// Keep "设置" labeled when the sidebar has enough room; otherwise
 			// collapse it to an icon button so the word count and utility icons fit.
 			showSettingsLabel := a.sidebarW() >= 250
 			if showWord {
@@ -134,10 +134,10 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			}
 			var settingsEl ui.Element
 			if showSettingsLabel {
-				settingsEl = shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).
-					Tooltip(a.withKey(i18n.T("设置…"), "settings"))
+				settingsEl = shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置")).
+					Tooltip(a.withKey(i18n.T("设置"), "settings"))
 			} else {
-				settingsEl = iconButton(c, "settings", settingsIcons["settings"], i18n.T("设置…"), a.withKey(i18n.T("设置…"), "settings"), false).Size(28, 28)
+				settingsEl = iconButton(c, "settings", settingsIcons["settings"], i18n.T("设置"), a.withKey(i18n.T("设置"), "settings"), false).Size(28, 28)
 			}
 			if settingsEl.Clicked() {
 				a.openSettings(tabGeneral)

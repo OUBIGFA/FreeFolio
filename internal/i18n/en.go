@@ -478,6 +478,8 @@ var en = map[string]string{
 	"附件目录":        "Attachments Folder",
 
 	"待处理冲突（%d）":          "Conflicts to resolve (%d)",
+	"同步出现问题":             "Sync problem",
+	"%d 个冲突待处理":          "%d conflicts to resolve",
 	"本地与云端均有修改，已保留冲突副本。": "Both local and remote changed; a conflict copy has been kept.",
 	"云端已删除该文件，本地仍有修改。":   "Deleted remotely while local edits exist.",
 	"连接": "Connection",

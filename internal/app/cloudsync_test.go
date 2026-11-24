@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -324,6 +325,51 @@ func TestSidebarCloudSyncIcons(t *testing.T) {
 	tt.Frame()
 	if !a.settingsOpen || a.settingsTab != tabCloud {
 		t.Fatalf("settings not opened on cloud tab: open=%v tab=%q", a.settingsOpen, a.settingsTab)
+	}
+}
+
+func TestSidebarCloudSyncProblemHints(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.cloud.config.Enabled = true
+	a.cloud.failed = true
+	a.cloud.message = "同步失败：网络超时\n详细信息"
+	a.cloud.conflicts = []cloudConflict{{space: a.state.Active, name: "Personal", detail: cloudsync.Conflict{Path: "Welcome.md"}}}
+	settle(tt)
+	for _, label := range []string{"云端同步", "立即同步"} {
+		info, ok := tt.Access(label)
+		if !ok || !strings.Contains(info.Description, "同步失败：网络超时") || !strings.Contains(info.Description, "1 个冲突待处理") || strings.Contains(info.Description, "详细信息") {
+			t.Fatalf("%s tooltip=%q", label, info.Description)
+		}
+	}
+	if err := tt.Click("云端同步"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if menu := tt.Menu(); len(menu) == 0 || menu[0] != "同步出现问题" || !slices.Contains(menu, "待处理冲突（1）") {
+		t.Fatalf("menu=%q", menu)
+	}
+	if err := tt.ChooseMenuItem("同步出现问题"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.settingsOpen || a.settingsTab != tabCloud {
+		t.Fatalf("problem item did not open cloud settings: open=%v tab=%q", a.settingsOpen, a.settingsTab)
+	}
+
+	// A healthy state shows no problem in the tooltip or the menu.
+	b, bt := newTestApp(t)
+	b.cloud.config.Enabled = true
+	b.cloud.message = "同步完成"
+	settle(bt)
+	if info, _ := bt.Access("云端同步"); strings.Contains(info.Description, "同步完成") {
+		t.Fatalf("healthy tooltip=%q", info.Description)
+	}
+	if err := bt.Click("云端同步"); err != nil {
+		t.Fatal(err)
+	}
+	bt.Frame()
+	if slices.Contains(bt.Menu(), "同步出现问题") {
+		t.Fatalf("healthy menu=%q", bt.Menu())
 	}
 }
 

@@ -390,7 +390,7 @@ func TestWordCountPlacementAndGoalPopover(t *testing.T) {
 				if wordRect.Y < 700 || wordRect.X < start || wordRect.X+wordRect.W > start+width {
 					t.Fatalf("width=%g left=%v lang=%s: word button %+v outside sidebar footer [%g..%g]", width, left, language, wordRect, start, start+width)
 				}
-				labels := []string{"设置…", "立即同步", "云端同步", "打开文件…", "资料库"}
+				labels := []string{"设置", "立即同步", "云端同步", "打开文件…", "资料库"}
 				last := start
 				var center float32
 				for i, label := range labels {
