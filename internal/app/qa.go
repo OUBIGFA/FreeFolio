@@ -17,6 +17,7 @@ import (
 	model "github.com/OUBIGFA/FreeMD/internal/document"
 	"github.com/OUBIGFA/FreeMD/internal/editor"
 	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeMD/internal/space"
 	"github.com/OUBIGFA/FreeMD/internal/spacefs"
 	"github.com/OUBIGFA/FreeMD/internal/vault"
 	"github.com/egoist/mygo/ui"
@@ -301,7 +302,7 @@ func pageOfDocument(name string, doc *model.Document) *spacefs.Page {
 // qaSpace is the space's read-only view, with the unsaved text of its
 // open documents.
 func (a *App) qaSpace(spaceID string) *spacefs.FS {
-	sp := a.state.Get(spaceID)
+	sp := a.qaSpaceByID(spaceID)
 	if sp == nil {
 		return nil
 	}
@@ -340,7 +341,7 @@ func (a *App) toggleQA() {
 // askQA asks the active space the question typed.
 func (a *App) askQA() {
 	text := strings.TrimSpace(a.qa.input)
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	if sp == nil || a.qaSession(sp.ID).running() {
 		return
 	}
@@ -504,7 +505,7 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 	if a.doc != nil && a.doc.space.ID == spaceID && a.doc.loadErr == nil {
 		open = a.doc.rel
 	}
-	name := a.state.Get(spaceID).Name
+	name := a.qaSpaceByID(spaceID).Name
 	now := a.now
 	if s.source != "" && s.source != settings.Signature() {
 		s.history = agent.NeutralHistory(s.history)
@@ -672,7 +673,7 @@ func (a *App) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error
 
 // stopQA stops the active space's question.
 func (a *App) stopQA() {
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	if sp == nil {
 		return
 	}
@@ -1015,7 +1016,7 @@ func exportOneBotConversationMarkdown(s *qaSession) string {
 
 // clearQA starts a new conversation in the active space.
 func (a *App) clearQA() {
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	if sp == nil {
 		return
 	}
@@ -1456,4 +1457,21 @@ func qaErrorText(err error) string {
 		return i18n.T("无法连接模型服务，请检查网络与服务地址")
 	}
 	return errText(err)
+}
+
+// qaActiveSpace is the space OneBot works in: the file browser's opened
+// files while it is shown, the active space otherwise.
+func (a *App) qaActiveSpace() *space.Space {
+	if a.files != nil {
+		return a.files.locations
+	}
+	return a.state.ActiveSpace()
+}
+
+// qaSpaceByID finds a space OneBot refers to, the file browser's included.
+func (a *App) qaSpaceByID(id string) *space.Space {
+	if a.files != nil && id == a.files.locations.ID {
+		return a.files.locations
+	}
+	return a.state.Get(id)
 }

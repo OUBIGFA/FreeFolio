@@ -98,7 +98,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 	if len(jobs)+len(creates) == 0 {
 		return errors.New(i18n.T("没有待应用的修改"))
 	}
-	sp := a.state.Get(task.SpaceID)
+	sp := a.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return model.ErrEditConflict
 	}

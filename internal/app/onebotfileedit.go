@@ -45,7 +45,7 @@ func (a *App) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft
 			if change.Path != task.NewPath || task.NewPath == "" {
 				return nil, errors.New(i18n.T("新文档路径未获指定"))
 			}
-			sp := a.state.Get(task.SpaceID)
+			sp := a.qaSpaceByID(task.SpaceID)
 			if sp == nil || sp.IsExternal() {
 				return nil, errors.New(i18n.T("请在空间中创建文档"))
 			}

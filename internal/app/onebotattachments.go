@@ -915,7 +915,7 @@ func (a *App) addOneBotFiles(paths []string) {
 		a.qa.focusInput = true
 		return
 	}
-	snap := a.oneBotSpaceSnapshotFor(a.state.ActiveSpace())
+	snap := a.oneBotSpaceSnapshotFor(a.qaActiveSpace())
 	process := func() ([]oneBotAttachmentItem, []string) {
 		var items []oneBotAttachmentItem
 		var failures []string
@@ -984,7 +984,7 @@ func (a *App) addOneBotClipboardImage(pngData []byte) {
 }
 
 func (a *App) oneBotDraggedRels(d dragged) []string {
-	sp := a.state.Get(d.space)
+	sp := a.qaSpaceByID(d.space)
 	if sp == nil {
 		return nil
 	}
@@ -1016,7 +1016,7 @@ func (a *App) oneBotDraggedRels(d dragged) []string {
 			continue
 		}
 		var tree []*vault.Node
-		if active := a.state.ActiveSpace(); active != nil && active.ID == d.space {
+		if active := a.qaActiveSpace(); active != nil && active.ID == d.space {
 			tree = a.tree
 		} else if cached, ok := a.pageTrees[d.space]; ok && cached.err == nil {
 			tree = cached.nodes
@@ -1029,7 +1029,7 @@ func (a *App) oneBotDraggedRels(d dragged) []string {
 }
 
 func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
-	sp := a.state.Get(spaceID)
+	sp := a.qaSpaceByID(spaceID)
 	if sp == nil || len(rels) == 0 {
 		return
 	}
@@ -1038,7 +1038,7 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 		a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		return
 	}
-	active := a.state.ActiveSpace()
+	active := a.qaActiveSpace()
 	canEdit := active != nil && active.ID == sp.ID
 	snap := a.oneBotSpaceSnapshotFor(sp)
 

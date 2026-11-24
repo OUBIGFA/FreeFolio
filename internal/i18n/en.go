@@ -1397,6 +1397,7 @@ var en = map[string]string{
 	"可以提问了。":     "Ready for questions.",
 	"向「%s」提问":    "Ask “%s”",
 	"向当前空间提问":    "Ask the Current Space",
+	"向打开的文件提问":   "Ask the Open Files",
 	"在问答面板（%s）里向当前空间提问。模型会搜索、阅读空间里的文档后回答并标出出处，不建立向量索引。": "Ask the current space in the Q&A panel (%s). The model searches and reads the space's documents, then answers with sources; no vector index is built.",
 	"失败":   "Failed",
 	"已保存":  "Saved",

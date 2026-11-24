@@ -313,7 +313,7 @@ func (a *App) fileView(c *ui.Context) {
 		c.Toast(n)
 	}
 	a.notices = nil
-	if !a.settingsOpen {
+	if !a.settingsOpen && !a.oneBotEditShortcuts(c) {
 		switch {
 		case c.Shortcut(ui.Cmd, ui.KeyO):
 			a.chooseExternalFiles()
@@ -335,8 +335,12 @@ func (a *App) fileView(c *ui.Context) {
 			a.toggleOutline()
 		case a.pressed(c, "export-pdf"):
 			a.exportPDF()
+		case a.pressed(c, "ask"):
+			a.toggleQA()
 		}
 	}
+	a.winW = w
+	a.qa.resizing = false
 	ui.Column(c.Key("file-mode")).Fill().Background(t.Background).Children(func() {
 		if f.closing && len(f.order) == 0 {
 			return
@@ -344,11 +348,27 @@ func (a *App) fileView(c *ui.Context) {
 		if a.fileBar(c, f); a.files != f {
 			return
 		}
-		if d := a.doc; d != nil {
-			ui.Themed(c.Key("file-paper"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Clip().Children(func() { a.documentContent(c, d, w) })
-		} else {
-			a.fileEmpty(c)
-		}
+		// OneBot slides in beside the page, as in the spaces.
+		body := ui.Row(c.Key("file-body")).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
+		body.Children(func() {
+			a.oneBotResizer(c, 0)
+			target := float32(0)
+			if a.qa.open {
+				target = a.oneBotWidth(0)
+			}
+			motion := slide
+			if a.qa.dragging || a.qa.resizing {
+				motion = 0
+			}
+			a.qa.shown = body.Animate("qa-width", target, motion)
+			a.qa.resizing = a.qa.resizing || a.qa.dragging || a.qa.shown != target
+			if d := a.doc; d != nil {
+				ui.Themed(c.Key("file-paper"), documentTheme(a.paperDark)).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() { a.documentContent(c, d, w-a.qa.shown) })
+			} else {
+				ui.Column(c.Key("file-empty-pane")).Grow(1).MinWidth(0).Children(func() { a.fileEmpty(c) })
+			}
+			a.qaPanel(c, 0)
+		})
 	})
 	a.settingsView(c)
 	a.chatGPTWelcomeView(c)
@@ -370,6 +390,13 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
 			if d := a.doc; d != nil && d.loadErr == nil {
 				a.documentCorner(c, d)
+			}
+			ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向打开的文件提问"), "ask"), false).Shrink(0)
+			if a.qa.open {
+				ask.Background(glass(c.Theme()))
+			}
+			if ask.Clicked() {
+				a.toggleQA()
 			}
 			a.fileMenu(c, f)
 			if shellAction(c, "return", iconBack, i18n.T("返回空间")).Clicked() {

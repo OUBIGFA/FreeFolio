@@ -527,7 +527,7 @@ func (a *App) deleteOneBotConversation(spaceID, id string) {
 		}
 		cur.deleted = true
 		a.qa.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-		if sp := a.state.ActiveSpace(); sp != nil && sp.ID == spaceID {
+		if sp := a.qaActiveSpace(); sp != nil && sp.ID == spaceID {
 			if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
 				a.stopOneBotEdit()
 			}
@@ -577,7 +577,7 @@ func (a *App) clearOneBotConversations(spaceID string) {
 		}
 		cur.deleted = true
 		a.qa.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-		if sp := a.state.ActiveSpace(); sp != nil && sp.ID == spaceID {
+		if sp := a.qaActiveSpace(); sp != nil && sp.ID == spaceID {
 			if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
 				a.stopOneBotEdit()
 			}

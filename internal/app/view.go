@@ -324,25 +324,35 @@ func (a *App) resizerTip(c *ui.Context, h ui.Element, hint string) {
 // spaceKeys are the digits that, with ⌘, go to the first nine spaces.
 var spaceKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
 
+// oneBotEditShortcuts handles OneBot's edit-mode keys and reports whether
+// one was used.
+func (a *App) oneBotEditShortcuts(c *ui.Context) bool {
+	if !a.qa.open || !a.qa.editMode {
+		return false
+	}
+	if task := a.qa.editTask; task != nil && (task.Running || task.Applying) && c.Shortcut(0, ui.KeyEscape) {
+		a.stopOneBotEdit()
+		return true
+	}
+	if c.Shortcut(ui.Cmd, ui.KeyEnter) {
+		a.askQA()
+		return true
+	}
+	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter) {
+		if task := a.qa.editTask; task != nil {
+			if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
+				task.Error = err.Error()
+			}
+		}
+		return true
+	}
+	return false
+}
+
 // shortcuts handles the window's keys.
 func (a *App) shortcuts(c *ui.Context) {
-	if a.qa.open && a.qa.editMode {
-		if task := a.qa.editTask; task != nil && (task.Running || task.Applying) && c.Shortcut(0, ui.KeyEscape) {
-			a.stopOneBotEdit()
-			return
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyEnter) {
-			a.askQA()
-			return
-		}
-		if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter) {
-			if task := a.qa.editTask; task != nil {
-				if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
-					task.Error = err.Error()
-				}
-			}
-			return
-		}
+	if a.oneBotEditShortcuts(c) {
+		return
 	}
 	if len(a.picks) > 0 && !a.modalOrOverlayBlocksEsc() && c.Shortcut(0, ui.KeyEscape) {
 		a.clearPicks("")

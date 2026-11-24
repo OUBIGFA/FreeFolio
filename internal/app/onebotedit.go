@@ -82,7 +82,7 @@ type oneBotTask struct {
 }
 
 func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	if sp == nil {
 		return nil, errors.New(i18n.T("空间已不存在"))
 	}
@@ -208,7 +208,7 @@ func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
 }
 
 func (a *App) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTask {
-	sp := a.state.Get(spaceID)
+	sp := a.qaSpaceByID(spaceID)
 	if sp == nil || len(rels) == 0 {
 		return nil
 	}
@@ -342,7 +342,7 @@ func (a *App) oneBotTargetDoc(task *oneBotTask, target *oneBotTarget) (*document
 	}
 	// Reopening requires semantic equality with the persisted original target;
 	// Markdown imports assign fresh IDs, so bind only after exact block matching.
-	sp := a.state.Get(task.SpaceID)
+	sp := a.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return nil, errors.New(i18n.T("空间已不存在"))
 	}
@@ -599,7 +599,7 @@ func (a *App) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
 			if ch.Operation.Kind != "create_document" || ch.Status != "saved" {
 				continue
 			}
-			sp := a.state.Get(previous.SpaceID)
+			sp := a.qaSpaceByID(previous.SpaceID)
 			if sp == nil {
 				return nil, model.ErrEditConflict
 			}
@@ -831,7 +831,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 	var order []*document
 	for _, ch := range selected {
 		if ch.Operation.Kind == "create_document" {
-			sp := a.state.Get(task.SpaceID)
+			sp := a.qaSpaceByID(task.SpaceID)
 			if sp == nil || sp.IsExternal() {
 				return model.ErrEditConflict
 			}
@@ -937,7 +937,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 		if ch.Operation.Kind != "create_document" {
 			continue
 		}
-		sp := a.state.Get(task.SpaceID)
+		sp := a.qaSpaceByID(task.SpaceID)
 		if sp == nil {
 			return errors.New(i18n.T("空间已不存在"))
 		}

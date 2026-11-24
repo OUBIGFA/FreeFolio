@@ -15,7 +15,7 @@ import (
 // selector, and expandable changes attached to assistant messages. See the
 // pinned source record in third_party/opencode/README.md.
 func (a *App) oneBotHeaderMenu(c *ui.Context) {
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	var sess *qaSession
 	if sp != nil {
 		sess = a.qaSession(sp.ID)

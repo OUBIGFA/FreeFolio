@@ -355,7 +355,7 @@ func (a *App) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate
 }
 
 func (a *App) revertOneBotCreation(task *oneBotTask, ch *oneBotChange) error {
-	sp := a.state.Get(task.SpaceID)
+	sp := a.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return errors.New(i18n.T("空间已不存在"))
 	}

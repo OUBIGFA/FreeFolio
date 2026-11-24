@@ -22,12 +22,16 @@ func (a *App) oneBotWidth(docked float32) float32 {
 // The divider uses the existing native splitter interaction. Handle input is
 // resolved before both panels are built, so dragging has no animated lag.
 func (a *App) oneBotResizer(c *ui.Context, docked float32) {
-	if !a.qa.open || a.qa.shown < 1 || a.state.ActiveSpace() == nil {
+	if !a.qa.open || a.qa.shown < 1 || a.qaActiveSpace() == nil {
 		a.qa.dragging = false
 		return
 	}
 	hint := i18n.T("拖动调整宽度；双击恢复默认；方向键微调")
-	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(max(c.TitleBar().Height, mainBarHeight)).Bottom(8).Right(a.qa.shown).Width(8).
+	top := max(c.TitleBar().Height, mainBarHeight)
+	if a.files != nil {
+		top = mainBarHeight
+	}
+	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(top).Bottom(8).Right(a.qa.shown).Width(8).
 		Cursor(ui.CursorResizeEW).Focusable().Role(ui.RoleSplitter).Label(i18n.T("调整 OneBot 宽度")).Description(hint)
 	set := func(w float32) {
 		a.prefs.OneBotWidth = w

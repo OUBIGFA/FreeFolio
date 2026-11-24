@@ -40,7 +40,7 @@ var qaExamples = []string{
 // It slides open as the sidebar does.
 func (a *App) qaPanel(c *ui.Context, docked float32) {
 	t := c.Theme()
-	sp := a.state.ActiveSpace()
+	sp := a.qaActiveSpace()
 	col := ui.Column(c.Key("qa-dock")).Shrink(0).Clip()
 	w := a.qa.shown
 	col.Width(w).Hidden(w < 0.5).Children(func() {
@@ -48,7 +48,9 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 			return
 		}
 		bar := c.TitleBar()
-		if !a.prefs.SidebarLeft {
+		if a.files != nil {
+			bar.Height, bar.Right = 0, 0
+		} else if !a.prefs.SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}
 		qaCol := ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0).Padding(0, 8, 8, 0)
