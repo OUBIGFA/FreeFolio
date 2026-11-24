@@ -10,27 +10,27 @@
     },
     {
       "path": "assets/FreeFolio-home.png",
-      "reason": "README preview of the FreeFolio writing view",
-      "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
+      "reason": "README preview of the FreeFolio main workspace with note editor, OneBot assistant, and space sidebar",
+      "source": "Maintainer-supplied screenshot of FreeFolio native UI (OUBIGFA/FreeFolio)",
       "license": "MIT",
-      "bytes": 74013,
-      "sha256": "da49ebf99d522b037daf0efa8d13ffe6a62fe43eaf2a89b65ac5a7bfba6e7dfe"
+      "bytes": 181651,
+      "sha256": "f3f9349b4817be4e6e704a3d67c4f07a0d544b89eaa0cda0531aae82cd1f0cba"
+    },
+    {
+      "path": "assets/FreeFolio-filemode.png",
+      "reason": "README preview of FreeFolio file browsing mode with document tabs and outline",
+      "source": "Maintainer-supplied screenshot of FreeFolio native UI (OUBIGFA/FreeFolio)",
+      "license": "MIT",
+      "bytes": 192847,
+      "sha256": "ba7ebe41eabe00b346c26469ca3a2a31a637a8fb0f6102de1ba19d0921b071e1"
     },
     {
       "path": "assets/FreeFolio-settings.png",
       "reason": "README preview of the FreeFolio appearance settings",
       "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
       "license": "MIT",
-      "bytes": 77338,
-      "sha256": "88bab190b87a23f4ac4c574dd375a0c9fa100acdd1fdc295c3b2dc8ade3e3dcd"
-    },
-    {
-      "path": "assets/FreeFolio-whiteboard.png",
-      "reason": "README preview of the FreeFolio whiteboard",
-      "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
-      "license": "MIT",
-      "bytes": 97353,
-      "sha256": "68fee49c307e84bacf1eafdcb7cb08355175931ef76979f762d3dff8ba005c7d"
+      "bytes": 72449,
+      "sha256": "95f3bd742b05542adddfa85cb661b6f725dd7d5daf1c005307b9e386aaa53c7e"
     },
     {
       "path": "resources/icon.icns",
