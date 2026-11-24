@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -140,7 +140,7 @@ func TestWideCoverHasNoReposition(t *testing.T) {
 }
 
 func TestCoverSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the cover")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the cover")
 	_, tt := coverApp(t, 800, 1200)
 	savePNG(t, filepath.Join(dir, "cover-tall.png"), tt)
 	tt.Move(700, 200)

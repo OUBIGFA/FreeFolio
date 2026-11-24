@@ -19,13 +19,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -629,7 +629,7 @@ func (d *document) applyAsyncSave(res asyncSaveResult) {
 func (d *document) save() error { return d.write(false) }
 
 // write saves the document. Unless force is set, it refuses to overwrite a
-// file that changed since FreeMD last read or wrote it, or to bring back one
+// file that changed since FreeFolio last read or wrote it, or to bring back one
 // that went: the file watch may be late or absent, so the file itself is
 // compared, a cheap read of one document.
 func (d *document) write(force bool) error {

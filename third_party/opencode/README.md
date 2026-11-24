@@ -8,7 +8,7 @@ OneBot uses native Go ports of OpenCode's actual file-edit algorithms and
 model-facing tool contracts. It does not require Node, Bun, a web view or the
 OpenCode process. The copyright notice is retained in [LICENSE](LICENSE).
 
-| Upstream source at the pinned revision | FreeMD destination | Reused behavior |
+| Upstream source at the pinned revision | FreeFolio destination | Reused behavior |
 | --- | --- | --- |
 | `packages/core/src/tool/plugin/edit.ts` | `internal/fileedit/edit.go`, `internal/agent/edit.go` | `edit(path, oldString, newString, replaceAll)`, matching tiers, ambiguity checks, LF/CRLF mapping, region line alignment, miss hints |
 | `packages/util/src/patch.ts` | `internal/fileedit/patch.go` | Envelope/heredoc parser, add/update/delete/move hunks, context/EOF matching, BOM and trailing newline handling |
@@ -26,7 +26,7 @@ source hashes are recorded in `third_party/manifests/upstreams.json`.
 ## Native host adaptations
 
 - Tool mutations are applied to an isolated snapshot. User acceptance or the
-  selected direct-edit mode commits through FreeMD's document engine, history
+  selected direct-edit mode commits through FreeFolio's document engine, history
   checkpoint and atomic save. Tool output states that files are not yet saved.
 - The host resolves only the user's selected document paths. Reading references
   does not grant write access. Selection mode exposes only that excerpt under
@@ -36,7 +36,7 @@ source hashes are recorded in `third_party/manifests/upstreams.json`.
   returns an explicit request to split the edit; matching semantics do not
   silently change. Go uses rune offsets for the upstream one-to-one Unicode
   matching and byte strings for exact file contents.
-- Read handles selected text snapshots; existing FreeMD attachment handling
+- Read handles selected text snapshots; existing FreeFolio attachment handling
   supplies binary image/PDF/media input. OpenCode's machine/environment routing,
   terminal, formatter/LSP, external-directory permissions and plugin runtime
   are not needed by this document-edit feature and are not embedded.
@@ -46,7 +46,7 @@ source hashes are recorded in `third_party/manifests/upstreams.json`.
 
 ## Conversation layout reference
 
-The original FreeMD Q&A timeline remains the interface. The compact composer,
+The original FreeFolio Q&A timeline remains the interface. The compact composer,
 combined provider/model menu and inline expandable file review follow these
 MIT OpenCode desktop sources at the same revision:
 

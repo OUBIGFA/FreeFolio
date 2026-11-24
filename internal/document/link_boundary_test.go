@@ -3,7 +3,7 @@ package document
 import "testing"
 
 func TestTypingAndEnterAfterLinkDoNotExtendLink(t *testing.T) {
-	url := "https://github.com/OUBIGFA/FreeMD/issues/20"
+	url := "https://github.com/OUBIGFA/FreeFolio/issues/20"
 	d := New()
 	d.Blocks = []*Block{{
 		ID:   NewID(),

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/plugin"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/plugin"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 )
 
 // The window's icon and the tray icon wait for the first frame to show,
@@ -69,11 +69,11 @@ func TestDeferStartupDefersNonEssentialWorkUntilAfterFirstFrame(t *testing.T) {
 	seed.captureSplits()
 	seed.saveState()
 
-	pluginDir := filepath.Join(cfg.ConfigDir, "plugins", "dev.freemd.demo")
+	pluginDir := filepath.Join(cfg.ConfigDir, "plugins", "dev.freefolio.demo")
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	const manifest = `{"id":"dev.freemd.demo","name":"Demo","version":"0.1.0","runtime":"wasm","main":"plugin.wasm"}`
+	const manifest = `{"id":"dev.freefolio.demo","name":"Demo","version":"0.1.0","runtime":"wasm","main":"plugin.wasm"}`
 	if err := os.WriteFile(filepath.Join(pluginDir, plugin.ManifestFile), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestDeferStartupDefersNonEssentialWorkUntilAfterFirstFrame(t *testing.T) {
 	if !a.search.cacheLoaded || a.search.index == nil || a.search.index.Len() == 0 {
 		t.Fatalf("expected search index populated after finishLaunch: loaded=%v index=%v", a.search.cacheLoaded, a.search.index)
 	}
-	if a.launch.loadPlugins || len(a.installed) != 1 || a.installed[0].Manifest.ID != "dev.freemd.demo" {
+	if a.launch.loadPlugins || len(a.installed) != 1 || a.installed[0].Manifest.ID != "dev.freefolio.demo" {
 		t.Fatalf("expected demo plugin scanned after finishLaunch: loadPlugins=%v installed=%+v", a.launch.loadPlugins, a.installed)
 	}
 	if diskPrefs, err := prefsStore.Load(); err != nil || diskPrefs.PendingUpdate != "" {

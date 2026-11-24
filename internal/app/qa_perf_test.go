@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 )
 
 // Keep both long histories and one long answer in the workload: virtualizing

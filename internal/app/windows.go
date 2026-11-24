@@ -9,10 +9,10 @@ package app
 // do, follows renames and moves, and closing the window saves it.
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )

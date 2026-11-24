@@ -11,7 +11,7 @@ import (
 // TestSpaceFormSnapshot renders the sidebar's new space form with one and
 // two colors, while the system is light and dark, for review.
 func TestSpaceFormSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the space form")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the space form")
 	for _, dark := range []bool{false, true} {
 		for _, n := range []int{1, 2} {
 			name := fmt.Sprintf("space-form-%d", n)
@@ -46,7 +46,7 @@ func TestSpaceFormSnapshot(t *testing.T) {
 // TestSpaceIconSnapshot renders the icon picker's two tabs and a space bar
 // of emoji and symbol icons, for review.
 func TestSpaceIconSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the icon picker")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the icon picker")
 	for _, name := range []string{"space-icons-emoji", "space-icons-symbols", "space-icons-custom"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
@@ -83,7 +83,7 @@ func TestSpaceIconSnapshot(t *testing.T) {
 // TestSpaceBarSnapshot renders the foot of the sidebar with a few spaces,
 // light and dark, for review.
 func TestSpaceBarSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the space bar")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the space bar")
 	for _, dark := range []bool{false, true} {
 		name := "space-bar"
 		if dark {

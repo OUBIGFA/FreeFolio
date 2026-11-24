@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 )
 
 func TestIncrementalFootnotesMatchCompleteIndex(t *testing.T) {

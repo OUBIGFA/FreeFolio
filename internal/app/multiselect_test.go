@@ -443,7 +443,7 @@ func TestSidebarMultiSelectCrossSpaceDragPaletteAndKeyboardTrash(t *testing.T) {
 }
 
 func TestMultiSelectSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render sidebar multi-selection snapshots")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render sidebar multi-selection snapshots")
 	setup := func(t *testing.T, dark bool) (*App, *ui.Tester) {
 		a, tt := newTestApp(t)
 		tt.SetSize(1120, 900)

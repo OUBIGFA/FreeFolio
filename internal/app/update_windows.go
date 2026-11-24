@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/OUBIGFA/FreeMD/internal/update"
+	"github.com/OUBIGFA/FreeFolio/internal/update"
 	"github.com/egoist/mygo"
 )
 
@@ -40,9 +40,9 @@ func (r installerRelease) Apply() error {
 	if err != nil {
 		return err
 	}
-	// NSIS reads FreeMD's registered installation directory itself. This also
+	// NSIS reads FreeFolio's registered installation directory itself. This also
 	// lets an unpackaged build update without installing into a Go temp folder.
-	command := exec.Command(path, "/S", "/FREEMDUPDATE")
+	command := exec.Command(path, "/S", "/FREEFOLIOUPDATE")
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if err := command.Start(); err != nil {
 		return err

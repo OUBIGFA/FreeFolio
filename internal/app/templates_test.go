@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/templates"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/templates"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -58,7 +58,7 @@ func TestDailyNoteFromTemplateAndNewFromTemplate(t *testing.T) {
 		t.Fatal("saved template", list)
 	}
 	text, _ := vault.Read(root(a), list[0].Path)
-	if err := vault.Write(root(a), templates.Dir+"/日记.md", strings.Replace(text, "Welcome to FreeMD", "{{date}} 的记录", 1)); err != nil {
+	if err := vault.Write(root(a), templates.Dir+"/日记.md", strings.Replace(text, "Welcome to FreeFolio", "{{date}} 的记录", 1)); err != nil {
 		t.Fatal(err)
 	}
 	a.openDaily()

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/spacefs"
+	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
 )
 
 // Names of the space tools, which the window also shows as what the agent
@@ -186,7 +186,7 @@ type Context struct {
 // Prompt is the system prompt of a question about a space.
 func Prompt(c Context) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `You answer questions about the documents in the user's FreeMD space %q. FreeMD is a note-taking app; a space is a folder of the user's notes.
+	fmt.Fprintf(&b, `You answer questions about the documents in the user's FreeFolio space %q. FreeFolio is a note-taking app; a space is a folder of the user's notes.
 
 You cannot see the documents until you read them. Explore deliberately and efficiently before answering:
 - Start with parallel discovery: use search for ranked passage recall across concepts/headings, and grep for exact terms, regexes (e.g. "延期|推迟"), IDs, or patterns like "- [ ]". Issue independent searches in a single parallel batch instead of one by one.

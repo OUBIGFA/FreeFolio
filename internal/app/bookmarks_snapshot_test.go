@@ -12,7 +12,7 @@ import (
 )
 
 func TestBookmarksSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render bookmarks")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render bookmarks")
 	source := "# 读书笔记\n\n## 第一章\n\n这一段写得最好，回头还要再看一遍。\n\n普通的段落，没有书签。\n\n## 第二章\n\n| 指标 | 数值 |\n| --- | --- |\n| 速度 | 12 |\n\n结尾的总结。"
 	for _, name := range []string{"page", "dark", "flash", "list", "menu", "hover"} {
 		t.Run(name, func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestBookmarksSnapshot(t *testing.T) {
 }
 
 func TestFormulaBookmarksSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render formula bookmarks")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render formula bookmarks")
 	source := "# 数学笔记\n\n公式书签保留公式的排版。\n\n$$\n" + bookmarkIntegral +
 		"\n$$\n\n$$\n\\frac{a+b}{2} + \\sqrt{x^2+y^2}\n$$\n\n$$\n" + strings.Repeat("x+", 60) +
 		"\\frac{a}{b}\n$$\n\n$$\n\\begin{pmatrix}a & b \\\\ c & d\\end{pmatrix}\n$$\n\n$$\n\\frac{a}\n$$\n\n$$\n\n$$"

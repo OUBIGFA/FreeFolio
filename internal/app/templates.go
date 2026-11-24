@@ -1,7 +1,7 @@
 package app
 
 // Templates and the daily note (internal/templates): a space's templates
-// are documents in its hidden .freemd/templates folder, which the command
+// are documents in its hidden .freefolio/templates folder, which the command
 // bar and the folder menus make new documents from; the daily note is
 // today's document in the space's 日记 folder, opened or made by ⌥⌘T.
 
@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/templates"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/templates"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )

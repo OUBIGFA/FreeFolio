@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -94,9 +94,9 @@ func writeFile(sp *space.Space, rel, text string) error {
 	return vault.Write(root, name, text)
 }
 
-// errPDFReadOnly guards PDFs, which FreeMD only reads. Its text is
+// errPDFReadOnly guards PDFs, which FreeFolio only reads. Its text is
 // translated where errors are shown (errText).
-var errPDFReadOnly = errors.New("PDF 文件只读，FreeMD 不会修改它。")
+var errPDFReadOnly = errors.New("PDF 文件只读，FreeFolio 不会修改它。")
 
 func renameFile(sp *space.Space, rel, name string) (string, error) {
 	root, disk, err := fileLocation(sp, rel)
@@ -133,7 +133,7 @@ func (a *App) chooseExternalFiles() {
 	win := a.win
 	go func() {
 		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件…"), Multiple: true,
-			Filters: []mygo.FileFilter{{Name: "FreeMD", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg", "pdf"}}, {Name: "PDF", Extensions: []string{"pdf"}}}})
+			Filters: []mygo.FileFilter{{Name: "FreeFolio", Extensions: []string{"md", "markdown", "mdx", "arcmd", "excalidraw", "svg", "pdf"}}, {Name: "PDF", Extensions: []string{"pdf"}}}})
 		if err != nil {
 			return
 		}

@@ -1,4 +1,4 @@
-// Package prefs keeps FreeMD's preferences beyond the spaces: how focus
+// Package prefs keeps FreeFolio's preferences beyond the spaces: how focus
 // mode writes and the keyboard shortcuts rebound, in prefs.json beside
 // spaces.json. The package has no dependency on the window.
 package prefs
@@ -10,10 +10,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
-// CurrentVersion is the version of prefs.json this FreeMD writes.
+// CurrentVersion is the version of prefs.json this FreeFolio writes.
 // Version 4 adds SidebarWidth and KeepRunningOff, whose zero values are
 // the defaults, so version 3 migrates unchanged. Version 5 adds
 // StartAtHome, whose zero value is the default, so version 4 migrates
@@ -45,10 +45,10 @@ type Prefs struct {
 	// OneBotWidth remembers the user's preferred panel width. Window-size
 	// limits are applied by the view without overwriting this preference.
 	OneBotWidth float32 `json:"oneBotWidth,omitempty"`
-	// KeepRunningOff quits FreeMD when its window closes instead of
+	// KeepRunningOff quits FreeFolio when its window closes instead of
 	// hiding it in the notification area, which the zero value keeps.
 	KeepRunningOff bool `json:"keepRunningOff,omitempty"`
-	// StartAtHome opens the space's home page when FreeMD starts or its
+	// StartAtHome opens the space's home page when FreeFolio starts or its
 	// window comes back, instead of the document last read, at the place
 	// it was read to, which the zero value keeps.
 	StartAtHome bool    `json:"startAtHome,omitempty"`
@@ -91,8 +91,8 @@ type Prefs struct {
 	// NoAutoUpdate leaves new versions to the user: a background check
 	// then only says one is out, instead of downloading it.
 	NoAutoUpdate bool `json:"noAutoUpdate,omitempty"`
-	// PendingUpdate is the version FreeMD restarted to install; the launch
-	// that runs it says FreeMD was updated, then clears it.
+	// PendingUpdate is the version FreeFolio restarted to install; the launch
+	// that runs it says FreeFolio was updated, then clears it.
 	PendingUpdate string `json:"pendingUpdate,omitempty"`
 	// TourSeen is set once the tour of the window was finished or skipped.
 	// Until then every launch shows it: the first of a new installation,

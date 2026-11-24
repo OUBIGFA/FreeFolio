@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestMathSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render formulas")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render formulas")
 	for _, name := range []string{"reading", "editing", "editing-dark", "editing-narrow", "error", "empty"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
@@ -60,7 +60,7 @@ func TestMathSnapshot(t *testing.T) {
 }
 
 func TestBoldsymbolSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render bold matrix formulas")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render bold matrix formulas")
 	source, err := os.ReadFile("../editor/testdata/normal-distribution.md")
 	if err != nil {
 		t.Fatal(err)

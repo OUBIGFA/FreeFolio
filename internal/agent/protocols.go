@@ -228,7 +228,7 @@ func (p *nativeProvider) body(req Request) (map[string]any, string, error) {
 		if len(tools) > 0 {
 			body["tools"] = tools
 			if s.Protocol == ChatGPT {
-				body["tools"] = []any{map[string]any{"type": "namespace", "name": "onebot", "description": "Tools for the user's selected FreeMD documents", "tools": tools}}
+				body["tools"] = []any{map[string]any{"type": "namespace", "name": "onebot", "description": "Tools for the user's selected FreeFolio documents", "tools": tools}}
 			}
 		}
 		if s.Parameters.MaxOutput > 0 {

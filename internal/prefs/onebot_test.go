@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
 )
 
 func TestOneBotConnectionsPersistIndependently(t *testing.T) {

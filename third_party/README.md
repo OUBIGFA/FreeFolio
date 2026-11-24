@@ -1,6 +1,6 @@
 # Dependencies and attribution
 
-FreeMD uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,
+FreeFolio uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,
 text shaping and system input transport. Its module cache stays untouched.
 The Markdown editor is implemented in `internal/editor` and has no vendored
 editor component or TeX engine.
@@ -40,7 +40,7 @@ under the MIT License,
 Copyright (c) 2026 CatVinci Studio. They are implemented with native Go drawing
 and controls. Inline math, clipboard formats, link popovers, image resizing,
 bracket pairing, footnotes and reading controls also use Textus as a behavior
-reference, implemented against FreeMD's document model inherited from ArcMD.
+reference, implemented against FreeFolio's document model inherited from ArcMD.
 The MIT notice is in `textus/LICENSE`.
 
 [Textus source](https://github.com/CatVinci-Studio/Textus)
@@ -62,7 +62,7 @@ faces from KaTeX commit
 These fonts are under the SIL Open Font License 1.1, with copyright and reserved
 font names retained in `katex/OFL.txt` and in the font metadata. KaTeX's upstream
 MIT notice is also retained in `katex/LICENSE`; its JavaScript renderer is not
-included. Formula parsing and layout remain in FreeMD's `internal/tex`
+included. Formula parsing and layout remain in FreeFolio's `internal/tex`
 package, inherited from ArcMD.
 
 [KaTeX source](https://github.com/KaTeX/KaTeX)
@@ -105,15 +105,15 @@ MIT notice is in `kokonutui/LICENSE`.
 
 [Kokonut UI source](https://github.com/kokonut-labs/kokonutui)
 
-## FreeMD 上游基线与依赖清单
+## FreeFolio 上游基线与依赖清单
 
-FreeMD 基于上游 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT License，提交 `27322d387268751932624ef83a7c580cb0b068d5`，标签 `v0.2.1`）持续演进，所有既有第三方声明、许可正文与署名保持完整保留。
+FreeFolio 基于上游 [Ciao1019/ArcMD](https://github.com/Ciao1019/ArcMD)（MIT License，提交 `27322d387268751932624ef83a7c580cb0b068d5`，标签 `v0.2.1`）持续演进，所有既有第三方声明、许可正文与署名保持完整保留。
 
 - 上游来源与提交摘要登记在 [upstreams.json](manifests/upstreams.json)；
 - Go 模块直接与传递依赖、哈希与许可登记在 [go-mod.json](manifests/go-mod.json)；
 - 当 `go.mod` 或 `go.sum` 变更时，需运行 `python -X utf8 tools/update_go_inventory.py` 重新核对依赖并同步更新清单。
 
-FreeMD additionally adopts selected fixes and native features from ArcMD
+FreeFolio additionally adopts selected fixes and native features from ArcMD
 `5b2a59ae6ac5bc06009a70ab2a26a1c625593d08` (v0.2.4): editor input,
 HTML comment preservation, document and image lifecycle, attachment folders,
 sidebar multi-selection, document mind maps, Mermaid viewing and equation tags.
@@ -123,7 +123,7 @@ Editor parity with ArcMD `3bb4a3342b3f5ffe8cf65898b6bbd2a8f3f85376` (v0.2.5)
 adds keyboard keys, live inline HTML tags, wrapped and crisp formulas,
 content-sized tables, literal copying and the autosave switch, under the same
 MIT notice.
-From ArcMD `3c94584def6aaa5e6406ae2e30dd76c2990cb165` (v0.2.8), FreeMD ports
+From ArcMD `3c94584def6aaa5e6406ae2e30dd76c2990cb165` (v0.2.8), FreeFolio ports
 the inline menu paste fixes, mind map list ordinals, the block handle gutter,
 continuous whiteboard freedraw, vertical caret movement, the macOS mind map
 shortcut, whole-block whiteboard and picture deletion, the failed-picture
@@ -139,7 +139,7 @@ The WebDAV/S3 transport, Windows DPAPI credential protection and PBKDF2/AES-GCM
 content encryption in `internal/cloudsync` reuse BIGFA's implementation from
 [FreeType](https://github.com/OUBIGFA/FreeType) at
 `6cc7a6713c56e229b5bc0dbdb826282362d57195`. These are maintainer-authored Go files,
-adapted for FreeMD's per-space synchronization, conditional writes, conflict
+adapted for FreeFolio's per-space synchronization, conditional writes, conflict
 copies, credential separation and cancellation. Source file hashes are recorded
 in `manifests/upstreams.json`. No FreeType input engine, dictionary, language
 model, or GPL reference implementation is included. Synchronization uses the Go
@@ -155,7 +155,7 @@ bisync no-change result also informed this repair. Remote inventory now adapts
 the bounded directory walking strategy in `fs/walk/walk.go` and recursive S3
 listing in `backend/s3/s3.go` from the same pinned revision. The adaptation uses
 four WebDAV workers with shared cancellation and S3 pagination without a delimiter;
-FreeMD's path, size, duplicate and completeness checks remain mandatory. FreeMD retains its own guarded
+FreeFolio's path, size, duplicate and completeness checks remain mandatory. FreeFolio retains its own guarded
 sync engine; no rclone executable, backend registry or module dependency is bundled.
 
 OneBot's `read/edit/write/patch` tools port the MIT OpenCode implementation at

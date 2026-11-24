@@ -58,12 +58,12 @@ func TestPerLanguageSyntaxHighlightingAndNoLimit(t *testing.T) {
 	}
 
 	// JSON: keys vs string values vs boolean/null.
-	jsonSrc := "{\n  \"name\": \"FreeMD\",\n  \"count\": 42,\n  \"ok\": true\n}"
+	jsonSrc := "{\n  \"name\": \"FreeFolio\",\n  \"count\": 42,\n  \"ok\": true\n}"
 	jsonSpans := codeSpansFor("b3", "json", jsonSrc, pg, nil)
 	if concat(jsonSpans) != jsonSrc {
 		t.Fatal("json spans altered text")
 	}
-	if !hasSpan(jsonSpans, "\"name\"", pg.Tokens.Type) || !hasSpan(jsonSpans, "\"FreeMD\"", pg.Tokens.String) || !hasSpan(jsonSpans, "true", pg.Tokens.Keyword) {
+	if !hasSpan(jsonSpans, "\"name\"", pg.Tokens.Type) || !hasSpan(jsonSpans, "\"FreeFolio\"", pg.Tokens.String) || !hasSpan(jsonSpans, "true", pg.Tokens.Keyword) {
 		t.Fatalf("json spans incorrect: %+v", jsonSpans)
 	}
 

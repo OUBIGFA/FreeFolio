@@ -163,7 +163,7 @@ func TestSearchAgreesWithPlainDefinitions(t *testing.T) {
 // mixed Chinese and English, as each key typed into the command bar runs.
 func BenchmarkSearchMulti(b *testing.B) {
 	ix := &Index{entries: map[key]*entry{}}
-	body := strings.Repeat("这是一段中文内容，用来模拟真实笔记。FreeMD keeps Markdown files in place, with inline code and links.\n", 14)
+	body := strings.Repeat("这是一段中文内容，用来模拟真实笔记。FreeFolio keeps Markdown files in place, with inline code and links.\n", 14)
 	for i := 0; i < 2000; i++ {
 		k := key{"s", strings.Repeat("d", 1+i%7) + string(rune('a'+i%26)) + strings.Repeat("x", i%11) + ".md"}
 		k.path = k.path + "-" + strings.Repeat("i", i%3) + string(rune('0'+i%10)) + string(rune('0'+i/10%10)) + string(rune('0'+i/100%10)) + string(rune('0'+i/1000))

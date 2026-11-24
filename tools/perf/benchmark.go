@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeFolio/tools/internal/toolutil"
 )
 
 const fixtureName = "d0c00006-0000-4000-8000-000000000006.xml"
@@ -36,7 +36,7 @@ func benchmarkCommand(args []string) error {
 	flags.StringVar(&o.Size, "size", "1m", "10k, 100k or 1m")
 	flags.IntVar(&o.Runs, "runs", 3, "fresh-process rounds")
 	flags.IntVar(&o.Samples, "samples", 100, "operations per case (1–1000)")
-	flags.IntVar(&o.Timeout, "timeout", 3600, "FreeMD timeout in seconds per round")
+	flags.IntVar(&o.Timeout, "timeout", 3600, "FreeFolio timeout in seconds per round")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func benchmark(o benchmarkOptions) error {
 		return err
 	}
 	env := toolutil.Env(os.Environ(), map[string]string{"CGO_ENABLED": "0", "MYGO_FRAME_STATS": ""})
-	arcBinary := filepath.Join(o.Out, "freemd-perf.test")
+	arcBinary := filepath.Join(o.Out, "freefolio-perf.test")
 	if err := toolutil.Run(context.Background(), root, env, os.Stdout, "go", "test", "-c", "-modfile", filepath.Join(overlay, "bench.mod"), "-overlay", filepath.Join(overlay, "overlay.json"), "-tags", "perfbench", "-o", arcBinary, "./internal/app"); err != nil {
 		return err
 	}
@@ -155,9 +155,9 @@ func benchmark(o benchmarkOptions) error {
 			return fmt.Errorf("Quiet.md did not restore fixture text after backspacing")
 		}
 		fmt.Print(log)
-		fmt.Printf("Round %d/%d: FreeMD\n", trial, o.Runs)
-		runEnv := toolutil.Env(env, map[string]string{"FREEMD_PERF_FIXTURE": filepath.Join(o.Out, "fixtures", o.Size+".arcmd"), "FREEMD_PERF_OUTPUT": filepath.Join(o.Out, fmt.Sprintf("freemd-%d", trial)), "FREEMD_PERF_SAMPLES": strconv.Itoa(o.Samples)})
-		logPath := filepath.Join(o.Out, fmt.Sprintf("freemd-%d.log", trial))
+		fmt.Printf("Round %d/%d: FreeFolio\n", trial, o.Runs)
+		runEnv := toolutil.Env(env, map[string]string{"FREEFOLIO_PERF_FIXTURE": filepath.Join(o.Out, "fixtures", o.Size+".arcmd"), "FREEFOLIO_PERF_OUTPUT": filepath.Join(o.Out, fmt.Sprintf("freefolio-%d", trial)), "FREEFOLIO_PERF_SAMPLES": strconv.Itoa(o.Samples)})
+		logPath := filepath.Join(o.Out, fmt.Sprintf("freefolio-%d.log", trial))
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(o.Timeout+30)*time.Second)
 		err = runLogged(ctx, root, runEnv, logPath, arcBinary, "-test.run", "^TestPerformance$", "-test.v", "-test.timeout", fmt.Sprintf("%ds", o.Timeout))
 		cancel()

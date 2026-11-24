@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestGapSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the gap below a closing block")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the gap below a closing block")
 	for _, name := range []string{"light", "dark"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

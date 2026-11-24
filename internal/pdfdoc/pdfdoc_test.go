@@ -13,13 +13,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
 )
 
 func buildSamplePDF(t *testing.T) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	w := pdf.NewWriter(&buf, "FreeMD PDF Test")
+	w := pdf.NewWriter(&buf, "FreeFolio PDF Test")
 
 	// Page 0: A4 portrait with red top band, blue bottom band, and Unicode text.
 	p0 := image.NewRGBA(image.Rect(0, 0, 200, 280))

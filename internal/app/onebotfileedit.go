@@ -5,12 +5,12 @@ import (
 	"path"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func oneBotEditFiles(task *oneBotTask) []agent.EditFile {
@@ -31,7 +31,7 @@ func oneBotEditPaths(files []agent.EditFile, newPaths []string) []string {
 }
 
 // The model sees only OpenCode file tools. This adapter projects their final
-// snapshot into FreeMD's native document transactions and review rows.
+// snapshot into FreeFolio's native document transactions and review rows.
 func (a *App) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft) (*oneBotCandidate, error) {
 	c := &oneBotCandidate{Title: i18n.T("文档修改"), Text: draft.Summary, Complete: true}
 	base := map[string]oneBotTarget{}

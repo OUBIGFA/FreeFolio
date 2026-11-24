@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestSelectionScrollSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render cross-screen selection")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render cross-screen selection")
 	for _, dark := range []bool{false, true} {
 		a, tt := newTestApp(t)
 		var text strings.Builder

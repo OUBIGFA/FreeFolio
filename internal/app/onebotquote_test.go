@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 )
 
 // "添加到 OneBot" quotes the selection in OneBot's input as obsidian-yolo

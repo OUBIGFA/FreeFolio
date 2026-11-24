@@ -1,6 +1,6 @@
 // Package templates keeps a space's document templates and makes daily
 // notes. Templates are Markdown documents in the space's hidden
-// .freemd/templates folder (legacy .arcmd templates are also read); making a
+// .freefolio/templates folder (legacy .arcmd templates are also read); making a
 // document from one gives every block a fresh ID and fills in the
 // placeholders {{date}}, {{time}}, {{weekday}} and {{title}}. It does not
 // depend on the UI.
@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 )
 
 // Dir is the folder of a space's templates, relative to its root.
 // It lives in vault.SystemDir, spelled out here so the package keeps
 // depending on document alone.
-const Dir = ".freemd/templates"
+const Dir = ".freefolio/templates"
 
 // DailyDir is the folder daily notes go in, and DailyTemplate the name of
 // the template a daily note starts from when the space has one.

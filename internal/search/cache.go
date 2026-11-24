@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 const (

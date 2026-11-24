@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -77,7 +77,7 @@ func TestAttachmentReviewHistoryFailurePreventsRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Block only this document's history, leaving document writes possible.
-	blocker := filepath.Join(sp.Root, ".freemd", "history", "Other.md")
+	blocker := filepath.Join(sp.Root, ".freefolio", "history", "Other.md")
 	if err := os.MkdirAll(filepath.Dir(blocker), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestAttachmentReviewHistoryFailurePreventsRewrite(t *testing.T) {
 }
 
 // Deleting the configured folder through a filesystem event must clear the
-// setting, just as deleting it inside FreeMD does.
+// setting, just as deleting it inside FreeFolio does.
 func TestAttachmentReviewWatchClearsDeletedFolder(t *testing.T) {
 	a, _ := dropApp(t)
 	sp := a.state.ActiveSpace()

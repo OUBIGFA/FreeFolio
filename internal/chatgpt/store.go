@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 const storeName = "chatgpt-connections"

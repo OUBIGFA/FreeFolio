@@ -15,12 +15,12 @@ import (
 // A flat S3 inventory must not spend one request per virtual folder.
 func TestS3InventoryListsNestedFilesInOneRequest(t *testing.T) {
 	fake := &fakeS3{t: t, objects: map[string][]byte{
-		"FreeMD/Other/elsewhere.md":           []byte("not this space"),
-		"FreeMD/Notes/.freemd-history/old.md": []byte("excluded"),
-		"FreeMD/Notes/empty/":                 {},
+		"FreeFolio/Other/elsewhere.md":              []byte("not this space"),
+		"FreeFolio/Notes/.freefolio-history/old.md": []byte("excluded"),
+		"FreeFolio/Notes/empty/":                    {},
 	}}
 	for i := range 64 {
-		fake.objects[fmt.Sprintf("FreeMD/Notes/folder-%d/note.md", i)] = []byte("note")
+		fake.objects[fmt.Sprintf("FreeFolio/Notes/folder-%d/note.md", i)] = []byte("note")
 	}
 	var lists atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +55,7 @@ func TestS3InventoryFollowsPagesAndRejectsIncompleteResults(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				call := calls.Add(1)
-				if r.URL.Query().Get("prefix") != "FreeMD/Notes/" {
+				if r.URL.Query().Get("prefix") != "FreeFolio/Notes/" {
 					t.Errorf("wrong space prefix: %s", r.URL.RawQuery)
 				}
 				if mode == "unexpected-root" {
@@ -67,7 +67,7 @@ func TestS3InventoryFollowsPagesAndRejectsIncompleteResults(t *testing.T) {
 					if mode == "missing-token" {
 						token = ""
 					}
-					fmt.Fprintf(w, `<ListBucketResult><Contents><Key>FreeMD/Notes/a.md</Key><Size>1</Size><ETag>"a"</ETag></Contents><IsTruncated>true</IsTruncated>%s</ListBucketResult>`, token)
+					fmt.Fprintf(w, `<ListBucketResult><Contents><Key>FreeFolio/Notes/a.md</Key><Size>1</Size><ETag>"a"</ETag></Contents><IsTruncated>true</IsTruncated>%s</ListBucketResult>`, token)
 					return
 				}
 				if r.URL.Query().Get("continuation-token") != "page2" {
@@ -77,11 +77,11 @@ func TestS3InventoryFollowsPagesAndRejectsIncompleteResults(t *testing.T) {
 					w.WriteHeader(http.StatusServiceUnavailable)
 					return
 				}
-				key := "FreeMD/Notes/folder/b.md"
+				key := "FreeFolio/Notes/folder/b.md"
 				if mode == "outside-prefix" {
-					key = "FreeMD/Other/b.md"
+					key = "FreeFolio/Other/b.md"
 				} else if mode == "duplicate" {
-					key = "FreeMD/Notes/a.md"
+					key = "FreeFolio/Notes/a.md"
 				}
 				extra := ""
 				if mode == "repeated-token" && call == 2 {

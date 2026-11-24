@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 )
 
 // Config contains local connection and scheduling choices. Secrets are excluded
@@ -186,7 +186,7 @@ func validEndpoint(raw string) error {
 	return errors.New("远程同步服务必须使用 HTTPS；HTTP 仅用于本机服务")
 }
 
-// openStore keeps FreeMD under its own namespace. No existing FreeType data is read.
+// openStore keeps FreeFolio under its own namespace. No existing FreeType data is read.
 func openStore(ctx context.Context, c Config) (remoteStore, error) {
 	if err := c.ValidatePlan(); err != nil {
 		return nil, err
@@ -206,8 +206,8 @@ func openStore(ctx context.Context, c Config) (remoteStore, error) {
 			return nil, err
 		}
 		s.ctx = ctx
-		if len(s.prefix) == 0 || s.prefix[len(s.prefix)-1] != "FreeMD" {
-			s.prefix = append(s.prefix, "FreeMD")
+		if len(s.prefix) == 0 || s.prefix[len(s.prefix)-1] != "FreeFolio" {
+			s.prefix = append(s.prefix, "FreeFolio")
 		}
 		return s, nil
 	}
@@ -219,8 +219,8 @@ func openStore(ctx context.Context, c Config) (remoteStore, error) {
 		return nil, err
 	}
 	w.ctx = ctx
-	if !strings.HasSuffix(w.base.Path, "/FreeMD") {
-		w.base.Path += "/FreeMD"
+	if !strings.HasSuffix(w.base.Path, "/FreeFolio") {
+		w.base.Path += "/FreeFolio"
 	}
 	return w, nil
 }

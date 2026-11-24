@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -101,7 +101,7 @@ func TestWindowsTitleBarFullscreen(t *testing.T) {
 }
 
 func TestWindowsTitleBarSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the Windows title bar layout")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the Windows title bar layout")
 	for _, mode := range []string{"normal", "folded", "focus", "split", "split-folded"} {
 		for _, width := range []int{640, 1240} {
 			name := fmt.Sprintf("%s-%d", mode, width)
@@ -129,7 +129,7 @@ func TestLongDocumentNameKeepsToolbarReachable(t *testing.T) {
 }
 
 func TestLongTitleSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render long document names")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render long document names")
 	for _, width := range []int{640, 1240} {
 		a, tt := titleBarTestApp(t, "folded", width, windowsTitleBar)
 		a.doc.rel = "这是一篇标题很长很长的文档用于检查窄窗口中的工具栏不会丢失任何操作按钮.arcmd"
@@ -188,7 +188,7 @@ func TestToolbarAndSidebarControlsFollowTheSidebar(t *testing.T) {
 			t.Errorf("left=%v: history %+v..%+v and sort %+v do not flank the search field %+v", left, back, reload, sort, search)
 		}
 		path, _ := tt.Find("文档路径")
-		logo, ok := tt.Find("FreeMD")
+		logo, ok := tt.Find("FreeFolio")
 		if !ok || logo.Y > 40 || logo.X > path.X {
 			t.Errorf("left=%v: brand %+v does not lead the toolbar (path %+v)", left, logo, path)
 		}
@@ -273,13 +273,13 @@ func TestBrandStaysAtWindowStart(t *testing.T) {
 						}
 						a.sidebarHidden = folded
 						settle(tt)
-						logo, ok := tt.Find("FreeMD")
+						logo, ok := tt.Find("FreeFolio")
 						if !ok || logo.X < profile.bar.Left || logo.X > profile.bar.Left+64 || logo.Y < 0 || logo.Y+logo.H > 52 {
 							t.Errorf("left=%v mode=%s: brand is not at the window start: %+v", left, mode, logo)
 						}
 						count := 0
 						for _, text := range tt.Texts() {
-							if text == "FreeMD" {
+							if text == "FreeFolio" {
 								count++
 							}
 						}
@@ -347,7 +347,7 @@ func TestLeftSidebarTitleCentersOverPage(t *testing.T) {
 }
 
 func TestSidebarBrandSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render sidebar brand placement")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render sidebar brand placement")
 	for _, side := range []string{"left", "right"} {
 		for _, mode := range []string{"normal", "folded", "library", "settings"} {
 			t.Run(side+"/"+mode, func(t *testing.T) {
@@ -497,7 +497,7 @@ func (w *testCaption) Minimize()          { w.minimized++ }
 func (w *testCaption) ToggleMaximize()    { w.maximized = !w.maximized }
 func (w *testCaption) Close()             { w.closed++ }
 
-// Ported from ArcMD a51bce7: on KDE Wayland FreeMD draws the window
+// Ported from ArcMD a51bce7: on KDE Wayland FreeFolio draws the window
 // controls itself; they stay reachable over every layout, hide in full
 // screen, and the top bars keep clear of them.
 func TestClientCaptionStaysReachable(t *testing.T) {

@@ -2,7 +2,7 @@
 
 package app
 
-import "github.com/OUBIGFA/FreeMD/resources"
+import "github.com/OUBIGFA/FreeFolio/resources"
 
 // trayIcon is the logo at 16 points on a Retina menu bar, as MyGo asks.
 func trayIcon() []byte { return iconPNG(32) }

@@ -14,7 +14,7 @@ import (
 
 // Password-derived AES-GCM authenticates both content and format parameters.
 const (
-	sealedFormat        = "freemd-encrypted-file"
+	sealedFormat        = "freefolio-encrypted-file"
 	sealedKDF           = "pbkdf2-hmac-sha256"
 	sealedCipher        = "aes-256-gcm"
 	sealedIterations    = 600_000
@@ -84,7 +84,7 @@ func openBackup(data []byte, password string) ([]byte, error) {
 		return data, nil
 	}
 	if sealed.Version != 1 || sealed.KDF != sealedKDF || sealed.Cipher != sealedCipher {
-		return nil, errors.New("这份云端备份由更新的 FreeMD 加密，请先更新这台电脑上的 FreeMD")
+		return nil, errors.New("这份云端备份由更新的 FreeFolio 加密，请先更新这台电脑上的 FreeFolio")
 	}
 	if sealed.Iterations < sealedMinIterations || sealed.Iterations > sealedMaxIterations || len(sealed.Salt) < 8 || len(sealed.Nonce) != 12 {
 		return nil, errors.New("云端备份的加密参数无效，文件可能已损坏")

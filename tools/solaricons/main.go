@@ -26,7 +26,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
+	"github.com/OUBIGFA/FreeFolio/tools/internal/toolutil"
 )
 
 const (

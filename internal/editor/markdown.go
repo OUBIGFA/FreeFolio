@@ -13,8 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/wiki"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/wiki"
 	"github.com/egoist/mygo/ui/markdown/parser"
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -865,7 +865,7 @@ func parseSingleImgTag(raw, align string) (*document.Block, bool) {
 	return b, true
 }
 
-// tryImportHTMLBlocks preserves FreeMD HTML source unless the native model
+// tryImportHTMLBlocks preserves FreeFolio HTML source unless the native model
 // can emit the same markup. Leading inline comments are modeled separately.
 func tryImportHTMLBlocks(raw string, baseIndent int, explicitLeft map[*document.Block]bool) ([]*document.Block, bool) {
 	blocks, ok := nativeHTMLBlocks(raw, baseIndent, explicitLeft)
@@ -1509,7 +1509,7 @@ func buildChunkBuckets(orig parsedMarkdown) map[uint64][]int {
 }
 
 // ExportMarkdown serializes a rich Document to standard Markdown, preserving
-// custom FreeMD features via GFM extensions, YAML frontmatter and semantic HTML,
+// custom FreeFolio features via GFM extensions, YAML frontmatter and semantic HTML,
 // while keeping unedited blocks from ImportSource byte-for-byte intact.
 func ExportMarkdown(doc *document.Document) string {
 	if doc.ImportSource != "" {
@@ -1892,14 +1892,14 @@ func renderSingleMarkdownItem(blocks []*document.Block, i int, numberedSeq, list
 			}
 			colBody := strings.TrimRight(renderMarkdownBlockList(column.Children), "\n")
 			if colBody == "" {
-				cols = append(cols, `<div class="freemd-column" style="`+flexStyle+`">`+"\n\n</div>")
+				cols = append(cols, `<div class="freefolio-column" style="`+flexStyle+`">`+"\n\n</div>")
 			} else {
-				cols = append(cols, `<div class="freemd-column" style="`+flexStyle+`">`+"\n\n"+colBody+"\n\n</div>")
+				cols = append(cols, `<div class="freefolio-column" style="`+flexStyle+`">`+"\n\n"+colBody+"\n\n</div>")
 			}
 		}
-		openTag := `<div class="freemd-columns" style="display:flex;gap:24px">`
+		openTag := `<div class="freefolio-columns" style="display:flex;gap:24px">`
 		if len(ratios) == len(b.Children) {
-			openTag = `<div class="freemd-columns" data-widths="` + strings.Join(ratios, ",") + `" style="display:flex;gap:24px">`
+			openTag = `<div class="freefolio-columns" data-widths="` + strings.Join(ratios, ",") + `" style="display:flex;gap:24px">`
 		}
 		text = openTag + "\n\n" + strings.Join(cols, "\n\n") + "\n\n</div>"
 	default:
@@ -2592,13 +2592,13 @@ func alertMetadata(children []*document.Block) (color, emoji, align string, ok b
 }
 
 // Columns written before the rebrand use the arcmd- classes, which are
-// still read; new ones are written with freemd- classes.
+// still read; new ones are written with freefolio- classes.
 var (
 	detailsOpen      = regexp.MustCompile(`(?is)^\s*<details(\s+open)?\s*>\s*<summary>(.*?)</summary>\s*$`)
 	detailsClose     = regexp.MustCompile(`(?i)^\s*</details>\s*$`)
-	columnsOpenRe    = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freemd|arcmd)-columns\b[^"']*["'][^>]*>\s*(<div\b[^>]*>\s*)?$`)
+	columnsOpenRe    = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freefolio|arcmd)-columns\b[^"']*["'][^>]*>\s*(<div\b[^>]*>\s*)?$`)
 	columnsWidthsRe  = regexp.MustCompile(`(?i)\bdata-widths\s*=\s*["']([^"']+)["']`)
-	columnOpenRe     = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freemd|arcmd)-column\b[^"']*["'][^>]*>\s*$`)
+	columnOpenRe     = regexp.MustCompile(`(?is)^\s*<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:freefolio|arcmd)-column\b[^"']*["'][^>]*>\s*$`)
 	divOpenGenericRe = regexp.MustCompile(`(?is)^\s*<div\s*>\s*$`)
 	divNextColumnRe  = regexp.MustCompile(`(?is)^\s*</div>\s*<div\b[^>]*>\s*$`)
 	divDoubleCloseRe = regexp.MustCompile(`(?is)^\s*</div>\s*</div>\s*$`)

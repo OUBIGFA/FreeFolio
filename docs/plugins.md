@@ -4,25 +4,25 @@
 > and the `Host` contract exist (`internal/plugin`); the runtimes and the
 > marketplace UI do not yet.
 
-FreeMD's core edits Markdown, organizes it into spaces, and includes native
+FreeFolio's core edits Markdown, organizes it into spaces, and includes native
 whiteboards and OneBot. OneBot can answer questions and propose edits using
 the AI service the user configures; these are built-in features, not plugins.
-The contracts below describe a future extension point. FreeMD does not ship
+The contracts below describe a future extension point. FreeFolio does not ship
 plugin runtimes, a marketplace UI, or an official registry. The examples are
 protocol illustrations, not installable downloads.
 
 ## A plugin
 
-A plugin is a folder (distributed as a zip) with `freemd-plugin.json` at its
+A plugin is a folder (distributed as a zip) with `freefolio-plugin.json` at its
 root:
 
 ```json
 {
-  "id": "dev.freemd.ai-writer",
+  "id": "dev.freefolio.ai-writer",
   "name": "AI Writer",
   "version": "0.1.0",
   "description": "Rewrite, summarize and continue your writing.",
-  "author": "FreeMD",
+  "author": "FreeFolio",
   "license": "MIT",
   "engine": "0.1.0",
   "runtime": "wasm",
@@ -41,7 +41,7 @@ root:
 | Field | Rule |
 | --- | --- |
 | `id` | Reverse-DNS, lowercase, unique in the marketplace; also the plugin's folder name |
-| `version`, `engine` | Semantic versions; `engine` is the lowest FreeMD version supported |
+| `version`, `engine` | Semantic versions; `engine` is the lowest FreeFolio version supported |
 | `runtime` | `wasm` (default, sandboxed) or `process` |
 | `main` | Path inside the plugin: the `.wasm` module, or the executable |
 | `permissions` | Only those listed in `plugin.Permissions`; shown to the user before install |
@@ -50,8 +50,8 @@ root:
 
 ## Plugins don't draw
 
-FreeMD's UI is native, drawn by MyGo. Plugins never get a canvas or a
-webview: they **contribute** commands and panels, which FreeMD draws in its
+FreeFolio's UI is native, drawn by MyGo. Plugins never get a canvas or a
+webview: they **contribute** commands and panels, which FreeFolio draws in its
 own style, and **answer** invocations with a `Response`:
 
 - `edits` — replacements in the open document, applied as one undo step
@@ -60,16 +60,16 @@ own style, and **answer** invocations with a `Response`:
 - `toast` — a short message.
 
 This keeps every plugin consistent with the Arc/Zen look, accessible, and
-unable to spoof FreeMD's own UI. Streaming (an AI reply arriving token by
+unable to spoof FreeFolio's own UI. Streaming (an AI reply arriving token by
 token) will be added to the protocol as a sequence of `markdown` updates,
 which `ui/markdown`'s `Stream` already renders.
 
 ## Runtimes
 
-- **`wasm`** — a WASI module run in FreeMD's process by
+- **`wasm`** — a WASI module run in FreeFolio's process by
   [wazero](https://wazero.io) (pure Go, no cgo, matching MyGo's rule). The
   module gets no file system or network of its own: it calls host functions,
-  which check the manifest's permissions. Network calls go through FreeMD
+  which check the manifest's permissions. Network calls go through FreeFolio
   (with the system proxy, via MyGo's `netproxy`), secrets through
   `mygo.Secrets`. Portable: one build runs on every platform.
 - **`process`** — an executable speaking JSON-RPC 2.0 over stdin/stdout,
@@ -84,7 +84,7 @@ whole protocol surface for v1.
 
 A future registry can publish a static `index.json` in a public Git
 repository, with contributions validated and reviewed before publishing.
-No official FreeMD registry exists. The example below uses a reserved
+No official FreeFolio registry exists. The example below uses a reserved
 placeholder host rather than an upstream project's download address.
 
 ```json
@@ -92,13 +92,13 @@ placeholder host rather than an upstream project's download address.
   "version": 1,
   "plugins": [
     {
-      "id": "dev.freemd.ai-writer",
+      "id": "dev.freefolio.ai-writer",
       "name": "AI Writer",
       "version": "0.1.0",
       "description": "Rewrite, summarize and continue your writing.",
       "tags": ["ai", "writing"],
       "permissions": ["document:read", "document:write", "network", "secrets", "ui:panel"],
-      "download": "https://example.invalid/freemd-plugins/ai-writer-0.1.0.zip",
+      "download": "https://example.invalid/freefolio-plugins/ai-writer-0.1.0.zip",
       "sha256": "…"
     }
   ]
@@ -116,7 +116,7 @@ Installing (`Manager.Install`) — all enforced and tested:
 5. The new version replaces the old atomically (staged, then renamed);
    the user's enabled/disabled choice is kept.
 
-Plugins live in `<config dir>/FreeMD/plugins/<id>/`; `plugins.json` there
+Plugins live in `<config dir>/FreeFolio/plugins/<id>/`; `plugins.json` there
 lists the disabled ones.
 
 ## Roadmap

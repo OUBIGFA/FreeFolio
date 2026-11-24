@@ -1,6 +1,6 @@
 # Whiteboard sources and adaptation
 
-FreeMD's native whiteboard follows Quiet.md commit
+FreeFolio's native whiteboard follows Quiet.md commit
 `e59c49adc3eb0bf8dabaec2df7e7d64f5a97e00a` and its pinned Excalidraw
 `3a317b55f508815d10a4c12acca99df30f026521` baseline. Quiet.md's MIT notice is
 retained in [../quiet-md/LICENSE](../quiet-md/LICENSE). Excalidraw and the
@@ -31,7 +31,7 @@ The SVG icons in `internal/editor/boardicons/` are the corresponding pinned
 Quiet.md files. Each retains the Excalidraw/Tabler source comment. No Nucleo
 icons, GPUI runtime, Rust library, vello renderer or platform patch is included.
 
-Markdown, wiki links, library and Mermaid integration use FreeMD's existing
+Markdown, wiki links, library and Mermaid integration use FreeFolio's existing
 native services and reference ArcMD `70711e1694699207400f751c01d28b11bdaefac5`.
 Its existing MIT notice remains at the repository root. Architecture symbols
 are composed of standard elements rather than exported as private shape types.

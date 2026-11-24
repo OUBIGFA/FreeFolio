@@ -16,12 +16,12 @@ import (
 // no explicit ID the shell derives one from the executable's path, and a
 // path reached through a junction (as a relocated AppData) derives another
 // ID than the pinned shortcut's, so the running app shows as a second
-// button. FreeMD therefore gives its process an explicit ID and writes the
+// button. FreeFolio therefore gives its process an explicit ID and writes the
 // same ID into the shortcuts that start it, as Chromium and Electron apps
 // do; MyGo leaves the ID to the shell (internal/windows/jumplist.go).
 
-// appUserModelID is FreeMD's AppUserModelID, its identifier in mygo.json.
-const appUserModelID = "io.github.oubigfa.freemd"
+// appUserModelID is FreeFolio's AppUserModelID, its identifier in mygo.json.
+const appUserModelID = "io.github.oubigfa.freefolio"
 
 var (
 	ole32   = syscall.NewLazyDLL("ole32.dll")
@@ -84,7 +84,7 @@ type propVariant struct {
 	_   uintptr
 }
 
-// applyAppUserModelID writes FreeMD's ID into the Start menu and pinned
+// applyAppUserModelID writes FreeFolio's ID into the Start menu and pinned
 // taskbar shortcuts of this executable, then takes the ID for the process.
 // The shortcuts come first, so that the window, which opens after, finds
 // the pinned button carrying its ID. It must run before the first window.
@@ -94,11 +94,11 @@ func (a *App) applyAppUserModelID() {
 		_, err = syncShortcutAppIDs(shortcutDirs(), exe)
 	}
 	if err != nil {
-		a.notify("无法更新 FreeMD 快捷方式的任务栏标识。%v", err)
+		a.notify("无法更新 FreeFolio 快捷方式的任务栏标识。%v", err)
 	}
 	id, _ := syscall.UTF16PtrFromString(appUserModelID)
 	if hr, _, _ := procSetExplicitAppID.Call(uintptr(unsafe.Pointer(id))); failedHR(hr) {
-		a.notify("无法设置 FreeMD 的任务栏标识。%v", hresult("SetCurrentProcessExplicitAppUserModelID", hr))
+		a.notify("无法设置 FreeFolio 的任务栏标识。%v", hresult("SetCurrentProcessExplicitAppUserModelID", hr))
 	}
 }
 
@@ -165,7 +165,7 @@ func syncShortcutAppIDs(dirs []string, exe string) ([]string, error) {
 	return changed, err
 }
 
-// setShortcutAppID gives the shortcut at link FreeMD's ID when it starts
+// setShortcutAppID gives the shortcut at link FreeFolio's ID when it starts
 // the executable self, and reports whether it changed the file. Other
 // shortcuts are left as they are.
 func setShortcutAppID(link string, self os.FileInfo) (bool, error) {

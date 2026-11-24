@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 )
 
 // Full width spans the text column across the page, keeping its margins,
@@ -24,7 +24,7 @@ func TestFullWidthPageToggles(t *testing.T) {
 	if got := editor.TextPadding(1000, editor.FullColumn); got != 80 {
 		t.Fatalf("full width padding %v", got)
 	}
-	if dir := os.Getenv("FREEMD_SNAPSHOT"); dir != "" {
+	if dir := os.Getenv("FREEFOLIO_SNAPSHOT"); dir != "" {
 		savePNG(t, filepath.Join(dir, "page-full-width.png"), tt)
 	}
 	a.toggleFullWidth()

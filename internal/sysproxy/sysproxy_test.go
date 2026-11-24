@@ -56,7 +56,7 @@ func TestParseScutilProxy(t *testing.T) {
 		target string
 		want   string
 	}{
-		{"https://github.com/OUBIGFA/FreeMD/releases/latest", "http://127.0.0.1:7897"},
+		{"https://github.com/OUBIGFA/FreeFolio/releases/latest", "http://127.0.0.1:7897"},
 		{"http://example.com/", "http://127.0.0.1:7897"},
 		{"https://127.0.0.1:8080/api", ""},
 		{"https://localhost:3000/", ""},
@@ -148,7 +148,7 @@ func TestResolverPrecedenceAndCache(t *testing.T) {
 		},
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, "https://github.com/OUBIGFA/FreeMD", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://github.com/OUBIGFA/FreeFolio", nil)
 	got, err := r.proxyFor(req)
 	if err != nil || got == nil || got.String() != "http://127.0.0.1:7897" {
 		t.Fatalf("first proxyFor = (%v, %v), want http://127.0.0.1:7897", got, err)

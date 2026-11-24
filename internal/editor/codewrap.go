@@ -4,8 +4,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -13,7 +13,7 @@ func isMermaidBlock(b *document.Block) bool {
 	return b != nil && b.Kind == "code" && IsDiagramLanguage(b.Language)
 }
 
-// IsDiagramLanguage reports a fence language FreeMD draws as a diagram:
+// IsDiagramLanguage reports a fence language FreeFolio draws as a diagram:
 // Mermaid, or an ECharts option (```echarts, as Vditor writes charts).
 func IsDiagramLanguage(lang string) bool {
 	lang = strings.TrimSpace(lang)

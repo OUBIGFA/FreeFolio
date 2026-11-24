@@ -65,7 +65,7 @@ func TestEnablingEncryptionConvertsExistingContent(t *testing.T) {
 		t.Fatalf("encryption conversion: %+v %v", r, err)
 	}
 	fake.mu.Lock()
-	encrypted := bytes.Clone(fake.objects["FreeMD/Notes/note.md"])
+	encrypted := bytes.Clone(fake.objects["FreeFolio/Notes/note.md"])
 	fake.mu.Unlock()
 	if bytes.Contains(encrypted, []byte("content to encrypt")) {
 		t.Fatal("remote content stayed plaintext")

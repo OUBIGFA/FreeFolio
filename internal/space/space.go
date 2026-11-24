@@ -1,4 +1,4 @@
-// Package space models FreeMD's spaces: separate worlds of Markdown files,
+// Package space models FreeFolio's spaces: separate worlds of Markdown files,
 // each with its own folder, name, icon and color, as Arc's spaces keep
 // separate sets of tabs. The package knows nothing of the UI.
 package space

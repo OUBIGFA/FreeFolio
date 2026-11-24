@@ -3,7 +3,7 @@ package whiteboard
 import (
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/wiki"
+	"github.com/OUBIGFA/FreeFolio/internal/wiki"
 )
 
 type SummaryLine struct{ ElementID, Text string }

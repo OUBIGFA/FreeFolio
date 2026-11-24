@@ -12,10 +12,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 )
 
 // aiKeyring is credentials/ai-api-key: each connection's API keys by its ID.

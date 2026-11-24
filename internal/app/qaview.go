@@ -2,16 +2,16 @@ package app
 
 import (
 	"fmt"
-	"github.com/OUBIGFA/FreeMD/internal/solar"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"math"
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/spacefs"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -280,9 +280,9 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			ui.Icon(c, iconAsk).FontSize(22).TextColor(t.Accent)
 		})
 		ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
-			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeMD 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")
+			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeFolio 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")
 			if a.files != nil {
-				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeMD 会阅读已打开的文件来回答，并标出每句话的出处。")
+				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeFolio 会阅读已打开的文件来回答，并标出每句话的出处。")
 			}
 			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
 			ui.Text(c, hint).

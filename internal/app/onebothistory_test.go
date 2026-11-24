@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -326,7 +326,7 @@ func TestOneBotHistorySanitizesBinaryAttachments(t *testing.T) {
 }
 
 func TestOneBotHistorySnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect OneBot history")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect OneBot history")
 	for _, mode := range []string{"light", "dark", "empty", "narrow"} {
 		t.Run(mode, func(t *testing.T) {
 			model := &scripted{steps: []func(agent.Request) agent.Message{

@@ -6,9 +6,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -1239,7 +1239,7 @@ func (a *App) spaceBar(c *ui.Context) {
 							revealDir(s.Root)
 						}
 						m.Separator()
-						if m.Item(i18n.T("从 FreeMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
+						if m.Item(i18n.T("从 FreeFolio 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
 							a.removeSpace(s.ID)
 						}
 					})

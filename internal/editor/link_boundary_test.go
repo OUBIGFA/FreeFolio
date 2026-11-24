@@ -7,7 +7,7 @@ import (
 )
 
 func TestClickingAfterLinkPlacesCaretWithoutOpeningPopover(t *testing.T) {
-	url := "https://github.com/OUBIGFA/FreeMD/issues/20"
+	url := "https://github.com/OUBIGFA/FreeFolio/issues/20"
 	e := New("- [" + url + "](" + url + ")")
 	var opened string
 	tt := ui.NewTester(func(c *ui.Context) {

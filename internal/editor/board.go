@@ -15,7 +15,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"

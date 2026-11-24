@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -195,7 +195,7 @@ func TestSpaceEditDismissAndSwitch(t *testing.T) {
 }
 
 func TestSpaceEditingSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render independent space editors")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render independent space editors")
 	for _, mode := range []string{"theme", "icon", "name"} {
 		for _, size := range []struct {
 			name string

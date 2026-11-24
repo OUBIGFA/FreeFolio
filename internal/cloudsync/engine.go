@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 type Space struct{ ID, Root, Remote string }
@@ -500,7 +500,7 @@ func backupLocal(stateDir, key, rel string, data []byte, keep int) error {
 }
 
 func archiveRemote(s remoteStore, root, rel string, data []byte, keep int) error {
-	dir := root + "/.freemd-history/" + hashBytes([]byte(rel))[:24]
+	dir := root + "/.freefolio-history/" + hashBytes([]byte(rel))[:24]
 	key := dir + "/" + time.Now().UTC().Format("20060102T150405.000000000")
 	if err := s.PutNew(key, bytes.NewReader(data), int64(len(data))); err != nil {
 		return err

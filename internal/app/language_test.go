@@ -3,8 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 )
 
 func TestEnglishInterface(t *testing.T) {

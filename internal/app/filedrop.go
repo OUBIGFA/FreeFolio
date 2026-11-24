@@ -1,7 +1,7 @@
 package app
 
 // Importing documents dragged in from the system's file manager, ported
-// from ArcMD fcb7cd3 and adapted to FreeMD: files dropped on a space's
+// from ArcMD fcb7cd3 and adapted to FreeFolio: files dropped on a space's
 // window, sidebar or folder row are copied into it, never moved, and an
 // undo moves the copies to the trash the way deleting does (trashbin
 // backup, then the system trash). The file browser opens dropped files
@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -94,7 +94,7 @@ func (a *App) importDroppedFiles(sp *space.Space, dir string, paths []string) {
 		created = append(created, rel)
 	}
 	if len(skipped) > 0 {
-		a.notify("只能导入 FreeMD、Markdown 或 PDF 文档：%s 未导入。", strings.Join(skipped, "、"))
+		a.notify("只能导入 FreeFolio、Markdown 或 PDF 文档：%s 未导入。", strings.Join(skipped, "、"))
 	}
 	if dir != "" && len(created)+len(existing) > 0 {
 		for cur := dir; cur != "." && cur != ""; cur = path.Dir(cur) {
@@ -218,7 +218,7 @@ func (a *App) fileDropOverlay(c *ui.Context) {
 				card.Children(func() {
 					ui.Icon(c, iconFileImport).FontSize(36).TextColor(t.Accent.Alpha(v))
 					ui.Text(c, fmt.Sprintf(i18n.T("松手导入到「%s」"), name)).FontSize(15).FontWeight(600).TextColor(cols.title).SingleLine()
-					ui.Text(c, i18n.T("支持 FreeMD、Markdown 与 PDF 文档")).FontSize(12).TextColor(cols.muted).SingleLine()
+					ui.Text(c, i18n.T("支持 FreeFolio、Markdown 与 PDF 文档")).FontSize(12).TextColor(cols.muted).SingleLine()
 				})
 			})
 			return
@@ -238,7 +238,7 @@ func (a *App) fileDropOverlay(c *ui.Context) {
 				ui.Icon(c, iconFileImport).FontSize(20).TextColor(t.Accent.Alpha(v))
 				ui.Column(c.Key("file-drop-pill-text")).Grow(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, fmt.Sprintf(i18n.T("导入到「%s」"), name)).FontSize(12.5).FontWeight(600).TextColor(cols.title).SingleLine()
-					ui.Text(c, i18n.T("支持 FreeMD、Markdown 与 PDF 文档")).FontSize(11).TextColor(cols.muted).SingleLine()
+					ui.Text(c, i18n.T("支持 FreeFolio、Markdown 与 PDF 文档")).FontSize(11).TextColor(cols.muted).SingleLine()
 				})
 			})
 		})

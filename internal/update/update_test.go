@@ -27,7 +27,7 @@ func TestNoticeTexts(t *testing.T) {
 		t.Fatalf("ready texts: %q %q %q", r.Title(), r.Subtitle(), r.Button())
 	}
 	a := Notice{Available, "0.2.0"}
-	if a.Title() != "FreeMD 有新版本" || a.Subtitle() != "FreeMD 0.2.0" || a.Button() != "更新" {
+	if a.Title() != "FreeFolio 有新版本" || a.Subtitle() != "FreeFolio 0.2.0" || a.Button() != "更新" {
 		t.Fatalf("available texts: %q %q %q", a.Title(), a.Subtitle(), a.Button())
 	}
 }
@@ -65,19 +65,19 @@ func TestDue(t *testing.T) {
 }
 
 func TestReleaseURL(t *testing.T) {
-	if got := ReleaseURL("0.2.0"); got != "https://github.com/OUBIGFA/FreeMD/releases/tag/v0.2.0" {
+	if got := ReleaseURL("0.2.0"); got != "https://github.com/OUBIGFA/FreeFolio/releases/tag/v0.2.0" {
 		t.Fatal(got)
 	}
-	if got := ReleaseURL("v0.2.0"); got != "https://github.com/OUBIGFA/FreeMD/releases/tag/v0.2.0" {
+	if got := ReleaseURL("v0.2.0"); got != "https://github.com/OUBIGFA/FreeFolio/releases/tag/v0.2.0" {
 		t.Fatal(got)
 	}
-	if got := ReleaseURL(""); got != "https://github.com/OUBIGFA/FreeMD/releases/latest" {
+	if got := ReleaseURL(""); got != "https://github.com/OUBIGFA/FreeFolio/releases/latest" {
 		t.Fatal(got)
 	}
 }
 
 func TestLines(t *testing.T) {
-	notes := "## What's Changed\r\n\r\n\r\n* **Faster** search by @someone in https://github.com/OUBIGFA/FreeMD/pull/12\n- See [the docs](https://example.com) and `code`\n1. First\n\nPlain text  \n\n"
+	notes := "## What's Changed\r\n\r\n\r\n* **Faster** search by @someone in https://github.com/OUBIGFA/FreeFolio/pull/12\n- See [the docs](https://example.com) and `code`\n1. First\n\nPlain text  \n\n"
 	want := []string{
 		"What's Changed",
 		"",

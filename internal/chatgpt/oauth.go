@@ -146,7 +146,7 @@ func (c *Client) SignIn(ctx context.Context, id string, reconsent bool, openBrow
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("Referrer-Policy", "no-referrer")
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			_, _ = w.Write([]byte("Return to FreeMD. The app is verifying your ChatGPT connection. You can close this tab."))
+			_, _ = w.Write([]byte("Return to FreeFolio. The app is verifying your ChatGPT connection. You can close this tab."))
 			return
 		}
 		baseHandler.ServeHTTP(w, r)
@@ -164,7 +164,7 @@ func (c *Client) SignIn(ctx context.Context, id string, reconsent bool, openBrow
 	hash := sha256.Sum256([]byte(verifier))
 	q := url.Values{"client_id": {clientID}, "response_type": {"code"}, "redirect_uri": {redirect}, "scope": {scopes}, "resource": {resource}, "state": {state}, "nonce": {nonce}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(hash[:])}, "ext_agent_host_id": {host}}
 	if original.ClientID == "" {
-		q.Set("agent_name_hint", "FreeMD")
+		q.Set("agent_name_hint", "FreeFolio")
 	}
 	// Email is sufficient to preselect a returning account. Retained ID tokens
 	// stay out of browser process arguments and the address/history UI.

@@ -20,7 +20,7 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
-      FREEMD_TEST_TEMP: _temp/ci-repository
+      FREEFOLIO_TEST_TEMP: _temp/ci-repository
     steps:
       - name: Check out source with history (checkout v4)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

@@ -1,4 +1,4 @@
-// Package resources contains the platform icons derived from the FreeMD logo.
+// Package resources contains the platform icons derived from the FreeFolio logo.
 package resources
 
 import _ "embed"

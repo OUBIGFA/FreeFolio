@@ -9,8 +9,8 @@ package editor
 import (
 	"fmt"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -334,7 +334,7 @@ func (e *Editor) paintBlockSelection(p *ui.Painter, bounds ui.Rect, t *ui.Theme)
 	p.Fill(ui.Rect{X: bounds.X + e.padding - 8, Y: bounds.Y + top - 4, W: e.bodyWidth() + 16, H: bottom - top}, t.Selection, 6)
 }
 
-// writeFragment puts a fragment on the clipboard as FreeMD's structure,
+// writeFragment puts a fragment on the clipboard as FreeFolio's structure,
 // Markdown, HTML and text; text "" is the fragment's Markdown.
 func (e *Editor) writeFragment(fragment *document.Document, text string, write func(string)) {
 	fragment.ImportSource = ""

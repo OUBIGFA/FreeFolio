@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/pdfdoc"
-	"github.com/OUBIGFA/FreeMD/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/pdfdoc"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -1320,7 +1320,7 @@ func (v *PDFViewer) findBarView(c *ui.Context, t *ui.Theme, pg Page, invalidate 
 	})
 }
 
-// The island takes the page's floating-bar colors, as FreeMD's menus do.
+// The island takes the page's floating-bar colors, as FreeFolio's menus do.
 func (v *PDFViewer) floatingIslandView(c *ui.Context, t *ui.Theme, pg Page, availW float32, opts PDFOptions) {
 	cnt := v.PageCount()
 	bg, border := pg.Popover, pg.TableLine

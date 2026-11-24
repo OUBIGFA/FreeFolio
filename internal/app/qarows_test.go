@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/egoist/mygo/ui"
 )
 

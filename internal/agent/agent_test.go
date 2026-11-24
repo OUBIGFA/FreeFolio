@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/spacefs"
+	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
 )
 
 // sse writes a Chat Completions stream of the chunks.

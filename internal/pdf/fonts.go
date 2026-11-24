@@ -595,7 +595,7 @@ func (w *Writer) writeFontObjects() {
 
 		// /ToUnicode CMap
 		var cmap strings.Builder
-		cmap.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /FreeMDType3 def\n/CMapType 2 def\n1 begincodespacerange\n<00> <FF>\nendcodespacerange\n")
+		cmap.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /FreeFolioType3 def\n/CMapType 2 def\n1 begincodespacerange\n<00> <FF>\nendcodespacerange\n")
 		for start := 0; start < len(sub.glyphs); start += 100 {
 			end := min(start+100, len(sub.glyphs))
 			fmt.Fprintf(&cmap, "%d beginbfchar\n", end-start)

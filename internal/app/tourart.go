@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 

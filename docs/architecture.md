@@ -1,10 +1,10 @@
 # Architecture
 
-FreeMD is one Go binary with no web stack: [MyGo](https://github.com/egoist/mygo)
+FreeFolio is one Go binary with no web stack: [MyGo](https://github.com/egoist/mygo)
 v0.10.0 opens the window and draws the interface on the GPU from Go (`package ui`).
 
 ```
-cmd/freemd ──▶ internal/app ──▶ internal/space    spaces and spaces.json
+cmd/freefolio ──▶ internal/app ──▶ internal/space    spaces and spaces.json
                    │      ├──▶ internal/vault    documents and import files in a space folder
                    │      ├──▶ internal/plugin   manifests, registry, install, Host contract
                    │      ├──▶ internal/document rich document model, codec and transactions
@@ -31,7 +31,7 @@ conflict behavior and recovery paths.
 
 On KDE Wayland with alpha compositing, the main and detached document
 windows request client decorations before mapping (`windowframe_linux.go`,
-GTK reached through purego, no cgo). FreeMD draws the rounded frame and
+GTK reached through purego, no cgo). FreeFolio draws the rounded frame and
 places minimize, maximize and close at the top right (`windowbuttons.go`);
 `App.titleBar` adds their width to the system title bar room, so every top
 bar keeps clear of them the way it keeps clear of native controls. Alt or
@@ -93,12 +93,12 @@ panes. Editor undo history remains in memory only.
 ### Editing
 
 The primary file is a standard `.md` Markdown document, edited and autosaved
-directly in place. Rich FreeMD attributes that exceed basic CommonMark—page
+directly in place. Rich FreeFolio attributes that exceed basic CommonMark—page
 icons, covers and word goals (YAML frontmatter), text colors, highlights and
 hand-drawn annotations (`<mark>` / `<span>` with CSS fallbacks and `data-*`
 attributes), callouts with custom emoji (`> [!NOTE]` alerts), disclosures
 (`<details>`), resized or aligned figures, rich tables (`<table>` with widths,
-spans and cell backgrounds) and multi-column layouts (`<div class="freemd-columns">`, legacy `arcmd-columns` still read)—
+spans and cell backgrounds) and multi-column layouts (`<div class="freefolio-columns">`, legacy `arcmd-columns` still read)—
 round-trip losslessly through `internal/editor/markdown.go` while degrading
 cleanly in other Markdown readers. Unmodified top-level blocks retain their
 original author Markdown bytes via `ImportSource` chunk matching. Legacy
@@ -194,7 +194,7 @@ Switching documents, switching Spaces and closing the window flush first.
 ### Spaces
 
 A space is a folder plus a name, glyph and color, kept in
-`<config>/FreeMD/spaces.json` with the order, the active space, pins and the
+`<config>/FreeFolio/spaces.json` with the order, the active space, pins and the
 last open document of each. The same file keeps bookmarks: places marked in
 documents by top-level block ID, with an excerpt that finds the block again
 in a Markdown file read afresh. They live outside the document so marking a

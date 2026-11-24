@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )

@@ -1,14 +1,14 @@
 package editor
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/tex"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/tex"
 	"github.com/egoist/mygo/ui"
 )
 

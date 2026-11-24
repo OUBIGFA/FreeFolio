@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
+	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/webdav"
 )
@@ -386,7 +386,7 @@ func TestCloudSettingsUIStates(t *testing.T) {
 }
 
 func TestCloudSyncSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render cloud sync")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render cloud sync")
 	for _, dark := range []bool{false, true} {
 		a, tt := newTestApp(t)
 		tt.SetSize(1120, 960)
@@ -421,7 +421,7 @@ func TestCloudSyncSnapshot(t *testing.T) {
 	a.cloud.config.Provider = "s3"
 	a.cloud.config.S3Endpoint = "https://s3.example.com"
 	a.cloud.config.S3Region = "us-east-1"
-	a.cloud.config.S3Bucket = "freemd-notes"
+	a.cloud.config.S3Bucket = "freefolio-notes"
 	a.cloud.config.Automatic = true
 	a.cloud.config.Encrypt = true
 	a.cloud.config.Spaces[a.state.Active] = "Personal"

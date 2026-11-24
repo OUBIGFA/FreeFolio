@@ -1,6 +1,6 @@
 # Changelog
 
-## FreeMD 0.1.2
+## FreeFolio 0.1.2
 
 - Browse OneBot conversations in a new history view: search, continue, fork from a turn, or delete a conversation or a single record. Typed prompts are saved automatically.
 - Reference files and images in OneBot by dropping them onto the conversation. Attachments open on click, can be removed before sending, and stop at a per-message limit. Retry, regenerate, continue and clear context from the conversation itself, copy a prompt or the whole conversation, and insert a reply into the open document.
@@ -9,20 +9,20 @@
 - Return idle heap memory to the system after image decoding settles and when the window is hidden, so documents with many large pictures no longer hold hundreds of megabytes after closing.
 - Keep the sidebar toggle on the sidebar's side when the sidebar is docked on the right.
 - Continue to support native Markdown and legacy `.arcmd` documents; no format change in this release. Back up notes and configuration before upgrading.
-- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.2-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+- Distribute only the locally built Windows x64 installer, `FreeFolio-0.1.2-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
 
-## FreeMD 0.1.1
+## FreeFolio 0.1.1
 
 - Add verified Windows in-app updates: download and validate the official installer, then install it from Settings → Update. Show update status and progress in that page instead of a separate popup. Other platforms open the release page when no signed update source is configured.
 - Improve file browsing with centered, adaptive tabs, a visible Open File button, and outlines that stay clear of wide content. Keep links feeling clickable in read-only documents.
 - Respect scheduled cloud sync when enabling or disabling sync, and keep document scrollbars usable while dragging.
 - Include the sidebar icon and folder-label refinements.
 - Continue to support native Markdown and legacy `.arcmd` documents. Back up notes and configuration before upgrading.
-- Provide the locally built Windows x64 installer, `FreeMD-0.1.1-Setup.exe`, for downloads and verified in-app updates. Keep its checksum and build record local; no separate update manifest is shipped.
+- Provide the locally built Windows x64 installer, `FreeFolio-0.1.1-Setup.exe`, for downloads and verified in-app updates. Keep its checksum and build record local; no separate update manifest is shipped.
 
-## FreeMD 0.1.0
+## FreeFolio 0.1.0
 
-FreeMD's first public release: a local-first native Markdown editor based on ArcMD, built with Go and MyGo.
+FreeFolio's first public release: a local-first native Markdown editor based on ArcMD, built with Go and MyGo.
 
 - Open Markdown files outside a space in separate tabs, save edits in place or save a copy, and keep file browsing limited to the files explicitly opened.
 - Create native whiteboards from the home page or title bar, organize ideas with notes, shapes and arrows, and open whiteboards in split panes.
@@ -30,15 +30,15 @@ FreeMD's first public release: a local-first native Markdown editor based on Arc
 - Enable WebDAV or S3 synchronization for selected spaces, with conflict copies, recovery backups and optional content encryption. Synchronization remains off by default.
 - Reduce file-system work during startup and drawing, build sidebar rows near the viewport, improve SVG images and README badges, and keep long code blocks' Collapse button visible.
 - Continue to support native Markdown and legacy `.arcmd` documents. Current formats are document 11, spaces configuration 14 and preferences 11. Back up notes and configuration before upgrading.
-- Distribute only the locally built Windows x64 installer, `FreeMD-0.1.0-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
+- Distribute only the locally built Windows x64 installer, `FreeFolio-0.1.0-Setup.exe`. Checksums and build records stay local; no automatic-update assets are included.
 
-## FreeMD 0.0.1
+## FreeFolio 0.0.1
 
 - Add per-space attachment folders with guarded relinking, sidebar multi-selection and batch actions, a navigable native document mind map, and hierarchical Select All.
 - Add opt-in WebDAV and S3 cloud synchronization with per-file baselines, conditional writes, conflict copies and explicit resolution, recovery backups, local credential protection, optional content encryption, and manual or scheduled sync.
 - Fix code and list indentation, code paste recovery, link boundary input, HTML comment preservation, read-only Space paging, document/preview image retention, and first-edit baseline work on large documents.
 - Improve tall Mermaid sequence diagrams with phase shading and a vector zoom viewer; add display equation tags in the editor and PDF output.
-- Advance document format to 10, spaces configuration to 14, and preferences to 6 while preserving FreeMD's existing fields. Existing supported files migrate in memory and write the current format when edited.
+- Advance document format to 10, spaces configuration to 14, and preferences to 6 while preserving FreeFolio's existing fields. Existing supported files migrate in memory and write the current format when edited.
 
 - Dock the workspace sidebar on the right by default. Choose either edge in Settings → Appearance.
 - Place the document outline on the right and show the drag cursor over block handles.
@@ -51,7 +51,7 @@ FreeMD's first public release: a local-first native Markdown editor based on Arc
 - Keep an open long code block's Collapse button at the bottom of the view while the block runs past it.
 - Start a whiteboard from the home page and from the title bar. Open whiteboards in split panes; the pane gives its keys to the canvas.
 - Show every resize handle (split panes, sidebar, OneBot, mind map) the split view's way, with no dividing line; one shared style in `theme.go` sets them all.
-- Follow ArcMD 0.2.5 in the editor: `<kbd>` keys show as keycaps and write back as `<kbd>` (no longer as code); typing `<u>…</u>`, `<sup>`, `<kbd>`, `<font color>` and similar tags formats the text, `<br>` breaks the line and `<hr>` draws a rule; quotes typed inside an HTML tag or comment stay straight. Long formulas wrap at relations and operators before they shrink and draw sharp at any scale; tables size columns by their content and widen with the window for wide formulas; copying from cells, inline code and plain prose puts the literal characters on the clipboard; `snake_case` no longer writes back as `snake\_case`; selecting a row of a table with more rows than columns no longer quits FreeMD.
+- Follow ArcMD 0.2.5 in the editor: `<kbd>` keys show as keycaps and write back as `<kbd>` (no longer as code); typing `<u>…</u>`, `<sup>`, `<kbd>`, `<font color>` and similar tags formats the text, `<br>` breaks the line and `<hr>` draws a rule; quotes typed inside an HTML tag or comment stay straight. Long formulas wrap at relations and operators before they shrink and draw sharp at any scale; tables size columns by their content and widen with the window for wide formulas; copying from cells, inline code and plain prose puts the literal characters on the clipboard; `snake_case` no longer writes back as `snake\_case`; selecting a row of a table with more rows than columns no longer quits FreeFolio.
 - Turn autosave off in Settings → Writing or the command bar. Edits then stay in memory until you press the save shortcut; leaving, closing or quitting asks to save, discard or cancel.
 - Draw Mermaid flowcharts with a layered layout like Mermaid's: edge labels get a rank of their own, long and back edges route around nodes instead of through them, and subgraphs stay together. Sequence `->` and `-->` lines have no arrowhead, as in Mermaid. Draw Mermaid `gantt` charts (dates, durations, `after`/`until`, `done`/`active`/`crit`/`milestone`, `excludes weekends`, `axisFormat`) and `pie` charts, and ```` ```echarts ```` options written as JSON: pie, bar, line and scatter series with titles, legends and the option's colors.
 - Keep Markdown faithful when blocks are edited: paragraph text that looks like a heading, list, quote, rule or math fence (`# x`, `1. x`, `- x`, `> x`, `---`, `$$`) is escaped instead of turning into that block; nested quotes (`> >`) show and write back nested, and the paragraphs of one quote stay one quote; `***bold italic***` stays Markdown instead of `<em>`; `<https://…>` and bare URLs and e-mail addresses write back as autolinks; an explicit `:---` column keeps its alignment; escaped `\~\~` no longer turns into strikethrough. Keycap emoji such as 1️⃣ show in color.
@@ -59,4 +59,4 @@ FreeMD's first public release: a local-first native Markdown editor based on Arc
 
 ## Upstream provenance
 
-ArcMD's historical releases are not FreeMD releases. See the [third-party credits](third_party/README.md) and [pinned source records](third_party/manifests/upstreams.json) for the upstream baseline, selected adaptations and licenses.
+ArcMD's historical releases are not FreeFolio releases. See the [third-party credits](third_party/README.md) and [pinned source records](third_party/manifests/upstreams.json) for the upstream baseline, selected adaptations and licenses.

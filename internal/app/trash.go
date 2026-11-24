@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/trashbin"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // Recently deleted (package trashbin): what goes to the system's trash
-// from FreeMD is copied first, so that the library's page can list it and
+// from FreeFolio is copied first, so that the library's page can list it and
 // put it back where it was for thirty days (library.go).
 
 // keepDeleted copies the file or folder at rel of the space before it goes
@@ -19,7 +19,7 @@ func (a *App) keepDeleted(spaceID, spaceName, root, rel string) (trashbin.Item, 
 	it, err := a.bin.Add(spaceID, spaceName, root, rel, time.Now())
 	if err != nil {
 		if trashbin.TooLarge(err) {
-			a.notify("「%s」太大，FreeMD 不保留副本，可在系统废纸篓中找回。", path.Base(rel))
+			a.notify("「%s」太大，FreeFolio 不保留副本，可在系统废纸篓中找回。", path.Base(rel))
 		}
 		return trashbin.Item{}, false
 	}
@@ -31,7 +31,7 @@ func (a *App) keepDeleted(spaceID, spaceName, root, rel string) (trashbin.Item, 
 func (a *App) restoreDeleted(it trashbin.Item) {
 	sp := a.state.Get(it.Space)
 	if sp == nil {
-		a.notify("「%s」所在的空间「%s」已从 FreeMD 移除，无法恢复。", it.Name(), it.SpaceName)
+		a.notify("「%s」所在的空间「%s」已从 FreeFolio 移除，无法恢复。", it.Name(), it.SpaceName)
 		return
 	}
 	rel, err := a.bin.Restore(it, sp.Root)

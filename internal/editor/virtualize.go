@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/tex"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/tex"
 	"github.com/egoist/mygo/ui"
 )
 

@@ -4,13 +4,13 @@
 
 通过 OpenAI 公布的 Sign in with ChatGPT 协议，为 OneBot 增加独立的 ChatGPT 供应商。继续使用原生 Go + MyGo 界面、现有对话及文档草稿流程。登录在系统浏览器中完成。
 
-实现依据是公开协议，不复制或翻译 DevKit 的非商业许可代码，不引入其 Node.js、React 或 Electron 运行时。直接嵌入 SDK 会改变运行时和许可边界；原生协议实现可以复用 OneBot 现有 Responses 客户端。FreeMD 的 MIT 代码许可不因此改变。登录图标使用官方原样 SVG，单独遵守 OpenAI 品牌规则，来源见 [品牌与协议记录](../third_party/chatgpt/README.md)。服务使用资格仍由 OpenAI 决定。
+实现依据是公开协议，不复制或翻译 DevKit 的非商业许可代码，不引入其 Node.js、React 或 Electron 运行时。直接嵌入 SDK 会改变运行时和许可边界；原生协议实现可以复用 OneBot 现有 Responses 客户端。FreeFolio 的 MIT 代码许可不因此改变。登录图标使用官方原样 SVG，单独遵守 OpenAI 品牌规则，来源见 [品牌与协议记录](../third_party/chatgpt/README.md)。服务使用资格仍由 OpenAI 决定。
 
 每个 ChatGPT 供应商连接对应一个独立的账号或工作区注册。已有供应商选择器负责切换，名称可自定义，已验证的账号信息显示在设置中。新登录未验证前不能替换现有凭据。
 
 ## 登录与存储
 
-- 首次注册使用 `dynamic_agent_client`，固定应用名 `FreeMD`；以后复用服务器签发的 client ID。
+- 首次注册使用 `dynamic_agent_client`，固定应用名 `FreeFolio`；以后复用服务器签发的 client ID。
 - 每次登录使用新的 state、nonce 和 PKCE；回调仅监听 IPv4 本机地址，固定 `/auth/callback`，端口由系统选择。
 - 每次授权都发送持久化的、不含个人信息的 host ID。
 - 使用 OpenID Connect 库验证签名、issuer、audience、有效期，再验证 nonce、subject 和授权方。

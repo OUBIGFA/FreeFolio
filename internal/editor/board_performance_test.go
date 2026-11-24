@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
 // This opt-in measurement uses the pinned Quiet.md scene generator. Tester
 // frame durations measure CPU event/build work, not GPU/display latency.
 func TestBoardPerformanceReport(t *testing.T) {
-	dir := os.Getenv("FREEMD_BOARD_PERF")
+	dir := os.Getenv("FREEFOLIO_BOARD_PERF")
 	if dir == "" {
-		t.Skip("set FREEMD_BOARD_PERF to generated scenes")
+		t.Skip("set FREEFOLIO_BOARD_PERF to generated scenes")
 	}
 	type result struct {
 		Shapes, Elements int
@@ -91,7 +91,7 @@ func TestBoardPerformanceReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "freemd-board-performance.json"), data, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "freefolio-board-performance.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Log(string(data))

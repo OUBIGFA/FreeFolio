@@ -136,7 +136,7 @@ func TestSignInEncryptedRestartAndReauthorization(t *testing.T) {
 		t.Fatalf("sign in: %+v %v", s, err)
 	}
 	q := f.authorizations[0]
-	if q.Get("agent_name_hint") != "FreeMD" || !strings.HasPrefix(q.Get("ext_agent_host_id"), "urn:uuid:") || q.Get("code_challenge_method") != "S256" || q.Get("scope") != scopes {
+	if q.Get("agent_name_hint") != "FreeFolio" || !strings.HasPrefix(q.Get("ext_agent_host_id"), "urn:uuid:") || q.Get("code_challenge_method") != "S256" || q.Get("scope") != scopes {
 		t.Fatal("incomplete authorization")
 	}
 	data, err := os.ReadFile(filepath.Join(f.c.dir, storeName))

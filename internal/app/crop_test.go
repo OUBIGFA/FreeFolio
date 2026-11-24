@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestCropImageKeepsTheOriginal(t *testing.T) {

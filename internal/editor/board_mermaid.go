@@ -4,11 +4,11 @@ import (
 	"math"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/mermaid"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/mermaid"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
-// MermaidBoard reuses FreeMD's parser/layout and emits standard editable
+// MermaidBoard reuses FreeFolio's parser/layout and emits standard editable
 // primitives. Source code remains owned by the document that invoked conversion.
 func MermaidBoard(src string, at whiteboard.Point) (*whiteboard.Scene, error) {
 	d, err := mermaid.ParseAndLayout(src, func(text string, size float32, bold bool) (float32, float32) {

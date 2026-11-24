@@ -7,11 +7,11 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 // Store reads and writes the state as JSON at a path, usually
-// <config dir>/FreeMD/spaces.json.
+// <config dir>/FreeFolio/spaces.json.
 type Store struct{ path string }
 
 // NewStore returns a store of the file at path.
@@ -34,7 +34,7 @@ func (s *Store) Load() (*State, error) {
 		return nil, fmt.Errorf("space: reading %s: %w", s.path, err)
 	}
 	if st.Version > CurrentVersion {
-		return nil, fmt.Errorf("space: %s has version %d, newer than this FreeMD understands (%d)", s.path, st.Version, CurrentVersion)
+		return nil, fmt.Errorf("space: %s has version %d, newer than this FreeFolio understands (%d)", s.path, st.Version, CurrentVersion)
 	}
 	st.migrate()
 	st.Version = CurrentVersion

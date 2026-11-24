@@ -1,4 +1,4 @@
-# Solar icons FreeMD embeds, as category/name (Linear) or category/name@Style.
+# Solar icons FreeFolio embeds, as category/name (Linear) or category/name@Style.
 # Add a line, then run: go run ./tools/solaricons
 # Find names with:       go run ./tools/solaricons -find <text> [-style Bold]
 

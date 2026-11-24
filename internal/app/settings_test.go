@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -72,7 +72,7 @@ func TestMoreMenuAndSettings(t *testing.T) {
 	if err := tt.Click("GitHub 开源仓库"); err != nil {
 		t.Fatal(err)
 	}
-	wantURL := "https://github.com/OUBIGFA/FreeMD"
+	wantURL := "https://github.com/OUBIGFA/FreeFolio"
 	if got := tt.OpenedURLs(); !slices.Equal(got, []string{wantURL}) {
 		t.Fatalf("repository link: %q", got)
 	}
@@ -149,7 +149,7 @@ func TestMoreMenuWithoutUsableDocument(t *testing.T) {
 
 // TestSettingsSnapshot renders the ⋯ menu and each settings tab, for review.
 func TestSettingsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the settings")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the settings")
 	for _, name := range []string{"more-menu", "more-menu@dark", "more-menu@narrow", "export-menu", tabGeneral, tabWriting, tabAI, tabUpdates, "writing@narrow", "ai@narrow", tabAppearance, tabSpaces, tabShortcuts, tabAbout, "about@dark", "about@narrow"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

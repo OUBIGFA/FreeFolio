@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -80,7 +80,7 @@ func TestAutosaveOnlyAfterEdits(t *testing.T) {
 	tt.Advance(autosaveDelay + 50*time.Millisecond)
 	tt.Frame()
 	got, _ := vault.Read(root(a), "Welcome.md")
-	if a.doc.dirty() || !strings.Contains(got, "Hello Welcome to FreeMD") {
+	if a.doc.dirty() || !strings.Contains(got, "Hello Welcome to FreeFolio") {
 		t.Errorf("after the delay: dirty %v, file starts %q", a.doc.dirty(), got[:min(40, len(got))])
 	}
 }
@@ -88,7 +88,7 @@ func TestAutosaveOnlyAfterEdits(t *testing.T) {
 func TestSourceModeToggle(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)
-	if !a.doc.source || !strings.HasPrefix(a.doc.preview, "# Welcome to FreeMD") {
+	if !a.doc.source || !strings.HasPrefix(a.doc.preview, "# Welcome to FreeFolio") {
 		t.Fatal("source mode not shown")
 	}
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)

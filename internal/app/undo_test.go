@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestUndoToastRestoresTrashedDocument(t *testing.T) {

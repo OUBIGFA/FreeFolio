@@ -1,7 +1,7 @@
 package editor
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 )
 
 // Commands the host offers in its command bar.

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/tools/internal/toolutil"
 )
 
 type xmlPart struct {

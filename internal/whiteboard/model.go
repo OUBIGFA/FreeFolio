@@ -1,4 +1,4 @@
-// Package whiteboard implements the native Excalidraw scene used by FreeMD.
+// Package whiteboard implements the native Excalidraw scene used by FreeFolio.
 // The model follows Quiet.md e59c49a's board/types.rs and Excalidraw 3a317b5
 // (MIT). UI and filesystem ownership deliberately stay outside this package.
 package whiteboard
@@ -223,7 +223,7 @@ func NewSeed() int64 {
 }
 
 func NewScene() *Scene {
-	return &Scene{Type: "excalidraw", Version: 2, Source: "https://github.com/OUBIGFA/FreeMD", Elements: []*Element{}, Files: map[string]*FileData{}, AppState: AppState{ViewBackgroundColor: "#ffffff", GridSize: 20, GridStep: 5}}
+	return &Scene{Type: "excalidraw", Version: 2, Source: "https://github.com/OUBIGFA/FreeFolio", Elements: []*Element{}, Files: map[string]*FileData{}, AppState: AppState{ViewBackgroundColor: "#ffffff", GridSize: 20, GridStep: 5}}
 }
 
 func NewElement(kind ElementKind, x, y, w, h float64) *Element {

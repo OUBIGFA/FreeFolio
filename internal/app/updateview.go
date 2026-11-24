@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/update"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/update"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -148,7 +148,7 @@ func (a *App) updatedCard(c *ui.Context, bl bannerLook, entering bool) {
 					ui.Icon(c, iconCheck).FontSize(13).TextColor(bl.readyInk)
 				})
 				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-					ui.Text(c, i18n.T("FreeMD 已更新！")).FontSize(12.5).FontWeight(600).TextColor(bl.title).SingleLine()
+					ui.Text(c, i18n.T("FreeFolio 已更新！")).FontSize(12.5).FontWeight(600).TextColor(bl.title).SingleLine()
 					if version != "" {
 						ui.Text(c, "v"+version).FontSize(10.5).TextColor(bl.secondary).SingleLine()
 					}

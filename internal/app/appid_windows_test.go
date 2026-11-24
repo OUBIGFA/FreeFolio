@@ -38,17 +38,17 @@ func makeShortcut(t *testing.T, link, target string) {
 	}
 }
 
-// Only the shortcuts starting this executable take FreeMD's ID, once.
+// Only the shortcuts starting this executable take FreeFolio's ID, once.
 func TestSyncShortcutAppIDs(t *testing.T) {
 	dir := t.TempDir()
-	exe := filepath.Join(dir, "FreeMD.exe")
+	exe := filepath.Join(dir, "FreeFolio.exe")
 	other := filepath.Join(dir, "Other.exe")
 	for _, f := range []string{exe, other} {
 		if err := os.WriteFile(f, []byte("MZ"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	mine, theirs := filepath.Join(dir, "FreeMD.lnk"), filepath.Join(dir, "Other.lnk")
+	mine, theirs := filepath.Join(dir, "FreeFolio.lnk"), filepath.Join(dir, "Other.lnk")
 	makeShortcut(t, mine, exe)
 	makeShortcut(t, theirs, other)
 	before, _ := os.ReadFile(theirs)

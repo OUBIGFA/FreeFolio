@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/pdfdoc"
-	"github.com/OUBIGFA/FreeMD/internal/search"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/pdfdoc"
+	"github.com/OUBIGFA/FreeFolio/internal/search"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
 // searchState is the command bar's full-text search: the index of every

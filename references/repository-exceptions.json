@@ -1,33 +1,33 @@
 {
   "binaries": [
     {
-      "path": "assets/FreeMD-logo.png",
-      "reason": "Maintainer-supplied branding logo copied from dist/FreeMD-logo.png",
-      "source": "Maintainer-supplied (OUBIGFA/FreeMD)",
+      "path": "assets/FreeFolio-logo.png",
+      "reason": "Maintainer-supplied branding logo copied from dist/FreeFolio-logo.png",
+      "source": "Maintainer-supplied (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 31106,
       "sha256": "77603f1cf7dc46f74d4fe6f231aa0b3bc6bae45dbfb141c51641814752c85fad"
     },
     {
-      "path": "assets/FreeMD-home.png",
-      "reason": "README preview of the FreeMD writing view",
-      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "path": "assets/FreeFolio-home.png",
+      "reason": "README preview of the FreeFolio writing view",
+      "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 74013,
       "sha256": "da49ebf99d522b037daf0efa8d13ffe6a62fe43eaf2a89b65ac5a7bfba6e7dfe"
     },
     {
-      "path": "assets/FreeMD-settings.png",
-      "reason": "README preview of the FreeMD appearance settings",
-      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "path": "assets/FreeFolio-settings.png",
+      "reason": "README preview of the FreeFolio appearance settings",
+      "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 77338,
       "sha256": "88bab190b87a23f4ac4c574dd375a0c9fa100acdd1fdc295c3b2dc8ade3e3dcd"
     },
     {
-      "path": "assets/FreeMD-whiteboard.png",
-      "reason": "README preview of the FreeMD whiteboard",
-      "source": "FreeMD native UI with original sample content (OUBIGFA/FreeMD)",
+      "path": "assets/FreeFolio-whiteboard.png",
+      "reason": "README preview of the FreeFolio whiteboard",
+      "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 97353,
       "sha256": "68fee49c307e84bacf1eafdcb7cb08355175931ef76979f762d3dff8ba005c7d"
@@ -35,7 +35,7 @@
     {
       "path": "resources/icon.icns",
       "reason": "macOS app bundle icon referenced by mygo.json",
-      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
+      "source": "Derived from assets/FreeFolio-logo.png (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 154268,
       "sha256": "7bbdc6ece5611e085941ccf7ba86c73bc25053bb86263409672ac7329d697126"
@@ -43,7 +43,7 @@
     {
       "path": "resources/icon.png",
       "reason": "Application icon referenced by mygo.json",
-      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
+      "source": "Derived from assets/FreeFolio-logo.png (OUBIGFA/FreeFolio)",
       "license": "MIT",
       "bytes": 78659,
       "sha256": "757195df93b765dd62794c3a0b91ae341330ffb73eaa85faa3ff100747fad474"
@@ -52,7 +52,7 @@
       "path": "resources/icon.ico",
       "reason": "Multi-resolution Windows application icon",
       "license": "MIT",
-      "source": "Derived from assets/FreeMD-logo.png (OUBIGFA/FreeMD)",
+      "source": "Derived from assets/FreeFolio-logo.png (OUBIGFA/FreeFolio)",
       "bytes": 32574,
       "sha256": "4514f52f3f8bbdd1d4f2f3a8df46113b159f2f338ba3368c3d6c8818e3bfad34"
     },

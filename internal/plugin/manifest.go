@@ -1,11 +1,11 @@
-// Package plugin is FreeMD's extension system: the manifest a plugin ships,
+// Package plugin is FreeFolio's extension system: the manifest a plugin ships,
 // the marketplace's registry index, installing and enabling plugins, and the
-// contract between FreeMD and a plugin's runtime (Host).
+// contract between FreeFolio and a plugin's runtime (Host).
 //
 // Capabilities beyond editing Markdown — AI writing tools above all — are
 // meant to come from plugins, downloaded from the marketplace, not from the
 // core. Plugins never draw native UI themselves: they contribute commands
-// and panels, which FreeMD draws, and answer with edits, Markdown and
+// and panels, which FreeFolio draws, and answer with edits, Markdown and
 // notifications. See docs/plugins.md.
 package plugin
 
@@ -20,13 +20,13 @@ import (
 )
 
 // ManifestFile is the name of the manifest at the root of a plugin.
-const ManifestFile = "freemd-plugin.json"
+const ManifestFile = "freefolio-plugin.json"
 
 // Runtime is how a plugin's code runs.
 type Runtime string
 
 const (
-	// RuntimeWASM runs a WebAssembly module (WASI) inside FreeMD's process,
+	// RuntimeWASM runs a WebAssembly module (WASI) inside FreeFolio's process,
 	// sandboxed: the planned default, portable and safe.
 	RuntimeWASM Runtime = "wasm"
 	// RuntimeProcess runs an executable that speaks JSON-RPC over its
@@ -60,10 +60,10 @@ var Permissions = map[Permission]string{
 	PermUIPanel:       "Show a panel in the sidebar",
 }
 
-// Manifest describes a plugin: freemd-plugin.json.
+// Manifest describes a plugin: freefolio-plugin.json.
 type Manifest struct {
 	// ID is unique in the marketplace, reverse-DNS style, as
-	// "dev.freemd.ai-writer".
+	// "dev.freefolio.ai-writer".
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Version     string `json:"version"` // semantic version, as "1.2.0"
@@ -71,7 +71,7 @@ type Manifest struct {
 	Author      string `json:"author,omitempty"`
 	License     string `json:"license,omitempty"` // SPDX identifier
 	Homepage    string `json:"homepage,omitempty"`
-	// Engine is the lowest FreeMD version the plugin works with, as
+	// Engine is the lowest FreeFolio version the plugin works with, as
 	// "0.1.0"; "" is any.
 	Engine string `json:"engine,omitempty"`
 	// Runtime and Main say how to run the plugin: a .wasm module, or an
@@ -82,7 +82,7 @@ type Manifest struct {
 	Contributes Contributes  `json:"contributes,omitzero"`
 }
 
-// Contributes is what a plugin adds to FreeMD's interface.
+// Contributes is what a plugin adds to FreeFolio's interface.
 type Contributes struct {
 	Commands []Command `json:"commands,omitempty"`
 	Panels   []Panel   `json:"panels,omitempty"`

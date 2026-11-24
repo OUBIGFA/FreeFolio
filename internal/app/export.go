@@ -9,10 +9,10 @@ import (
 	"path"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -77,7 +77,7 @@ func sanitizeName(title string) string {
 }
 
 // htmlPage is a document exported as a web page: semantic HTML in a page
-// of its own, readable without FreeMD, its images beside it as the
+// of its own, readable without FreeFolio, its images beside it as the
 // document's are.
 func htmlPage(title, body string) string {
 	return `<!doctype html>
@@ -85,7 +85,7 @@ func htmlPage(title, body string) string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="FreeMD">
+<meta name="generator" content="FreeFolio">
 <title>` + html.EscapeString(title) + `</title>
 <style>
 :root { color-scheme: light dark; }
@@ -100,9 +100,9 @@ pre { background: #f5f6f7; border-radius: 8px; padding: 14px 16px; overflow: aut
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f2f3f5; border-radius: 4px; padding: .1em .3em; }
 kbd { font: 500 0.85em/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fff; color: #1f2329; border: 1px solid #d0d7de; border-bottom-width: 2px; border-radius: 5px; padding: .12em .4em; box-shadow: inset 0 -1px 0 #d0d7de; }
 pre code { background: none; padding: 0; }
-` + editor.CodeTokenCSS(pageStyle(false).Tokens) + `figure.freemd-mermaid { margin: 1.2em 0; text-align: center; }
-figure.freemd-mermaid svg { max-width: 100%; height: auto; }
-figure.freemd-mermaid .freemd-diagram-dark { display: none; }
+` + editor.CodeTokenCSS(pageStyle(false).Tokens) + `figure.freefolio-mermaid { margin: 1.2em 0; text-align: center; }
+figure.freefolio-mermaid svg { max-width: 100%; height: auto; }
+figure.freefolio-mermaid .freefolio-diagram-dark { display: none; }
 table { border-collapse: collapse; margin: .8em 0; }
 th, td { border: 1px solid #dee0e3; padding: 6px 12px; text-align: left; }
 th { background: #f5f6f7; }
@@ -113,8 +113,8 @@ summary { cursor: pointer; }
 @media (prefers-color-scheme: dark) {
   body { background: #1f2023; color: #e3e4e7; }
   pre, th, code { background: #2b2c30; }
-  figure.freemd-mermaid .freemd-diagram-light { display: none; }
-  figure.freemd-mermaid .freemd-diagram-dark { display: inline; }
+  figure.freefolio-mermaid .freefolio-diagram-light { display: none; }
+  figure.freefolio-mermaid .freefolio-diagram-dark { display: inline; }
 ` + editor.CodeTokenCSS(pageStyle(true).Tokens) + `  kbd { background: #2b2c30; color: #e3e4e7; border-color: #46484f; box-shadow: inset 0 -1px 0 #46484f; }
   blockquote { border-color: #3a3b40; color: #a6a8ad; }
   th, td, hr { border-color: #3a3b40; }

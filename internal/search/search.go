@@ -14,8 +14,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/internal/wiki"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/wiki"
 )
 
 // Root is a space's folder to index.

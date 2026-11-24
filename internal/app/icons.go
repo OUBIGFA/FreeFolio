@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
 	"github.com/egoist/mygo/ui"
 )
 

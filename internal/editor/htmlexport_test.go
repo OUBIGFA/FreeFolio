@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/mermaid"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/mermaid"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -27,11 +27,11 @@ func TestExportHTMLPageHighlightsCode(t *testing.T) {
 
 	out := ExportHTMLPage(doc, testHTMLTheme())
 	for _, want := range []string{
-		`<span class="freemd-tok-keyword">public</span>`,
-		`<span class="freemd-tok-keyword">static</span>`,
-		`<span class="freemd-tok-type">System</span>`,
-		`<span class="freemd-tok-function">main</span>`,
-		`<span class="freemd-tok-string">&#34;hello world&#34;</span>`,
+		`<span class="freefolio-tok-keyword">public</span>`,
+		`<span class="freefolio-tok-keyword">static</span>`,
+		`<span class="freefolio-tok-type">System</span>`,
+		`<span class="freefolio-tok-function">main</span>`,
+		`<span class="freefolio-tok-string">&#34;hello world&#34;</span>`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("ExportHTMLPage missing %q:\n%s", want, out)
@@ -59,7 +59,7 @@ func TestExportHTMLClipboardKeepsCodeAndMermaidSource(t *testing.T) {
 	doc.Blocks = append(doc.Blocks, diagram)
 
 	out := ExportHTML(doc)
-	if strings.Contains(out, "freemd-tok-") || strings.Contains(out, "<svg") {
+	if strings.Contains(out, "freefolio-tok-") || strings.Contains(out, "<svg") {
 		t.Fatalf("clipboard HTML should stay plain:\n%s", out)
 	}
 	if !strings.Contains(out, `<pre><code class="language-mermaid">flowchart LR`) {
@@ -77,7 +77,7 @@ func TestExportHTMLPageEscapesCodeWithoutLanguage(t *testing.T) {
 	if !strings.Contains(out, `if a &lt; b &amp;&amp; c &gt; d { }`) {
 		t.Fatalf("plain code is not escaped:\n%s", out)
 	}
-	if strings.Contains(out, `<span class="freemd-tok-`) {
+	if strings.Contains(out, `<span class="freefolio-tok-`) {
 		t.Fatalf("a code block without a language has no highlighting:\n%s", out)
 	}
 }
@@ -91,10 +91,10 @@ func TestExportHTMLPageRendersMermaidDiagrams(t *testing.T) {
 	doc.Blocks = append(doc.Blocks, code)
 
 	out := ExportHTMLPage(doc, testHTMLTheme())
-	if !strings.Contains(out, `<figure class="freemd-mermaid"><span class="freemd-diagram-light"><svg`) {
+	if !strings.Contains(out, `<figure class="freefolio-mermaid"><span class="freefolio-diagram-light"><svg`) {
 		t.Fatalf("mermaid block is not drawn as a figure:\n%s", out)
 	}
-	if !strings.Contains(out, `<span class="freemd-diagram-dark"><svg`) {
+	if !strings.Contains(out, `<span class="freefolio-diagram-dark"><svg`) {
 		t.Fatalf("mermaid diagram has no dark picture:\n%s", out)
 	}
 	if !strings.Contains(out, `font-family="`+mermaid.FontFamily+`,`) {
@@ -153,7 +153,7 @@ func TestExportHTMLPageDrawsDarkDiagrams(t *testing.T) {
 
 	theme := testHTMLTheme()
 	out := ExportHTMLPage(doc, theme)
-	darkAt := strings.Index(out, `class="freemd-diagram-dark"`)
+	darkAt := strings.Index(out, `class="freefolio-diagram-dark"`)
 	if darkAt < 0 {
 		t.Fatalf("no dark diagram:\n%s", out)
 	}

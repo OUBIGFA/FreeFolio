@@ -1,10 +1,10 @@
 {
-  "name": "FreeMD",
-  "slug": "freemd",
-  "identifier": "io.github.oubigfa.freemd",
+  "name": "FreeFolio",
+  "slug": "freefolio",
+  "identifier": "io.github.oubigfa.freefolio",
   "version": "0.1.2",
   "icon": "resources/icon.png",
-  "main": "./cmd/freemd",
+  "main": "./cmd/freefolio",
   "out": "dist",
   "i18n": {
     "dir": "resources/locales",

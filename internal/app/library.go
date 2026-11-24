@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/pinyin"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/trashbin"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/pinyin"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -436,7 +436,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 					revealDir(s.Root)
 				}
 				m.Separator()
-				if m.Item(i18n.T("从 FreeMD 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
+				if m.Item(i18n.T("从 FreeFolio 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
 					a.removeSpace(s.ID)
 					a.loadLibrary()
 				}
@@ -559,7 +559,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 		ui.Text(c, i18n.T("读取失败。")+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(16, 12, 0, 12)
 		return
 	case len(l.items) == 0:
-		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeMD 删除的文档和文件夹会在这里保留 30 天，可以放回原处。"))
+		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeFolio 删除的文档和文件夹会在这里保留 30 天，可以放回原处。"))
 		return
 	}
 	words := strings.Fields(strings.ToLower(l.query))
@@ -599,7 +599,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 
 // trashRow is a deleted item's row: its icon on a faint tile, its name
 // over where it was and when it went, and, under the pointer, the bin
-// (forget FreeMD's copy) and the arrow putting it back. A click puts it
+// (forget FreeFolio's copy) and the arrow putting it back. A click puts it
 // back too, as a click on an archived tab restores it in Arc.
 func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 	t := c.Theme()
@@ -634,7 +634,7 @@ func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 				ui.Text(c, where+" · "+strings.TrimSpace(ago(it.Deleted, now))+i18n.T("删除")).FontSize(12).
 					TextColor(ink.Alpha(0.55)).SingleLine()
 			})
-			forget := a.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 FreeMD 保留的副本，系统废纸篓中的原件不受影响"), hovered)
+			forget := a.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 FreeFolio 保留的副本，系统废纸篓中的原件不受影响"), hovered)
 			if forget.Clicked() {
 				acted = true
 				a.bin.Forget(it)

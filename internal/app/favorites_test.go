@@ -167,7 +167,7 @@ func drag(tt *ui.Tester, from, to string, dy float32, over func()) {
 // TestFavoritesSnapshot renders one, three and five favorites, the open
 // one light, for review.
 func TestFavoritesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the favorites")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the favorites")
 	for _, n := range []int{1, 3, 5} {
 		for _, dark := range []bool{false, true} {
 			name := fmt.Sprintf("favorites-%d", n)

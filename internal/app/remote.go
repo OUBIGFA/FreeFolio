@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -183,7 +183,7 @@ func (r *remoteImages) download(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "FreeMD")
+	req.Header.Set("User-Agent", "FreeFolio")
 	req.Header.Set("Accept", "image/*")
 	resp, err := r.client.Do(req)
 	if err != nil {

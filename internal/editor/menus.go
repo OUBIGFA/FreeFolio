@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -648,7 +648,7 @@ func (e *Editor) blockMenu(c *ui.Context, surface ui.Element) {
 	})
 }
 
-// copyBlockContent puts block id on the clipboard with FreeMD's structured
+// copyBlockContent puts block id on the clipboard with FreeFolio's structured
 // fragment, as the block menu's copy does.
 func (e *Editor) copyBlockContent(id string) {
 	start, end := -1, -1

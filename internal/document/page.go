@@ -29,7 +29,7 @@ func (e *Engine) SetCoverY(y float64) {
 }
 
 // SetFrontmatter replaces the document's own YAML frontmatter lines (those
-// FreeMD does not read into the icon, cover and goal) as one step of the
+// FreeFolio does not read into the icon, cover and goal) as one step of the
 // history, as editing the note's properties does.
 func (e *Engine) SetFrontmatter(fm string) {
 	e.Edit(func() { e.Doc.Frontmatter = strings.TrimRight(fm, "\r\n") })

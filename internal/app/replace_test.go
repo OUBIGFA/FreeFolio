@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -77,7 +77,7 @@ func TestExportHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(page)
-	if !strings.HasPrefix(s, "<!doctype html>") || !strings.Contains(s, "<title>Welcome</title>") || !strings.Contains(s, "<h1>Welcome to FreeMD</h1>") {
+	if !strings.HasPrefix(s, "<!doctype html>") || !strings.Contains(s, "<title>Welcome</title>") || !strings.Contains(s, "<h1>Welcome to FreeFolio</h1>") {
 		t.Fatal(s[:200])
 	}
 	if _, err := os.Stat(filepath.Join(root(a), "Welcome 2.html")); err != nil {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -124,7 +124,7 @@ func TestDocPreview(t *testing.T) {
 // TestPreviewSnapshot renders both cards in a light, a dark and a pink
 // space, for review.
 func TestPreviewSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the previews")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the previews")
 	for _, look := range []string{"light", "dark", "pink"} {
 		for _, kind := range []string{"folder", "doc"} {
 			t.Run(look+"-"+kind, func(t *testing.T) {

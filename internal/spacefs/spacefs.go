@@ -26,7 +26,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // Part is one top-level block's Markdown and the block's ID ("" when the
@@ -444,7 +444,7 @@ func (f *FS) Page(rel string) (*Page, error) {
 }
 
 // hidden reports a path inside a hidden folder, as the space's own
-// .freemd history, which the vault never lists.
+// .freefolio history, which the vault never lists.
 func hidden(rel string) bool {
 	for _, seg := range strings.Split(rel, "/") {
 		if strings.HasPrefix(seg, ".") || seg == "node_modules" {

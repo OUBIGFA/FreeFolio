@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown/parser"
 )
@@ -299,12 +299,12 @@ func TestQASourcesCollapsibleAndRowHighlight(t *testing.T) {
 
 func TestQACitationPreviewDoesNotOccludeAnswerText(t *testing.T) {
 	a, tt := newTestApp(t)
-	os.WriteFile(filepath.Join(root(a), "Welcome.md"), []byte("# Welcome to FreeMD\n\nFreeMD is a calm place for writing, in the spirit of Arc and Zen.\n"), 0o644)
+	os.WriteFile(filepath.Join(root(a), "Welcome.md"), []byte("# Welcome to FreeFolio\n\nFreeFolio is a calm place for writing, in the spirit of Arc and Zen.\n"), 0o644)
 
 	s := a.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{{
-		question: "介绍一下 FreeMD",
-		answer:   "你的空间里有两条关于 FreeMD 的描述。\n\n- 一个安静、克制的开源桌面文档编辑器，交互借鉴 Arc 与 Zen，文档以结构化的 `.arcmd` 文件保存，支持 Markdown 导入导出 [Welcome.md#L3]。\n\n- 起因：作者用纯 Go 原生把审美与手感移植成文档编辑器。",
+		question: "介绍一下 FreeFolio",
+		answer:   "你的空间里有两条关于 FreeFolio 的描述。\n\n- 一个安静、克制的开源桌面文档编辑器，交互借鉴 Arc 与 Zen，文档以结构化的 `.arcmd` 文件保存，支持 Markdown 导入导出 [Welcome.md#L3]。\n\n- 起因：作者用纯 Go 原生把审美与手感移植成文档编辑器。",
 	}}
 	a.toggleQA()
 	tt.Frame()
@@ -312,7 +312,7 @@ func TestQACitationPreviewDoesNotOccludeAnswerText(t *testing.T) {
 	tt.Frame()
 
 	// 1. Standard 1280x800 window: card docks outside the left edge of the Q&A card.
-	chip, ok := tt.Find("来源：Welcome to FreeMD")
+	chip, ok := tt.Find("来源：Welcome to FreeFolio")
 	if !ok {
 		t.Fatalf("citation chip missing: %q", tt.Texts())
 	}
@@ -332,7 +332,7 @@ func TestQACitationPreviewDoesNotOccludeAnswerText(t *testing.T) {
 	// 2. Ultra-narrow 560x600 window: falls back below the chip so the preceding claim stays unobstructed.
 	tt.SetSize(560, 600)
 	settle(tt)
-	chip, ok = tt.Find("来源：Welcome to FreeMD")
+	chip, ok = tt.Find("来源：Welcome to FreeFolio")
 	if !ok {
 		t.Fatalf("citation chip missing in narrow window: %q", tt.Texts())
 	}

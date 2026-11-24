@@ -8,11 +8,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/mermaid"
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
-	"github.com/OUBIGFA/FreeMD/internal/tex"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/mermaid"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/tex"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 

@@ -3,13 +3,13 @@ package editor
 import (
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown/parser"
 )
 
-const fragmentFormat transfer.Format = "application/vnd.freemd.document+json"
+const fragmentFormat transfer.Format = "application/vnd.freefolio.document+json"
 
 func (e *Editor) copySelection(write func(string)) {
 	r := e.Selection().Range

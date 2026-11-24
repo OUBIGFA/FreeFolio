@@ -6,7 +6,7 @@ import (
 	"image/png"
 	"sync"
 
-	"github.com/OUBIGFA/FreeMD/resources"
+	"github.com/OUBIGFA/FreeFolio/resources"
 	"golang.org/x/image/draw"
 )
 

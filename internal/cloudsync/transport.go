@@ -124,7 +124,7 @@ func (w *webdavStore) legacyStore() remoteStore {
 func newWebDAVStore(address, user, password string) (*webdavStore, error) {
 	base, err := url.Parse(strings.TrimSpace(address))
 	if err != nil || base.Host == "" || (base.Scheme != "https" && base.Scheme != "http") {
-		return nil, errors.New("WebDAV 地址要以 https:// 或 http:// 开头，例如 https://dav.jianguoyun.com/dav/FreeMD")
+		return nil, errors.New("WebDAV 地址要以 https:// 或 http:// 开头，例如 https://dav.jianguoyun.com/dav/FreeFolio")
 	}
 	base.Path = strings.TrimRight(base.Path, "/")
 	base.RawPath, base.RawQuery, base.Fragment = "", "", ""
@@ -685,9 +685,9 @@ func (s *s3Store) Probe() error {
 	if _, err := s.list("", 1, false); err != nil {
 		return fmt.Errorf("连接失败：%s", strings.TrimPrefix(err.Error(), "读取远端目录失败："))
 	}
-	probe := []byte("FreeMD")
-	if err := s.Put(".freemd-probe", bytes.NewReader(probe), int64(len(probe))); err != nil {
+	probe := []byte("FreeFolio")
+	if err := s.Put(".freefolio-probe", bytes.NewReader(probe), int64(len(probe))); err != nil {
 		return fmt.Errorf("可读取存储桶，但无法写入：%w", err)
 	}
-	return s.Delete(".freemd-probe")
+	return s.Delete(".freefolio-probe")
 }

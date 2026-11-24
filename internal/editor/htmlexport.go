@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/mermaid"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/mermaid"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -130,7 +130,7 @@ func exportHTML(doc *document.Document, theme *HTMLTheme) string {
 				}
 				if theme != nil && normalizeLexLang(b.Language) == langMermaid {
 					if svg, ok := mermaidSVG(b.Text(), *theme); ok {
-						out.WriteString(`<figure class="freemd-mermaid">` + svg + `</figure>`)
+						out.WriteString(`<figure class="freefolio-mermaid">` + svg + `</figure>`)
 						continue
 					}
 				}
@@ -202,16 +202,16 @@ func exportHTML(doc *document.Document, theme *HTMLTheme) string {
 			case "columns":
 				ratios := columnRatioStrings(b)
 				if len(ratios) == len(b.Children) {
-					fmt.Fprintf(&out, `<div class="freemd-columns" data-widths="%s" style="display:flex;gap:24px">`, strings.Join(ratios, ","))
+					fmt.Fprintf(&out, `<div class="freefolio-columns" data-widths="%s" style="display:flex;gap:24px">`, strings.Join(ratios, ","))
 				} else {
-					out.WriteString(`<div class="freemd-columns" style="display:flex;gap:24px">`)
+					out.WriteString(`<div class="freefolio-columns" style="display:flex;gap:24px">`)
 				}
 				for ci, col := range b.Children {
 					flexStyle := "flex:1;min-width:0"
 					if len(ratios) == len(b.Children) {
 						flexStyle = "flex:" + ratios[ci] + ";min-width:0"
 					}
-					fmt.Fprintf(&out, `<div class="freemd-column" style="%s">%s</div>`, flexStyle, blocks(col.Children))
+					fmt.Fprintf(&out, `<div class="freefolio-column" style="%s">%s</div>`, flexStyle, blocks(col.Children))
 				}
 				out.WriteString(`</div>`)
 				continue
@@ -279,7 +279,7 @@ func htmlCode(text, language string) string {
 		class := ""
 		for _, c := range htmlTokenClasses {
 			if c.lexed == sp.Color {
-				class = "freemd-tok-" + c.name
+				class = "freefolio-tok-" + c.name
 			}
 		}
 		if class == "" {
@@ -296,14 +296,14 @@ func htmlCode(text, language string) string {
 func CodeTokenCSS(tokens CodeTokens) string {
 	var b strings.Builder
 	for _, c := range htmlTokenClasses {
-		fmt.Fprintf(&b, "pre code .freemd-tok-%s { color: %s; }\n", c.name, htmlColor(c.color(tokens)))
+		fmt.Fprintf(&b, "pre code .freefolio-tok-%s { color: %s; }\n", c.name, htmlColor(c.color(tokens)))
 	}
 	return b.String()
 }
 
 // mermaidSVG lays a Mermaid block out with the system font's metrics and
 // draws it as inline SVG in the colors the editor paints it with, once for
-// each appearance; the page's CSS shows one. A block FreeMD cannot draw
+// each appearance; the page's CSS shows one. A block FreeFolio cannot draw
 // keeps its source.
 func mermaidSVG(src string, theme HTMLTheme) (string, bool) {
 	diagram, err := mermaid.ParseAndLayout(src, exportMermaidMeasure)
@@ -313,7 +313,7 @@ func mermaidSVG(src string, theme HTMLTheme) (string, bool) {
 	alt := diagramTitle(diagram.Kind)
 	light := mermaid.ExportSVG(diagram, exportMermaidStyle(theme.Light), alt)
 	dark := mermaid.ExportSVG(diagram, exportMermaidStyle(theme.Dark), alt)
-	return `<span class="freemd-diagram-light">` + light + `</span><span class="freemd-diagram-dark">` + dark + `</span>`, true
+	return `<span class="freefolio-diagram-light">` + light + `</span><span class="freefolio-diagram-dark">` + dark + `</span>`, true
 }
 
 // exportMermaidMeasure measures a label with the system font the exported

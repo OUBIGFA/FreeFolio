@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestMovedImportKeepsParentImages(t *testing.T) {

@@ -8,11 +8,11 @@ followed.
 
 Enable the spaces you want to synchronize. Give each a remote folder name.
 On another computer, select its corresponding local space and use the same
-remote folder. Data lives below the connection's `FreeMD` directory. Neither
+remote folder. Data lives below the connection's `FreeFolio` directory. Neither
 computer has to share the other's local space ID or filesystem path.
 
 **Sync now** transfers notes and attachments in both directions. Files larger
-than 64 MiB are refused with an error. Hidden folders, FreeMD internal history,
+than 64 MiB are refused with an error. Hidden folders, FreeFolio internal history,
 configuration files, credentials, temporary content and generated conflict copies
 are excluded. Symbolic links are refused. A remote folder should be dedicated to
 one logical space; do not map unrelated local spaces to the same folder.
@@ -62,12 +62,12 @@ The settings page lists conflicts and offers **Keep local version** and
 bound to the remote version shown; a later remote change requires another sync.
 Conflict copies remain available for inspection and manual merging.
 
-Before replacing or deleting a local file, FreeMD writes a recovery copy under
+Before replacing or deleting a local file, FreeFolio writes a recovery copy under
 the application's `sync-state/backups` directory. **Open recovery backups** opens
 that directory. Local recovery copies are not automatically deleted. Local
-deletions also create a FreeMD trash copy and use the system recycle bin; a
+deletions also create a FreeFolio trash copy and use the system recycle bin; a
 recycle failure leaves the original file in place. Remote overwrites and deletes
-keep the previous bytes in `.freemd-history`, subject to the configured retention
+keep the previous bytes in `.freefolio-history`, subject to the configured retention
 count. A file being edited, composed with an input method, conflicted, or marked
 read-only is skipped before an incoming write.
 
@@ -99,7 +99,7 @@ queries need the service to maintain a change history:
 | --- | --- | --- |
 | [rclone recursive listing and parallel walking](https://github.com/rclone/rclone/tree/v1.76.0/fs/walk) | Fewer S3 listing calls; bounded parallel WebDAV requests | Adapted here; preserves ordinary WebDAV/S3 files and existing guarded writes. |
 | [WebDAV collection sync (RFC 6578)](https://datatracker.ietf.org/doc/html/rfc6578) | `sync-token` and `sync-collection` return changes since a prior cursor | Requires explicit server support, including coverage of child collections. Invalid tokens require rebuilding the inventory. Not enabled without capability support. |
-| [Joplin Server delta sync](https://joplinapp.org/help/dev/spec/server_delta_sync/) | Server-side change events, deletions and resumable cursors | Requires Joplin Server's API and data model; its [plain WebDAV driver](https://github.com/laurent22/joplin/blob/dev/packages/lib/file-api-driver-webdav.js) still inventories files. Not a replacement library for FreeMD's ordinary-file transport. |
+| [Joplin Server delta sync](https://joplinapp.org/help/dev/spec/server_delta_sync/) | Server-side change events, deletions and resumable cursors | Requires Joplin Server's API and data model; its [plain WebDAV driver](https://github.com/laurent22/joplin/blob/dev/packages/lib/file-api-driver-webdav.js) still inventories files. Not a replacement library for FreeFolio's ordinary-file transport. |
 
 The current implementation adds no server, remote index file or metadata format
 and does not assume a directory's ETag covers changes to every descendant.

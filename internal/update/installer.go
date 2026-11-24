@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 )
 
 // ErrNoInstaller distinguishes an empty release feed from an up-to-date app.
@@ -23,19 +23,19 @@ var ErrNoInstaller = errors.New("no Windows installer has been published")
 
 const maxInstallerSize = 512 << 20
 
-// Client checks FreeMD's public releases. Every Windows build uses the same
+// Client checks FreeFolio's public releases. Every Windows build uses the same
 // source; no build flag, signing key or writable application folder is needed.
 type Client struct {
 	directory, current, api string
 	http                    *http.Client
 }
 
-// NewClient stores downloads in FreeMD's configuration directory, outside the
+// NewClient stores downloads in FreeFolio's configuration directory, outside the
 // installed application. The installer owns replacement of the application.
 func NewClient(directory, current string) *Client {
 	return &Client{
 		directory: directory, current: current,
-		api: "https://api.github.com/repos/OUBIGFA/FreeMD",
+		api: "https://api.github.com/repos/OUBIGFA/FreeFolio",
 		http: &http.Client{Timeout: 30 * time.Minute, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if req.URL.Scheme != "https" || len(via) >= 10 {
 				return errors.New(i18n.T("更新下载地址无效。"))
@@ -93,7 +93,7 @@ func (c *Client) Check(ctx context.Context) (*Installer, error) {
 			if !valid || release.Draft || release.Prerelease || latest != nil && parsed.Compare(latestVersion) <= 0 {
 				continue
 			}
-			name := "FreeMD-" + version + "-Setup.exe"
+			name := "FreeFolio-" + version + "-Setup.exe"
 			for _, asset := range release.Assets {
 				if asset.Name == name && asset.ID > 0 {
 					latestVersion = parsed
@@ -171,7 +171,7 @@ func (c *Client) get(ctx context.Context, url, accept string) (*http.Response, e
 		return nil, err
 	}
 	req.Header.Set("Accept", accept)
-	req.Header.Set("User-Agent", "FreeMD/"+c.current)
+	req.Header.Set("User-Agent", "FreeFolio/"+c.current)
 	response, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func (c *Client) get(ctx context.Context, url, accept string) (*http.Response, e
 }
 
 // Download keeps partial or corrupt downloads out of the install path. An
-// already verified download can be reused after restarting FreeMD.
+// already verified download can be reused after restarting FreeFolio.
 func (r *Installer) Download(ctx context.Context, progress func(done, total int64)) error {
 	if err := ctx.Err(); err != nil {
 		return err

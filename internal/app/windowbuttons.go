@@ -1,14 +1,14 @@
 package app
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 // Client window controls, ported from ArcMD a51bce7: on KDE Wayland the
-// windows ask for client decorations, and FreeMD draws minimize, maximize
+// windows ask for client decorations, and FreeFolio draws minimize, maximize
 // and close in its own top bar instead of a separate KWin title row.
 
 const (
@@ -32,7 +32,7 @@ type captionWindow interface {
 
 var _ captionWindow = (*mygo.Window)(nil)
 
-// captionWindow is the main window when FreeMD draws its controls.
+// captionWindow is the main window when FreeFolio draws its controls.
 func (a *App) captionWindow() captionWindow {
 	if a.testCaptionWindow != nil {
 		return a.testCaptionWindow
@@ -52,7 +52,7 @@ func (a *App) captionWidth() float32 {
 	return 0
 }
 
-// titleBar is the room the window controls take, the system's and FreeMD's
+// titleBar is the room the window controls take, the system's and FreeFolio's
 // own alike, so every top bar keeps clear of them the same way.
 func (a *App) titleBar(c *ui.Context) ui.TitleBar {
 	bar := c.TitleBar()

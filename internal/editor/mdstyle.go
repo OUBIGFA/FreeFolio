@@ -8,14 +8,14 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
 
 // Palette hex values mirror internal/app/theme.go's light document theme so
 // Markdown files opened in Typora, Obsidian, VS Code or browsers show the
-// same colors FreeMD draws natively.
+// same colors FreeFolio draws natively.
 var (
 	textColorHex = map[string]string{
 		"gray":   "#8F959E",
@@ -75,7 +75,7 @@ func validStyleName(name string, allowed []string) bool {
 
 // spanTagAndAttrs formats a Style's color, highlight and hand-drawn annotation
 // as either a standard <mark> element or a <span> with both inline CSS (for
-// external Markdown viewers) and lossless data-* attributes (for FreeMD).
+// external Markdown viewers) and lossless data-* attributes (for FreeFolio).
 func spanTagAndAttrs(s document.Style) (tag, attrs string) {
 	if s.Color == "" && s.Highlight == "light-yellow" && s.Annotation == "" && s.Size == 0 {
 		return "mark", ""
@@ -550,7 +550,7 @@ func clearHTMLMark(r document.Run, kind string) document.Run {
 }
 
 // parseInlineHTMLNodesExact converts children of an exact-whitespace HTML cell
-// (such as an FreeMD-exported <td>) into document.Runs and preserved inline
+// (such as an FreeFolio-exported <td>) into document.Runs and preserved inline
 // comments without collapsing or trimming spaces, keeping <br> as '\n'.
 func parseInlineHTMLNodesExact(parent *xhtml.Node, base document.Style) ([]document.Run, []document.InlineComment) {
 	var children []*xhtml.Node

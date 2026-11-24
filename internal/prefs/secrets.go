@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 // Secrets keeps credentials in separate, unencrypted local files. Dir belongs

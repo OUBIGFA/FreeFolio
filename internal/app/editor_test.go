@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	docpkg "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	docpkg "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -224,7 +224,7 @@ func TestRealtimeInPlaceMarkdownPreservesCustomStylesAndLegacyArcmd(t *testing.T
 	a.open("Styled.md")
 	tt.Frame()
 
-	// Apply custom FreeMD page metadata, inline styles/annotations, callout, table, and columns.
+	// Apply custom FreeFolio page metadata, inline styles/annotations, callout, table, and columns.
 	a.doc.ed.Engine.SetPageIcon("🎨")
 	a.doc.ed.Engine.SetCover(".assets/banner.png")
 	a.doc.ed.Engine.SetCoverY(0.42)

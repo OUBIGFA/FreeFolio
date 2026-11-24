@@ -81,7 +81,7 @@ func TestMove(t *testing.T) {
 	if vs, _ := List(root, "New/a.arcmd"); len(vs) != 1 {
 		t.Error("versions did not follow the folder")
 	}
-	if _, err := os.Stat(filepath.Join(root, ".freemd/history/Old")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".freefolio/history/Old")); !os.IsNotExist(err) {
 		t.Error("old history left")
 	}
 	if err := Move(root, "Missing.arcmd", "Other.arcmd"); err != nil {

@@ -93,7 +93,7 @@ def build_inventory(root=Path(".")):
                 "archiveHash": hashes.get("archiveHash", ""),
                 "goModHash": hashes.get("goModHash", ""),
                 "spdxLicenseId": spdx,
-                "consumer": "FreeMD Go build (go.mod)",
+                "consumer": "FreeFolio Go build (go.mod)",
             }
         )
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
 )
 
 // MarkdownSourceSpan maps the same source lines used by file tools back to

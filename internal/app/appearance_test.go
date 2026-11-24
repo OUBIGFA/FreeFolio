@@ -6,8 +6,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -134,13 +134,13 @@ func TestAppearancePreviewBrandStaysAtWindowStart(t *testing.T) {
 		if !ok {
 			t.Fatal("appearance preview is missing")
 		}
-		logo, ok := tt.Find("FreeMD")
+		logo, ok := tt.Find("FreeFolio")
 		if !ok || logo.X < frame.X || logo.X > frame.X+40 || logo.Y < frame.Y || logo.Y+logo.H > frame.Y+30 {
 			t.Errorf("left=%v: preview brand %+v is not at the start of %+v", left, logo, frame)
 		}
 		count := 0
 		for _, text := range tt.Texts() {
-			if text == "FreeMD" {
+			if text == "FreeFolio" {
 				count++
 			}
 		}

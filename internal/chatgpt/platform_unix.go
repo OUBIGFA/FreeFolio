@@ -31,7 +31,7 @@ func tryLock(f *os.File) (bool, error) {
 func unlock(f *os.File) { _ = unix.Flock(int(f.Fd()), unix.LOCK_UN) }
 
 // Only a random encryption key enters the OS secret service. The encrypted
-// profile stays in FreeMD's directory. Missing/locked services fail explicitly.
+// profile stays in FreeFolio's directory. Missing/locked services fail explicitly.
 func protect(dir string, data []byte, seal bool) ([]byte, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -42,9 +42,9 @@ func protect(dir string, data []byte, seal bool) ([]byte, error) {
 	defer cancel()
 	lookup := func() ([]byte, error) {
 		if runtime.GOOS == "darwin" {
-			return exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-s", "FreeMD.ChatGPT", "-a", name, "-w").Output()
+			return exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-s", "FreeFolio.ChatGPT", "-a", name, "-w").Output()
 		}
-		return exec.CommandContext(ctx, "secret-tool", "lookup", "application", "FreeMD.ChatGPT", "store", name).Output()
+		return exec.CommandContext(ctx, "secret-tool", "lookup", "application", "FreeFolio.ChatGPT", "store", name).Output()
 	}
 	encoded, lookupErr := lookup()
 	if lookupErr != nil {
@@ -65,9 +65,9 @@ func protect(dir string, data []byte, seal bool) ([]byte, error) {
 		if runtime.GOOS == "darwin" {
 			// Interactive stdin avoids putting the secret in process arguments.
 			cmd = exec.CommandContext(ctx, "/usr/bin/security", "-i")
-			cmd.Stdin = strings.NewReader("add-generic-password -s FreeMD.ChatGPT -a " + name + " -w " + string(encoded) + "\n")
+			cmd.Stdin = strings.NewReader("add-generic-password -s FreeFolio.ChatGPT -a " + name + " -w " + string(encoded) + "\n")
 		} else {
-			cmd = exec.CommandContext(ctx, "secret-tool", "store", "--label=FreeMD ChatGPT", "application", "FreeMD.ChatGPT", "store", name)
+			cmd = exec.CommandContext(ctx, "secret-tool", "store", "--label=FreeFolio ChatGPT", "application", "FreeFolio.ChatGPT", "store", name)
 			cmd.Stdin = bytes.NewReader(encoded)
 		}
 		if err = cmd.Run(); err != nil {

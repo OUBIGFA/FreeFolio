@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -456,7 +456,7 @@ func TestExternalWatchAndConflict(t *testing.T) {
 }
 
 func TestExternalSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT for external space")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT for external space")
 	for _, size := range []struct {
 		name string
 		w, h int

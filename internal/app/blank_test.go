@@ -61,7 +61,7 @@ func TestNewDocumentIsNamedByItsTitle(t *testing.T) {
 // never renamed for its title.
 func TestTitleNameTakenAndOldDocuments(t *testing.T) {
 	a, tt := newTestApp(t)
-	// Welcome's title is "Welcome to FreeMD", its file Welcome.
+	// Welcome's title is "Welcome to FreeFolio", its file Welcome.
 	a.doc.ed.SetSelection(0, 0)
 	tt.Type("Hi ")
 	settle(tt)

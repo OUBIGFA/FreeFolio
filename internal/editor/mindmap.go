@@ -8,9 +8,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/mindmap"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/mindmap"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -154,7 +154,7 @@ func shouldSkipMapBlock(b *document.Block) bool {
 }
 
 // A short unformatted label gets the component's original typography. Other
-// nodes use FreeMD's native block painter, including inline TeX and source colors.
+// nodes use FreeFolio's native block painter, including inline TeX and source colors.
 func richMapBlock(b *document.Block) bool {
 	if b.Kind != "heading" && b.Kind != "paragraph" {
 		return true

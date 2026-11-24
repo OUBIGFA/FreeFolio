@@ -4,9 +4,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -45,7 +45,7 @@ func mapBranchPalette(d *document, dark bool) []ui.Color {
 			colors = append(colors, col)
 		}
 	}
-	// The same swatches as FreeMD's sidebar document icons, gently
+	// The same swatches as FreeFolio's sidebar document icons, gently
 	// harmonized with this space instead of repeating a single hue.
 	for _, i := range []int{2, 10, 7, 4, 0, 8, 9, 6} {
 		colors = append(colors, docPalette[i].MixOklab(base, .18))

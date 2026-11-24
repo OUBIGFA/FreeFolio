@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -234,7 +234,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 }
 
 func TestQALoaderStylesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect LDRS styles")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect LDRS styles")
 	styles := []struct {
 		name  string
 		style qaLoaderStyle

@@ -43,7 +43,7 @@ type State struct {
 
 type Options struct {
 	LayoutRevision uint64     // nonzero while the caller can identify changes to content, theme and wrapping
-	Colors         []ui.Color // active FreeMD space colors; the document theme supplies readable ink
+	Colors         []ui.Color // active FreeFolio space colors; the document theme supplies readable ink
 	MaxWidth       float32    // width ceiling in logical DIP, before zoom
 	Pan            func(float32, float32)
 	Locate         bool

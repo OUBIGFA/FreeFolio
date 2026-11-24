@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 )
 
 func TestOneBotReviewUIKeepsSelectionAfterFocusAndApplies(t *testing.T) {
@@ -39,7 +39,7 @@ func TestOneBotReviewUIKeepsSelectionAfterFocusAndApplies(t *testing.T) {
 }
 
 func TestOneBotSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect OneBot")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect OneBot")
 	for _, mode := range []string{"review", "settings", "review-dark", "review-narrow", "review-diff", "alternatives", "review-wide"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt := newTestApp(t)

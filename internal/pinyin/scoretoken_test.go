@@ -162,7 +162,7 @@ func scoreTokenTable(token, target string) (int, bool) {
 
 func TestScoreTokenAgreesWithTheWholeTable(t *testing.T) {
 	targets := []string{
-		"", "周报", "本周的工作周报总结", "自动备份", "Go 笔记", "狗笔记", "旅行日记", "FreeMD 设置", "v2 发布",
+		"", "周报", "本周的工作周报总结", "自动备份", "Go 笔记", "狗笔记", "旅行日记", "FreeFolio 设置", "v2 发布",
 		"重要 重复 行业 行动", "女 策略 〇一二", "plain ascii title", "MiXeD Case-标题_2024", "嗯哼",
 		"项目 03 / 主题 05", "  leading and trailing  ", strings.Repeat("长标题周报", 120), "\xff坏 utf8 周",
 	}

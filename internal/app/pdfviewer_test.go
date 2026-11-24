@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
 )
 
 func samplePDF(t *testing.T) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	w := pdf.NewWriter(&buf, "FreeMD PDF Reader Test")
+	w := pdf.NewWriter(&buf, "FreeFolio PDF Reader Test")
 	if err := w.AddPage(pdf.Page{Image: image.NewRGBA(image.Rect(0, 0, 40, 56)), Width: pdf.A4Width, Height: pdf.A4Height,
 		Text: []pdf.Text{{Value: "Reader", X: 60, Y: 90, Width: 120, Height: 18}}}); err != nil {
 		t.Fatal(err)

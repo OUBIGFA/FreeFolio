@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/FreeMD-logo.png" width="160" alt="FreeMD logo">
+<img src="assets/FreeFolio-logo.png" width="160" alt="FreeFolio logo">
 
-# FreeMD
+# FreeFolio
 
 **A customized, local-first native Markdown editor built in Go + MyGo, derived from ArcMD.**
 
@@ -19,18 +19,18 @@
 
 ## Preview
 
-[![Home view with a book club note, a task list, and a schedule](assets/FreeMD-home.png)](assets/FreeMD-home.png)
+[![Home view with a book club note, a task list, and a schedule](assets/FreeFolio-home.png)](assets/FreeFolio-home.png)
 
 <p align="center">
-  <a href="assets/FreeMD-settings.png"><img src="assets/FreeMD-settings.png" width="48%" alt="Settings for language, file list position, and fonts"></a>
-  <a href="assets/FreeMD-whiteboard.png"><img src="assets/FreeMD-whiteboard.png" width="48%" alt="Whiteboard with sticky notes and arrows for a book club plan"></a>
+  <a href="assets/FreeFolio-settings.png"><img src="assets/FreeFolio-settings.png" width="48%" alt="Settings for language, file list position, and fonts"></a>
+  <a href="assets/FreeFolio-whiteboard.png"><img src="assets/FreeFolio-whiteboard.png" width="48%" alt="Whiteboard with sticky notes and arrows for a book club plan"></a>
 </p>
 
-[Home](assets/FreeMD-home.png) · [Settings](assets/FreeMD-settings.png) · [Whiteboard](assets/FreeMD-whiteboard.png)
+[Home](assets/FreeFolio-home.png) · [Settings](assets/FreeFolio-settings.png) · [Whiteboard](assets/FreeFolio-whiteboard.png)
 
-## About FreeMD
+## About FreeFolio
 
-FreeMD is an app for notes and drawings. It saves your notes in folders on your
+FreeFolio is an app for notes and drawings. It saves your notes in folders on your
 computer. You can write notes without an internet connection.
 
 ## What you can do
@@ -38,8 +38,8 @@ computer. You can write notes without an internet connection.
 - **Write notes.** Add pictures, tables, and lists of tasks to your class notes
   or meeting notes.
 - **Browse files.** Open a note from any folder on your computer. You do not
-  need to add the folder first. FreeMD shows selected files in separate tabs.
-  Save changes to the original file. Use **Save As** to save a copy. FreeMD
+  need to add the folder first. FreeFolio shows selected files in separate tabs.
+  Save changes to the original file. Use **Save As** to save a copy. FreeFolio
   opens only the files you select. It does not scan the whole folder. Close
   file browsing to return to the space you used before.
 - **Find notes.** Use different folders for work notes and personal notes.
@@ -52,21 +52,21 @@ computer. You can write notes without an internet connection.
 
 ## Download and start
 
-### Install FreeMD
+### Install FreeFolio
 
-1. Open the [FreeMD download page](https://github.com/OUBIGFA/FreeMD/releases).
+1. Open the [FreeFolio download page](https://github.com/OUBIGFA/FreeFolio/releases).
 2. Download the installation file for your computer.
 3. Open the downloaded file.
-4. Follow the instructions on the screen to install FreeMD.
+4. Follow the instructions on the screen to install FreeFolio.
 
 ### Create or open a note
 
-Open FreeMD.
+Open FreeFolio.
 
 - For a new note, select **+** above the list of files.
 - To open a note in a space, select the folder icon below the list of files.
   Select a file with a name that ends in **.md**.
-- To open a note outside a space, select **Open File…**. FreeMD opens file
+- To open a note outside a space, select **Open File…**. FreeFolio opens file
   browsing. The file stays in its original folder.
 - Close file browsing to return to the space you used before.
 
@@ -76,11 +76,11 @@ Open FreeMD.
   You can ask OneBot questions about your notes. You can also ask OneBot to
   change text. You can see the changes before you accept them.
 - **Use the same notes on more than one computer.** Connect to an online
-  storage service that FreeMD supports. Select the folders to use on each
-  computer. This option is off when you first use FreeMD.
+  storage service that FreeFolio supports. Select the folders to use on each
+  computer. This option is off when you first use FreeFolio.
 
 ## Sources and license
 
-FreeMD uses ArcMD as its base. FreeMD uses the MIT License.
+FreeFolio uses ArcMD as its base. FreeFolio uses the MIT License.
 
 [ArcMD](https://github.com/Ciao1019/ArcMD) · [MIT License](LICENSE) · [Third-party credits](third_party/README.md)

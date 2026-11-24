@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/tools/internal/toolutil"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/tools/internal/toolutil"
 )
 
 func TestConvertPreservesRichContent(t *testing.T) {
@@ -130,12 +130,12 @@ func TestSummaryUsesMedianOfRoundQuantiles(t *testing.T) {
 			}
 			result[op] = arcOperation{samples}
 		}
-		write(fmt.Sprintf("freemd-%d/results.json", i+1), result)
+		write(fmt.Sprintf("freefolio-%d/results.json", i+1), result)
 		quietDir := filepath.Join(dir, fmt.Sprintf("quiet-%d", i+1))
 		if err := os.Mkdir(quietDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		for path, data := range map[string]string{filepath.Join(quietDir, "log"): testQuietLog(3), filepath.Join(dir, fmt.Sprintf("freemd-%d.log", i+1)): "PASS"} {
+		for path, data := range map[string]string{filepath.Join(quietDir, "log"): testQuietLog(3), filepath.Join(dir, fmt.Sprintf("freefolio-%d.log", i+1)): "PASS"} {
 			if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -145,11 +145,11 @@ func TestSummaryUsesMedianOfRoundQuantiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := entry["summary"].(map[string]map[string]quantile)["type"]["freemd"]
+	got := entry["summary"].(map[string]map[string]quantile)["type"]["freefolio"]
 	if !reflect.DeepEqual(got, quantile{P50: 4, P95: 8, Max: 8}) {
 		t.Fatalf("rounds were pooled or quantiles changed: %+v", got)
 	}
-	write("freemd-1/results.json", map[string]any{"samples_per_operation": 3, "type": arcOperation{make([]frameSample, 3)}})
+	write("freefolio-1/results.json", map[string]any{"samples_per_operation": 3, "type": arcOperation{make([]frameSample, 3)}})
 	if _, err := summarizeDirectory(dir); err == nil || !strings.Contains(err.Error(), "missing frame_ms") {
 		t.Fatalf("accepted missing frame measurements: %v", err)
 	}

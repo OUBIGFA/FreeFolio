@@ -57,9 +57,9 @@ func TestScoreTokenPinyinCases(t *testing.T) {
 		{"cangku", "仓库"},
 		{"xizang", "西藏"},
 		{"v2fb", "v2 发布"},
-		{"freemd", "FreeMD"},
+		{"freefolio", "FreeFolio"},
 		{"gozb", "Go 周报"},
-		{"free设置", "FreeMD 设置"},
+		{"free设置", "FreeFolio 设置"},
 		{"en", "嗯哼"},
 	}
 	for _, tc := range mustMatch {

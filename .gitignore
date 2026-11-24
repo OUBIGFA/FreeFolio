@@ -3,7 +3,7 @@
 /build/
 /dist/
 /arcmd
-/freemd
+/freefolio
 *.exe
 
 # MyGo dev bundles and Python caches

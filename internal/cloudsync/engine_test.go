@@ -139,7 +139,7 @@ func TestSyncProtectsEditsAndCredentialBoundaries(t *testing.T) {
 			t.Fatalf("unsafe path %q", p)
 		}
 	}
-	for _, p := range []string{".freemd/history/a", "credentials/password", "prefs.json", "_temp/a"} {
+	for _, p := range []string{".freefolio/history/a", "credentials/password", "prefs.json", "_temp/a"} {
 		if !excluded(p) {
 			t.Fatalf("private path not excluded: %q", p)
 		}

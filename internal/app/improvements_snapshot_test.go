@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -33,7 +33,7 @@ func openSample(t *testing.T, a *App, name, markdown string) {
 // TestImprovementsSnapshot renders the block selection, the toggle block,
 // the templates and the other additions, for review by eye.
 func TestImprovementsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the newer features")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the newer features")
 	shots := map[string]func(*testing.T, *App, *ui.Tester){
 		"blocks-selected": func(t *testing.T, a *App, tt *ui.Tester) {
 			openSample(t, a, "Plan.arcmd", "# 本周计划\n\n先把想法写下来。\n\n## 要做的事\n\n- 读完一本书\n- 整理笔记\n\n最后留一点时间散步。")
@@ -140,7 +140,7 @@ func TestImprovementsSnapshot(t *testing.T) {
 
 // TestWindowSnapshot renders a document in a window of its own.
 func TestWindowSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render a document window")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render a document window")
 	for _, dark := range []bool{false, true} {
 		a, tt := newTestApp(t)
 		var view func(*ui.Context)
@@ -168,7 +168,7 @@ func TestWindowSnapshot(t *testing.T) {
 // TestEnglishSnapshot renders the window, the settings and the command
 // bar in English.
 func TestEnglishSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the interface in English")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the interface in English")
 	t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
 	for _, name := range []string{"en-window", "en-settings", "en-palette", "en-menu"} {
 		t.Run(name, func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestEnglishSnapshot(t *testing.T) {
 // and its settings, light and dark, with a caption at the right as Windows
 // draws it.
 func TestFileBrowserSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the file browser")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the file browser")
 	for _, dark := range []bool{false, true} {
 		a, tt := newTestApp(t)
 		tt.SetDark(dark)

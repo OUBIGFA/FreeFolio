@@ -77,7 +77,7 @@ func TestHTMLLineBreaksStandALineEach(t *testing.T) {
 	}
 }
 
-// HTML FreeMD writes itself, as a centered paragraph, stays a native
+// HTML FreeFolio writes itself, as a centered paragraph, stays a native
 // block, editable as one.
 func TestOwnHTMLStaysNative(t *testing.T) {
 	doc := ImportMarkdown(`<p align="center">居中</p>`)

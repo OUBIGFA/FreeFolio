@@ -3,7 +3,7 @@ package app
 import (
 	"sync"
 
-	"github.com/OUBIGFA/FreeMD/resources"
+	"github.com/OUBIGFA/FreeFolio/resources"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -25,7 +25,7 @@ func brand(c *ui.Context, context string, compact bool) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Image(c, brandLogo()).Size(size, size).Shrink(0)
 		ui.Column(c).Gap(1).Children(func() {
-			ui.Text(c, "FreeMD").FontSize(15).FontWeight(600).NoWrap()
+			ui.Text(c, "FreeFolio").FontSize(15).FontWeight(600).NoWrap()
 			if context != "" {
 				ui.Text(c, context).FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
 			}

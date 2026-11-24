@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/update"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/update"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -119,10 +119,10 @@ func TestUpdateFoundWithoutAutomaticDownload(t *testing.T) {
 	if f.release.installs != 0 {
 		t.Fatal("automatic downloads are off")
 	}
-	if !tt.HasText("FreeMD 有新版本") || !tt.HasText("FreeMD 0.3.0") {
+	if !tt.HasText("FreeFolio 有新版本") || !tt.HasText("FreeFolio 0.3.0") {
 		t.Fatalf("the available card: %q", tt.Texts())
 	}
-	tt.Click("FreeMD 有新版本")
+	tt.Click("FreeFolio 有新版本")
 	tt.Frame()
 	if !a.settingsOpen || a.settingsTab != tabUpdates || !tt.HasText("更新说明 · v0.3.0") || !tt.HasText("• 自动更新") || !tt.HasText("下载并安装") || !tt.HasText("查看发布页") {
 		t.Fatalf("the updates settings with the notes: %q", tt.Texts())
@@ -141,7 +141,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	tt.Frame()
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("FreeMD 已是最新版本") {
+	if !tt.HasText("FreeFolio 已是最新版本") {
 		t.Fatalf("up to date: %q", tt.Texts())
 	}
 	tt.Click("返回")
@@ -165,7 +165,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	f.err, f.release = nil, &fakeRelease{version: "0.2.0"}
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("FreeMD 0.2.0 可以更新。") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
+	if !tt.HasText("FreeFolio 0.2.0 可以更新。") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
 		t.Fatalf("found: %q", tt.Texts())
 	}
 	tt.Click("返回")
@@ -176,7 +176,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	f.release = nil
 	a.checkForUpdates()
 	tt.Frame()
-	if f.checks != 4 || !tt.HasText("FreeMD 已是最新版本") || tt.HasText("下载并安装") {
+	if f.checks != 4 || !tt.HasText("FreeFolio 已是最新版本") || tt.HasText("下载并安装") {
 		t.Fatal("checking again must refresh the result instead of reopening an old offer")
 	}
 }
@@ -354,7 +354,7 @@ func TestUpdateNoInstallerDoesNotReportUpToDate(t *testing.T) {
 	tt.Frame()
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("暂未发布适用于此平台的安装包。") || tt.HasText("FreeMD 已是最新版本") {
+	if !tt.HasText("暂未发布适用于此平台的安装包。") || tt.HasText("FreeFolio 已是最新版本") {
 		t.Fatalf("empty release feed must stay distinct: %q", tt.Texts())
 	}
 }
@@ -441,7 +441,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	tt.SetTitleBar(ui.TitleBar{Height: 46, Left: 78})
 	tt.Frame()
 	tt.Advance(time.Second)
-	if !tt.HasText("FreeMD 已更新！") || !tt.HasText("新功能") {
+	if !tt.HasText("FreeFolio 已更新！") || !tt.HasText("新功能") {
 		t.Fatalf("the updated card: %q", tt.Texts())
 	}
 	if p, _ := store.Load(); p.PendingUpdate != "" {
@@ -454,7 +454,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	}
 	tt.Click("关闭")
 	tt.Frame()
-	if tt.HasText("FreeMD 已更新！") {
+	if tt.HasText("FreeFolio 已更新！") {
 		t.Fatal("✕ puts the card away")
 	}
 
@@ -492,14 +492,14 @@ func TestUpdateReadyCardDismissDoesNotAct(t *testing.T) {
 	a.updates.found = "0.3.0"
 	a.updates.release = &fakeRelease{version: "0.3.0"}
 	tt.Frame()
-	if !tt.HasText("FreeMD 有新版本") {
+	if !tt.HasText("FreeFolio 有新版本") {
 		t.Fatal("expected available banner to render")
 	}
 	if err := tt.Click("关闭"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.settingsOpen || a.updates.found != "" || a.updates.release != nil || tt.HasText("FreeMD 有新版本") {
+	if a.settingsOpen || a.updates.found != "" || a.updates.release != nil || tt.HasText("FreeFolio 有新版本") {
 		t.Fatalf("expected dismiss without opening settings: settings=%v found=%q release=%v", a.settingsOpen, a.updates.found, a.updates.release)
 	}
 }
@@ -520,7 +520,7 @@ func TestUpdateReleasePageButtonOpensTagURL(t *testing.T) {
 }
 
 func TestSnapshotUpdates(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the update banners")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the update banners")
 	for _, name := range []string{"ready", "available", "updated", "toast", "settings-found", "settings-ready", "settings-downloading", "settings-failed", "settings-small", "settings-checking", "settings-uptodate", "settings-found@dark", "settings-failed@dark", "ready@dark", "updated@dark", "settings"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

@@ -2,26 +2,26 @@ package plugin
 
 import "context"
 
-// Host runs plugins of one Runtime. FreeMD has none yet: the WASM host
+// Host runs plugins of one Runtime. FreeFolio has none yet: the WASM host
 // (wazero, pure Go, no cgo) and the process host (JSON-RPC over stdio) are
 // planned; see docs/plugins.md. Until a host is registered for a plugin's
 // runtime, its commands show as unavailable.
 type Host interface {
 	Runtime() Runtime
 	// Start loads an installed plugin. The host enforces the manifest's
-	// permissions on every call the plugin makes back into FreeMD.
+	// permissions on every call the plugin makes back into FreeFolio.
 	Start(ctx context.Context, p *Installed) (Instance, error)
 }
 
 // Instance is a running plugin.
 type Instance interface {
 	// Invoke runs one of the plugin's commands, or renders one of its
-	// panels (Request.Panel), and returns what FreeMD should do.
+	// panels (Request.Panel), and returns what FreeFolio should do.
 	Invoke(ctx context.Context, req Request) (*Response, error)
 	Close() error
 }
 
-// Request is what FreeMD tells a plugin when invoking it. Fields the
+// Request is what FreeFolio tells a plugin when invoking it. Fields the
 // plugin's permissions do not cover are left empty.
 type Request struct {
 	Command string `json:"command,omitempty"`
@@ -45,7 +45,7 @@ type Range struct {
 	End   int `json:"end"`
 }
 
-// Response is what a plugin asks FreeMD to do.
+// Response is what a plugin asks FreeFolio to do.
 type Response struct {
 	// Edits change the open document (document:write), as one undo step.
 	Edits []Edit `json:"edits,omitempty"`

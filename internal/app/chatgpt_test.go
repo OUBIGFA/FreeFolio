@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/chatgpt"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
 )
 
 func TestChatGPTSettingsShowsAccountActionsWithoutAPIKey(t *testing.T) {
@@ -70,7 +70,7 @@ func TestChatGPTConnectionSwitchAndWelcomePersistence(t *testing.T) {
 }
 
 func TestChatGPTSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect ChatGPT settings")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect ChatGPT settings")
 	for _, mode := range []string{"disconnected", "connected", "welcome", "narrow"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt := newTestApp(t)

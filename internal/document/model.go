@@ -1,4 +1,4 @@
-// Package document owns FreeMD's versioned rich document model and editing
+// Package document owns FreeFolio's versioned rich document model and editing
 // transactions. It has no dependency on the window or drawing toolkit.
 package document
 
@@ -20,7 +20,7 @@ import (
 	"unicode/utf8"
 )
 
-// CurrentVersion is the format this FreeMD writes. Version 2 added the color
+// CurrentVersion is the format this FreeFolio writes. Version 2 added the color
 // of callouts, version 3 the color and highlight of text, version 4 folded
 // headings and list items, cell backgrounds, merged cells and callout
 // emoji, version 5 the page's icon and cover, version 6 scripts, image widths
@@ -162,7 +162,7 @@ type Document struct {
 	// none (version 8).
 	Goal int `json:"goal,omitempty"`
 	// Frontmatter holds user YAML frontmatter keys preserved across Markdown
-	// round-trips outside FreeMD's own page metadata.
+	// round-trips outside FreeFolio's own page metadata.
 	Frontmatter string `json:"frontmatter,omitempty"`
 	// ImportSource preserves the original interchange file for recovery.
 	ImportSource string `json:"importSource,omitempty"`
@@ -255,7 +255,7 @@ func Decode(text string) (*Document, error) {
 }
 
 // linkFiles turns the file blocks older documents may hold into
-// paragraphs with a link to the file, as Markdown writes them: FreeMD no
+// paragraphs with a link to the file, as Markdown writes them: FreeFolio no
 // longer has attachments other than images.
 func (d *Document) linkFiles() {
 	var walk func([]*Block)

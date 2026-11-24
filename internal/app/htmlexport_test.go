@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // An exported page keeps the editor's code highlighting and draws Mermaid
@@ -27,13 +27,13 @@ func TestExportHTMLDrawsCodeAndDiagrams(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`<span class="freemd-tok-keyword">public</span>`,
-		`<figure class="freemd-mermaid"><span class="freemd-diagram-light"><svg`,
-		`<span class="freemd-diagram-dark"><svg`,
+		`<span class="freefolio-tok-keyword">public</span>`,
+		`<figure class="freefolio-mermaid"><span class="freefolio-diagram-light"><svg`,
+		`<span class="freefolio-diagram-dark"><svg`,
 		"开始",
 		"结束",
-		".freemd-tok-keyword",
-		"figure.freemd-mermaid",
+		".freefolio-tok-keyword",
+		"figure.freefolio-mermaid",
 	} {
 		if !strings.Contains(string(page), want) {
 			t.Fatalf("exported page missing %q", want)
@@ -45,16 +45,16 @@ func TestExportHTMLDrawsCodeAndDiagrams(t *testing.T) {
 }
 
 func TestHTMLPageStylesCodeAndDiagrams(t *testing.T) {
-	page := htmlPage("Title", `<figure class="freemd-mermaid"><svg></svg></figure>`+
-		`<pre><code class="language-go"><span class="freemd-tok-keyword">func</span></code></pre>`)
+	page := htmlPage("Title", `<figure class="freefolio-mermaid"><svg></svg></figure>`+
+		`<pre><code class="language-go"><span class="freefolio-tok-keyword">func</span></code></pre>`)
 	for _, want := range []string{
 		"<title>Title</title>",
-		".freemd-tok-keyword { color: #b2565c; }",
-		".freemd-tok-keyword { color: #e8838a; }",
-		"figure.freemd-mermaid svg { max-width: 100%; height: auto; }",
-		"figure.freemd-mermaid .freemd-diagram-dark { display: none; }",
-		"figure.freemd-mermaid .freemd-diagram-light { display: none; }",
-		`<span class="freemd-tok-keyword">func</span>`,
+		".freefolio-tok-keyword { color: #b2565c; }",
+		".freefolio-tok-keyword { color: #e8838a; }",
+		"figure.freefolio-mermaid svg { max-width: 100%; height: auto; }",
+		"figure.freefolio-mermaid .freefolio-diagram-dark { display: none; }",
+		"figure.freefolio-mermaid .freefolio-diagram-light { display: none; }",
+		`<span class="freefolio-tok-keyword">func</span>`,
 		"prefers-color-scheme: dark",
 	} {
 		if !strings.Contains(page, want) {

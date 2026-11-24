@@ -1,6 +1,6 @@
 # ChatGPT sign-in references and brand asset
 
-FreeMD implements the public OAuth / OpenID Connect and Responses protocols
+FreeFolio implements the public OAuth / OpenID Connect and Responses protocols
 independently in Go. It does not embed, translate or redistribute the DevKit's
 noncommercial SDK, React components or example application code.
 
@@ -14,7 +14,7 @@ sign-in action and connected account. SHA-256:
 `b8b9aba7ba591f54bf1805f422bc23f32c44ee993643cc378cc77f766061f7a1`.
 
 OpenAI owns the ChatGPT mark. It is excluded from the DevKit's code license and
-from FreeMD's MIT license. Its use follows the
+from FreeFolio's MIT license. Its use follows the
 [Sign in with ChatGPT UI guidelines](https://developers.openai.com/siwc/ui-ux-guidelines)
 and [OpenAI brand guidelines](https://openai.com/brand/). No sponsorship or
 endorsement is claimed. No bundled fonts or other DevKit assets are included.

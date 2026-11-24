@@ -197,7 +197,7 @@ func TestNewFolderWithDoc(t *testing.T) {
 // the line, in light and dark, and the placeholder of an empty pinned
 // section under a drag, for review.
 func TestPinsSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the pinned section")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the pinned section")
 	for _, dark := range []bool{false, true} {
 		name := "pins"
 		if dark {
@@ -305,7 +305,7 @@ func TestFolderGlyphTurns(t *testing.T) {
 // TestHeaderSnapshot renders the header under the pointer and the pinned
 // section folded, with a closed folder keeping its open document in sight.
 func TestHeaderSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the header")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the header")
 	a, tt := newTestApp(t)
 	tt.SetSize(900, 520)
 	sp := a.state.ActiveSpace()

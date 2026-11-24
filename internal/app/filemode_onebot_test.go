@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
 )
 
 func TestFileModeOpensOneBotOnOpenFiles(t *testing.T) {
@@ -50,7 +50,7 @@ func TestFileModeOpensOneBotOnOpenFiles(t *testing.T) {
 }
 
 func TestSnapshotFileModeOneBot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render OneBot in file mode")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render OneBot in file mode")
 	a, tt := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply("这个文件讲的是留白。")}})
 	tt.SetSize(1280, 820)
 	if !a.openSystemFile(externalFile(t, "Loose.md", writingSample)) {

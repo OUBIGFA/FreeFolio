@@ -1,4 +1,4 @@
-module github.com/OUBIGFA/FreeMD
+module github.com/OUBIGFA/FreeFolio
 
 go 1.27.3
 

@@ -6,18 +6,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/update"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/update"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
-// Software updates, as Arc's and Cra's: FreeMD checks its GitHub releases
+// Software updates, as Arc's and Cra's: FreeFolio checks its GitHub releases
 // in the background, ten seconds after launch and every eight hours,
 // downloads a new version on its own (unless the user turned that off) and
 // says so in a card above the spaces at the foot of the sidebar, or in a
 // toast while the sidebar is hidden. Clicking it restarts into the new
-// version, whose first launch says "FreeMD 已更新！". "检查更新…" shows the
+// version, whose first launch says "FreeFolio 已更新！". "检查更新…" shows the
 // result in Settings > Updates. Windows downloads a verified full installer; other platforms
 // use MyGo's signed bundle updates. The views are in updateview.go.
 
@@ -25,11 +25,11 @@ import (
 type updateService interface {
 	// Enabled reports whether this build can update itself.
 	Enabled() bool
-	// Check returns the newer release, or nil when FreeMD is up to date.
+	// Check returns the newer release, or nil when FreeFolio is up to date.
 	Check(ctx context.Context) (updateRelease, error)
 }
 
-// updateRelease is a newer version of FreeMD.
+// updateRelease is a newer version of FreeFolio.
 type updateRelease interface {
 	Version() string
 	// Notes are the release notes, in Markdown.
@@ -100,14 +100,14 @@ type updateState struct {
 	shownSince time.Time
 	// lastCheck is when the last check answered.
 	lastCheck time.Time
-	// relaunch restarts FreeMD and openURL opens a page in the browser;
+	// relaunch restarts FreeFolio and openURL opens a page in the browser;
 	// tests replace them.
 	relaunch func()
 	openURL  func(url string)
 }
 
 // startUpdates notes, at launch, whether the restart before installed the
-// version this FreeMD is.
+// version this FreeFolio is.
 func (a *App) startUpdates() {
 	if v := a.prefs.PendingUpdate; v != "" {
 		if v == Version {
@@ -299,7 +299,7 @@ func (a *App) downloaded(rel updateRelease, err error) {
 
 // installUpdate restarts into the downloaded version, or downloads the one
 // found first. Documents are saved as on quitting: a document that cannot
-// be saved keeps FreeMD open.
+// be saved keeps FreeFolio open.
 func (a *App) installUpdate() {
 	u := &a.updates
 	if u.installing {
@@ -396,7 +396,7 @@ func (a *App) dismissBanner() {
 	}
 }
 
-// openUpdatePage opens a page about FreeMD's releases in the browser.
+// openUpdatePage opens a page about FreeFolio's releases in the browser.
 func (a *App) openUpdatePage(url string) {
 	if a.updates.openURL != nil {
 		a.updates.openURL(url)
@@ -449,13 +449,13 @@ func (a *App) updateSummary() string {
 	case u.failure != "":
 		return u.failure
 	case u.ready != "":
-		return "FreeMD " + u.ready + i18n.T(" 已下载，可以安装。")
+		return "FreeFolio " + u.ready + i18n.T(" 已下载，可以安装。")
 	case u.found != "":
-		return "FreeMD " + u.found + i18n.T(" 可以更新。")
+		return "FreeFolio " + u.found + i18n.T(" 可以更新。")
 	case u.phase == phaseNoRelease:
 		return i18n.T("暂未发布适用于此平台的安装包。")
 	case u.phase == phaseUpToDate:
-		return i18n.T("FreeMD 已是最新版本")
+		return i18n.T("FreeFolio 已是最新版本")
 	}
 	return i18n.T("从 GitHub Releases 获取新版本。")
 }

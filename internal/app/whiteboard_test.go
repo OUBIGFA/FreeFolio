@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
 func TestWhiteboardCreateAutosaveAndExternalConflict(t *testing.T) {

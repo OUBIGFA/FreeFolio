@@ -1,5 +1,5 @@
 // Package chatgpt implements the public Sign in with ChatGPT protocol for a
-// local FreeMD installation. It contains no DevKit code or UI dependencies.
+// local FreeFolio installation. It contains no DevKit code or UI dependencies.
 package chatgpt
 
 import (
@@ -64,7 +64,7 @@ func (p profile) session() Session {
 
 // Client owns encrypted profiles keyed by the existing OneBot connection ID.
 // File locks, rather than instance-local caches, serialize rotating tokens even
-// when two FreeMD processes briefly overlap during startup or an update.
+// when two FreeFolio processes briefly overlap during startup or an update.
 type Client struct {
 	dir    string
 	issuer string

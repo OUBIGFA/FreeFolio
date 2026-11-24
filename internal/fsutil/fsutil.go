@@ -1,4 +1,4 @@
-// Package fsutil holds small file system helpers shared by FreeMD's
+// Package fsutil holds small file system helpers shared by FreeFolio's
 // packages.
 package fsutil
 

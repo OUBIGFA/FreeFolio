@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/egoist/mygo/ui"
 )
 
 // StreamingPlayground's default production rate and chunk sizes, with a
 // deterministic clock instead of network requests or sleeps.
 func TestQAStreamingSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render Lobe-style streaming")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render Lobe-style streaming")
 	for _, mode := range []string{"light", "dark", "narrow"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt := newTestApp(t)
@@ -60,7 +60,7 @@ func TestQAStreamingSnapshot(t *testing.T) {
 // Regression for real providers that batch the full response, including the
 // done event, before one frame. This uses the Agent/provider completion path.
 func TestQABatchedCompletionSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect completed-response animation")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect completed-response animation")
 	answer := "## 快速返回，也会逐字显示\n\n模型已经一次性返回完整回答，但界面还会把**剩余文字逐字淡入**。网络请求结束不会再突然展开整段文字。\n\n- 新字符依次出现，已经显示的文字保持稳定。\n- 引用、列表和代码会随内容自然展开。\n\n完成后才展示来源，并恢复发送按钮 [计划.md#L5]。"
 	for _, mode := range []string{"light", "dark", "narrow"} {
 		t.Run(mode, func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestQABatchedCompletionSnapshot(t *testing.T) {
 }
 
 func TestQAWindowResizeSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render native window resizing")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render native window resizing")
 	a, tt := newTestApp(t)
 	a.doc.ed = editor.New(qaResizeDocument())
 	s := a.qaSession(a.state.ActiveSpace().ID)
@@ -109,7 +109,7 @@ func TestQAWindowResizeSnapshot(t *testing.T) {
 }
 
 func TestQASnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the question panel")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the question panel")
 	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "polished", "polished-dark", "polished-narrow", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "loader", "loader-dark", "loader-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
 		t.Run(name, func(t *testing.T) {
 			replyText := "发布**延期到 12 月 2 日**，主要有两个原因 [发布计划.md#L5]：\n\n- 支付联调需要排查回调 [发布计划.md#L7]，目前已在周报确认修复 [项目/周报.md#L5]\n- 证书审批还在走流程 [发布计划.md#L11]\n\n目前唯一的阻塞是证书，`payments` 模块已经修好。"

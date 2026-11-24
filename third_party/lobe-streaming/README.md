@@ -23,7 +23,7 @@ a batch fade as blocks. Citations remain native interactive links.
 
 Native adaptations: MyGo's streaming parser heals incomplete Markdown instead
 of remend/marked; list items and table rows stay individually virtualized;
-colors and fonts come from FreeMD's theme; reduce motion disables buffering
+colors and fonts come from FreeFolio's theme; reduce motion disables buffering
 and fading. Network completion leaves the display buffer and final fades
 running; cancellation/error flush the authoritative raw answer. The upstream
 large-append, completed-prefix and HTML bypasses are intentionally disabled:

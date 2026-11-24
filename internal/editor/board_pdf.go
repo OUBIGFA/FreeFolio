@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
 func (e *Editor) ExportError() error { return e.exportErr }

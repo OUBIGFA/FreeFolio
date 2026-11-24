@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 // Installed is a plugin in the plugins folder.
@@ -25,7 +25,7 @@ type Broken struct {
 	Err error
 }
 
-// Manager keeps the plugins folder, <config dir>/FreeMD/plugins, with one
+// Manager keeps the plugins folder, <config dir>/FreeFolio/plugins, with one
 // folder per plugin named by its ID, and which of them are disabled.
 type Manager struct {
 	dir string

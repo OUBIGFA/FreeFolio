@@ -65,7 +65,7 @@ func EncodeLibrary(items []LibraryItem) (string, error) {
 			return "", err
 		}
 	}
-	b, err := json.MarshalIndent(libraryFile{Type: "excalidrawlib", Version: 2, Source: "https://github.com/OUBIGFA/FreeMD", Items: items}, "", "  ")
+	b, err := json.MarshalIndent(libraryFile{Type: "excalidrawlib", Version: 2, Source: "https://github.com/OUBIGFA/FreeFolio", Items: items}, "", "  ")
 	return string(b) + "\n", err
 }
 func (s *Scene) InsertLibrary(it LibraryItem, at Point) ([]string, error) {
@@ -99,7 +99,7 @@ func (s *Scene) LibrarySelection(ids []string, name, category string) (LibraryIt
 }
 
 // DiagramShape constructs complex shapes from standard Excalidraw objects.
-// Other editors see the same geometry without understanding FreeMD metadata.
+// Other editors see the same geometry without understanding FreeFolio metadata.
 func DiagramShape(kind string, x, y, w, h float64) []*Element {
 	base := func(k ElementKind) *Element { return NewElement(k, x, y, w, h) }
 	poly := func(ps []Point) *Element {

@@ -145,7 +145,7 @@ func TestPaletteIndexRefreshes(t *testing.T) {
 // TestPaletteSnapshot renders the bar before typing and with text hits,
 // for review.
 func TestPaletteSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the command bar")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the command bar")
 	for _, name := range []string{"idle", "text"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

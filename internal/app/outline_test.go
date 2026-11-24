@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -65,7 +65,7 @@ func TestOutlineWideContentAcrossModes(t *testing.T) {
 			if a.prefs.OutlineClosed {
 				t.Fatal("automatic collapse changed the saved outline preference")
 			}
-			if os.Getenv("FREEMD_SNAPSHOT") != "" {
+			if os.Getenv("FREEFOLIO_SNAPSHOT") != "" {
 				savePNG(t, filepath.Join(snapshotDir(t, ""), "outline-wide-"+mode+".png"), tt)
 			}
 		})

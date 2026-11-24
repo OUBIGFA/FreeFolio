@@ -5,10 +5,10 @@ import (
 	"math"
 	"os"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -262,7 +262,7 @@ func folderRow(c *ui.Context, key, label, dir string) {
 
 func (a *App) settingsGeneral(c *ui.Context) {
 	t := c.Theme()
-	settingsHeading(c, i18n.T("通用"), i18n.T("FreeMD 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹。"))
+	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹。"))
 	settingsSection(c, i18n.T("位置"))
 	settingsGroup(c, "places", func() {
 		folderRow(c, "documents", i18n.T("新空间的默认位置"), a.cfg.DocumentsDir)
@@ -274,7 +274,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 	settingsSection(c, i18n.T("窗口"))
 	settingsGroup(c, "closing", func() {
 		tray := !a.prefs.KeepRunningOff
-		toggleRow(c, "close-to-tray", i18n.T("关闭窗口时最小化到托盘"), i18n.T("FreeMD 继续在通知区域运行；点击托盘图标打开窗口，右键选择退出。"), &tray, nil)
+		toggleRow(c, "close-to-tray", i18n.T("关闭窗口时最小化到托盘"), i18n.T("FreeFolio 继续在通知区域运行；点击托盘图标打开窗口，右键选择退出。"), &tray, nil)
 		if tray == a.prefs.KeepRunningOff {
 			a.prefs.KeepRunningOff = !tray
 			a.savePrefs()
@@ -285,8 +285,8 @@ func (a *App) settingsGeneral(c *ui.Context) {
 		if a.prefs.StartAtHome {
 			at = 1
 		}
-		settingRow(c, "start-at", i18n.T("打开 FreeMD 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容。"), func() {
-			segmentedChoice(c.Key("choice"), &at, i18n.T("继续上次阅读"), i18n.T("空间主页")).Label(i18n.T("打开 FreeMD 时"))
+		settingRow(c, "start-at", i18n.T("打开 FreeFolio 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容。"), func() {
+			segmentedChoice(c.Key("choice"), &at, i18n.T("继续上次阅读"), i18n.T("空间主页")).Label(i18n.T("打开 FreeFolio 时"))
 			if home := at == 1; a.prefs.StartAtHome != home {
 				a.prefs.StartAtHome = home
 				a.savePrefs()
@@ -384,7 +384,7 @@ func (a *App) settingsFiles(c *ui.Context) {
 // settingsAppearance is how the window and pages look: the interface
 // language and the sidebar's side, then the body's typeface, the width of
 // the text column, the size and leading of body text, previewed in a
-// small window drawn as FreeMD's own.
+// small window drawn as FreeFolio's own.
 func (a *App) settingsAppearance(c *ui.Context) {
 	settingsHeading(c, i18n.T("外观"), i18n.T("选择侧边栏的位置，调整所有文档共用的字体和版式。"))
 	a.appearancePreview(c)
@@ -474,7 +474,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 	}
 }
 
-// appearancePreview is a small FreeMD window drawn with the choices made
+// appearancePreview is a small FreeFolio window drawn with the choices made
 // below it: the sidebar on its side, and a page set by the real editor in
 // the chosen typeface, size and leading, its column narrowed as the
 // window's would be.
@@ -507,7 +507,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 	previewBrand := func() {
 		ui.Row(c.Key("preview-brand")).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
 			ui.Image(c, brandLogo()).Size(14, 14)
-			ui.Text(c, "FreeMD").FontSize(10).FontWeight(600)
+			ui.Text(c, "FreeFolio").FontSize(10).FontWeight(600)
 		})
 	}
 	frame.Children(func() {
@@ -616,7 +616,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).AlignItems(ui.End).Gap(12).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			note := i18n.T("从 FreeMD 移除空间只删除记录，不会删除文件夹。")
+			note := i18n.T("从 FreeFolio 移除空间只删除记录，不会删除文件夹。")
 			if a.files != nil {
 				note = i18n.T("返回空间后才能新建、编辑或移除空间。")
 			}
@@ -652,7 +652,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 					if ui.Button(c.Key("reveal"), i18n.T("显示")).Label(i18n.T("在文件管理器中显示 ") + s.Name).Disabled(s.IsExternal()).Clicked() {
 						revealDir(s.Root)
 					}
-					if ui.Button(c.Key("remove"), i18n.T("移除")).Label(i18n.T("从 FreeMD 移除 ") + s.Name).Disabled(s.IsExternal() || len(a.state.Spaces) < 2 || a.files != nil).
+					if ui.Button(c.Key("remove"), i18n.T("移除")).Label(i18n.T("从 FreeFolio 移除 ") + s.Name).Disabled(s.IsExternal() || len(a.state.Spaces) < 2 || a.files != nil).
 						Tooltip(i18n.T("只删除记录，文件夹保留")).Clicked() {
 						a.removeSpace(s.ID)
 					}
@@ -665,13 +665,13 @@ func (a *App) settingsSpaces(c *ui.Context) {
 // settingsUpdates shows the current version, update status, release notes and
 // automatic download preference.
 func (a *App) settingsUpdates(c *ui.Context) {
-	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeMD 新版本，自动更新可在后台下载并等待你确认重启。"))
+	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeFolio 新版本，自动更新可在后台下载并等待你确认重启。"))
 	a.updateOverview(c)
 	a.updateReleaseNotes(c)
 	settingsSection(c, i18n.T("更新偏好"))
 	settingsGroup(c, "update-prefs", func() {
 		auto := !a.prefs.NoAutoUpdate
-		toggleRow(c, "auto-update", i18n.T("自动更新 FreeMD"), i18n.T("在后台下载新版本，准备好后由你安装。关闭后只提示有新版本。"), &auto, nil)
+		toggleRow(c, "auto-update", i18n.T("自动更新 FreeFolio"), i18n.T("在后台下载新版本，准备好后由你安装。关闭后只提示有新版本。"), &auto, nil)
 		if auto == a.prefs.NoAutoUpdate {
 			a.toggleAutoUpdate()
 		}
@@ -683,13 +683,13 @@ func (a *App) settingsAbout(c *ui.Context) {
 	ui.Row(c.Key("about-product")).Gap(14).AlignItems(ui.Center).Padding(0, 0, 4, 0).Children(func() {
 		ui.Image(c, brandLogo()).Size(48, 48).Shrink(0)
 		ui.Column(c).Gap(3).Children(func() {
-			ui.Text(c, "FreeMD").FontSize(20).FontWeight(600)
+			ui.Text(c, "FreeFolio").FontSize(20).FontWeight(600)
 			ui.Text(c, i18n.T("版本 ")+Version+" · "+i18n.T("安静地写作，有序地整理。")).FontSize(13).TextColor(t.TextMuted)
 		})
 	})
 	settingsGroup(c, "about-intro", func() {
-		settingRow(c, "about-github", i18n.T("开源仓库"), "github.com/OUBIGFA/FreeMD", func() {
-			ui.Link(c.Key("repository"), i18n.T("打开"), "https://github.com/OUBIGFA/FreeMD").FontSize(13).
+		settingRow(c, "about-github", i18n.T("开源仓库"), "github.com/OUBIGFA/FreeFolio", func() {
+			ui.Link(c.Key("repository"), i18n.T("打开"), "https://github.com/OUBIGFA/FreeFolio").FontSize(13).
 				Label(i18n.T("GitHub 开源仓库")).Tooltip(i18n.T("在浏览器中打开 GitHub 开源仓库"))
 		})
 		settingsSeparator(c)

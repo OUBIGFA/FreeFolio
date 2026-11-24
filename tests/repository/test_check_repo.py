@@ -17,7 +17,7 @@ GO_INVENTORY = ROOT / "tools" / "update_go_inventory.py"
 
 class RepositoryCheckTests(unittest.TestCase):
     def setUp(self):
-        scratch = Path(os.environ.get("FREEMD_TEST_TEMP", ROOT / "_temp" / "repository-tests"))
+        scratch = Path(os.environ.get("FREEFOLIO_TEST_TEMP", ROOT / "_temp" / "repository-tests"))
         scratch.mkdir(parents=True, exist_ok=True)
         self.repo = Path(tempfile.mkdtemp(prefix="case-", dir=scratch))
         self.git("init", "-q")

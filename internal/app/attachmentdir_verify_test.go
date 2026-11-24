@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -19,7 +19,7 @@ func pngBytes(t *testing.T) []byte {
 }
 
 // TestPasteDoesNotRelinkClosedDocuments runs the watcher exactly as a paste
-// or drag-in delivers it: FreeMD wrote the picture itself, so the closed
+// or drag-in delivers it: FreeFolio wrote the picture itself, so the closed
 // documents of the space must not be scanned and rewritten. An unrelated
 // picture copied by another application also provides no move evidence.
 func TestPasteDoesNotRelinkClosedDocuments(t *testing.T) {
@@ -34,19 +34,19 @@ func TestPasteDoesNotRelinkClosedDocuments(t *testing.T) {
 	if err := vault.Write(sp.Root, "附件/assets/pic.png", "picture"); err != nil {
 		t.Fatal(err)
 	}
-	// FreeMD pastes a screenshot: the file lands in the attachments folder.
+	// FreeFolio pastes a screenshot: the file lands in the attachments folder.
 	img, _ := pngFile(t, "paste.png")
 	a.insertImages([]string{img}, -1)
 	if !a.flush() {
 		t.Fatal("save failed")
 	}
-	// The watcher reports FreeMD's own write, the way the platform does.
+	// The watcher reports FreeFolio's own write, the way the platform does.
 	a.filesChanged(sp.ID, []mygo.FileEvent{
 		{Op: mygo.FileCreate, Path: "附件/paste.png"},
 		{Op: mygo.FileRename, OldPath: ".paste.png.1.tmp", Path: "附件/paste.png"},
 	})
 	if text, err := vault.Read(sp.Root, "Other.md"); err != nil || !strings.Contains(text, "](assets/pic.png)") {
-		t.Fatalf("FreeMD's own paste rewrote a closed document: %q, %v", text, err)
+		t.Fatalf("FreeFolio's own paste rewrote a closed document: %q, %v", text, err)
 	}
 	settle(tt)
 	// Somebody else copies a picture in: unrelated references stay untouched.

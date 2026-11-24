@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -286,7 +286,7 @@ func TestListDragLiveSlotAndEscapeCancel(t *testing.T) {
 // TestDragSnapshot renders a row dragged between rows, settling into its slot,
 // over a folder, over the favorites, and the empty favorites card, for review.
 func TestDragSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the drags")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the drags")
 	hold := func(name string, setup func(a *App), from, to string, f float32) {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)

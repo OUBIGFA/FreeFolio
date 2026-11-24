@@ -1,4 +1,4 @@
-// Package app is FreeMD's interface: one native window, drawn by MyGo's
+// Package app is FreeFolio's interface: one native window, drawn by MyGo's
 // package ui, in the manner of Arc and Zen — a sidebar of the active
 // space's pinned documents and folders over the window's tinted material,
 // a toolbar with the document's address, the document in a rounded card,
@@ -19,26 +19,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
-	model "github.com/OUBIGFA/FreeMD/internal/document"
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/plugin"
-	"github.com/OUBIGFA/FreeMD/internal/prefs"
-	"github.com/OUBIGFA/FreeMD/internal/search"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/trashbin"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/plugin"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/search"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
 )
 
-// Version is FreeMD's version, which plugins' engines are checked against.
+// Version is FreeFolio's version, which plugins' engines are checked against.
 const Version = "0.1.2"
 
-// Config says where FreeMD keeps its files.
+// Config says where FreeFolio keeps its files.
 type Config struct {
 	// ConfigDir holds spaces.json and the plugins folder.
 	ConfigDir string
@@ -53,7 +53,7 @@ type Config struct {
 }
 
 // DefaultConfig returns the user's usual places: the system's
-// configuration folder and ~/Documents/FreeMD.
+// configuration folder and ~/Documents/FreeFolio.
 func DefaultConfig() (Config, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
@@ -64,8 +64,8 @@ func DefaultConfig() (Config, error) {
 		return Config{}, err
 	}
 	return Config{
-		ConfigDir:    filepath.Join(cfg, "FreeMD"),
-		DocumentsDir: filepath.Join(home, "Documents", "FreeMD"),
+		ConfigDir:    filepath.Join(cfg, "FreeFolio"),
+		DocumentsDir: filepath.Join(home, "Documents", "FreeFolio"),
 	}, nil
 }
 
@@ -89,7 +89,7 @@ type startupDocPrefetch struct {
 	err                error
 }
 
-// App is FreeMD's state.
+// App is FreeFolio's state.
 type App struct {
 	boardLibrary *boardLibraryState
 	cloud        cloudState
@@ -284,7 +284,7 @@ type App struct {
 	// search is the command bar's full-text search (search.go).
 	search searchState
 	// prefs are the preferences beyond the spaces (prefs.json); prefsBroken
-	// keeps a file this FreeMD cannot read from being overwritten.
+	// keeps a file this FreeFolio cannot read from being overwritten.
 	prefStore   prefs.Store
 	prefs       *prefs.Prefs
 	prefsBroken bool
@@ -335,7 +335,7 @@ func (a *App) trashItem(p string) error {
 	return mygo.Shell.TrashItem(p)
 }
 
-// New loads FreeMD's state, making the first space and its welcome
+// New loads FreeFolio's state, making the first space and its welcome
 // document on the first run.
 func New(cfg Config) (*App, error) {
 	a := &App{
@@ -500,13 +500,13 @@ func (a *App) showSpaceHome() bool {
 // Run opens the window and runs the app until it quits.
 func (a *App) Run() error {
 	if !a.cfg.InstanceLocked {
-		mygo.App.SetName("FreeMD")
+		mygo.App.SetName("FreeFolio")
 		mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 		if !mygo.App.RequestSingleInstanceLock() {
 			return nil
 		}
 	} else {
-		mygo.App.SetName("FreeMD")
+		mygo.App.SetName("FreeFolio")
 		mygo.App.SetPath(mygo.PathUserData, a.cfg.ConfigDir)
 	}
 	// An installed app shares one taskbar button with its pinned
@@ -584,7 +584,7 @@ func (a *App) Run() error {
 		}))
 		a.watchFiles = a.watchFolder
 		a.win = newAppWindow(mygo.WindowOptions{
-			Title:                "FreeMD",
+			Title:                "FreeFolio",
 			Width:                1240,
 			Height:               800,
 			MinWidth:             640,
@@ -657,7 +657,7 @@ func (a *App) Run() error {
 }
 
 // syncTray shows the notification area's icon while closing the window
-// keeps FreeMD running, and removes it otherwise.
+// keeps FreeFolio running, and removes it otherwise.
 func (a *App) syncTray() {
 	if a.prefs.KeepRunningOff {
 		if a.tray != nil {
@@ -680,13 +680,13 @@ func (a *App) syncTray() {
 		a.win.Focus()
 	}
 	tray, err := mygo.NewTray(mygo.TrayOptions{
-		ID:      "freemd",
+		ID:      "freefolio",
 		Icon:    trayIcon(),
-		ToolTip: "FreeMD",
+		ToolTip: "FreeFolio",
 		Menu: mygo.NewMenu([]*mygo.MenuItem{
-			{Label: i18n.T("打开 FreeMD"), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},
+			{Label: i18n.T("打开 FreeFolio"), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},
 			mygo.Separator(),
-			{Label: i18n.T("退出 FreeMD"), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+			{Label: i18n.T("退出 FreeFolio"), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 		}),
 	})
 	if err != nil {
@@ -706,7 +706,7 @@ func (a *App) appMenu() *mygo.MenuItem {
 	if runtime.GOOS != "darwin" {
 		return &mygo.MenuItem{Role: mygo.RoleAppMenu}
 	}
-	return &mygo.MenuItem{Label: "FreeMD", Submenu: []*mygo.MenuItem{
+	return &mygo.MenuItem{Label: "FreeFolio", Submenu: []*mygo.MenuItem{
 		{Role: mygo.RoleAbout},
 		{Label: i18n.T("检查更新…"), Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.win.Update(a.checkForUpdates)
@@ -1650,7 +1650,7 @@ func (a *App) defaultRoot(name string) string {
 	return filepath.Join(a.cfg.DocumentsDir, name)
 }
 
-const welcome = `# Welcome to FreeMD
+const welcome = `# Welcome to FreeFolio
 
 Open a Markdown file directly or organize a folder as a workspace. Documents save directly as standard Markdown (.md) files, so any editor, Git or sync tool works on the same folder. Use the formatting bar or type ` + "`#`" + ` and a space for a heading, ` + "`-`" + ` and a space for a list, ` + "`**bold**`" + ` for **bold**.
 
@@ -1662,7 +1662,7 @@ Open a Markdown file directly or organize a folder as a workspace. Documents sav
 
 ## Plugins
 
-AI and other powers will come from the plugin marketplace. FreeMD's core stays small.
+AI and other powers will come from the plugin marketplace. FreeFolio's core stays small.
 `
 
 const ideas = `# Ideas

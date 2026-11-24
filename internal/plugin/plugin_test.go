@@ -15,7 +15,7 @@ import (
 )
 
 const goodManifest = `{
-  "id": "dev.freemd.ai-writer",
+  "id": "dev.freefolio.ai-writer",
   "name": "AI Writer",
   "version": "0.1.0",
   "runtime": "wasm",
@@ -68,7 +68,7 @@ func serve(t *testing.T, b []byte) (Listing, *http.Client) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b) }))
 	t.Cleanup(srv.Close)
 	sum := sha256.Sum256(b)
-	return Listing{ID: "dev.freemd.ai-writer", Version: "0.1.0", Download: srv.URL + "/p.zip", SHA256: hex.EncodeToString(sum[:])}, srv.Client()
+	return Listing{ID: "dev.freefolio.ai-writer", Version: "0.1.0", Download: srv.URL + "/p.zip", SHA256: hex.EncodeToString(sum[:])}, srv.Client()
 }
 
 func TestInstallScanToggleUninstall(t *testing.T) {

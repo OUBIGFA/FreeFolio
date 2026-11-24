@@ -1,5 +1,5 @@
 // Package vault reads and writes the document files of a space's folder.
-// Files on disk are the source of truth: FreeMD keeps no copy of their
+// Files on disk are the source of truth: FreeFolio keeps no copy of their
 // content elsewhere, so any other editor, Git or a sync service can work on
 // the same folder.
 //
@@ -17,7 +17,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 )
 
 // Extensions are the file extensions the vault lists, lowercase.
@@ -29,7 +29,7 @@ func IsDocument(name string) bool {
 	return IsText(name) || IsPDF(name)
 }
 
-// IsText is a document whose file is text FreeMD reads and writes: every
+// IsText is a document whose file is text FreeFolio reads and writes: every
 // document but a PDF, which is only read.
 func IsText(name string) bool {
 	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name) || IsWhiteboard(name)
@@ -171,7 +171,7 @@ func existingPath(name string) (string, error) {
 }
 
 // skipDir reports whether the walk leaves out a directory: hidden ones (as
-// .git and FreeMD's own SystemDir) and dependency folders.
+// .git and FreeFolio's own SystemDir) and dependency folders.
 func skipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || name == "node_modules"
 }

@@ -4,12 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
 func TestWhiteboardSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to inspect the native whiteboard")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect the native whiteboard")
 	for _, dark := range []bool{false, true} {
 		name := "whiteboard"
 		if dark {

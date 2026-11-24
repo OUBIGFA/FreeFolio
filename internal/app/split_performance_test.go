@@ -32,7 +32,7 @@ func TestSplitResizePerformance(t *testing.T) {
 			for range 5 {
 				tt.PerfFrame()
 			}
-			if dir := os.Getenv("FREEMD_SPLIT_PROFILE"); dir != "" {
+			if dir := os.Getenv("FREEFOLIO_SPLIT_PROFILE"); dir != "" {
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					t.Fatal(err)
 				}

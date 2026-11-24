@@ -19,10 +19,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/gabriel-vasile/mimetype"
@@ -218,7 +218,7 @@ func parseOneBotAttachmentData(name, ext, canon, spaceID, relPath string, editab
 	}
 	part := agent.ContentPart{Name: name}
 
-	// Live or native FreeMD documents take precedence so .arcmd/.excalidraw
+	// Live or native FreeFolio documents take precedence so .arcmd/.excalidraw
 	// decode cleanly rather than passing raw JSON to the model.
 	if vault.IsText(name) {
 		var docText string

@@ -1,6 +1,6 @@
 package editor
 
-import "github.com/OUBIGFA/FreeMD/internal/document"
+import "github.com/OUBIGFA/FreeFolio/internal/document"
 
 // Width changes do not change folded structure. Reuse folded and foldable
 // lookups while the model is unchanged, relying on Engine's leaf index rather

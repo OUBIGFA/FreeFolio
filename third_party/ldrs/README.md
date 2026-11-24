@@ -17,7 +17,7 @@ into native Go + MyGo for OneBot's live status indicator:
   plus `feColorMatrix` alpha transfer `18a - 7`) evaluated natively in Go into a
   reusable 2× supersampled RGBA bitmap.
 
-All three loaders adapt automatically to FreeMD's active light/dark theme accent
+All three loaders adapt automatically to FreeFolio's active light/dark theme accent
 color, support semantic phase selection, periodic variety rotation, interactive
 click/keyboard cycling with 220 ms crossfades, reduced-motion static frames, and
 automatic frame-pause when hidden or clipped. No JavaScript or webview is used.

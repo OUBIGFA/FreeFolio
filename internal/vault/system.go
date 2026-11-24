@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 )
 
-// SystemDir is the hidden folder of a space where FreeMD keeps its own
+// SystemDir is the hidden folder of a space where FreeFolio keeps its own
 // files (versions, templates). The walk skips it as it skips every hidden
 // folder.
-const SystemDir = ".freemd"
+const SystemDir = ".freefolio"
 
 // legacySystemDir is the name the folder had before the rebrand, which
 // MigrateSystemDir renames.

@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/egoist/mygo/ui"
 )
 

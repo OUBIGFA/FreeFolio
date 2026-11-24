@@ -4,7 +4,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/document"
 )
 
 // relayoutText reshapes one top-level block and translates the following

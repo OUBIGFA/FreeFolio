@@ -3,7 +3,7 @@ package app
 import (
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/spacefs"
+	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
 	"github.com/egoist/mygo/ui/markdown/parser"
 )
 

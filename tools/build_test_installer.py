@@ -52,7 +52,7 @@ def build():
     package = bundle / f"{config['slug']}-setup-{version}-amd64.exe"
     if head != output("git", "rev-parse", "HEAD") or source != source_tree():
         raise RuntimeError("Source changed during packaging. Run the build again.")
-    name = f"FreeMD-{version}-Setup.exe"
+    name = f"FreeFolio-{version}-Setup.exe"
     sha = digest(package)
     now = datetime.now(timezone.utc)
     info = {
@@ -61,7 +61,7 @@ def build():
         "workingTreeDirty": bool(output("git", "status", "--porcelain")),
         "go": output("go", "version"), "mygo": module, "installer": name,
         "sha256": sha, "bytes": package.stat().st_size,
-        "appSha256": digest(bundle / "FreeMD.exe"),
+        "appSha256": digest(bundle / "FreeFolio.exe"),
     }
     RELEASE.mkdir(parents=True, exist_ok=True)
     staged = BUILD / name

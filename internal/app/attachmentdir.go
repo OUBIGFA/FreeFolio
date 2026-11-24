@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 )
 
@@ -316,7 +316,7 @@ func findInAttachmentFolder(root, folder, name string) []string {
 
 // renameMoves collects the real file moves a batch of watch events made, as
 // space-relative old → new paths, so relocations follow where files went
-// instead of guessing by name. The dot-named temporaries of FreeMD's own
+// instead of guessing by name. The dot-named temporaries of FreeFolio's own
 // atomic writes are left out.
 func renameMoves(sp *space.Space, events []mygo.FileEvent) map[string]string {
 	if sp == nil || sp.IsExternal() {
@@ -643,7 +643,7 @@ func underAttachmentFolder(clean, folder string) bool {
 	return strings.Contains(clean, "/"+folder+"/")
 }
 
-// markSelfWrite remembers a file FreeMD just wrote, so the watch events of
+// markSelfWrite remembers a file FreeFolio just wrote, so the watch events of
 // its own asset writes do not start attachment relinking.
 func (a *App) markSelfWrite(full string) {
 	if a.selfWrites == nil {
@@ -652,7 +652,7 @@ func (a *App) markSelfWrite(full string) {
 	a.selfWrites[full] = time.Now()
 }
 
-// wroteRecently reports whether FreeMD wrote the file a moment ago.
+// wroteRecently reports whether FreeFolio wrote the file a moment ago.
 func (a *App) wroteRecently(full string) bool {
 	at, ok := a.selfWrites[full]
 	return ok && time.Since(at) < 15*time.Second
@@ -669,7 +669,7 @@ func (a *App) pruneSelfWrites() {
 // attachmentsTouched reports whether a batch of watch events may have moved
 // attachments into the space's folder, so the documents should be relinked.
 // Only real renames establish the old-to-new relationship. Creates, plain
-// saves and FreeMD's atomic publishes never initiate a scan.
+// saves and FreeFolio's atomic publishes never initiate a scan.
 func (a *App) attachmentsTouched(sp *space.Space, events []mygo.FileEvent) bool {
 	folder := attachmentFolder(sp)
 	if folder == "" || sp.IsExternal() {

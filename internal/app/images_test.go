@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
@@ -114,7 +114,7 @@ func TestImageLoaderRejectsUnsupportedReferences(t *testing.T) {
 }
 
 func TestParentImagesSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render imported images")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render imported images")
 	for _, mode := range []string{"light", "dark", "narrow-missing"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt, _, _ := parentImagesApp(t)
@@ -131,7 +131,7 @@ func TestParentImagesSnapshot(t *testing.T) {
 }
 
 func TestImageComponentSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the image component")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the image component")
 	for _, mode := range []string{"light", "dark", "narrow", "preview"} {
 		t.Run(mode, func(t *testing.T) {
 			a, tt, file, _ := parentImagesApp(t)

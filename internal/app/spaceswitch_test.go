@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -201,7 +201,7 @@ func TestSpaceFolderGone(t *testing.T) {
 // TestSpaceSlideSnapshot renders the strip a third and two thirds of the
 // way to the next space, for review.
 func TestSpaceSlideSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the space switch")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the space switch")
 	a, tt := libraryApp(t)
 	tt.SetSize(1240, 700)
 	for _, f := range []float32{0.33, 0.66} {

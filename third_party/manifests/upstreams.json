@@ -2,7 +2,7 @@
   "sources": [
     {
       "name": "ArcMD",
-      "purpose": "Upstream Go + MyGo native Markdown editor baseline for FreeMD",
+      "purpose": "Upstream Go + MyGo native Markdown editor baseline for FreeFolio",
       "sourceUrl": "https://github.com/Ciao1019/ArcMD",
       "tag": "v0.2.1",
       "revision": "27322d387268751932624ef83a7c580cb0b068d5",
@@ -23,7 +23,7 @@
     },
     {
       "name": "rclone",
-      "purpose": "Connection idle timeout, bounded WebDAV directory walking and recursive S3 listing adapted for FreeMD; incremental sync behavior references",
+      "purpose": "Connection idle timeout, bounded WebDAV directory walking and recursive S3 listing adapted for FreeFolio; incremental sync behavior references",
       "sourceUrl": "https://github.com/rclone/rclone",
       "tag": "v1.76.0",
       "revision": "e982ff36668f5130d94b4f70409babb3d964df42",
@@ -320,7 +320,7 @@
       "sourceUrl": "https://github.com/Ciao1019/ArcMD",
       "revision": "3c94584def6aaa5e6406ae2e30dd76c2990cb165",
       "tag": "v0.2.8",
-      "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box; vertical caret movement through headings, code, callouts, table columns, pictures and whiteboards; the mind map shortcut moved off macOS Minimize All (Ctrl+Cmd+M, Ctrl+Alt+M elsewhere); whiteboards and captionless pictures copied, cut and deleted whole, Enter below an inline whiteboard, and a clickable failed-picture placeholder with replace, reveal and delete; client window controls on KDE Wayland, drawn in FreeMD's own top bars. Features: a read-only PDF reader in spaces and the file browser (pages, thumbnails, contents, find, zoom, rotation), with the pure Go geometry and outline fallback and the parser race fix. PDF text in search and Q&A, with page citations. System proxy detection (environment first, then the Windows registry or macOS scutil, cached 5 s, local names bypassed) for every client on the default transport. Documents dragged in from the file manager onto a space window, sidebar or folder row are copied in (never overwritten), opened and undoable to the trash; the file browser opens them as tabs. A full-width page mode (narrow, standard, wide, full) from a corner button, the more menus, settings and the command bar, toggled with Alt+Cmd/Ctrl+P back to the width before it. HTML page export with the editor's code highlighting and Mermaid diagrams as inline SVG for light and dark (extended to FreeMD's gantt, pie and chart diagrams); clipboard HTML unchanged. Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
+      "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box; vertical caret movement through headings, code, callouts, table columns, pictures and whiteboards; the mind map shortcut moved off macOS Minimize All (Ctrl+Cmd+M, Ctrl+Alt+M elsewhere); whiteboards and captionless pictures copied, cut and deleted whole, Enter below an inline whiteboard, and a clickable failed-picture placeholder with replace, reveal and delete; client window controls on KDE Wayland, drawn in FreeFolio's own top bars. Features: a read-only PDF reader in spaces and the file browser (pages, thumbnails, contents, find, zoom, rotation), with the pure Go geometry and outline fallback and the parser race fix. PDF text in search and Q&A, with page citations. System proxy detection (environment first, then the Windows registry or macOS scutil, cached 5 s, local names bypassed) for every client on the default transport. Documents dragged in from the file manager onto a space window, sidebar or folder row are copied in (never overwritten), opened and undoable to the trash; the file browser opens them as tabs. A full-width page mode (narrow, standard, wide, full) from a corner button, the more menus, settings and the command bar, toggled with Alt+Cmd/Ctrl+P back to the width before it. HTML page export with the editor's code highlighting and Mermaid diagrams as inline SVG for light and dark (extended to FreeFolio's gantt, pie and chart diagrams); clipboard HTML unchanged. Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
     }
   ],
   "maintainerCodeReuse": [

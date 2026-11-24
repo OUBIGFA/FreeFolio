@@ -69,7 +69,7 @@ func NewWriter(out io.Writer, title string) *Writer {
 		alphaGS: map[uint16]int{},
 	}
 	w.write([]byte("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"))
-	w.object(3, fmt.Sprintf("<< /Title %s /Producer (FreeMD) >>", textString(title)), nil)
+	w.object(3, fmt.Sprintf("<< /Title %s /Producer (FreeFolio) >>", textString(title)), nil)
 	return w
 }
 
@@ -106,9 +106,9 @@ func (w *Writer) ensureLegacyFonts() {
 	w.legacyCID = w.allocID()
 	w.legacyDesc = w.allocID()
 	w.legacyCMap = w.allocID()
-	w.object(w.legacyFont, fmt.Sprintf("<< /Type /Font /Subtype /Type0 /BaseFont /FreeMDText /Encoding /Identity-H /DescendantFonts [%d 0 R] /ToUnicode %d 0 R >>", w.legacyCID, w.legacyCMap), nil)
-	w.object(w.legacyCID, fmt.Sprintf("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /FreeMDText /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor %d 0 R /DW 1000 /CIDToGIDMap /Identity >>", w.legacyDesc), nil)
-	w.object(w.legacyDesc, "<< /Type /FontDescriptor /FontName /FreeMDText /Flags 4 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 800 /StemV 80 >>", nil)
+	w.object(w.legacyFont, fmt.Sprintf("<< /Type /Font /Subtype /Type0 /BaseFont /FreeFolioText /Encoding /Identity-H /DescendantFonts [%d 0 R] /ToUnicode %d 0 R >>", w.legacyCID, w.legacyCMap), nil)
+	w.object(w.legacyCID, fmt.Sprintf("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /FreeFolioText /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor %d 0 R /DW 1000 /CIDToGIDMap /Identity >>", w.legacyDesc), nil)
+	w.object(w.legacyDesc, "<< /Type /FontDescriptor /FontName /FreeFolioText /Flags 4 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 800 /StemV 80 >>", nil)
 }
 
 // RegisterFontData registers an embedded TTF/OTF byte slice (such as KaTeX fonts)
@@ -223,7 +223,7 @@ func (w *Writer) Close() error {
 
 	if w.legacyInit {
 		var cmap strings.Builder
-		cmap.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /FreeMDUnicode def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n")
+		cmap.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /FreeFolioUnicode def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n")
 		for start := 0; start < len(w.alphabet); start += 100 {
 			end := min(start+100, len(w.alphabet))
 			fmt.Fprintf(&cmap, "%d beginbfchar\n", end-start)

@@ -16,7 +16,7 @@ import (
 // another space, and returns its path there. A name taken there is
 // numbered, as new documents are ("Notes 2.arcmd"). Where the two vaults
 // are on different disks, it copies instead and reports copied: the
-// original stays for the caller to move to the trash, as FreeMD never
+// original stays for the caller to move to the trash, as FreeFolio never
 // deletes a user's files itself.
 func MoveTo(from, rel, to, dir string) (dest string, copied bool, err error) {
 	src, err := Resolve(from, rel)

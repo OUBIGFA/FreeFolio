@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -124,7 +124,7 @@ func TestLibraryPages(t *testing.T) {
 }
 
 // The recently deleted page groups by day, filters by the search, and
-// forgets FreeMD's copy with the bin.
+// forgets FreeFolio's copy with the bin.
 func TestLibraryTrash(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.trashFile = os.RemoveAll
@@ -176,7 +176,7 @@ func TestDayLabel(t *testing.T) {
 
 // TestLibrarySnapshot renders the library's pages, for review.
 func TestLibrarySnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the library")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the library")
 	for _, dark := range []bool{false, true} {
 		for _, page := range []libraryPage{libSpaces, libPlugins, libTrash} {
 			name := []string{"library-spaces", "library-plugins", "library-trash"}[page]
@@ -339,7 +339,7 @@ func TestLibraryCardDrag(t *testing.T) {
 // TestLibraryDragSnapshot renders a card dragged halfway over the next,
 // for review.
 func TestLibraryDragSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the library")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the library")
 	a, tt := libraryApp(t)
 	tt.SetSize(1240, 760)
 	a.openLibrary(libSpaces)

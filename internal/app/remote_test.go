@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 )
 
 func TestRemoteImagesFetchCacheAndFail(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
@@ -455,7 +455,7 @@ func TestMathBlock(t *testing.T) {
 	// The section commands move headings with what they hold.
 	a.doc.ed.SetSelection(0, 0)
 	a.doc.ed.MoveSectionAtCaret(1) // the title does not move
-	if a.doc.ed.Doc.Blocks[0].Text() != "Welcome to FreeMD" {
+	if a.doc.ed.Doc.Blocks[0].Text() != "Welcome to FreeFolio" {
 		t.Error("title moved")
 	}
 }

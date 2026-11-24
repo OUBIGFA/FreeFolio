@@ -116,8 +116,8 @@ func TestWebDAVKeepsETagFromSuccessfulPropertyGroup(t *testing.T) {
 }
 
 func TestCanceledScanRetainsConfirmedFiles(t *testing.T) {
-	const remoteRoot = "/dav/FreeMD/Notes"
-	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true, "/dav/FreeMD": true, remoteRoot: true}, files: map[string][]byte{}}
+	const remoteRoot = "/dav/FreeFolio/Notes"
+	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true, "/dav/FreeFolio": true, remoteRoot: true}, files: map[string][]byte{}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var gets atomic.Int64
@@ -197,7 +197,7 @@ func TestResolveRemoteWithCachedValidatorKeepsContent(t *testing.T) {
 }
 
 func TestCancellationBeforeLastLocalWriteIsNotReportedAsSkip(t *testing.T) {
-	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true, "/dav/FreeMD": true, "/dav/FreeMD/Notes": true}, files: map[string][]byte{"/dav/FreeMD/Notes/note.md": []byte("remote")}}
+	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true, "/dav/FreeFolio": true, "/dav/FreeFolio/Notes": true}, files: map[string][]byte{"/dav/FreeFolio/Notes/note.md": []byte("remote")}}
 	server := httptest.NewServer(dav)
 	defer server.Close()
 	c := DefaultConfig()

@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard/rough"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard/rough"
 )
 
 // Primitive is the shared path output for native rendering, SVG and PDF.

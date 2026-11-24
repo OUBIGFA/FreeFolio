@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 func TestEmbedFailureSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render a failed embed")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render a failed embed")
 	a, tt := newTestApp(t)
 	url := "https://x.com/i/status/1834693009369403543"
 	a.remote.entries[url] = &remoteImage{resource: editor.ImageResource{Problem: editor.ImageEmbed}}

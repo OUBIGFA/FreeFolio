@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
-// The tour introduces the window the first time FreeMD runs with it, on a
+// The tour introduces the window the first time FreeFolio runs with it, on a
 // new installation or after an update: a scrim over the
 // window with a hole round what a step is about, and a card beside it
 // with a small moving picture, a few lines and the way on. The hole and
@@ -54,9 +54,9 @@ type tourStep struct {
 }
 
 var tourSteps = []tourStep{
-	{id: "welcome", label: "新手教程", title: "欢迎来到 FreeMD",
+	{id: "welcome", label: "新手教程", title: "欢迎来到 FreeFolio",
 		body: func(*App) string {
-			return i18n.T("用一分钟认识 FreeMD：空间、主题配色、左右滑动、书签、置顶和收藏。看完就可以开始写作。")
+			return i18n.T("用一分钟认识 FreeFolio：空间、主题配色、左右滑动、书签、置顶和收藏。看完就可以开始写作。")
 		},
 		keys: func(*App) []string { return []string{i18n.T("→ 下一步"), i18n.T("Esc 跳过")} }},
 	{id: "spaces", label: "空间", title: "用空间分开不同的事",

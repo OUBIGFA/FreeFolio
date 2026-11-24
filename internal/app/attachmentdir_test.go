@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OUBIGFA/FreeMD/internal/history"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -355,7 +355,7 @@ func TestAttachmentsTouchedIgnoresOwnWrites(t *testing.T) {
 	a, _ := newTestApp(t)
 	sp := a.state.ActiveSpace()
 	testAttachmentFolder(t, a, "附件")
-	// FreeMD's own asset writes and atomic publishes never trigger a scan.
+	// FreeFolio's own asset writes and atomic publishes never trigger a scan.
 	a.markSelfWrite(filepath.Join(root(a), "附件", "one.png"))
 	own := []mygo.FileEvent{
 		{Op: mygo.FileCreate, Path: "附件/one.png"},
@@ -363,7 +363,7 @@ func TestAttachmentsTouchedIgnoresOwnWrites(t *testing.T) {
 		{Op: mygo.FileRename, OldPath: ".Paste.png.123.tmp", Path: "附件/Paste.png"},
 	}
 	if a.attachmentsTouched(sp, own) {
-		t.Fatal("FreeMD's own writes triggered a relink scan")
+		t.Fatal("FreeFolio's own writes triggered a relink scan")
 	}
 	// A new picture does not identify where any old reference pointed.
 	if a.attachmentsTouched(sp, []mygo.FileEvent{{Op: mygo.FileCreate, Path: "附件/other.png"}}) {

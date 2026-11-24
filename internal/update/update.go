@@ -1,4 +1,4 @@
-// Package update holds what FreeMD's software updates decide without the
+// Package update holds what FreeFolio's software updates decide without the
 // window: what the sidebar's update banner says and when that goes into a
 // toast (after Cra's UpdateNotice, MIT), how often the releases are
 // checked, and the release notes made plain for the updates settings page. The
@@ -11,20 +11,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 )
 
 const (
 	// FirstCheck is how long after launch the first background check runs,
 	// so that it does not slow the start.
 	FirstCheck = 10 * time.Second
-	// Interval is the time between background checks while FreeMD runs, as
+	// Interval is the time between background checks while FreeFolio runs, as
 	// Arc's and Cra's eight hours.
 	Interval = 8 * time.Hour
 )
 
 // Repository is where releases are published.
-const Repository = "https://github.com/OUBIGFA/FreeMD"
+const Repository = "https://github.com/OUBIGFA/FreeFolio"
 
 // ReleaseURL is the page of a release on GitHub, or of the latest one when
 // version is empty.
@@ -72,7 +72,7 @@ func (n Notice) Title() string {
 	if n.Kind == Ready {
 		return i18n.T("更新已准备就绪！")
 	}
-	return i18n.T("FreeMD 有新版本")
+	return i18n.T("FreeFolio 有新版本")
 }
 
 // Subtitle is the banner's second line.
@@ -80,7 +80,7 @@ func (n Notice) Subtitle() string {
 	if n.Kind == Ready {
 		return i18n.T("点击重新启动")
 	}
-	return "FreeMD " + n.Version
+	return "FreeFolio " + n.Version
 }
 
 // Button is the toast's button: what clicking the banner does.

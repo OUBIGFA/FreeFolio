@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -36,7 +36,7 @@ func settleTour(tt *ui.Tester) {
 
 func TestTourShowsOnFirstRunOnly(t *testing.T) {
 	a, tt := newTourApp(t)
-	if !a.tour.open || !tt.HasText("欢迎来到 FreeMD") {
+	if !a.tour.open || !tt.HasText("欢迎来到 FreeFolio") {
 		t.Fatalf("no tour on the first run: %v", tt.Texts())
 	}
 	// Quitting in the middle of it, the next launch shows it again.
@@ -51,7 +51,7 @@ func TestTourShowsOnFirstRunOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	settleTour(tt)
-	if a.tour.open || tt.HasText("欢迎来到 FreeMD") {
+	if a.tour.open || tt.HasText("欢迎来到 FreeFolio") {
 		t.Fatal("skipping left the tour open")
 	}
 	b, err = New(a.cfg)
@@ -176,7 +176,7 @@ func TestTourFromCommandBarAndSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	settleTour(tt)
-	if !a.tour.open || a.settingsOpen || !tt.HasText("欢迎来到 FreeMD") {
+	if !a.tour.open || a.settingsOpen || !tt.HasText("欢迎来到 FreeFolio") {
 		t.Fatalf("settings: tour %v, settings %v", a.tour.open, a.settingsOpen)
 	}
 }
@@ -202,7 +202,7 @@ func TestTourPlacement(t *testing.T) {
 }
 
 func TestTourSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT to render the tour")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the tour")
 	for _, dark := range []bool{false, true} {
 		for i, step := range tourSteps {
 			name := "tour-" + string(rune('0'+i)) + "-" + step.id
@@ -269,7 +269,7 @@ func TestTourShowsTheThemeCard(t *testing.T) {
 	}
 }
 
-// Someone who used FreeMD before it had a tour sees it once after the
+// Someone who used FreeFolio before it had a tour sees it once after the
 // update: their spaces are there, their preferences say nothing of it.
 func TestTourShowsOnceAfterUpdate(t *testing.T) {
 	a, _ := newTestApp(t)

@@ -12,7 +12,7 @@ import (
 // the picture matches the editor and this package keeps its distance from
 // any UI toolkit, like the rest of internal/mermaid. Every field must be
 // set. Adapted from ArcMD 8f593e5, whose fixed palette knew only flowcharts
-// and sequence diagrams; FreeMD also draws gantt charts, pies and charts.
+// and sequence diagrams; FreeFolio also draws gantt charts, pies and charts.
 type Style struct {
 	// Paper is the picture's background, behind pills and inside hollow
 	// markers.

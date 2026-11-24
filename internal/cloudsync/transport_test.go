@@ -160,7 +160,7 @@ func TestWebDAVStoreCreatesFoldersListsOneLevelAndHandlesChineseFolders(t *testi
 	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true}, files: map[string][]byte{}}
 	server := httptest.NewServer(dav)
 	defer server.Close()
-	store, err := newWebDAVStore(server.URL+"/dav/我的坚果云/FreeMD/", "me", "secret")
+	store, err := newWebDAVStore(server.URL+"/dav/我的坚果云/FreeFolio/", "me", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestWebDAVStoreCreatesFoldersListsOneLevelAndHandlesChineseFolders(t *testi
 	}
 	put("devices/a.json", "{}")
 	put("devices/a/1-2.json", "快照")
-	if string(dav.files["/dav/我的坚果云/FreeMD/devices/a/1-2.json"]) != "快照" {
+	if string(dav.files["/dav/我的坚果云/FreeFolio/devices/a/1-2.json"]) != "快照" {
 		t.Fatalf("文件没有放到同步目录下：%v", dav.files)
 	}
 	entries, err := store.List("devices")
@@ -206,7 +206,7 @@ func TestWebDAVStoreCreatesFoldersListsOneLevelAndHandlesChineseFolders(t *testi
 	if err := store.Delete("devices/a.json"); err != nil {
 		t.Fatalf("删除已经没有的文件也算成功：%v", err)
 	}
-	wrong, _ := newWebDAVStore(server.URL+"/dav/我的坚果云/FreeMD", "me", "wrong")
+	wrong, _ := newWebDAVStore(server.URL+"/dav/我的坚果云/FreeFolio", "me", "wrong")
 	if err := wrong.Probe(); err == nil || !strings.Contains(err.Error(), "密码") {
 		t.Fatalf("密码不对时要说清楚：%v", err)
 	}
@@ -324,7 +324,7 @@ func TestS3StoreSignsRequestsAndKeepsEverythingUnderThePrefix(t *testing.T) {
 	server := httptest.NewServer(s3)
 	defer server.Close()
 	settings := Config{
-		S3Endpoint: server.URL, S3Region: "auto", S3Bucket: "bucket", S3Prefix: "/备份/FreeMD/",
+		S3Endpoint: server.URL, S3Region: "auto", S3Bucket: "bucket", S3Prefix: "/备份/FreeFolio/",
 		S3AccessKey: "key", S3SecretKey: "secret", S3PathStyle: true,
 	}
 	store, err := newS3Store(settings)
@@ -341,7 +341,7 @@ func TestS3StoreSignsRequestsAndKeepsEverythingUnderThePrefix(t *testing.T) {
 	if err := store.Put("devices/a.json", strings.NewReader("{}"), 2); err != nil {
 		t.Fatal(err)
 	}
-	if string(s3.objects["备份/FreeMD/devices/a b/1-2.json"]) != text {
+	if string(s3.objects["备份/FreeFolio/devices/a b/1-2.json"]) != text {
 		t.Fatalf("对象没有放到同步目录下：%v", s3.objects)
 	}
 	entries, err := store.List("devices")

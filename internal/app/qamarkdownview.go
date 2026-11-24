@@ -6,14 +6,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown/parser"
 )
 
 // Lobe's chat variant: 14px / 1.72, .02em tracking, 600 strong text,
-// compact heading scale and a 4px quotation rule. Colors use FreeMD tokens.
+// compact heading scale and a 4px quotation rule. Colors use FreeFolio tokens.
 func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn, b *qaBlock) {
 	t := c.Theme()
 	if b.fade.active(c.Now()) {

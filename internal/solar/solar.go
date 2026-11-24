@@ -1,4 +1,4 @@
-// Package solar holds the Solar icons FreeMD shows, by Solar name.
+// Package solar holds the Solar icons FreeFolio shows, by Solar name.
 //
 // Icons are Solar Icons by 480 Design (https://www.figma.com/community/file/1166831539721848736),
 // under the Creative Commons Attribution 4.0 International License, as

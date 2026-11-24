@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/OUBIGFA/FreeMD/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"image/color"
 	"math"
 	"testing"

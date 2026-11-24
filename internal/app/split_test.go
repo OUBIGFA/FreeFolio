@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -205,7 +205,7 @@ func TestSplitInactiveRenameAndDelete(t *testing.T) {
 }
 
 func TestSplitSnapshot(t *testing.T) {
-	dir := snapshotDir(t, "set FREEMD_SNAPSHOT for split views")
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT for split views")
 	for _, name := range []string{"split-light", "split-dark", "split-vertical", "split-narrow", "split-empty", "split-picker"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := splitTestApp(t)

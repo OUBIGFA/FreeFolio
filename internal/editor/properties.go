@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -29,7 +29,7 @@ const (
 	propsKeyW    = 160
 )
 
-// reservedProperties are the keys FreeMD reads into the page itself (the
+// reservedProperties are the keys FreeFolio reads into the page itself (the
 // icon, cover and word goal) and writes ahead of the others; a property of
 // that name would be written twice.
 var reservedProperties = []string{"icon", "cover", "coverY", "goal"}
@@ -172,7 +172,7 @@ func spliceLines(fm string, start, end int, with []string) string {
 }
 
 // checkPropertyName returns the error a key name meets, or "": it must not
-// be empty, be another property's or one FreeMD keeps for the page, or
+// be empty, be another property's or one FreeFolio keeps for the page, or
 // hold what YAML would read as more than a name.
 func checkPropertyName(props []property, name string, except int) string {
 	switch {
@@ -181,7 +181,7 @@ func checkPropertyName(props []property, name string, except int) string {
 	case strings.ContainsAny(name, "\n\r\t") || strings.Contains(name, ": ") || strings.HasSuffix(name, ":") || strings.HasPrefix(name, "-") || strings.HasPrefix(name, "#"):
 		return i18n.T("属性名不能包含冒号、换行或以 - 和 # 开头")
 	case slices.Contains(reservedProperties, name):
-		return i18n.T("这个属性名由 FreeMD 用于页面图标、封面或字数目标")
+		return i18n.T("这个属性名由 FreeFolio 用于页面图标、封面或字数目标")
 	}
 	for i, p := range props {
 		if i != except && p.key == name {
@@ -550,8 +550,8 @@ func (e *Editor) propertyValue(c *ui.Context, i int, p property, editable bool) 
 	}
 }
 
-// tagList edits a list property as FreeMD's own chips before an input:
-// MyGo's TokenField paints its chips itself, darker than FreeMD's tags and
+// tagList edits a list property as FreeFolio's own chips before an input:
+// MyGo's TokenField paints its chips itself, darker than FreeFolio's tags and
 // with the text off center, so the property builds them here. Enter, a
 // comma or leaving the input adds what was typed; a chip's × takes it out.
 // Only committed text is added: an input method's composition is not in

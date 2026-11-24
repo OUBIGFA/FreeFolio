@@ -6,8 +6,8 @@ project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_dir"
 
 # Keep development settings and documents separate from the installed app.
-export FREEMD_HOME="${FREEMD_HOME:-$project_dir/.mygo/data}"
+export FREEFOLIO_HOME="${FREEFOLIO_HOME:-$project_dir/.mygo/data}"
 export CGO_ENABLED=0
 
-printf 'Development data: %s\n' "$FREEMD_HOME"
+printf 'Development data: %s\n' "$FREEFOLIO_HOME"
 exec go run github.com/egoist/mygo/cmd/mygo@v0.10.0 dev "$@"

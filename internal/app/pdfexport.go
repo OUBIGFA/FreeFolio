@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/pdf"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/pdf"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -51,13 +51,13 @@ func (a *App) startPDF(printing bool) {
 	source := &document{space: &space.Space{Root: root}, rel: rel}
 	dir := filepath.Dir(d.fullPath())
 	if printing {
-		dir = filepath.Join(os.TempDir(), i18n.T("FreeMD 打印"))
+		dir = filepath.Join(os.TempDir(), i18n.T("FreeFolio 打印"))
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			a.notify("准备打印失败。%v", err)
 			return
 		}
 	}
-	file, err := os.CreateTemp(dir, ".freemd-export-*.pdf")
+	file, err := os.CreateTemp(dir, ".freefolio-export-*.pdf")
 	if err != nil {
 		a.notify("导出 PDF 失败。%v", err)
 		return

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // openSystemFile handles file associations and command-line documents. The
@@ -23,7 +23,7 @@ func (a *App) openSystemFile(file string) bool {
 	}
 	info, err := os.Stat(full)
 	if err != nil || !info.Mode().IsRegular() || !vault.IsDocument(full) {
-		a.notify("请选择 FreeMD、Markdown 或 PDF 文档：%s", filepath.Base(full))
+		a.notify("请选择 FreeFolio、Markdown 或 PDF 文档：%s", filepath.Base(full))
 		return false
 	}
 	if !a.flushForTask() {

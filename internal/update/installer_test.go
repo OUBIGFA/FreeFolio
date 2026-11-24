@@ -47,7 +47,7 @@ func releaseFixture(version string, payload []byte) map[string]any {
 	sum := sha256.Sum256(payload)
 	return map[string]any{
 		"tag_name": "v" + version, "body": "Release notes",
-		"assets": []map[string]any{{"id": 1, "name": "FreeMD-" + version + "-Setup.exe",
+		"assets": []map[string]any{{"id": 1, "name": "FreeFolio-" + version + "-Setup.exe",
 			"size": len(payload), "digest": "sha256:" + hex.EncodeToString(sum[:])}},
 	}
 }
@@ -89,7 +89,7 @@ func TestInstallerDownloadVerifiesAndReusesCache(t *testing.T) {
 	}
 }
 
-func TestInstallerSelectsOnlyMatchingStableFreeMDAssets(t *testing.T) {
+func TestInstallerSelectsOnlyMatchingStableFreeFolioAssets(t *testing.T) {
 	payload := []byte("fixture")
 	for _, test := range []struct {
 		name   string

@@ -3,8 +3,8 @@ package app
 import (
 	"reflect"
 
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/vault"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // Only paths and geometry are persisted; editor contents use the ordinary

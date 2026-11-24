@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/editor"
-	"github.com/OUBIGFA/FreeMD/internal/fsutil"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/video"
 )
@@ -237,7 +237,7 @@ func (r *remoteImages) tweetMedia(id string) ([]tweetMedia, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "FreeMD")
+	req.Header.Set("User-Agent", "FreeFolio")
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return nil, err

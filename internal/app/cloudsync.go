@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/OUBIGFA/FreeMD/internal/cloudsync"
-	"github.com/OUBIGFA/FreeMD/internal/i18n"
-	"github.com/OUBIGFA/FreeMD/internal/space"
-	"github.com/OUBIGFA/FreeMD/internal/trashbin"
+	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -453,7 +453,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 				cloudFieldSpec{"bucket", i18n.T("存储桶"), "my-notes", &cfg.S3Bucket, false},
 			)
 			settingsSeparator(c)
-			cloudFieldRow(c, "prefix", i18n.T("S3 目录"), i18n.T("可选，例如 freemd"), &cfg.S3Prefix, false, locked)
+			cloudFieldRow(c, "prefix", i18n.T("S3 目录"), i18n.T("可选，例如 freefolio"), &cfg.S3Prefix, false, locked)
 			settingsSeparator(c)
 			cloudFieldPair(c, "s3-auth", twoCol, locked,
 				cloudFieldSpec{"access", "Access Key", "", &cfg.S3AccessKey, false},

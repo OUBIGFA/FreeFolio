@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/OUBIGFA/FreeMD/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
 )
 
 // AI starts a new OneBot configuration; legacy single-provider fields are not
