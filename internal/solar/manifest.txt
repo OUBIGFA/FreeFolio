@@ -72,7 +72,6 @@ text-formatting/text-align-left
 text-formatting/text-align-right
 text-formatting/text-bold
 text-formatting/text-cross
-text-formatting/text-format
 text-formatting/text-italic
 text-formatting/text-underline
 tools/paint-bucket
