@@ -312,10 +312,10 @@ func (e *Engine) replace(a, z int, text string) {
 			return
 		}
 	} else {
-		if first.Block != last.Block && a == first.Start && (isRule(first.Block) || isMedia(first.Block)) {
-			// A rule or attachment selected whole goes with the selection
-			// rather than taking the text after it.
-			first.Block.Kind, first.Block.URL = "paragraph", ""
+		if first.Block != last.Block && a == first.Start && (isRule(first.Block) || isMedia(first.Block) || isWhiteboardBlockLang(first.Block)) {
+			// A rule, attachment or inline whiteboard selected whole goes with
+			// the selection rather than taking the text after it.
+			first.Block.Kind, first.Block.URL, first.Block.Language, first.Block.ImageWidth = "paragraph", "", "", 0
 		}
 		first.Block.Runs = runs
 		first.Block.Comments = mergedComments
@@ -531,7 +531,7 @@ func (e *Engine) Enter(soft bool) {
 	if e.enterMath(leaf) || e.enterCodeFence(leaf) || e.enterMermaidExit(leaf) || e.enterRawExit(leaf) || e.enterPipeTable(leaf) {
 		return
 	}
-	if leaf.Block.Kind == "image" && leaf.Parent != nil {
+	if (leaf.Block.Kind == "image" || isWhiteboardBlockLang(leaf.Block)) && leaf.Parent != nil {
 		e.Edit(func() {
 			next := NewBlock("paragraph", "")
 			next.Indent = leaf.Block.Indent
@@ -977,14 +977,33 @@ func (e *Engine) InsertAt(index int, blocks ...*Block) {
 }
 
 func (e *Engine) DeleteBlock(id string) {
+	e.RemoveBlock(id, false)
+}
+
+// RemoveBlock deletes block id from its parent slice (top-level or column) and
+// moves the caret to the preceding block's end when backward is true, or
+// focuses the replacement/next block otherwise. Table rows and cells and the
+// columns of a column group are structure, never removed here. Ported from
+// ArcMD 14e92c1.
+func (e *Engine) RemoveBlock(id string, backward bool) {
 	e.Edit(func() {
 		parent, index := e.find(id)
-		if parent == nil || parent != &e.Doc.Blocks {
+		if parent == nil {
 			return
+		}
+		if parent != &e.Doc.Blocks {
+			switch (*parent)[index].Kind {
+			case "row", "cell", "column":
+				return
+			}
 		}
 		*parent = append((*parent)[:index], (*parent)[index+1:]...)
 		if len(*parent) == 0 {
 			*parent = []*Block{NewBlock("paragraph", "")}
+		}
+		if backward && index > 0 {
+			e.caretAtEnd((*parent)[index-1])
+			return
 		}
 		e.FocusBlock((*parent)[min(index, len(*parent)-1)].ID)
 	})
@@ -1277,4 +1296,14 @@ func (e *Engine) SetWidths(id string, widths []float32) {
 			(*parent)[index].Widths = append([]float32(nil), widths...)
 		}
 	})
+}
+
+// isWhiteboardBlockLang reports a code block holding an inline whiteboard
+// scene, which is one object rather than lines of text (ArcMD 14e92c1).
+func isWhiteboardBlockLang(b *Block) bool {
+	if b.Kind != "code" {
+		return false
+	}
+	lang := strings.TrimSpace(b.Language)
+	return strings.EqualFold(lang, "excalidraw") || strings.EqualFold(lang, "whiteboard")
 }

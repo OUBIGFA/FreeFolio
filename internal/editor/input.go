@@ -147,6 +147,12 @@ func (e *Editor) command(command string, read func() string, write func(string))
 			e.copyBlocks(e.BlockSelection(), write)
 			return true
 		}
+		if e.Anchor == e.Caret {
+			if leaf := e.Engine.LeafAt(e.Caret); isAtomicVisualBlock(leaf.Block) {
+				e.copySingleBlock(leaf.Block, write)
+				return true
+			}
+		}
 		e.copySelection(write)
 		return true
 	}
@@ -158,6 +164,17 @@ func (e *Editor) command(command string, read func() string, write func(string))
 			e.sync()
 		}
 		return true
+	}
+	if command == "cut" && e.Anchor == e.Caret && len(e.blocks.ids) == 0 {
+		if leaf := e.Engine.LeafAt(e.Caret); isAtomicVisualBlock(leaf.Block) {
+			e.copySingleBlock(leaf.Block, write)
+			if e.ReadOnly {
+				e.refused = true
+			} else {
+				e.deleteAtomicBlock(leaf.Block.ID, true)
+			}
+			return true
+		}
 	}
 	if command == "selectAll" {
 		if len(e.blocks.ids) > 0 {
@@ -470,6 +487,16 @@ func (e *Editor) delete(direction int, word, line bool) {
 		return
 	}
 	r := e.Selection().Range
+	// A whiteboard or a picture without its description goes whole, and a
+	// range reaching into one takes all of it.
+	first, last := e.Engine.LeafAt(r.Start), e.Engine.LeafAt(r.End)
+	if first.Block.ID == last.Block.ID && e.isAtomicOrHiddenImage(first.Block) {
+		e.deleteAtomicBlock(first.Block.ID, direction < 0)
+		return
+	}
+	if r.Start != r.End {
+		r = e.widenOverAtomic(r)
+	}
 	if r.Start == r.End {
 		// At a block edge the engine decides: tables, columns and attachments
 		// are removed when empty or stepped over, never merged into text.
@@ -489,8 +516,25 @@ func (e *Editor) delete(direction int, word, line bool) {
 			}
 		}
 		r.Start, r.End = min(e.Caret, at), max(e.Caret, at)
+		r = e.widenOverAtomic(r)
 	}
 	e.ReplaceText(&r, "")
+}
+
+// widenOverAtomic grows a range spanning several blocks so that a whiteboard
+// or a captionless picture at either end is taken whole.
+func (e *Editor) widenOverAtomic(r ui.TextInputRange) ui.TextInputRange {
+	first, last := e.Engine.LeafAt(r.Start), e.Engine.LeafAt(r.End)
+	if first.Block.ID == last.Block.ID {
+		return r
+	}
+	if e.isAtomicOrHiddenImage(first.Block) {
+		r.Start = first.Start
+	}
+	if e.isAtomicOrHiddenImage(last.Block) {
+		r.End = last.End
+	}
+	return r
 }
 
 func (e *Editor) indent(remove bool) {

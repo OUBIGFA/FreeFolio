@@ -320,7 +320,7 @@
       "sourceUrl": "https://github.com/Ciao1019/ArcMD",
       "revision": "3c94584def6aaa5e6406ae2e30dd76c2990cb165",
       "tag": "v0.2.8",
-      "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box; vertical caret movement through headings, code, callouts, table columns, pictures and whiteboards; the mind map shortcut moved off macOS Minimize All (Ctrl+Cmd+M, Ctrl+Alt+M elsewhere). Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
+      "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box; vertical caret movement through headings, code, callouts, table columns, pictures and whiteboards; the mind map shortcut moved off macOS Minimize All (Ctrl+Cmd+M, Ctrl+Alt+M elsewhere); whiteboards and captionless pictures copied, cut and deleted whole, Enter below an inline whiteboard, and a clickable failed-picture placeholder with replace, reveal and delete. Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
     }
   ],
   "maintainerCodeReuse": [

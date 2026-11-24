@@ -787,3 +787,115 @@ func TestKbdMarkVersionAndExclusiveToggle(t *testing.T) {
 		t.Fatal("accepted a key mark in v10")
 	}
 }
+
+// Ported from ArcMD 14e92c1.
+func TestRemoveBlockWhiteboardAndColumns(t *testing.T) {
+	// Top-level backward removal moves caret to end of previous block; forward focuses next.
+	wb := NewBlock("image", "手绘白板")
+	wb.URL = "assets/sketch.excalidraw.svg"
+	wb.ImageWidth = 420
+	e := blocks(NewBlock("paragraph", "Before"), wb, NewBlock("paragraph", "After"))
+	e.RemoveBlock(wb.ID, true)
+	if got := kinds(e); !reflect.DeepEqual(got, []string{"paragraph:Before", "paragraph:After"}) {
+		t.Fatalf("backward RemoveBlock: got %v", got)
+	}
+	if e.Caret != 6 {
+		t.Fatalf("backward RemoveBlock caret = %d; want 6", e.Caret)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after backward RemoveBlock: %v", err)
+	}
+
+	e.Undo()
+	e.RemoveBlock(wb.ID, false)
+	if got := kinds(e); !reflect.DeepEqual(got, []string{"paragraph:Before", "paragraph:After"}) {
+		t.Fatalf("forward RemoveBlock: got %v", got)
+	}
+	if e.Caret != 7 {
+		t.Fatalf("forward RemoveBlock caret = %d; want 7", e.Caret)
+	}
+
+	// Sole block removal leaves one empty paragraph.
+	sole := NewBlock("image", "手绘白板")
+	sole.URL = "assets/sole.excalidraw.svg"
+	e = blocks(sole)
+	e.RemoveBlock(sole.ID, true)
+	if got := kinds(e); !reflect.DeepEqual(got, []string{"paragraph:"}) {
+		t.Fatalf("sole RemoveBlock: got %v", got)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after sole RemoveBlock: %v", err)
+	}
+
+	// Removing a block inside a column preserves valid column content.
+	cols := Columns()
+	colBoard := NewBlock("image", "手绘白板")
+	colBoard.URL = "assets/col.excalidraw.svg"
+	cols.Children[0].Children = []*Block{colBoard}
+	e = blocks(cols)
+	e.RemoveBlock(colBoard.ID, true)
+	gotCols := e.Doc.Blocks[0]
+	if len(gotCols.Children[0].Children) != 1 || gotCols.Children[0].Children[0].Kind != "paragraph" || gotCols.Children[0].Children[0].Text() != "" {
+		t.Fatalf("column RemoveBlock left unexpected children: %+v", gotCols.Children[0].Children)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after column RemoveBlock: %v", err)
+	}
+
+	// Structural table rows, cells, and columns are refused by RemoveBlock.
+	tbl := Table(2, 2)
+	e = blocks(tbl, cols)
+	gotTbl := e.Doc.Blocks[0]
+	gotCols = e.Doc.Blocks[1]
+	rowID := gotTbl.Children[0].ID
+	cellID := gotTbl.Children[0].Children[0].ID
+	colID := gotCols.Children[0].ID
+	e.RemoveBlock(rowID, true)
+	e.RemoveBlock(cellID, true)
+	e.RemoveBlock(colID, true)
+	if len(gotTbl.Children) != 2 || len(gotTbl.Children[0].Children) != 2 || len(gotCols.Children) != 2 {
+		t.Fatalf("RemoveBlock mutated structural container")
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after structural guard: %v", err)
+	}
+
+	// Enter on an inline excalidraw code block inserts a paragraph below instead of splitting JSON.
+	inlineBoard := NewBlock("code", `{"type":"excalidraw","version":2,"elements":[]}`)
+	inlineBoard.Language = "excalidraw"
+	e = blocks(inlineBoard)
+	e.SetSelection(4, 4)
+	e.Enter(false)
+	if len(e.Doc.Blocks) != 2 || e.Doc.Blocks[0].Kind != "code" || e.Doc.Blocks[0].Text() != `{"type":"excalidraw","version":2,"elements":[]}` || e.Doc.Blocks[1].Kind != "paragraph" {
+		t.Fatalf("Enter on excalidraw block corrupted blocks: %+v", e.Doc.Blocks)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after Enter on excalidraw: %v", err)
+	}
+
+	// Multi-block Replace starting at an excalidraw code block or image clears metadata cleanly.
+	e = blocks(inlineBoard.Clone(), NewBlock("paragraph", "After"))
+	leaf0 := e.Doc.Leaves()[0]
+	leaf1 := e.Doc.Leaves()[1]
+	e.Replace(leaf0.Start, leaf1.Start+2, "")
+	if len(e.Doc.Blocks) != 1 || e.Doc.Blocks[0].Kind != "paragraph" || e.Doc.Blocks[0].Language != "" || e.Doc.Blocks[0].Text() != "ter" {
+		t.Fatalf("multi-block Replace from excalidraw leaked JSON/language: %+v", e.Doc.Blocks)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after multi-block Replace from excalidraw: %v", err)
+	}
+
+	img := NewBlock("image", "手绘白板")
+	img.URL = "assets/w.excalidraw.svg"
+	img.ImageWidth = 360
+	e = blocks(img, NewBlock("paragraph", "After"))
+	leaf0 = e.Doc.Leaves()[0]
+	leaf1 = e.Doc.Leaves()[1]
+	e.Replace(leaf0.Start, leaf1.Start+2, "")
+	if len(e.Doc.Blocks) != 1 || e.Doc.Blocks[0].Kind != "paragraph" || e.Doc.Blocks[0].URL != "" || e.Doc.Blocks[0].ImageWidth != 0 || e.Doc.Blocks[0].Text() != "ter" {
+		t.Fatalf("multi-block Replace from image leaked URL/ImageWidth: %+v", e.Doc.Blocks)
+	}
+	if err := e.Doc.Validate(); err != nil {
+		t.Fatalf("Validate after multi-block Replace from image: %v", err)
+	}
+}

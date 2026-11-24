@@ -48,6 +48,51 @@ func isWhiteboardURL(url string) bool {
 	low := strings.ToLower(strings.Split(url, "#")[0])
 	return strings.HasSuffix(low, ".excalidraw.svg") || strings.HasSuffix(low, ".excalidraw")
 }
+
+// isWhiteboardEmbed reports a picture block showing a whiteboard file.
+func isWhiteboardEmbed(b *document.Block) bool {
+	return b != nil && b.Kind == "image" && isWhiteboardURL(b.URL)
+}
+
+// isAtomicVisualBlock reports a block that is one object on the page, not
+// text: an inline or embedded whiteboard. Copy, cut and delete take it whole
+// (ArcMD 14e92c1).
+func isAtomicVisualBlock(b *document.Block) bool {
+	return isWhiteboardEmbed(b) || isWhiteboardBlock(b)
+}
+
+// isAtomicOrHiddenImage adds pictures whose description is hidden, which
+// the reader also sees as one object.
+func (e *Editor) isAtomicOrHiddenImage(b *document.Block) bool {
+	return isAtomicVisualBlock(b) || (b != nil && b.Kind == "image" && !e.captionVisible(b))
+}
+
+// deleteAtomicBlock removes block id as a whole. Backward puts the caret at
+// the end of the block before; otherwise the next block takes focus.
+func (e *Editor) deleteAtomicBlock(id string, backward bool) {
+	if e.ReadOnly || id == "" {
+		return
+	}
+	if e.imageCaptionID == id {
+		e.imageCaptionID = ""
+	}
+	e.clearBlocks()
+	e.Engine.RemoveBlock(id, backward)
+	e.sync()
+	e.ready = false
+	e.reveal = true
+	e.vertical = false
+}
+
+// copySingleBlock writes block b to the clipboard as a one-block fragment.
+func (e *Editor) copySingleBlock(b *document.Block, write func(string)) {
+	if b == nil {
+		return
+	}
+	doc := document.New()
+	doc.Blocks = []*document.Block{b.Clone()}
+	e.writeFragment(doc, "", write)
+}
 func (e *Editor) InsertWhiteboard() {
 	if e.ReadOnly {
 		return
