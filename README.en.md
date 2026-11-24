@@ -4,7 +4,7 @@
 
 # FreeFolio
 
-**A customized, local-first desktop multi-function workbench derived from ArcMD.**
+**A local-first desktop multi-function workbench derived from ArcMD.**
 
 [简体中文](README.md) · English
 
@@ -19,7 +19,7 @@
 
 ## Preview
 
-[![FreeFolio main workspace with the note editor and property table on the left, OneBot assistant in the center, and space sidebar on the right](assets/FreeFolio-home.png)](assets/FreeFolio-home.png)
+[![FreeFolio main workspace with the note editor on the left, OneBot assistant in the center, and space sidebar on the right](assets/FreeFolio-home.png)](assets/FreeFolio-home.png)
 
 <p align="center">
   <a href="assets/FreeFolio-filemode.png"><img src="assets/FreeFolio-filemode.png" width="48%" alt="File browsing mode with a document tab and floating outline on the right"></a>
@@ -30,17 +30,26 @@
 
 ## About FreeFolio
 
-FreeFolio is a local-first desktop multi-function workbench that combines note writing, multi-format document reading, whiteboards, and an AI assistant in one place.
+FreeFolio is a local-first desktop multi-function workbench. It puts office file viewing, note writing, whiteboards, and an AI assistant in one window.
 
-Your notes, documents, and whiteboards live in local folders on your computer, so you can keep writing, reading, and organizing even without an internet connection.
+FreeFolio saves your notes, files, and whiteboards in folders on your computer. You can read, write, and draw without an internet connection.
 
 ## What you can do
 
-- **Write and format notes.** Create class notes, project docs, or long-form drafts with note properties, images, tables, task lists, math formulas, and diagrams. Switch to full-width pages and export notes as PDF or HTML pages.
-- **Read multiple formats and edit PDF pages.** Edit plain-text files directly, or open Word, Excel, PowerPoint, WPS, e-books, emails, mind maps, and archives in read-only view and click **Save as an Editable Markdown Copy** when you want to edit them. In PDFs, search inside the file, browse **Thumbnails and Contents**, or open **Edit PDF Pages** to rotate, delete, extract, split, merge, encrypt, and decrypt pages.
-- **Organize spaces and jump straight to what you need.** Separate work and personal files into multiple spaces, or drag a folder from your file manager onto **+** to add a new space. Search across notes and PDFs, and use the **Outline** or document map to jump to any section in a long note.
-- **Browse files anywhere.** Choose **Open File…** to open documents from any folder on your computer without adding that folder to a space. Opened files stay in separate tabs where you can save in place or use **Save as…**, without scanning the whole folder. Select **Return to workspace** to go back to your previous space.
-- **Sketch on whiteboards.** Switch to **Whiteboard** from the home view or sidebar to jot ideas on sticky notes, connect plans with shapes and arrows, or view a whiteboard side by side with a note.
+### Office files and multiple formats
+
+FreeFolio opens common office files and reference files in one window. You do not need to switch between many apps.
+
+- **Open office files directly.** Open Word, Excel, PowerPoint, WPS, OpenDocument, RTF, and OFD files. FreeFolio opens these files in read-only mode and does not change the original file. Select **Save as an Editable Markdown Copy** to create an editable note.
+- **Read and edit PDF pages.** Search text in a PDF, view **Thumbnails and Contents**, and switch between single-page and two-page views. Select **Edit PDF Pages** to rotate, delete, extract, split, merge, encrypt, or decrypt pages.
+- **Open more file types.** Open e-books, emails, mind maps, diagrams, and archives in read-only mode. You can also edit plain-text files directly.
+
+### Key features
+
+- **Write and format notes.** Add note properties, images, tables, task lists, math formulas, and diagrams to your notes. Use full-width pages or focus mode, and export notes as PDF or HTML pages.
+- **Browse files anywhere.** Select **Open File…** to open a file from any folder on your computer. FreeFolio shows each file in a separate tab and does not scan the whole folder. Save changes to the original file or select **Save as…**, then select **Return to workspace**.
+- **Organize spaces and find content fast.** Use separate spaces for work and personal files, or drag a folder onto **+** to add a space. Search across notes and PDFs, and use favorites, pins, bookmarks, **Outline**, and the document map to move quickly.
+- **Draw on whiteboards in split view.** Select **Whiteboard** to add sticky notes, shapes, and arrows. You can view a whiteboard and a note side by side.
 
 ## Download and start
 
@@ -53,23 +62,27 @@ Your notes, documents, and whiteboards live in local folders on your computer, s
 
 ### Get started
 
-Open FreeFolio to view your workspace and sidebar:
+Open FreeFolio.
 
-1. **Create a note or space**: Select **+** above the document list for a new note, or select **+** in the space bar (or drag a folder onto **+**) to add a new space.
-2. **Open an existing file**: In a space, select the folder icon below the file list and choose a **.md** note or another supported document. To open a file outside your spaces, select **Open File…** to enter file browsing mode, and choose **Return to workspace** or **Close Document** when you finish.
-3. **Check the result**: Changes to your notes save automatically to your local folder, and you can select **Settings…** at the bottom to adjust language, fonts, or sidebar placement.
+1. To create a note, select **+** above the file list.
+2. To create a space, select **+** in the space bar, or drag a folder onto **+**.
+3. To open a file in a space, select the folder icon below the file list.
+4. Select a **.md** note, an office file, or a PDF.
+5. To open a file outside a space, select **Open File…**.
+6. Select **Return to workspace** or **Close Document** when you finish.
+7. FreeFolio saves your note changes to your local folder. Select **Settings…** to change the language, font, or sidebar position.
 
 ## Options
 
-- **Ask OneBot for help.** Add your AI service or sign in with your ChatGPT account in **Settings → OneBot**. Ask questions across notes and PDFs in the current space with source citations, or drop files and images into the chat to ask OneBot for edits and review the suggested changes before applying them.
-- **Keep notes in sync across computers.** Connect a supported cloud storage service in **Settings → Cloud Sync**, choose only the spaces you want to sync, and turn on content encryption if needed. Cloud sync is off by default.
-- **Customize appearance and writing.** Adjust themes, fonts, line spacing, page width, sidebar placement, typewriter scrolling, and focus mode under **Settings → Appearance** and **Settings → Writing**.
+- **Use OneBot for help.** Add your AI service or sign in with your ChatGPT account in **Settings → OneBot**. Ask OneBot questions about notes and PDFs in the current space and check the cited sources. You can also drop files or images to request text edits, and review changes before you apply them.
+- **Sync notes across computers.** Connect a supported cloud storage service in **Settings → Cloud Sync**. Select only the spaces you want to sync, and turn on content encryption if needed. Cloud sync stays off by default.
+- **Customize appearance and writing.** Change the theme, font, line spacing, page width, sidebar position, typewriter scrolling, and focus mode in **Settings → Appearance** and **Settings → Writing**.
 
 ## Notes
 
-- **Offline use vs. online features**: Your notes and local documents stay on your computer so writing, reading, and whiteboards work offline. An internet connection is only needed for OneBot queries, cloud sync, and update checks.
-- **Opt-in sync and read-only protection**: Cloud sync stays off until you turn it on for selected spaces. Read-only converted formats never modify the original file; save an editable copy if you need to make changes.
-- **Updates and plugins**: On Windows, check and install updates in **Settings → Update** using **Check for Updates…**; other platforms link to the download page. The plugin marketplace is still in development (planned).
+- **Offline and online use.** FreeFolio stores your notes and files on your computer, so reading, writing, and whiteboards work offline. You need an internet connection only for OneBot, cloud sync, and update checks.
+- **Opt-in sync and read-only files.** Cloud sync stays off until you turn it on for selected spaces. FreeFolio opens office files, e-books, and archives in read-only mode and does not modify the original file.
+- **Updates and plugins.** On Windows, select **Check for Updates…** in **Settings → Update** to download and install updates. Other platforms open the download page. The plugin marketplace is in development (planned).
 
 ## Sources and license
 
