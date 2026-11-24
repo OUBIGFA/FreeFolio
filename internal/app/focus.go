@@ -89,7 +89,7 @@ func (a *App) toggleDim() {
 func (a *App) focusView(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c.Key("focus")).Grow(1).MinWidth(0).Padding(0, 8, 8, 8).Children(func() {
-		bar := c.TitleBar()
+		bar := a.titleBar(c)
 		top := ui.Row(c.Key("focus-bar")).Height(max(bar.Height, 36)).Padding(0, bar.Right, 0, bar.Left).AlignItems(ui.Center).DragWindow()
 		_, py, inside := c.Root().PointerPosition()
 		show := inside && py < 60

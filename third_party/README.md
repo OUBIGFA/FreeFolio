@@ -126,8 +126,11 @@ MIT notice.
 From ArcMD `3c94584def6aaa5e6406ae2e30dd76c2990cb165` (v0.2.8), FreeMD ports
 the inline menu paste fixes, mind map list ordinals, the block handle gutter,
 continuous whiteboard freedraw, vertical caret movement, the macOS mind map
-shortcut, whole-block whiteboard and picture deletion and the failed-picture
-placeholder menu, under the same MIT notice.
+shortcut, whole-block whiteboard and picture deletion, the failed-picture
+placeholder menu and the KDE Wayland client window controls, under the same MIT
+notice. The KDE window frame calls GTK at run time through
+[purego](https://github.com/ebitengine/purego) (Apache-2.0), recorded in
+`manifests/go-mod.json`.
 
 The WebDAV/S3 transport, Windows DPAPI credential protection and PBKDF2/AES-GCM
 content encryption in `internal/cloudsync` reuse BIGFA's implementation from

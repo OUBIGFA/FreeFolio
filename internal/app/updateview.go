@@ -204,7 +204,7 @@ func (a *App) updateToast(c *ui.Context) {
 	tl := toastColors(a.look)
 	top := float32(8)
 	if !a.focus {
-		top += max(c.TitleBar().Height, 46)
+		top += max(a.titleBar(c).Height, 46)
 	}
 	ui.Overlay(c, func() {
 		pill := ui.Row(c.Key("update-toast")).Absolute().Right(8+9).Top(top).Height(42).Radius(10).

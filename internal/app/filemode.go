@@ -380,12 +380,13 @@ func (a *App) fileView(c *ui.Context) {
 	a.settingsView(c)
 	a.chatGPTWelcomeView(c)
 	a.pdfExportView(c)
+	a.mainWindowButtons(c)
 }
 
 // fileBar holds the tabs and, at its end, the page's tools, the menu and
 // the way back. Its free stretch drags the window; files dropped on it open.
 func (a *App) fileBar(c *ui.Context, f *fileSession) {
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, fileBarHeight)).Shrink(0).Gap(6).AlignItems(ui.Center).DragWindow()
 	for _, file := range row.DroppedFiles() {
 		a.openSystemFile(file)

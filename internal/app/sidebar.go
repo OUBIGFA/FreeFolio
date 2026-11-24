@@ -36,7 +36,7 @@ func (a *App) sidebarIcon() *ui.SVG {
 
 func (a *App) sidebar(c *ui.Context, floating bool) {
 	sp := a.state.ActiveSpace()
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	// The strip of spaces runs edge to edge, so the sidebar's margins are
 	// its parts' own.
 	col := ui.Column(c.Key("sidebar")).Grow(1).MinHeight(0).Padding(0, 0, 10, 0).Gap(6)

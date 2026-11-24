@@ -2,6 +2,10 @@ package i18n
 
 // en translates the interface's messages into English, by their Chinese.
 var en = map[string]string{
+	"最小化窗口": "Minimize Window",
+	"最大化窗口": "Maximize Window",
+	"还原窗口":  "Restore Window",
+	"关闭窗口":  "Close Window",
 	"登录后点击「获取模型」，显示此账号可用的模型。": "After signing in, fetch models to see those available to this account.",
 	"以所选模型支持的推理强度为准":          "Use a reasoning level supported by the selected model",
 	"使用 ChatGPT 继续":           "Continue with ChatGPT",

@@ -119,7 +119,7 @@ func (a *App) settingsView(c *ui.Context) {
 	}
 	t := c.Theme()
 	w, h := c.Size()
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	rail := float32(212)
 	if w < 800 {
 		rail = 148

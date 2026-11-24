@@ -2,13 +2,11 @@ module github.com/OUBIGFA/FreeMD
 
 go 1.27.3
 
-require (
-	github.com/ebitengine/purego v0.11.1 // indirect
-	golang.org/x/oauth2 v0.36.0 // indirect
-)
+require golang.org/x/oauth2 v0.36.0 // indirect
 
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/ebitengine/purego v0.11.3
 	github.com/egoist/mygo v0.10.0
 	github.com/gabriel-vasile/mimetype v1.4.16
 	github.com/go-jose/go-jose/v4 v4.1.4

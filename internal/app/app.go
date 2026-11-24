@@ -114,6 +114,9 @@ type App struct {
 
 	cfg Config
 	win *mygo.Window
+	// testCaptionWindow stands in for the main window's client controls in
+	// tests (windowbuttons.go).
+	testCaptionWindow captionWindow
 	// tray is the notification area's icon while closing the window hides
 	// it there; quitting is set from the start of a quit until it is
 	// canceled, so that the window then closes for good.
@@ -574,7 +577,7 @@ func (a *App) Run() error {
 			}},
 		}))
 		a.watchFiles = a.watchFolder
-		a.win = mygo.NewWindow(mygo.WindowOptions{
+		a.win = newAppWindow(mygo.WindowOptions{
 			Title:                "FreeMD",
 			Width:                1240,
 			Height:               800,
@@ -584,8 +587,7 @@ func (a *App) Run() error {
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 18, Y: 20},
 			Vibrancy:             mygo.VibrancySidebar,
-			Content:              a.Content(),
-		})
+		}, a.View)
 		main := a.win
 		// Called off the main thread, Close is posted to it: the frame that
 		// asked for it finishes before the window closes and OnClose saves.

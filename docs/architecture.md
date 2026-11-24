@@ -29,6 +29,16 @@ conflict behavior and recovery paths.
 `internal/app` follows MyGo's immediate mode: `App` is the state, and
 `App.View(c)` rebuilds the window from it every frame.
 
+On KDE Wayland with alpha compositing, the main and detached document
+windows request client decorations before mapping (`windowframe_linux.go`,
+GTK reached through purego, no cgo). FreeMD draws the rounded frame and
+places minimize, maximize and close at the top right (`windowbuttons.go`);
+`App.titleBar` adds their width to the system title bar room, so every top
+bar keeps clear of them the way it keeps clear of native controls. Alt or
+F10 opens the native menu without a permanent menu row. Other sessions keep
+their window frame. Check the outer corners with a desktop capture; in-app
+snapshots cannot show the compositor's decorations.
+
 | File | Role |
 | --- | --- |
 | `app.go` | State, first run, window options, actions (open, new, switch space, pin, trash) |

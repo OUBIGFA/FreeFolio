@@ -61,7 +61,7 @@ func (a *App) oneBotHeadHeight(c *ui.Context) float32 {
 	if a.files != nil {
 		return fileQAHeadHeight
 	}
-	return max(c.TitleBar().Height, mainBarHeight)
+	return max(a.titleBar(c).Height, mainBarHeight)
 }
 
 // qaPanel is the question panel right of the document: its header level
@@ -76,7 +76,7 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 		if w < 0.5 || sp == nil {
 			return
 		}
-		bar := c.TitleBar()
+		bar := a.titleBar(c)
 		if !a.prefs.SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}

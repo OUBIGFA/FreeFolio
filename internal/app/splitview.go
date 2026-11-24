@@ -18,7 +18,7 @@ var iconSplit = iconSidebar
 func (a *App) splitView(c *ui.Context) {
 	a.syncSplit()
 	s := a.split
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	if a.folded() {
 		ui.Row(c.Key("split-window-bar")).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left+4).AlignItems(ui.Center).DragWindow().Children(func() {
 			show := func() {

@@ -162,7 +162,7 @@ func (a *App) View(c *ui.Context) {
 				if a.prefs.SidebarLeft {
 					// Keep the brand in the leading title-bar band while the
 					// library rail runs full height underneath without a seam.
-					bar := c.TitleBar()
+					bar := a.titleBar(c)
 					ui.Row(c.Key("library-brand")).Absolute().Top(0).Left(0).Height(max(bar.Height, mainBarHeight)).
 						Padding(0, 8, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().
 						Children(func() { brand(c, "", true) })
@@ -202,6 +202,7 @@ func (a *App) View(c *ui.Context) {
 	a.versionsView(c)
 	a.pdfExportView(c)
 	a.tourView(c)
+	a.mainWindowButtons(c)
 	if a.captureSplits() {
 		a.saveState()
 	}
@@ -634,7 +635,7 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 // of the document, as Arc's, the editor's word count and format menu,
 // and the more menu. It drags the window.
 func (a *App) toolbar(c *ui.Context, docked float32) {
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	// The sidebar reserves the left controls; Windows and Linux can keep
 	// their window buttons on the right, over this toolbar instead.
 	left, right := bar.Left, bar.Right

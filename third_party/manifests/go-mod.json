@@ -1,6 +1,6 @@
 {
-  "goModSha256": "5970143e16b79ad3ba713a35dc7c50029bfe80b9d7b93478e9391f6202fe564f",
-  "goSumSha256": "848af8722a69d3d3f85908100487be8f1ab5b68ffeb69fd5a1f5f1ff2862f724",
+  "goModSha256": "ab8e368e686cca58712398bdf2a7d07e543219ae61fc5f1d180bb26b3315649e",
+  "goSumSha256": "685e5b5253ed2bf43e7912e4c5828574e786f4f25bbd9315c398574f224620b3",
   "modules": [
     {
       "module": "github.com/coreos/go-oidc/v3",
@@ -14,10 +14,10 @@
     },
     {
       "module": "github.com/ebitengine/purego",
-      "version": "v0.11.1",
-      "relation": "indirect",
+      "version": "v0.11.3",
+      "relation": "direct",
       "sourceUrl": "https://github.com/ebitengine/purego",
-      "archiveHash": "h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=",
+      "archiveHash": "h1:OB+JLpdm7ioymhyA+6s5kbb/uOuYycAgL8NNTFc5MLg=",
       "goModHash": "h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=",
       "spdxLicenseId": "Apache-2.0",
       "consumer": "FreeMD Go build (go.mod)"
@@ -95,7 +95,7 @@
     {
       "module": "golang.org/x/oauth2",
       "version": "v0.36.0",
-      "relation": "indirect",
+      "relation": "transitive",
       "sourceUrl": "https://golang.org/x/oauth2",
       "archiveHash": "h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=",
       "goModHash": "h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7Q=",

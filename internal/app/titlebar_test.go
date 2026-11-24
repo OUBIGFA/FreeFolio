@@ -485,3 +485,95 @@ func TestWordCountPlacementAndGoalPopover(t *testing.T) {
 		t.Fatal("empty file browser showed word count")
 	}
 }
+
+type testCaption struct {
+	fullscreen, maximized bool
+	minimized, closed     int
+}
+
+func (w *testCaption) IsFullScreen() bool { return w.fullscreen }
+func (w *testCaption) IsMaximized() bool  { return w.maximized }
+func (w *testCaption) Minimize()          { w.minimized++ }
+func (w *testCaption) ToggleMaximize()    { w.maximized = !w.maximized }
+func (w *testCaption) Close()             { w.closed++ }
+
+// Ported from ArcMD a51bce7: on KDE Wayland FreeMD draws the window
+// controls itself; they stay reachable over every layout, hide in full
+// screen, and the top bars keep clear of them.
+func TestClientCaptionStaysReachable(t *testing.T) {
+	for _, mode := range []string{"normal", "folded", "focus", "split", "split-folded"} {
+		for _, width := range []int{640, 1240} {
+			t.Run(fmt.Sprintf("%s/%d", mode, width), func(t *testing.T) {
+				a, tt := titleBarTestApp(t, mode, width, ui.TitleBar{})
+				w := &testCaption{}
+				a.testCaptionWindow = w
+				settle(tt)
+				if mode == "focus" {
+					tt.Move(float32(width)/2, 16)
+					tt.Advance(time.Second)
+					tt.Frame()
+				}
+				caption, ok := tt.Find("关闭窗口")
+				if !ok {
+					t.Fatal("missing client close button")
+				}
+				left := float32(width) - a.captionWidth()
+				for _, label := range []string{"最小化窗口", "最大化窗口", "关闭窗口"} {
+					r, ok := tt.Find(label)
+					if !ok || r.W < 30 || r.X < left || r.X+r.W > float32(width) || r.Y+r.H > captionBand {
+						t.Fatalf("%q outside the caption area: %+v", label, r)
+					}
+				}
+				labels := []string{"后退", "前进", "重新载入", "文档路径", "更多格式", "更多"}
+				if a.focus {
+					labels = []string{"退出专注模式"}
+				} else if a.split != nil {
+					labels = []string{"分屏 1 文档路径", "分屏 2 文档路径", "关闭分屏 1", "关闭分屏 2"}
+				}
+				for _, label := range labels {
+					r, ok := tt.Find(label)
+					if !ok || r.W <= 0 {
+						continue // narrow layouts may fold a control into a menu
+					}
+					if r.Y < caption.Y+caption.H && r.X+r.W > left {
+						t.Errorf("%q overlaps the client window controls: %+v (controls from x=%v)", label, r, left)
+					}
+				}
+			})
+		}
+	}
+
+	a, tt := titleBarTestApp(t, "split", 640, ui.TitleBar{})
+	w := &testCaption{}
+	a.testCaptionWindow = w
+	settle(tt)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("最大化窗口")
+	click("还原窗口")
+	if w.maximized {
+		t.Fatal("restore did not leave maximized mode")
+	}
+	a.openLibrary(libSpaces)
+	settle(tt)
+	a.qa.open = true
+	settle(tt)
+	click("最小化窗口")
+	click("关闭窗口")
+	if w.minimized != 1 || w.closed != 1 {
+		t.Fatalf("caption actions: minimize=%d, close=%d", w.minimized, w.closed)
+	}
+	w.fullscreen = true
+	tt.Frame()
+	if _, ok := tt.Find("关闭窗口"); ok {
+		t.Fatal("caption buttons remain visible in fullscreen")
+	}
+	if a.captionWidth() != 0 {
+		t.Fatal("full screen still reserves caption room")
+	}
+}

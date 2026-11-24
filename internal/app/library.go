@@ -212,7 +212,7 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 func (a *App) libraryRail(c *ui.Context) {
 	t := c.Theme()
 	ink := libraryInk(t)
-	bar := c.TitleBar()
+	bar := a.titleBar(c)
 	rail := ui.Column(c.Key("library-rail")).Width(libraryRail).Shrink(0).AlignItems(ui.Center).DragWindow()
 	rail.Draw(func(p *ui.Painter, r ui.Rect) {
 		wash := ui.Rect{X: r.X, Y: r.Y, W: r.W - 1, H: r.H}
@@ -544,7 +544,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 	t := c.Theme()
 	ink := libraryInk(t)
 	top := float32(12)
-	if bar := c.TitleBar(); !a.prefs.SidebarLeft && bar.Right > 0 {
+	if bar := a.titleBar(c); !a.prefs.SidebarLeft && bar.Right > 0 {
 		top += bar.Height
 	}
 	ui.Row(c.Key("trash-search")).Height(34).Shrink(0).Margin(top, 12, 4, 12).Radius(controlRadius).PaddingX(10).Gap(8).
