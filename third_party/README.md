@@ -128,7 +128,10 @@ the inline menu paste fixes, mind map list ordinals, the block handle gutter,
 continuous whiteboard freedraw, vertical caret movement, the macOS mind map
 shortcut, whole-block whiteboard and picture deletion, the failed-picture
 placeholder menu, the KDE Wayland client window controls and the PDF reader
-(`internal/pdfdoc`, `internal/editor/pdfview.go`), under the same MIT notice. The KDE window frame calls GTK at run time through
+(`internal/pdfdoc`, `internal/editor/pdfview.go`), system proxy detection
+(`internal/sysproxy`), document import by drag and drop, full-width pages and
+the HTML export's code highlighting and Mermaid SVG (`internal/mermaid/svg.go`),
+under the same MIT notice. The KDE window frame calls GTK at run time through
 [purego](https://github.com/ebitengine/purego) (Apache-2.0), recorded in
 `manifests/go-mod.json`.
 

@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/OUBIGFA/FreeMD/internal/document"
+	"github.com/OUBIGFA/FreeMD/internal/mermaid"
 	"github.com/OUBIGFA/FreeMD/internal/whiteboard"
+	"github.com/egoist/mygo/ui"
 )
 
 func isSafeLangClass(lang string) bool {
@@ -38,7 +40,39 @@ func safeHTMLURL(s string) bool {
 
 // ExportHTML supplies semantic clipboard content without depending on a web
 // runtime. Escaping also keeps raw Markdown/TeX and untrusted links inert.
-func ExportHTML(doc *document.Document) string {
+// Code blocks keep their text and Mermaid blocks their source: a clipboard
+// has no page style sheet to color or place them.
+func ExportHTML(doc *document.Document) string { return exportHTML(doc, nil) }
+
+// HTMLStyle is the paper an exported page draws with: the document theme and
+// the page's colors beyond it.
+type HTMLStyle struct {
+	Theme *ui.Theme
+	Page  Page
+}
+
+// HTMLTheme is the pair of papers an exported page follows: the light one,
+// and the dark one a reader whose system prefers dark gets.
+type HTMLTheme struct {
+	Light, Dark HTMLStyle
+}
+
+// ExportHTMLPage renders the body of an exported page in its paper theme:
+// code blocks keep the editor's highlighting and Mermaid diagrams are drawn
+// as inline SVG, one picture for each system appearance (ArcMD 8f593e5).
+func ExportHTMLPage(doc *document.Document, theme HTMLTheme) string {
+	if theme.Light.Theme == nil {
+		theme.Light.Theme = ui.LightTheme()
+	}
+	if theme.Dark.Theme == nil {
+		theme.Dark.Theme = ui.DarkTheme()
+	}
+	return exportHTML(doc, &theme)
+}
+
+// exportHTML writes a document's blocks; a nil theme is the clipboard's
+// plain HTML, which has no page style sheet.
+func exportHTML(doc *document.Document, theme *HTMLTheme) string {
 	var blocks func([]*document.Block) string
 	runs := func(rs []document.Run) string {
 		return exportHTMLRuns(rs, false)
@@ -94,11 +128,21 @@ func ExportHTML(doc *document.Document) string {
 						}
 					}
 				}
+				if theme != nil && normalizeLexLang(b.Language) == langMermaid {
+					if svg, ok := mermaidSVG(b.Text(), *theme); ok {
+						out.WriteString(`<figure class="freemd-mermaid">` + svg + `</figure>`)
+						continue
+					}
+				}
 				classAttr := ""
 				if isSafeLangClass(b.Language) {
 					classAttr = ` class="language-` + html.EscapeString(strings.ToLower(strings.TrimSpace(b.Language))) + `"`
 				}
-				out.WriteString("<pre><code" + classAttr + ">" + html.EscapeString(b.Text()) + "</code></pre>")
+				code := html.EscapeString(b.Text())
+				if theme != nil {
+					code = htmlCode(b.Text(), b.Language)
+				}
+				out.WriteString("<pre><code" + classAttr + ">" + code + "</code></pre>")
 				continue
 			case "toggle":
 				var inner []*document.Block
@@ -194,4 +238,123 @@ func ExportHTML(doc *document.Document) string {
 
 func isHTMLList(b *document.Block) bool {
 	return b.Kind == "bullet" || b.Kind == "numbered" || b.Kind == "task"
+}
+
+// htmlLexerPage gives every token kind a color of its own so htmlCode can
+// recover the kind from the lexer's spans. These colors never reach the
+// page: the exported page's CSS colors the classes instead.
+var htmlLexerPage = Page{
+	CodeText: ui.RGB(0, 0, 0),
+	Tokens: CodeTokens{
+		Comment:  ui.RGB(1, 0, 0),
+		Keyword:  ui.RGB(2, 0, 0),
+		String:   ui.RGB(3, 0, 0),
+		Number:   ui.RGB(4, 0, 0),
+		Type:     ui.RGB(5, 0, 0),
+		Function: ui.RGB(6, 0, 0),
+	},
+}
+
+// htmlTokenClasses are the token classes htmlCode emits, by their lexer
+// color, and the CodeTokens field CodeTokenCSS colors each with.
+var htmlTokenClasses = []struct {
+	name  string
+	lexed ui.Color
+	color func(CodeTokens) ui.Color
+}{
+	{"comment", htmlLexerPage.Tokens.Comment, func(t CodeTokens) ui.Color { return t.Comment }},
+	{"keyword", htmlLexerPage.Tokens.Keyword, func(t CodeTokens) ui.Color { return t.Keyword }},
+	{"string", htmlLexerPage.Tokens.String, func(t CodeTokens) ui.Color { return t.String }},
+	{"number", htmlLexerPage.Tokens.Number, func(t CodeTokens) ui.Color { return t.Number }},
+	{"type", htmlLexerPage.Tokens.Type, func(t CodeTokens) ui.Color { return t.Type }},
+	{"function", htmlLexerPage.Tokens.Function, func(t CodeTokens) ui.Color { return t.Function }},
+}
+
+// htmlCode renders a code block with its tokens wrapped in the classes the
+// exported page's style sheet colors, so a shared file keeps its
+// highlighting and follows the reader's light or dark preference.
+func htmlCode(text, language string) string {
+	var out strings.Builder
+	for _, sp := range codeSpansFor("", language, text, htmlLexerPage, nil) {
+		class := ""
+		for _, c := range htmlTokenClasses {
+			if c.lexed == sp.Color {
+				class = "freemd-tok-" + c.name
+			}
+		}
+		if class == "" {
+			out.WriteString(html.EscapeString(sp.Text))
+			continue
+		}
+		out.WriteString(`<span class="` + class + `">` + html.EscapeString(sp.Text) + `</span>`)
+	}
+	return out.String()
+}
+
+// CodeTokenCSS writes the rules that color the token classes htmlCode
+// emits, from the page tokens the editor paints with.
+func CodeTokenCSS(tokens CodeTokens) string {
+	var b strings.Builder
+	for _, c := range htmlTokenClasses {
+		fmt.Fprintf(&b, "pre code .freemd-tok-%s { color: %s; }\n", c.name, htmlColor(c.color(tokens)))
+	}
+	return b.String()
+}
+
+// mermaidSVG lays a Mermaid block out with the system font's metrics and
+// draws it as inline SVG in the colors the editor paints it with, once for
+// each appearance; the page's CSS shows one. A block FreeMD cannot draw
+// keeps its source.
+func mermaidSVG(src string, theme HTMLTheme) (string, bool) {
+	diagram, err := mermaid.ParseAndLayout(src, exportMermaidMeasure)
+	if err != nil || diagram.W <= 0 || diagram.H <= 0 {
+		return "", false
+	}
+	alt := diagramTitle(diagram.Kind)
+	light := mermaid.ExportSVG(diagram, exportMermaidStyle(theme.Light), alt)
+	dark := mermaid.ExportSVG(diagram, exportMermaidStyle(theme.Dark), alt)
+	return `<span class="freemd-diagram-light">` + light + `</span><span class="freemd-diagram-dark">` + dark + `</span>`, true
+}
+
+// exportMermaidMeasure measures a label with the system font the exported
+// page shows, so the boxes and their text agree.
+func exportMermaidMeasure(text string, size float32, bold bool) (w, h float32) {
+	if text == "" {
+		return 0, size * 1.3
+	}
+	weight := 400
+	if bold {
+		weight = 600
+	}
+	return ui.ShapeText(text, ui.Font{Family: mermaid.FontFamily, Size: size, Weight: weight}, 0).Size()
+}
+
+// exportMermaidStyle colors an exported diagram with the editor's own
+// mermaid colors on the page's paper.
+func exportMermaidStyle(style HTMLStyle) mermaid.Style {
+	t := style.Theme
+	pg := pageOf(style.Page, t)
+	blue, yellow := mermaidBlueCallout(pg), pg.Callouts["yellow"]
+	return mermaid.Style{
+		Paper: htmlColor(t.Background),
+		Shape: func(s mermaid.ShapeOp) (string, string, float64) {
+			fill, border, w := mermaidShapeColors(s, t, pg, blue, yellow)
+			return htmlColor(fill), htmlColor(border), float64(w)
+		},
+		Path: func(op mermaid.PathOp) (string, float64) {
+			c, w := mermaidPathStyle(op, t, pg)
+			return htmlColor(c), float64(w)
+		},
+		Label: func(l mermaid.LabelOp) string { return htmlColor(mermaidLabelColor(l, t, pg)) },
+		Back:  isMermaidBackShape,
+	}
+}
+
+// htmlColor writes a color as a CSS value.
+func htmlColor(c ui.Color) string {
+	s := c.SRGB()
+	if s.A == 255 {
+		return fmt.Sprintf("#%02x%02x%02x", s.R, s.G, s.B)
+	}
+	return fmt.Sprintf("rgba(%d,%d,%d,%.3f)", s.R, s.G, s.B, float64(s.A)/255)
 }
