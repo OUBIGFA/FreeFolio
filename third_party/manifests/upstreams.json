@@ -314,6 +314,13 @@
       "revision": "3bb4a3342b3f5ffe8cf65898b6bbd2a8f3f85376",
       "tag": "v0.2.5",
       "scope": "Editor parity: <kbd> keyboard keys, live inline HTML tags, quotes inside HTML left unpaired, wrapped and crisp formulas, content-sized tables, literal plain-text copy, intraword underscores, the table toolbar row fix and the autosave switch. Excludes whiteboards, WASM plugins, Git merge UI, native conversion of HTML blocks and upstream publishing."
+    },
+    {
+      "name": "ArcMD",
+      "sourceUrl": "https://github.com/Ciao1019/ArcMD",
+      "revision": "3c94584def6aaa5e6406ae2e30dd76c2990cb165",
+      "tag": "v0.2.8",
+      "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box. Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
     }
   ],
   "maintainerCodeReuse": [

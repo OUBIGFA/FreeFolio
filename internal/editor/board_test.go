@@ -148,3 +148,71 @@ func TestBoardDenseCacheTracksTextAndBackground(t *testing.T) {
 		t.Fatal("background-dependent content cache stale")
 	}
 }
+
+// Ported from ArcMD 2fb223e: the pen keeps drawing stroke after stroke
+// without a selection box, until Escape returns to selection.
+func TestBoardFreedrawContinuousWithoutSelectionBox(t *testing.T) {
+	scene := whiteboard.NewScene()
+	rect := whiteboard.NewElement(whiteboard.KindRectangle, 80, 80, 120, 70)
+	rect.ID = "existing-rect"
+	scene.Elements = append(scene.Elements, rect)
+	b := NewBoard(scene)
+	b.Selected = map[string]bool{rect.ID: true}
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 960, 640)
+	b.RequestFocus = true
+	tt.Frame()
+	tt.Frame()
+	tt.Key(0, ui.KeyP)
+	tt.Frame()
+	if b.Tool != ToolFreedraw || b.ToolLocked {
+		t.Fatalf("expected unlocked pen after P, tool=%v locked=%v", b.Tool, b.ToolLocked)
+	}
+	if len(b.Selected) != 0 {
+		t.Fatalf("switching to the pen kept the selection: %+v", b.Selected)
+	}
+	// Screen points: the board fits its content, so scene points would land
+	// wherever the fit puts them. These stay inside the 960x640 view, below
+	// the toolbar and right of the fitted rectangle.
+	stroke := func(sx0, sy0, sx1, sy1 float32) {
+		if whiteboard.HitTest(rect, b.scenePoint(sx0-b.lastRect.X, sy0-b.lastRect.Y), 4/b.Zoom) {
+			t.Fatalf("stroke start %v,%v lands on the rectangle", sx0, sy0)
+		}
+		tt.Press(sx0, sy0)
+		tt.Frame()
+		tt.Move((sx0+sx1)/2, (sy0+sy1)/2)
+		tt.Frame()
+		if len(b.Selected) != 0 {
+			t.Fatalf("stroke selected mid-drag: %+v", b.Selected)
+		}
+		tt.Move(sx1, sy1)
+		tt.Release(sx1, sy1)
+		tt.Frame()
+	}
+	x0 := b.lastRect.X + b.lastRect.W*0.7
+	y0 := b.lastRect.Y + b.lastRect.H*0.45
+	stroke(x0, y0, x0+100, y0)
+	if b.Tool != ToolFreedraw || len(b.Selected) != 0 {
+		t.Fatalf("after first stroke tool=%v selected=%+v", b.Tool, b.Selected)
+	}
+	if n := len(b.Scene.Elements); n != 2 || b.Scene.Elements[1].Kind != whiteboard.KindFreedraw {
+		t.Fatalf("first stroke not added: %+v", b.Scene.Elements)
+	}
+	first := b.Scene.Elements[1]
+	stroke(x0, y0+90, x0+120, y0+130)
+	if b.Tool != ToolFreedraw || len(b.Selected) != 0 {
+		t.Fatalf("after second stroke tool=%v selected=%+v", b.Tool, b.Selected)
+	}
+	if n := len(b.Scene.Elements); n != 3 || b.Scene.Elements[2].Kind != whiteboard.KindFreedraw {
+		t.Fatalf("second stroke not added: %+v", b.Scene.Elements)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if b.Tool != ToolSelect {
+		t.Fatalf("Escape did not return to selection: %v", b.Tool)
+	}
+	tt.ClickAt(x0+50, y0)
+	tt.Frame()
+	if len(b.Selected) != 1 || !b.Selected[first.ID] {
+		t.Fatalf("clicking the first stroke did not select it: %+v", b.Selected)
+	}
+}

@@ -319,9 +319,19 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 	default:
 		return false
 	}
+	b.penSelection()
 	b.RequestFocus = true
 	return true
 }
+
+// penSelection drops the selection while the pen is the tool, so strokes are
+// drawn without a selection box around what was picked before (ArcMD 2fb223e).
+func (b *Board) penSelection() {
+	if b.Tool == ToolFreedraw && len(b.Selected) > 0 {
+		b.Selected = map[string]bool{}
+	}
+}
+
 func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 	p := b.scenePoint(ev.X, ev.Y)
 	if b.multiLine {
@@ -485,7 +495,11 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 	}
 	b.Scene.Elements = append(b.Scene.Elements, e)
 	b.creating = e.ID
-	b.selectIDs([]string{e.ID})
+	if e.Kind == whiteboard.KindFreedraw {
+		b.Selected = map[string]bool{}
+	} else {
+		b.selectIDs([]string{e.ID})
+	}
 	b.mode = "create"
 	if e.Kind == whiteboard.KindArrow && b.ArrowBinding && hit != nil {
 		b.Scene.Bind(e.ID, false, hit.ID, p)
@@ -667,7 +681,7 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 			}
 		}
 		b.creating = ""
-		if !b.ToolLocked {
+		if !b.ToolLocked && (e == nil || e.Kind != whiteboard.KindFreedraw) {
 			b.Tool = ToolSelect
 		}
 	}

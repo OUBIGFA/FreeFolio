@@ -80,36 +80,36 @@ type Editor struct {
 	imageCaptionID            string
 	// embedEdit is the address of an embed that cannot show, as it is
 	// edited in its notice: the block's id and the draft (images.go).
-	embedEdit                        struct{ id, draft string }
-	imageViewer                      imageViewer
-	width, height, viewport, padding float32
-	cacheRevision                    uint64
-	resizePending                    bool
-	resizeScroll                     float32
-	windowResize                     windowResize
-	resizeBatch                      bool
-	resizeRemaining                  int
-	layoutInputs                     layoutInputs
-	cacheTheme                       ui.Theme
-	ready, focused, dragging, reveal bool
-	selectionDrag                    selectionDrag
-	preferredX                       float32
-	vertical                         bool
-	lastInput                        time.Time
-	dragID                           string
-	dropIndex                        int
-	resizing                         *columnHandle
-	resizeX                          float32
-	menuOpen                         bool
-	menuID                           string
-	menuSub                          string
-	menuScroll                       ui.ScrollState
-	tableSel                         tableSelection
-	cellFillOpen, cellFillOpened     bool
-	foldButtons                      []foldButton
-	revealKey                        [2]uint64
-	find                             finder
-	revealAt                         *ui.TextInputRange
+	embedEdit                                      struct{ id, draft string }
+	imageViewer                                    imageViewer
+	width, height, viewport, padding, rightPadding float32
+	cacheRevision                                  uint64
+	resizePending                                  bool
+	resizeScroll                                   float32
+	windowResize                                   windowResize
+	resizeBatch                                    bool
+	resizeRemaining                                int
+	layoutInputs                                   layoutInputs
+	cacheTheme                                     ui.Theme
+	ready, focused, dragging, reveal               bool
+	selectionDrag                                  selectionDrag
+	preferredX                                     float32
+	vertical                                       bool
+	lastInput                                      time.Time
+	dragID                                         string
+	dropIndex                                      int
+	resizing                                       *columnHandle
+	resizeX                                        float32
+	menuOpen                                       bool
+	menuID                                         string
+	menuSub                                        string
+	menuScroll                                     ui.ScrollState
+	tableSel                                       tableSelection
+	cellFillOpen, cellFillOpened                   bool
+	foldButtons                                    []foldButton
+	revealKey                                      [2]uint64
+	find                                           finder
+	revealAt                                       *ui.TextInputRange
 	// lastAnnotation is the hand-drawn mark the bar's pen applies;
 	// drawIn the new mark drawing itself; annotatePanel the mark picker.
 	lastAnnotation, lastAnnotationColor string
@@ -136,7 +136,7 @@ type Editor struct {
 	slashOpen                 bool
 	slashQuery                string
 	slashIndex                int
-	slashDismissed            bool
+	slashDismissed            [2]string
 	slashReveal               bool
 	slashScroll               ui.ScrollState
 	linkOpen                  bool
@@ -191,6 +191,8 @@ type Editor struct {
 	printPageH      float32
 	mapTablePreview bool // compact cell metrics for read-only document map previews
 	mapMathPreview  bool // compact formula width (no full-column \tag stretch) in document map
+	mapListNumber   int  // explicit numbered-list ordinal for single-block document map previews
+	mapListIndent   int  // original list indent level for numbered-list marker style (1., a., i.)
 	// typewriter keeps the caret's line at the middle of the page; dim
 	// fades the blocks but the caret's, as focus mode does.
 	typewriter, dim bool
@@ -669,7 +671,10 @@ func (e *Editor) ReplaceText(r *ui.TextInputRange, text string) {
 		e.Buffer.ReplaceText(r, text)
 	}
 	e.reveal, e.vertical = true, false
-	e.slashDismissed = false
+	leaf := e.Engine.LeafAt(e.Caret)
+	if e.isSlashDismissed(leaf.Block.ID) && (!strings.HasPrefix(leaf.Block.Text(), "/") || (text == "/" && leaf.Block.Text() == "/")) {
+		e.clearSlashDismissed(leaf.Block.ID)
+	}
 }
 func (e *Editor) SetMarkedText(r *ui.TextInputRange, text string, selected ui.TextInputRange) {
 	if e.ReadOnly {
@@ -888,7 +893,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				e.videoControls(c)
 				e.bookmarkMarks(c)
 				if o.Footer != nil {
-					footer := ui.Column(c.Key("page-footer")).Absolute().Left(e.padding).Top(e.footerTop()).Width(max(80, e.width-2*e.padding))
+					footer := ui.Column(c.Key("page-footer")).Absolute().Left(e.padding).Top(e.footerTop()).Width(e.bodyWidth())
 					footer.Children(func() { o.Footer(c) })
 					if h := footer.LayoutBounds().H; h != e.footerH {
 						e.footerH = h
@@ -1005,8 +1010,8 @@ func (e *Editor) layout(o Options) {
 	e.laidProps = e.propsKey()
 	// The text column is 820 wide unless the reader picked another.
 	e.column = columnWidth(o.Column)
-	e.padding = TextPadding(o.Width, o.Column)
-	width := max(80, o.Width-2*e.padding)
+	e.padding, e.rightPadding = pagePadding(o.Width, e.column, e.printing)
+	width := e.bodyWidth()
 	clear(e.rows)
 	clear(e.decorations)
 	clear(e.handles)
@@ -1222,6 +1227,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			}
 			counters[b.Indent]++
 			number = counters[b.Indent]
+			if e.mapListNumber > 0 {
+				number = e.mapListNumber
+			}
 		default:
 			counters = nil
 		}
@@ -1502,7 +1510,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		slot := ui.Rect{
 			X: bounds.X + e.padding,
 			Y: bounds.Y + plan.slotY,
-			W: max(48, e.width-2*e.padding),
+			W: max(48, e.bodyWidth()),
 			H: max(24, plan.slotH-8),
 		}
 		p.Fill(slot, t.Accent.Alpha(0.055), 8)
@@ -1731,7 +1739,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		card := ui.Rect{
 			X: bounds.X + e.padding - 8,
 			Y: bounds.Y + e.indexedHandle(plan.first).top - 4 + plan.floatDY,
-			W: max(64, e.width-2*e.padding+16),
+			W: max(64, e.bodyWidth()+16),
 			H: max(28, plan.slotH-4),
 		}
 		p.Shadow(card, 10, 0, 8, 24, 0, e.page.MathShadow)
@@ -1803,7 +1811,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	}
 	if e.dragID != "" && !plan.active && e.dropIndex >= 0 && e.dropIndex < len(e.handles) {
 		y := bounds.Y + e.indexedHandle(e.dropIndex).top - 4
-		p.Fill(ui.Rect{X: bounds.X + e.padding, Y: y - 1, W: e.width - 2*e.padding, H: 2}, t.Accent, 1)
+		p.Fill(ui.Rect{X: bounds.X + e.padding, Y: y - 1, W: e.bodyWidth(), H: 2}, t.Accent, 1)
 	}
 	if e.fileOver >= 0 {
 		e.paintFileDropPreview(p, bounds, t)
@@ -2071,7 +2079,11 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 			p.Fill(ui.Rect{X: x - 19.75, Y: cy - 2.5, W: 5, H: 5}, pg.Marker, 0)
 		}
 	case "numbered":
-		label := listNumber(max(1, r.number), r.leaf.Block.Indent) + "."
+		indent := r.leaf.Block.Indent
+		if e.mapListNumber > 0 {
+			indent = e.mapListIndent
+		}
+		label := listNumber(max(1, r.number), indent) + "."
 		span := ui.Span{Text: label, Size: 16, Color: pg.Marker, Features: "tnum"}
 		w, h := p.MeasureText(0, span)
 		p.RichText(x-6-w, cy-h/2, 0, span)
@@ -2179,7 +2191,7 @@ func (e *Editor) insertAfter(id string) {
 	e.Engine.Insert(document.NewBlock("paragraph", "/"))
 	_, caret := e.Engine.Positions()
 	e.SetSelection(caret+1, caret+1)
-	e.slashDismissed = false
+	e.slashDismissed = [2]string{}
 	e.RequestFocus, e.reveal = true, true
 	e.sync()
 }
@@ -2559,7 +2571,24 @@ func (e *Editor) UnfoldAll() {
 // width wide, column as Options.Column: Markdown source mode sets its text
 // where the rich text was.
 func TextPadding(width, column float32) float32 {
-	return max(46, (width-columnWidth(column))/2)
+	left, _ := pagePadding(width, columnWidth(column), false)
+	return left
+}
+
+// pagePadding returns the left and right margins of a page width wide with
+// a text column of column. On screen the left margin never drops below 80,
+// so the block handles and the + button left of every block stay whole in
+// narrow panes; the right margin narrows to 24-46. Paper keeps symmetric
+// 46 margins. Ported from ArcMD fc82f6c.
+func pagePadding(width, column float32, printing bool) (left, right float32) {
+	center := (width - column) / 2
+	if printing {
+		left = max(46, center)
+		return left, left
+	}
+	left = max(80, center)
+	right = max(min(float32(46), max(24, width*0.12)), center)
+	return left, right
 }
 
 func columnWidth(w float32) float32 {
@@ -2577,9 +2606,13 @@ func bodyFamily(family string) string {
 	return family
 }
 
-// Padding is the page's margin either side of its text column, as last
-// laid out.
+// Padding is the left margin of the page's text column, as last laid out.
 func (e *Editor) Padding() float32 { return e.padding }
+
+// bodyWidth returns the prose column width between the left and right page margins.
+func (e *Editor) bodyWidth() float32 {
+	return max(80, e.width-e.padding-e.rightPadding)
+}
 
 // paintKeycaps draws 3-layer rounded 3D keycap surfaces behind Style.Kbd stretches.
 func (e *Editor) paintKeycaps(p *ui.Painter, bounds ui.Rect, r row) {

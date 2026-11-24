@@ -123,6 +123,9 @@ Editor parity with ArcMD `3bb4a3342b3f5ffe8cf65898b6bbd2a8f3f85376` (v0.2.5)
 adds keyboard keys, live inline HTML tags, wrapped and crisp formulas,
 content-sized tables, literal copying and the autosave switch, under the same
 MIT notice.
+From ArcMD `3c94584def6aaa5e6406ae2e30dd76c2990cb165` (v0.2.8), FreeMD ports
+the inline menu paste fixes, mind map list ordinals, the block handle gutter
+and continuous whiteboard freedraw, under the same MIT notice.
 
 The WebDAV/S3 transport, Windows DPAPI credential protection and PBKDF2/AES-GCM
 content encryption in `internal/cloudsync` reuse BIGFA's implementation from

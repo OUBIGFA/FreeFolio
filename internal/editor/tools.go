@@ -50,7 +50,12 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 			e.Engine.SetKind(item.kind, item.level)
 		}
 	})
-	e.slashOpen, e.slashDismissed = false, true
+	e.slashOpen = false
+	if leaf := e.Engine.LeafAt(e.Caret); strings.HasPrefix(leaf.Block.Text(), "/") {
+		e.dismissSlash(leaf.Block.ID)
+	} else {
+		e.clearSlashDismissed(leaf.Block.ID)
+	}
 	e.RequestFocus, e.reveal = true, true
 	e.sync()
 	if item.kind == "image" && e.attach != nil {
@@ -428,11 +433,63 @@ func toolSeparator(c *ui.Context) {
 	ui.Box(c).Width(1).Height(16).Margin(0, 6).Background(c.Theme().Border)
 }
 
+// isSlashDismissed reports whether the slash menu was closed in block id.
+// Dismissal is kept per block (at most two: where a paste started and where
+// it ended), so closing the menu in one block never hides it in another.
+func (e *Editor) isSlashDismissed(id string) bool {
+	return id != "" && (id == e.slashDismissed[0] || id == e.slashDismissed[1])
+}
+
+func (e *Editor) dismissSlash(ids ...string) {
+	e.slashOpen = false
+	var kept [2]string
+	n := 0
+	for _, id := range ids {
+		if id == "" || (n == 1 && kept[0] == id) {
+			continue
+		}
+		kept[n] = id
+		n++
+		if n == len(kept) {
+			break
+		}
+	}
+	e.slashDismissed = kept
+}
+
+func (e *Editor) clearSlashDismissed(id string) {
+	if id == "" {
+		return
+	}
+	for i := range e.slashDismissed {
+		if e.slashDismissed[i] == id {
+			e.slashDismissed[i] = ""
+		}
+	}
+}
+
+// dismissInlineMenusOnPaste closes the slash, wiki-link and completion menus
+// after a paste, so pasted text that starts with "/" or "[[" never leaves a
+// menu holding the arrow keys.
+func (e *Editor) dismissInlineMenusOnPaste(startID string) {
+	afterID := e.Engine.LeafAt(e.Caret).Block.ID
+	e.dismissSlash(startID, afterID)
+	if e.wiki.open {
+		e.wiki.open, e.wiki.dismissed = false, e.wiki.start
+	}
+	if e.complete.open {
+		e.complete.open, e.complete.dismissed = false, e.complete.start
+	}
+}
+
 func (e *Editor) watchSlash() {
 	wasOpen := e.slashOpen
 	leaf := e.Engine.LeafAt(e.Caret)
 	text := leaf.Block.Text()
-	show := !e.ReadOnly && !e.slashDismissed && e.Anchor == e.Caret && leaf.Block.Kind == "paragraph" && strings.HasPrefix(text, "/") && !strings.Contains(text, "\n")
+	if e.isSlashDismissed(leaf.Block.ID) && !strings.HasPrefix(text, "/") {
+		e.clearSlashDismissed(leaf.Block.ID)
+	}
+	show := !e.ReadOnly && !e.isSlashDismissed(leaf.Block.ID) && e.Anchor == e.Caret && e.Caret > leaf.Start && leaf.Block.Kind == "paragraph" && strings.HasPrefix(text, "/") && !strings.Contains(text, "\n")
 	if !show {
 		e.slashOpen = false
 		return

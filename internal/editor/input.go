@@ -173,9 +173,13 @@ func (e *Editor) command(command string, read func() string, write func(string))
 		e.copySelection(write)
 		e.ReplaceText(nil, "")
 	case "paste":
+		startID := e.Engine.LeafAt(e.Caret).Block.ID
 		e.pasteSelection(read)
+		e.dismissInlineMenusOnPaste(startID)
 	case "pasteAndMatchStyle":
+		startID := e.Engine.LeafAt(e.Caret).Block.ID
 		e.Buffer.ReplaceText(nil, read())
+		e.dismissInlineMenusOnPaste(startID)
 	case "undo":
 		e.Undo()
 	case "redo":

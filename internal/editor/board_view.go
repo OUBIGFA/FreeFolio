@@ -125,6 +125,7 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				if boardIconButton(c, fmt.Sprintf("board-tool-%d", d.tool), boardToolIcons[d.tool], i18n.T(d.label)+" "+d.key, b.Tool == d.tool).Clicked() {
 					b.finishText(o)
 					b.Tool = d.tool
+					b.penSelection()
 					b.RequestFocus = true
 					if d.tool == ToolImage && o.PickImage != nil {
 						o.PickImage()
@@ -137,6 +138,7 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				for _, d := range boardTools {
 					if int(d.tool) > capacity && m.Item(i18n.T(d.label)).Chosen() {
 						b.Tool = d.tool
+						b.penSelection()
 						b.RequestFocus = true
 						if d.tool == ToolImage && o.PickImage != nil {
 							o.PickImage()

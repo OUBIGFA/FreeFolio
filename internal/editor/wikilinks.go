@@ -246,22 +246,29 @@ func (e *Editor) completeWiki(it WikiItem) {
 // Tab complete, Escape closes.
 func (e *Editor) wikiKeys(ev ui.InputEvent) bool {
 	w := &e.wiki
-	if !w.open || e.mark != nil {
+	if !w.open || e.mark != nil || ev.Mods != 0 {
 		return false
 	}
 	switch ev.Key {
 	case ui.KeyEscape:
 		w.open, w.dismissed = false, w.start
 	case ui.KeyDown:
+		if len(w.items) == 0 {
+			return false
+		}
 		w.index = min(len(w.items)-1, w.index+1)
 		w.reveal = true
 	case ui.KeyUp:
+		if len(w.items) == 0 {
+			return false
+		}
 		w.index = max(0, w.index-1)
 		w.reveal = true
 	case ui.KeyEnter, ui.KeyTab:
-		if len(w.items) > 0 {
-			e.completeWiki(w.items[w.index])
+		if len(w.items) == 0 {
+			return false
 		}
+		e.completeWiki(w.items[w.index])
 	default:
 		return false
 	}
