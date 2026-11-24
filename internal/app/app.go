@@ -198,6 +198,9 @@ type App struct {
 	pageTrees    map[string]pageTree
 	now          time.Time
 	reduceMotion bool
+	// fileDrop is where files dragged in from the system would land
+	// (filedrop.go).
+	fileDrop fileDropState
 	// listDrop is where the file or folder dragged over the sidebar's list
 	// would land (treedrag.go), and favDrop the slot the favorites hold
 	// open for one dragged over them (favorites.go).

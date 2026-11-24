@@ -316,3 +316,41 @@ func sanitize(title string) string {
 	}, title)
 	return strings.Trim(strings.TrimSpace(title), ".")
 }
+
+// ImportFile copies the regular file at src into the folder dir ("" for
+// the root) of the vault at root, adding " 2", " 3"… to its name when the
+// name is taken, and returns its path. The copy is created exclusively, so
+// an existing file is never overwritten.
+func ImportFile(src, root, dir string) (string, error) {
+	info, err := os.Stat(src)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("vault: %s is not a regular file", filepath.Base(src))
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Base(src)
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	for i := 1; i < 1000; i++ {
+		name := base
+		if i > 1 {
+			name = fmt.Sprintf("%s %d%s", stem, i, ext)
+		}
+		rel := path.Join(dir, name)
+		full, err := Resolve(root, rel)
+		if err != nil {
+			return "", err
+		}
+		err = fsutil.CreateFileAtomic(full, data, 0o644)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		return rel, err
+	}
+	return "", errors.New("vault: too many files with that name")
+}

@@ -34,6 +34,7 @@ arrows-action/undo-left
 # Files, folders and notes
 files/file
 files/file-add
+files/file-download
 files/file-text
 folders/add-folder
 folders/folder

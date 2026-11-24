@@ -23,6 +23,7 @@ var (
 	iconSidebarRight = solar.Must("panel-right")
 	iconSort         = solar.Must("sort-vertical")
 	iconBack         = solar.Must("arrow-left")
+	iconFileImport   = solar.Must("file-download")
 	iconForward      = solar.Must("arrow-right")
 	iconReload       = solar.Must("restart")
 	iconCloudSync    = solar.Must("refresh")

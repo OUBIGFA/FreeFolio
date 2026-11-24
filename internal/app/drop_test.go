@@ -139,9 +139,14 @@ func TestDropSkipsOtherFiles(t *testing.T) {
 	if !tt.HasText("notes.pdf、photos.png 未插入") {
 		t.Errorf("no notice: %q", tt.Texts())
 	}
-	// No pictures among them: nothing changes.
+	// Neither pictures nor documents: nothing changes. (A lone document
+	// is imported instead, filedrop_test.go.)
+	plain := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(plain, []byte("plain"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	before := a.doc.ed.Revision()
-	dropAt(t, a, tt, "gamma", notes)
+	dropAt(t, a, tt, "gamma", plain)
 	if a.doc.ed.Revision() != before {
 		t.Errorf("revision %d→%d", before, a.doc.ed.Revision())
 	}

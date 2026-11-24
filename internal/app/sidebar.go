@@ -228,6 +228,14 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 				a.slot, restingPins = a.computeSlot(sp, pins, over)
 				highlight = a.dropSection(a.listDrop)
 				tree.ContextMenu(func(m *ui.Menu) { a.listMenu(m, sp) })
+				if !sp.IsExternal() {
+					if tree.FileDragOver() {
+						a.setFileDropOver(fileDropSidebar, sp.Name)
+					}
+					if files := tree.DroppedFiles(); len(files) > 0 {
+						a.importDroppedFiles(sp, "", files)
+					}
+				}
 				if tree.FocusWithin() && a.renaming == "" && !c.FocusTakesText() && tree.Shortcut(ui.Cmd, ui.KeyBackspace) {
 					if group := a.activePickedGroup(); len(group) > 0 {
 						a.trashGroup(group)
@@ -812,8 +820,17 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		}
 	}
 
+	fileOver := false
+	if live && n.Dir && !sp.IsExternal() {
+		if fileOver = row.FileDragOver(); fileOver {
+			a.setFileDropOver(fileDropFolder, n.Name)
+		}
+		if files := row.DroppedFiles(); len(files) > 0 {
+			a.importDroppedFiles(sp, n.Path, files)
+		}
+	}
 	d := a.listDrop
-	into := live && d != nil && d.kind == dropInto && d.parent == n.Path
+	into := live && (d != nil && d.kind == dropInto && d.parent == n.Path || fileOver)
 	hovered := live && !settling && row.Hovered() && a.listDrop == nil && !a.listDragging
 	minus := opened && hovered && !renaming
 	if minus {

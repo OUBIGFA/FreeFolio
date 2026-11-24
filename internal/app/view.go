@@ -127,6 +127,18 @@ func (a *App) View(c *ui.Context) {
 	}
 	look := a.look
 	frame.Draw(func(p *ui.Painter, r ui.Rect) { look.paint(p, r, 0, vibrant) })
+	// Files dragged in from the system land in the active space's root,
+	// or the sidebar folder under them (filedrop.go).
+	a.fileDrop.kind = fileDropNone
+	if sp := a.state.ActiveSpace(); sp != nil && !sp.IsExternal() {
+		if frame.FileDragOver() {
+			a.setFileDropOver(fileDropWindow, sp.Name)
+		}
+		if files := frame.DroppedFiles(); len(files) > 0 {
+			a.importDroppedFiles(sp, "", files)
+		}
+	}
+	defer a.fileDropOverlay(c)
 	var docked float32
 	frame.Children(func() {
 		if a.focus {
