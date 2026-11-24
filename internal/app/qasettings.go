@@ -126,6 +126,10 @@ func (a *App) settingsAI(c *ui.Context) {
 					text = key
 				}
 				ui.Text(c, text).FontSize(13).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+				a.keyTestStatus(c, key)
+				if quietOneBotAction(c, "test", i18n.T("测试")).Label(fmt.Sprintf(i18n.T("测试 Key %d"), i+1)).Shrink(0).Clicked() {
+					a.testAIKeys(key)
+				}
 				eye, tip := iconEye, i18n.T("显示 API Key")
 				if shown {
 					eye, tip = iconEyeOff, i18n.T("隐藏 API Key")
@@ -144,6 +148,40 @@ func (a *App) settingsAI(c *ui.Context) {
 					a.removeAIKey(key)
 				}
 			})
+		}
+		settingsSeparator(c)
+		formRow("key-test", "连接测试", func() {
+			// A service on this computer may answer without a key.
+			keys := a.qa.keys
+			label := i18n.T("测试连接")
+			if len(keys) > 1 {
+				label = i18n.T("测试全部 Key")
+			}
+			if len(keys) == 0 {
+				keys = []string{""}
+				a.keyTestStatus(c, "")
+			}
+			ui.Text(c, i18n.T("用所选模型发送一条简短消息，收到回复即停止")).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+			busy := a.keyTestsBusy()
+			if busy {
+				label = i18n.T("测试中…")
+			}
+			if ui.Button(c.Key("run"), label).Disabled(busy).Shrink(0).Clicked() {
+				a.testAIKeys(keys...)
+			}
+		})
+		tested := a.qa.keys
+		if len(tested) == 0 {
+			tested = []string{""}
+		}
+		for i, key := range tested {
+			if r, ok := a.keyTestOf(key); ok && r.err != nil {
+				name := i18n.T("连接测试失败：")
+				if key != "" {
+					name = fmt.Sprintf(i18n.T("Key %d 测试失败："), i+1)
+				}
+				ui.Text(c.Key(fmt.Sprintf("key-test-err-%d", i)), name+qaErrorText(r.err)).FontSize(12).TextColor(t.Danger).Padding(0, 16, 10, 16)
+			}
 		}
 		if len(a.qa.keys) > 1 {
 			settingsSeparator(c)
@@ -326,9 +364,19 @@ func (a *App) settingsAI(c *ui.Context) {
 			if m := conn.CurrentModel(); m != nil && len(m.Capabilities.Efforts) > 0 {
 				values = append([]string{"", "off"}, m.Capabilities.Efforts...)
 			}
-			before := conn.Parameters.Reasoning
-			ui.Combobox(c.Key("field"), &conn.Parameters.Reasoning, values).Width(120).Placeholder(i18n.T("服务默认"))
-			if before != conn.Parameters.Reasoning {
+			// A select of named levels: the editable combobox listed a blank
+			// row for the default and the raw values, its caret in the field.
+			if !slices.Contains(values, conn.Parameters.Reasoning) {
+				values = append(values, conn.Parameters.Reasoning)
+			}
+			labels := make([]string, len(values))
+			for i, v := range values {
+				labels[i] = reasoningLabel(v)
+			}
+			current := reasoningLabel(conn.Parameters.Reasoning)
+			ui.Select(c.Key("field"), &current, labels).Width(120).Label(i18n.T("推理强度"))
+			if i := slices.Index(labels, current); i >= 0 && values[i] != conn.Parameters.Reasoning {
+				conn.Parameters.Reasoning = values[i]
 				a.savePrefs()
 			}
 			if conn.Protocol == agent.ChatGPT {
@@ -357,6 +405,33 @@ func (a *App) settingsAI(c *ui.Context) {
 		ui.Box(c).Size(7, 7).Radius(3.5).Background(dotCol).Shrink(0)
 		ui.Text(c, status).FontSize(12.5).TextColor(textCol)
 	})
+}
+
+// reasoningLabel names a reasoning effort; one the list does not know
+// shows as the service calls it.
+func reasoningLabel(effort string) string {
+	if name, ok := map[string]string{"": "服务默认", "off": "关闭推理", "minimal": "最低", "low": "低", "medium": "中", "high": "高", "xhigh": "超高", "max": "最高"}[effort]; ok {
+		return i18n.T(name)
+	}
+	return effort
+}
+
+// keyTestStatus shows the last test of key: running, its time, or failed.
+func (a *App) keyTestStatus(c *ui.Context, key string) {
+	r, ok := a.keyTestOf(key)
+	if !ok {
+		return
+	}
+	t := c.Theme()
+	text, ink := i18n.T("测试中…"), t.TextMuted
+	switch {
+	case r.busy:
+	case r.err != nil:
+		text, ink = i18n.T("不可用"), t.Danger
+	default:
+		text, ink = fmt.Sprintf(i18n.T("可用 · %.1f 秒"), r.took.Seconds()), t.Success
+	}
+	ui.Text(c.Key("test-status"), text).FontSize(12).TextColor(ink).NoWrap().Shrink(0)
 }
 
 func oneBotProtocolLabel(protocol string) string {

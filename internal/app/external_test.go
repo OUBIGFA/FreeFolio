@@ -542,3 +542,31 @@ func TestFileBrowserSourceModeInPlace(t *testing.T) {
 		t.Fatal("did not return to rich text with the edit")
 	}
 }
+
+// With room to spare, a long file name shows whole rather than cut at the
+// usual tab width; crowded tabs keep that width and the strip scrolls.
+func TestFileTabsShowLongNamesWhole(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1440, 760)
+	long := "2026 年度项目复盘与下一阶段工作计划（最终修订版）.md"
+	if !a.openSystemFile(externalFile(t, long, "# Note")) || !a.openSystemFile(externalFile(t, "短.md", "# Note")) {
+		t.Fatal("open")
+	}
+	settle(tt)
+	tab, ok := tt.Find(long)
+	if !ok || tab.W <= fileTabCapWidth {
+		t.Fatalf("long name cut although there is room: %+v", tab)
+	}
+	if w, _ := tt.Find("短.md"); w.W >= fileTabCapWidth {
+		t.Fatalf("short name grew: %+v", w)
+	}
+	for i := range 8 {
+		if !a.openSystemFile(externalFile(t, fmt.Sprintf("%d-%s", i, long), "# Note")) {
+			t.Fatal("open", i)
+		}
+	}
+	settle(tt)
+	if tab, _ = tt.Find("7-" + long); math.Abs(float64(tab.W-fileTabCapWidth)) > 1 {
+		t.Fatalf("crowded tab width = %v, want %v", tab.W, fileTabCapWidth)
+	}
+}

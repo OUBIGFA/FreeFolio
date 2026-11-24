@@ -135,8 +135,10 @@ func (a *App) submitSpace() {
 	s := a.state.Add(name, root)
 	s.SetIcon(icon, f.symbol, f.image)
 	s.SetTheme(f.theme)
-	// An empty folder starts with a page showing how to write.
-	if docs, err := vault.List(root); err == nil && len(docs) == 0 {
+	// An empty folder starts with a page showing how to write. Only whether
+	// it holds any document is asked: listing a large folder whole took
+	// seconds before the new space showed.
+	if has, err := vault.HasDocument(root); err == nil && !has {
 		if name := starterFile(); writeStarter(root, name) == nil {
 			s.LastOpen = name
 		}

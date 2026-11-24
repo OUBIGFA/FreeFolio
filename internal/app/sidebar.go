@@ -246,6 +246,8 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 			tree.Children(func() {
 				if err != nil {
 					ui.Text(c, i18n.T("读取文件夹失败。")+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 10)
+				} else if a.treeLoading && len(nodes) == 0 && sp == a.state.ActiveSpace() {
+					ui.Text(c, i18n.T("正在读取空间文件夹…")).TextColor(t.TextMuted).FontSize(12).Padding(4, 10)
 				}
 				// Cra's sections: 3 DIPs on top, the pinned rows (with the
 				// placeholder taking a drag while there are none), the line,

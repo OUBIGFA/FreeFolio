@@ -198,6 +198,36 @@ func skipDir(name string) bool {
 // case-insensitively, the files of a folder before its subfolders'.
 func List(root string) ([]Doc, error) {
 	var docs []Doc
+	err := walkDocuments(root, func(rel string) bool {
+		docs = append(docs, Doc{Path: rel})
+		return true
+	})
+	slices.SortFunc(docs, func(a, b Doc) int {
+		if c := strings.Compare(strings.ToLower(a.Dir()), strings.ToLower(b.Dir())); c != 0 {
+			return c
+		}
+		return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path))
+	})
+	return docs, err
+}
+
+// HasDocument reports whether root holds any document List would return,
+// stopping at the first: a large folder need not be walked to the end.
+func HasDocument(root string) (bool, error) {
+	found := false
+	err := walkDocuments(root, func(string) bool {
+		found = true
+		return false
+	})
+	return found, err
+}
+
+// errStopWalk ends walkDocuments early.
+var errStopWalk = errors.New("vault: stop walk")
+
+// walkDocuments calls visit with the slash-separated path of each document
+// file under root, in walk order, until visit returns false.
+func walkDocuments(root string, visit func(rel string) bool) error {
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == root {
@@ -226,16 +256,15 @@ func List(root string) ([]Doc, error) {
 				return nil
 			}
 		}
-		docs = append(docs, Doc{Path: filepath.ToSlash(rel)})
+		if !visit(filepath.ToSlash(rel)) {
+			return errStopWalk
+		}
 		return nil
 	})
-	slices.SortFunc(docs, func(a, b Doc) int {
-		if c := strings.Compare(strings.ToLower(a.Dir()), strings.ToLower(b.Dir())); c != 0 {
-			return c
-		}
-		return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path))
-	})
-	return docs, err
+	if errors.Is(err, errStopWalk) {
+		return nil
+	}
+	return err
 }
 
 // CreateFile atomically chooses an unused document name and writes its content.

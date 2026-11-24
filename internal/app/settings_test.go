@@ -303,3 +303,19 @@ func TestCloseToTraySetting(t *testing.T) {
 		t.Fatal("turned off and kept", stored, err)
 	}
 }
+
+// The line height shows as set, one decimal, not the float32 it is kept as.
+func TestAppearanceLineHeightShowsOneDecimal(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.prefs.LineHeight = 1.7
+	a.openSettings(tabAppearance)
+	tt.Frame()
+	if !tt.HasText("1.7") {
+		t.Fatalf("line height not shown as 1.7: %q", tt.Texts())
+	}
+	for _, s := range tt.Texts() {
+		if strings.HasPrefix(s, "1.70") {
+			t.Fatalf("line height shown as %q", s)
+		}
+	}
+}

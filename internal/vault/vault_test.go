@@ -28,6 +28,33 @@ func TestResolve(t *testing.T) {
 	}
 }
 
+// HasDocument sees what List sees and nothing it leaves out.
+func TestHasDocument(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{".git/c.md", ".hidden.md", "img.png", "node_modules/x.md", "empty/sub/.keep"} {
+		full := filepath.Join(root, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if has, err := HasDocument(root); err != nil || has {
+		t.Fatalf("only hidden and non-documents: HasDocument = %v, %v", has, err)
+	}
+	deep := filepath.Join(root, "empty", "sub", "Note.md")
+	if err := os.WriteFile(deep, []byte("# Note"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if has, err := HasDocument(root); err != nil || !has {
+		t.Fatalf("a nested document: HasDocument = %v, %v", has, err)
+	}
+	if _, err := HasDocument(filepath.Join(root, "missing")); err == nil {
+		t.Fatal("a missing folder must report its error")
+	}
+}
+
 func TestListSkipsHiddenAndNonMarkdown(t *testing.T) {
 	root := t.TempDir()
 	for _, p := range []string{"b.md", "A.md", "notes/z.MD", "notes/deep/y.md", ".git/c.md", ".hidden.md", "img.png", "node_modules/x.md"} {

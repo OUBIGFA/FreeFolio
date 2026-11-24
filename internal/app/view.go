@@ -943,6 +943,8 @@ func (a *App) emptyState(c *ui.Context) {
 		switch {
 		case a.treeErr != nil:
 			ui.Text(c, i18n.T("读取空间文件夹失败。")+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
+		case a.treeLoading && len(a.docs) == 0:
+			ui.Text(c, i18n.T("正在读取空间文件夹…")).TextColor(t.TextMuted)
 		case sp.IsExternal() && len(a.docs) == 0:
 			ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置。")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
 		case len(a.docs) == 0:

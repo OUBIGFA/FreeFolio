@@ -445,19 +445,22 @@ func (a *App) settingsAppearance(c *ui.Context) {
 		for i, item := range []struct {
 			label string
 			value float32
-			step  float32
+			step  float64
 			size  bool
 		}{{i18n.T("正文字号"), a.prefs.ReadingSize(), 1, true}, {i18n.T("行距"), a.prefs.ReadingLine(), .1, false}} {
 			if i > 0 {
 				settingsSeparator(c)
 			}
 			settingRow(c, item.label, item.label, "", func() {
+				// The step stays a float64: as a float32, 0.1 widened to
+				// 0.10000000149…, and the input showed that many decimals.
 				value := float64(item.value)
 				lo, hi := 12.0, 28.0
 				if !item.size {
 					lo, hi = 1.2, 2.2
+					value = math.Round(value*10) / 10
 				}
-				ui.NumberInput(c.Key("number"), &value, lo, hi, float64(item.step)).Width(112).Label(item.label)
+				ui.NumberInput(c.Key("number"), &value, lo, hi, item.step).Width(112).Label(item.label)
 				if float32(value) != item.value {
 					if item.size {
 						a.prefs.FontSize = float32(value)

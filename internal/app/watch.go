@@ -208,7 +208,9 @@ func (a *App) filesChanged(id string, events []mygo.FileEvent) {
 	if structural {
 		delete(a.pageTrees, id)
 		if a.state.ActiveSpace() == sp {
-			a.refreshTree()
+			// Off the main thread: a large space changing on disk must not
+			// stall the window while its folders are listed again.
+			a.reloadTree()
 		}
 	}
 	for _, d := range docs {

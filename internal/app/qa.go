@@ -109,6 +109,10 @@ type qaState struct {
 	keyErr          error
 	// keyInput is the settings' field for adding keys.
 	keyInput string
+	// keyTests are the last tests of keyTestFor's keys, by key.
+	keyTests   map[string]keyTest
+	keyTestFor string
+	keyTestGen uint64
 
 	// models are the service's models, listed for modelsFor (its address
 	// and key) so a change of either discards the list; another list is

@@ -152,6 +152,13 @@ type App struct {
 	docs    []*vault.Node
 	treeFor string
 	treeErr error
+	// treeLoading is set while the active space's folder is read off the
+	// main thread; treeGen tells a read still wanted from one overtaken by
+	// a later read or a switch. readTreesAsync reads folders so, as the
+	// running app does; tests read them at once.
+	treeLoading    bool
+	treeGen        uint64
+	readTreesAsync bool
 
 	files *fileSession
 	doc   *document
@@ -656,6 +663,7 @@ func (a *App) Run() error {
 		// Index the documents after the first frame when DeferStartup is enabled,
 		// otherwise start right away.
 		a.search.async = true
+		a.readTreesAsync = true
 		if a.cfg.DeferStartup {
 			a.launch.deferSearch = true
 		} else {
@@ -909,20 +917,100 @@ func (a *App) session(id string) *spaceSession {
 	return s
 }
 
-// refreshTree reads the active space's folder again.
+// refreshTree reads the active space's folder again, at once: what follows
+// a file operation looks for its result in the tree.
 func (a *App) refreshTree() {
-	a.treeFor = ""
-	a.syncTree()
+	sp := a.state.ActiveSpace()
+	if sp == nil {
+		a.treeFor = ""
+		return
+	}
+	a.treeFor = sp.ID
+	a.treeGen++
+	nodes, err := readTree(sp)
+	a.setTree(sp, nodes, err)
 }
 
-// syncTree reads the active space's folder when the space changed.
+// reloadTree reads the active space's folder again after it changed on
+// disk, off the main thread when it can, the rows shown meanwhile.
+func (a *App) reloadTree() {
+	sp := a.state.ActiveSpace()
+	if post := a.treePost(); post != nil && sp != nil && !sp.IsExternal() && a.treeFor == sp.ID {
+		a.treeGen++
+		a.loadTreeAsync(sp, post, true)
+		return
+	}
+	a.refreshTree()
+}
+
+// syncTree reads the active space's folder when the space changed. A large
+// folder is read off the main thread, so that entering a new space does
+// not freeze the window while every folder of it is listed.
 func (a *App) syncTree() {
 	sp := a.state.ActiveSpace()
 	if sp == nil || a.treeFor == sp.ID {
 		return
 	}
 	a.treeFor = sp.ID
-	a.tree, a.treeErr = readTree(sp)
+	a.treeGen++
+	if post := a.treePost(); post != nil && !sp.IsExternal() {
+		a.loadTreeAsync(sp, post, false)
+		return
+	}
+	nodes, err := readTree(sp)
+	a.setTree(sp, nodes, err)
+}
+
+// treePost is how a folder read off the main thread comes back to it, or
+// nil when folders are read at once.
+func (a *App) treePost() func(func()) {
+	if !a.readTreesAsync {
+		return nil
+	}
+	if a.runAsync != nil {
+		return a.runAsync
+	}
+	if a.win != nil {
+		return a.win.Update
+	}
+	return nil
+}
+
+// loadTreeAsync reads the folder of sp, the active space, on a goroutine.
+// keep leaves the rows shown until it is read; otherwise the space shows
+// what the strip last read of it, or nothing, while it loads. A result
+// overtaken by another read, or by a switch, is dropped.
+func (a *App) loadTreeAsync(sp *space.Space, post func(func()), keep bool) {
+	gen, id, root := a.treeGen, sp.ID, sp.Root
+	if !keep {
+		a.tree, a.treeErr = nil, nil
+		if pt, ok := a.pageTrees[id]; ok && pt.err == nil {
+			a.tree = pt.nodes
+		}
+		a.collectDocs()
+	}
+	a.treeLoading = true
+	go func() {
+		nodes, err := vault.Tree(root)
+		post(func() {
+			cur := a.state.ActiveSpace()
+			if gen != a.treeGen || cur == nil || cur.ID != id || cur.Root != root {
+				return
+			}
+			if err == nil {
+				nodes = dropTreeFolder(nodes, attachmentFolder(cur))
+			}
+			arrangeNodes(cur, "", nodes)
+			a.setTree(cur, nodes, err)
+		})
+	}()
+}
+
+// setTree takes nodes, read from the folder of sp, the active space, as
+// its tree.
+func (a *App) setTree(sp *space.Space, nodes []*vault.Node, err error) {
+	a.treeLoading = false
+	a.tree, a.treeErr = nodes, err
 	if a.treeErr == nil {
 		// Pins of what is gone go with it.
 		kept := pinnedNodes(sp, a.tree)
@@ -934,6 +1022,12 @@ func (a *App) syncTree() {
 			a.saveState()
 		}
 	}
+	a.collectDocs()
+	a.prunePicks(sp, a.tree)
+}
+
+// collectDocs lists the documents of the tree in tree order.
+func (a *App) collectDocs() {
 	a.docs = a.docs[:0]
 	var walk func([]*vault.Node)
 	walk = func(nodes []*vault.Node) {
@@ -946,7 +1040,6 @@ func (a *App) syncTree() {
 		}
 	}
 	walk(a.tree)
-	a.prunePicks(sp, a.tree)
 }
 
 // open shows the document at rel of the active space, adding it to the
@@ -1494,6 +1587,14 @@ func (a *App) switchSpaceOnly(id string) bool {
 	if cur := a.state.ActiveSpace(); cur != nil {
 		a.session(cur.ID).doc = a.doc
 		a.session(cur.ID).splitShown = a.split != nil
+		// The strip shows the space being left as it slides away: keep
+		// what was read of it rather than listing a large folder again.
+		if a.treeFor == cur.ID && !a.treeLoading && a.treeErr == nil {
+			if a.pageTrees == nil {
+				a.pageTrees = map[string]pageTree{}
+			}
+			a.pageTrees[cur.ID] = pageTree{a.tree, nil}
+		}
 	}
 	a.suspendSplit()
 	a.state.SetActive(id)
