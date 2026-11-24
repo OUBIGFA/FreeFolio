@@ -147,6 +147,43 @@ func TestWordGoalFromTheCount(t *testing.T) {
 	}
 }
 
+func TestWordGoalPopoverFlipsAboveBottomAnchor(t *testing.T) {
+	e := New("# 标题\n\n底部锚点")
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Spacer(c)
+			ui.Row(c).Padding(0, 12, 8, 12).Children(func() {
+				e.WordButtonFit(c, 84, 28)
+			})
+		})
+	}, 400, 320)
+	tt.Frame()
+	word, ok := tt.Find("6 字")
+	if !ok || word.Y < 260 {
+		t.Fatalf("expected bottom-anchored word button, got %+v ok=%v", word, ok)
+	}
+	if err := tt.Click("6 字"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	setBtn, ok := tt.Find("设定")
+	if !ok || setBtn.Y < 0 || setBtn.Y+setBtn.H >= word.Y {
+		t.Fatalf("goal popover did not flip above bottom anchor: set=%+v word=%+v", setBtn, word)
+	}
+	e.goalText = "250"
+	tt.Frame()
+	if err := tt.Click("设定"); err != nil {
+		t.Fatal(err)
+	}
+	if e.Doc.Goal != 250 {
+		t.Fatalf("custom goal not applied: %d", e.Doc.Goal)
+	}
+}
+
 func TestReadingMinutes(t *testing.T) {
 	if readingMinutes("") != 1 || readingMinutes(strings.Repeat("字", 800)) != 2 || readingMinutes(strings.Repeat("word ", 400)+strings.Repeat("字", 400)) != 3 {
 		t.Fatal(readingMinutes(strings.Repeat("字", 800)))

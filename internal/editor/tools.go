@@ -66,25 +66,36 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 // formatted from the bar over a selection, blocks from "/", the "+" and the
 // handle beside each block, and everything from the command bar.
 func (e *Editor) Corner(c *ui.Context) {
-	leaf := e.Engine.LeafAt(e.Caret)
 	ui.Row(c.Key("page-corner")).Gap(2).AlignItems(ui.Center).Children(func() {
-		e.wordButton(c)
-		// The lock and the format menu keep their places in both modes, so
-		// the toolbar never shifts under the pointer: read-only dims the
-		// format menu rather than taking it away.
-		if !e.ReadOnly {
-			e.moreMenu(c, leaf)
-		} else {
-			toolButton(c, "more", iconFormat, i18n.T("只读时不能修改格式"), false).Disabled(true).Opacity(.4)
-		}
-		icon, tip := iconUnlocked, i18n.T("编辑中，点击设为只读")
-		if e.ReadOnly {
-			icon, tip = iconLocked, i18n.T("只读，点击恢复编辑")
-		}
-		if toolButton(c, "reading-lock", icon, tip, e.ReadOnly).Clicked() {
-			e.SetReadOnly(!e.ReadOnly)
-		}
+		e.WordButton(c)
+		e.actionButtons(c)
 	})
+}
+
+// ActionsCorner holds the format menu and read-only lock without the word count.
+func (e *Editor) ActionsCorner(c *ui.Context) {
+	ui.Row(c.Key("page-corner")).Gap(2).AlignItems(ui.Center).Children(func() {
+		e.actionButtons(c)
+	})
+}
+
+func (e *Editor) actionButtons(c *ui.Context) {
+	leaf := e.Engine.LeafAt(e.Caret)
+	// The lock and the format menu keep their places in both modes, so
+	// the toolbar never shifts under the pointer: read-only dims the
+	// format menu rather than taking it away.
+	if !e.ReadOnly {
+		e.moreMenu(c, leaf)
+	} else {
+		toolButton(c, "more", iconFormat, i18n.T("只读时不能修改格式"), false).Disabled(true).Opacity(.4)
+	}
+	icon, tip := iconUnlocked, i18n.T("编辑中，点击设为只读")
+	if e.ReadOnly {
+		icon, tip = iconLocked, i18n.T("只读，点击恢复编辑")
+	}
+	if toolButton(c, "reading-lock", icon, tip, e.ReadOnly).Clicked() {
+		e.SetReadOnly(!e.ReadOnly)
+	}
 }
 
 // moreMenu holds the formats and actions of the caret's block, grouped:
@@ -606,23 +617,61 @@ func (e *Editor) readingMinutes() int {
 	return minutesFromStats(han, words)
 }
 
+// WordButton renders the document's word count and goal progress without a
+// width limit.
+func (e *Editor) WordButton(c *ui.Context) {
+	e.wordButton(c, 0, 30)
+}
+
+// WordButtonFit renders the word count inside a width-constrained container,
+// compacting the label when needed to avoid overflowing narrow bars.
+func (e *Editor) WordButtonFit(c *ui.Context, maxWidth, height float32) {
+	e.wordButton(c, maxWidth, height)
+}
+
+// EditingGoal reports whether the custom word-goal popover is currently open.
+func (e *Editor) EditingGoal() bool {
+	return e.goalEditing
+}
+
+func pickWordCountLabel(c *ui.Context, maxWidth float32, candidates ...string) string {
+	if maxWidth <= 0 {
+		return candidates[0]
+	}
+	const padX = 12
+	limit := max(0, maxWidth-padX)
+	for _, s := range candidates {
+		if w, _ := c.MeasureText(0, ui.Span{Text: s, Size: 12}); w <= limit {
+			return s
+		}
+	}
+	return candidates[len(candidates)-1]
+}
+
 // wordButton is the word count, with the goal and its progress under it
 // when the page has one; its menu sets the goal and says how long the
 // page takes to read.
-func (e *Editor) wordButton(c *ui.Context) {
+func (e *Editor) wordButton(c *ui.Context, maxWidth, height float32) {
 	t := c.Theme()
 	words, goal := e.wordCount(), e.Doc.Goal
 	count := fmt.Sprintf(i18n.T("%d 字"), words)
+	shown := pickWordCountLabel(c, maxWidth, count, fmt.Sprintf("%d", words))
 	if goal > 0 {
 		count = fmt.Sprintf(i18n.T("%d / %d 字"), words, goal)
+		shown = pickWordCountLabel(c, maxWidth, count, fmt.Sprintf("%d/%d", words, goal), fmt.Sprintf("%d", words))
 	}
 	if sel := e.Selection().Range; sel.Start != sel.End {
 		text, _ := e.TextForRange(sel)
-		count = fmt.Sprintf(i18n.T("已选 %d / %d 字"), countWords(text), words)
+		selWords := countWords(text)
+		count = fmt.Sprintf(i18n.T("已选 %d / %d 字"), selWords, words)
+		shown = pickWordCountLabel(c, maxWidth, count, fmt.Sprintf("%d/%d", selWords, words), fmt.Sprintf("%d", selWords))
 	}
 	reached := goal > 0 && words >= goal
-	b := ui.ButtonBase(c.Key("word-count")).Height(30).PaddingX(6).Radius(7).Label(count).
+	b := ui.ButtonBase(c.Key("word-count")).Height(height).PaddingX(6).Radius(7).Label(count).
 		Tooltip(i18n.T("字数（中文按字、英文按词）· 点击设置字数目标")).KeepFocus().Cursor(ui.CursorPointer)
+	if maxWidth > 0 {
+		b.MaxWidth(maxWidth).Shrink(1).MinWidth(0)
+	}
 	if b.Hovered() {
 		b.Background(t.Text.Alpha(.06))
 	}
@@ -632,13 +681,21 @@ func (e *Editor) wordButton(c *ui.Context) {
 			if reached {
 				color = t.Accent
 			}
-			ui.Text(c, count).FontSize(12).TextColor(color).NoWrap()
+			txt := ui.Text(c, shown).FontSize(12).TextColor(color)
+			if maxWidth > 0 {
+				txt.SingleLine().MinWidth(0)
+			} else {
+				txt.NoWrap()
+			}
 			if goal > 0 {
 				// A thin bar under the count fills toward the goal.
-				const w = 44
+				barW := float32(44)
+				if maxWidth > 0 {
+					barW = min(barW, max(16, maxWidth-12))
+				}
 				done := float32(min(words, goal)) / float32(goal)
-				ui.Box(c).Size(w, 2).Radius(1).Background(t.Text.Alpha(.1)).Children(func() {
-					ui.Box(c).Size(w*done, 2).Radius(1).Background(t.Accent)
+				ui.Box(c).Size(barW, 2).Radius(1).Background(t.Text.Alpha(.1)).Children(func() {
+					ui.Box(c).Size(barW*done, 2).Radius(1).Background(t.Accent)
 				})
 			}
 		})
@@ -684,15 +741,30 @@ func (e *Editor) wordButton(c *ui.Context) {
 // SetGoal sets the page's word goal, 0 for none.
 func (e *Editor) SetGoal(words int) { e.Engine.SetGoal(words) }
 
-// goalPopover takes a goal of the writer's own below the count: Enter
+// goalPopover takes a goal of the writer's own near the count: Enter
 // sets it, Escape or a press outside puts it away.
 func (e *Editor) goalPopover(c *ui.Context, anchor ui.Element) {
 	r := anchor.Bounds()
-	windowW, _ := c.Size()
+	windowW, windowH := c.Size()
+	const popW = 220
+	estH := e.goalPopH
+	if estH <= 0 {
+		estH = 122
+	}
+	x, y, _ := placeMenu(r, popW, estH, 6, windowW, windowH)
+	t := c.Theme()
+	caption := e.page.Caption
+	if caption == (ui.Color{}) {
+		caption = t.TextMuted
+	}
 	ui.Overlay(c, func() {
-		panel := ui.Column(c.Key("goal-popover")).Absolute().Left(max(8, min(r.X+r.W-220, windowW-228))).Top(r.Y + r.H + 6).Width(220).Padding(12).Gap(8)
-		e.popover(c, panel).Children(func() {
-			ui.Text(c, i18n.T("字数目标")).FontSize(12).TextColor(e.page.Caption)
+		panel := ui.Column(c.Key("goal-popover")).Absolute().Left(x).Top(y).Width(popW).Padding(12).Gap(8)
+		e.popover(c, panel)
+		if e.page.Popover == (ui.Color{}) {
+			panel.Background(t.Background)
+		}
+		panel.Children(func() {
+			ui.Text(c, i18n.T("字数目标")).FontSize(12).TextColor(caption)
 			in := ui.TextInput(c.Key("goal-input"), &e.goalText).Placeholder(i18n.T("例如 1500")).AutoFocus().Label(i18n.T("字数目标"))
 			set := func() {
 				n, err := strconv.Atoi(strings.TrimSpace(e.goalText))
@@ -718,6 +790,10 @@ func (e *Editor) goalPopover(c *ui.Context, anchor ui.Element) {
 				}
 			})
 		})
+		if h := panel.LayoutBounds().H; h > 0 && h != e.goalPopH {
+			e.goalPopH = h
+			c.AnimationFrame()
+		}
 		if panel.PressedOutside() {
 			e.goalEditing = false
 		}

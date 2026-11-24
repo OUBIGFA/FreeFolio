@@ -466,7 +466,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 	case a.palette.open || a.settingsOpen:
 		a.peek = false
 		a.peekLeave = time.Time{}
-	case over || a.renaming != "":
+	case over || a.renaming != "" || a.doc != nil && a.doc.ed.EditingGoal():
 		a.peek = true
 		a.peekLeave = time.Time{}
 	case a.peek:
@@ -732,7 +732,7 @@ func centeredTitle(c *ui.Context, bar, start, end ui.Element, content func()) {
 	}
 	title.Children(content)
 	// Bounds come from the previous frame. Relayout once when a group or
-	// the page changes size, including a word-count or sidebar-width change.
+	// the page changes size, including a sidebar-width change.
 	for _, element := range []ui.Element{bar, start, end} {
 		before := element.LayoutBounds()
 		element.Draw(func(_ *ui.Painter, now ui.Rect) {

@@ -124,10 +124,38 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		// The spaces sit at the foot, over the settings, as Arc's.
 		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
 		ui.Row(c.Key("sidebar-settings")).Padding(2, 12, 0, 12).Gap(2).AlignItems(ui.Center).Children(func() {
-			if shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).Clicked() {
+			showWord := hasWordCount(a.doc)
+			// Keep "设置…" labeled when the sidebar has enough room; otherwise
+			// collapse it to an icon button so the word count and utility icons fit.
+			showSettingsLabel := a.sidebarW() >= 250
+			if showWord {
+				showSettingsLabel = a.sidebarW() >= 350
+			}
+			var settingsEl ui.Element
+			if showSettingsLabel {
+				settingsEl = shellAction(c, "settings", settingsIcons["settings"], i18n.T("设置…")).
+					Tooltip(a.withKey(i18n.T("设置…"), "settings"))
+			} else {
+				settingsEl = iconButton(c, "settings", settingsIcons["settings"], i18n.T("设置…"), a.withKey(i18n.T("设置…"), "settings"), false).Size(28, 28)
+			}
+			if settingsEl.Clicked() {
 				a.openSettings(tabGeneral)
 			}
 			ui.Spacer(c)
+			if showWord {
+				settingsW := float32(28)
+				if showSettingsLabel {
+					if w := settingsEl.LayoutBounds().W; w > 0 {
+						settingsW = w
+					} else {
+						settingsW = 96
+						c.AnimationFrame()
+					}
+				}
+				// Reserve horizontal padding (24), settings, 4 right icons + gaps (118), and row gaps (8).
+				wordMaxW := max(28, a.sidebarW()-24-settingsW-118-8)
+				a.doc.ed.WordButtonFit(c, wordMaxW, 28)
+			}
 			a.sidebarCloudActions(c)
 			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Size(28, 28).Clicked() {
 				a.chooseExternalFiles()

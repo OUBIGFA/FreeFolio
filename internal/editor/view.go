@@ -249,6 +249,7 @@ type Editor struct {
 	// goalEditing shows the box that takes a word goal of the writer's own.
 	goalEditing bool
 	goalText    string
+	goalPopH    float32
 	// cropper is the crop dialog (crop.go); cropImage the host's cut.
 	cropper   imageCropper
 	cropImage func(id, url string, r image.Rectangle)

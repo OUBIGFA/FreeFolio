@@ -35,6 +35,9 @@ type fileSession struct {
 	middle string
 	// revealed is the tab last scrolled into the tab strip's view.
 	revealed string
+	// endWidth caches the right-side toolbar group width from the previous frame
+	// so narrow windows can bound the left-side word count without hiding tabs.
+	endWidth float32
 	// closing is set once the last tab asked the window to close. Close is
 	// posted, so frames still draw until it lands; they draw nothing rather
 	// than flash the empty browser the user did not ask to keep.
@@ -389,7 +392,18 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	}
 	row.Children(func() {
 		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
-			ui.Image(c, brandLogo()).Size(18, 18).Shrink(0).Margin(0, 4, 0, 0)
+			logo := ui.Image(c, brandLogo()).Size(18, 18).Shrink(0)
+			if d := a.doc; hasWordCount(d) {
+				logo.Margin(0, 2, 0, 0)
+				maxW := float32(0)
+				if rowW := row.LayoutBounds().W; rowW > 0 && f.endWidth > 0 {
+					// Keep room for at least a tab and the trailing "+" open button on narrow windows.
+					maxW = max(64, rowW-(bar.Left+36)-f.endWidth-108)
+				}
+				d.ed.WordButtonFit(c, maxW, 30)
+			} else {
+				logo.Margin(0, 4, 0, 0)
+			}
 		})
 		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
 			if d := a.doc; d != nil && d.loadErr == nil {
@@ -407,6 +421,9 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 				a.leaveFileMode()
 			}
 		})
+		if w := end.LayoutBounds().W; w > 0 {
+			f.endWidth = w
+		}
 		if a.files != f {
 			return
 		}

@@ -364,3 +364,124 @@ func TestSidebarBrandSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestWordCountPlacementAndGoalPopover(t *testing.T) {
+	t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
+	for _, width := range []float32{sidebarMin, sidebarWidth, 350, sidebarMax} {
+		for _, left := range []bool{false, true} {
+			for _, language := range []string{"zh-Hans", "en"} {
+				a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
+				a.prefs.SidebarWidth, a.prefs.SidebarLeft = width, left
+				a.prefs.Language = language
+				a.applyLanguage()
+				a.doc.ed.SetGoal(500)
+				a.doc.ed.SetSelection(0, 7)
+				settle(tt)
+				start := float32(1240) - width
+				if left {
+					start = 0
+				}
+				wordLabel := fmt.Sprintf(i18n.T("已选 %d / %d 字"), 1, 148)
+				wordRect, ok := tt.Find(wordLabel)
+				if !ok {
+					t.Fatalf("width=%g left=%v lang=%s: missing word button %q", width, left, language, wordLabel)
+				}
+				if wordRect.Y < 700 || wordRect.X < start || wordRect.X+wordRect.W > start+width {
+					t.Fatalf("width=%g left=%v lang=%s: word button %+v outside sidebar footer [%g..%g]", width, left, language, wordRect, start, start+width)
+				}
+				labels := []string{"设置…", "立即同步", "云端同步", "打开文件…", "资料库"}
+				last := start
+				var center float32
+				for i, label := range labels {
+					r, found := tt.Find(i18n.T(label))
+					if !found || r.W < 26 || r.H < 26 || r.X < last || r.X+r.W > start+width {
+						t.Fatalf("width=%g left=%v lang=%s: %s out of bounds: %+v (prevRight=%g)", width, left, language, label, r, last)
+					}
+					if i == 0 {
+						if wordRect.X < r.X+r.W {
+							t.Fatalf("width=%g left=%v lang=%s: word button %+v overlaps settings %+v", width, left, language, wordRect, r)
+						}
+						last = wordRect.X + wordRect.W
+					} else {
+						if i == 1 && wordRect.X+wordRect.W > r.X {
+							t.Fatalf("width=%g left=%v lang=%s: word button %+v overlaps %s %+v", width, left, language, wordRect, label, r)
+						}
+						last = r.X + r.W
+					}
+					if center != 0 && math.Abs(float64(r.Y+r.H/2-center)) > 2 {
+						t.Fatalf("width=%g left=%v lang=%s: %s misaligned vertically: %+v", width, left, language, label, r)
+					}
+					center = r.Y + r.H/2
+				}
+			}
+		}
+	}
+
+	// Custom word goal popover opens above the sidebar footer button inside the window.
+	a, tt := titleBarTestApp(t, "normal", 1240, windowsTitleBar)
+	wordBefore, ok := tt.Find("148 字")
+	if !ok || wordBefore.Y < 700 {
+		t.Fatalf("expected sidebar word count, got %+v ok=%v", wordBefore, ok)
+	}
+	if err := tt.Click("148 字"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	setBtn, ok := tt.Find("设定")
+	if !ok || setBtn.Y+setBtn.H >= wordBefore.Y || setBtn.Y < 0 {
+		t.Fatalf("sidebar goal popover did not open above word button: set=%+v word=%+v", setBtn, wordBefore)
+	}
+	if err := tt.Click("取消"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+
+	// File browsing mode places the word count right of the left brand icon.
+	file := externalFile(t, "Sample.md", "# Title\n\nOne two three\n")
+	if !a.openSystemFile(file) {
+		t.Fatal("open external file")
+	}
+	settle(tt)
+	wordFile, ok := tt.Find("4 字")
+	strip, hasStrip := tt.Find("已打开的文件")
+	srcBtn, hasSrc := tt.Find("Markdown 源码")
+	if !ok || !hasStrip || !hasSrc {
+		t.Fatalf("missing file mode controls: word=%v strip=%v src=%v", ok, hasStrip, hasSrc)
+	}
+	if wordFile.Y > 44 || wordFile.X < 28 || wordFile.X+wordFile.W > strip.X || wordFile.X > srcBtn.X {
+		t.Fatalf("file mode word count %+v is not right of brand before tabs %+v / tools %+v", wordFile, strip, srcBtn)
+	}
+	if err := tt.Click("4 字"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	setFileBtn, ok := tt.Find("设定")
+	if !ok || setFileBtn.Y <= wordFile.Y || setFileBtn.Y+setFileBtn.H > 760 {
+		t.Fatalf("file mode goal popover did not open below word button: set=%+v word=%+v", setFileBtn, wordFile)
+	}
+	if err := tt.Click("取消"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)
+	tt.Frame()
+	if _, ok := tt.Find("4 字"); ok {
+		t.Fatal("file mode word count stayed visible in source mode")
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyM)
+	tt.Frame()
+	if _, ok := tt.Find("4 字"); !ok {
+		t.Fatal("file mode word count did not return after leaving source mode")
+	}
+	a.prefs.Files.KeepOpen = true
+	a.closeFileTab(a.fileTabShown())
+	tt.Frame()
+	if _, ok := tt.Find("4 字"); ok {
+		t.Fatal("empty file browser showed word count")
+	}
+}

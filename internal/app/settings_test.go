@@ -185,8 +185,8 @@ func TestSettingsSnapshot(t *testing.T) {
 	}
 }
 
-// The word count and the format menu sit in the toolbar, beside the
-// address, and leave with the editor in the export preview.
+// The format menu sits in the toolbar beside the address, while the word count
+// sits in the sidebar settings footer, and both leave in Markdown source mode.
 func TestToolbarCorner(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.Frame()
@@ -196,6 +196,10 @@ func TestToolbarCorner(t *testing.T) {
 	}
 	if _, ok := tt.Find("Markdown 源码"); !ok {
 		t.Fatal("the source toggle is missing from the toolbar")
+	}
+	word, ok := tt.Find("148 字")
+	if !ok || word.Y < 700 || word.X < 1200-sidebarWidth {
+		t.Fatalf("word count is not in the sidebar settings row: %+v found=%v", word, ok)
 	}
 	if err := tt.Click("更多格式"); err != nil {
 		t.Fatal(err)
@@ -211,6 +215,9 @@ func TestToolbarCorner(t *testing.T) {
 	}
 	if _, ok := tt.Find("更多格式"); ok {
 		t.Fatal("format menu shown over the export preview")
+	}
+	if _, ok := tt.Find("148 字"); ok {
+		t.Fatal("word count shown in source mode")
 	}
 }
 

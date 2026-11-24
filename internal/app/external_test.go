@@ -275,8 +275,9 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 					t.Errorf("%d tabs: group is not centered: first=%+v last=%+v", i+1, first, last)
 				}
 				if i == 8 {
-					if strip.X > profile.bar.Left+64 {
-						t.Errorf("crowded tabs did not align left: strip=%+v", strip)
+					word, hasWord := tt.Find("1 字")
+					if !hasWord || strip.X < word.X+word.W || strip.X > word.X+word.W+24 {
+						t.Errorf("crowded tabs did not align left after brand word count: word=%+v strip=%+v", word, strip)
 					}
 				}
 				open, ok := tt.Find("打开文件…")
@@ -315,8 +316,9 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 			tt.SetSize(640, 760)
 			settle(tt)
 			last, _ = tt.Find("Note-9.md")
-			if last.X < profile.bar.Left || last.X > profile.bar.Left+64 {
-				t.Errorf("narrow window did not align its single tab left: tab=%+v", last)
+			word, hasWord := tt.Find("1 字")
+			if !hasWord || word.X < profile.bar.Left+24 || last.X < word.X+word.W+11 || last.X > word.X+word.W+24 {
+				t.Errorf("narrow window did not align its single tab left after brand word count: word=%+v tab=%+v", word, last)
 			}
 		})
 	}
