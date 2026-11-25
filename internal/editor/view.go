@@ -24,6 +24,7 @@ type layoutPageKey struct {
 	fontFamily                   string
 	noteKey                      string
 	codeNoWrap                   bool
+	noWideTables                 bool
 }
 
 func sameLayoutPageKey(a, b layoutPageKey) bool {
@@ -34,6 +35,7 @@ func sameLayoutPageKey(a, b layoutPageKey) bool {
 		a.column == b.column &&
 		a.noteKey == b.noteKey &&
 		a.codeNoWrap == b.codeNoWrap &&
+		a.noWideTables == b.noWideTables &&
 		samePage(a.page, b.page)
 }
 
@@ -230,7 +232,9 @@ type Editor struct {
 	mermaidLayouts    map[string]*ui.TextLayout
 	codeLex           map[string]*codeLexCache
 	codeNoWrap        bool
-	codeWrapOverride  map[string]bool
+	// noWideTables keeps every table inside the text column (tableSpan).
+	noWideTables     bool
+	codeWrapOverride map[string]bool
 	// codeOpen are the long code blocks opened from their fold; codeTall
 	// those whose text, as laid out or estimated, stands taller than the
 	// fold (codefold.go).
@@ -549,9 +553,12 @@ type Options struct {
 	AddToAI func()
 	// Resizing keeps offscreen shaping cached during an interactive resize.
 	// Hosts must clear it on release; the final layout is always exact.
-	Resizing             bool
-	NoAutoPair           bool
-	CodeNoWrap           bool
+	Resizing   bool
+	NoAutoPair bool
+	CodeNoWrap bool
+	// NoWideTables keeps wide tables inside the text column instead of
+	// letting them extend into the page's margins.
+	NoWideTables         bool
 	FontSize, LineHeight float32
 	// Column is the text column's width, 0 for 820 and FullColumn for the
 	// page's. Code keeps its monospace.
@@ -708,7 +715,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 		e.windowResize.pending = true
 		o.Resizing = true
 	}
-	e.noAutoPair, e.autoSpace, e.codeNoWrap = o.NoAutoPair, o.AutoSpace, o.CodeNoWrap
+	e.noAutoPair, e.autoSpace, e.codeNoWrap, e.noWideTables = o.NoAutoPair, o.AutoSpace, o.CodeNoWrap, o.NoWideTables
 	if e.ReadOnly {
 		o.Attach = nil
 		o.DropFiles = nil
@@ -957,14 +964,15 @@ func (e *Editor) layout(o Options) {
 	e.readingSize, e.readingLine, e.fontFamily = o.FontSize, o.LineHeight, o.FontFamily
 	defer func() { e.laidInline = e.inlineEditing }()
 	pageKey := layoutPageKey{
-		has:        true,
-		page:       e.page,
-		fontSize:   o.FontSize,
-		lineHeight: o.LineHeight,
-		fontFamily: o.FontFamily,
-		column:     o.Column,
-		noteKey:    e.noteKey(),
-		codeNoWrap: e.codeNoWrap,
+		has:          true,
+		page:         e.page,
+		fontSize:     o.FontSize,
+		lineHeight:   o.LineHeight,
+		fontFamily:   o.FontFamily,
+		column:       o.Column,
+		noteKey:      e.noteKey(),
+		codeNoWrap:   e.codeNoWrap,
+		noWideTables: e.noWideTables,
 	}
 	e.openFoldAtCaret()
 	finishResize := e.resizePending && (!o.Resizing || e.resizeBatch)
@@ -2242,7 +2250,30 @@ func (e *Editor) toggleTask(at int, x float32) bool {
 // I-beam wherever it goes; the caller checks that before asking.
 func (e *Editor) overText(x, y float32) bool {
 	const slack = 24
-	return x >= e.padding && x <= e.width-e.padding && y <= e.contentEnd+slack
+	left, right := e.textSpan(y)
+	return x >= left && x <= right && y <= e.contentEnd+slack
+}
+
+// textLeft is the left edge of the page's content at height y.
+func (e *Editor) textLeft(y float32) float32 {
+	left, _ := e.textSpan(y)
+	return left
+}
+
+// textSpan is the horizontal extent of the page's content at height y: the
+// text column, widened to a table that spans past it (tableSpan) together
+// with the strip of row and column controls above and beside its grid.
+func (e *Editor) textSpan(y float32) (left, right float32) {
+	left, right = e.padding, e.width-e.padding
+	for i := range e.decorationSpace.between(y-40, y+40) {
+		d := e.indexedDecoration(i)
+		if d.kind != "table" || y < d.rect.Y-22 || y > d.rect.Y+d.rect.H+8 {
+			continue
+		}
+		left = min(left, d.rect.X-tableBarGap-tableBar)
+		right = max(right, d.rect.X+d.rect.W)
+	}
+	return left, right
 }
 
 // hoverCursor is the pointer shape over surface point x, y while nothing is

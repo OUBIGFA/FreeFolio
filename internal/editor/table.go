@@ -255,8 +255,11 @@ func clampedResizeDelta(r *columnHandle, resizeX float32, movedFar bool) (delta 
 		return 0, false
 	}
 	raw := resizeX - r.x
-	lo := 48 - r.widths[r.col]
-	hi := r.widths[r.col+1] - 48
+	// Neither column narrows below what its cell text needs to wrap
+	// inside it; a column already under that cannot be squeezed further.
+	floor := tableColumnMin(14)
+	lo := min(0, floor-r.widths[r.col])
+	hi := max(0, r.widths[r.col+1]-floor)
 	equalDelta := (r.widths[r.col+1] - r.widths[r.col]) * 0.5
 	if equalDelta >= lo && equalDelta <= hi && abs32(raw-equalDelta) <= 6 && (abs32(equalDelta) > 1 || movedFar) {
 		return equalDelta, true

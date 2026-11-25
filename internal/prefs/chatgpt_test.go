@@ -12,7 +12,18 @@ func TestChatGPTPreferenceMigrationPreservesConnections(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, err := (Store{Path: path}).Load()
-	if err != nil || p.Version != 12 || !p.NoAutosave || p.AI.Current() == nil || p.AI.ChatGPTWelcomeSeen {
+	if err != nil || p.Version != CurrentVersion || !p.NoAutosave || p.AI.Current() == nil || p.AI.ChatGPTWelcomeSeen {
+		t.Fatalf("migration: %+v %v", p, err)
+	}
+}
+
+func TestWideTablesPreferenceMigratesOn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prefs.json")
+	if err := os.WriteFile(path, []byte(`{"version":12,"codeNoWrap":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := (Store{Path: path}).Load()
+	if err != nil || p.Version != CurrentVersion || p.NoWideTables || !p.CodeNoWrap {
 		t.Fatalf("migration: %+v %v", p, err)
 	}
 }

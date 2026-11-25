@@ -325,6 +325,13 @@ func (a *App) settingsWriting(c *ui.Context) {
 			a.prefs.CodeNoWrap = !codeWrap
 			a.savePrefs()
 		}
+		settingsSeparator(c)
+		wideTables := !a.prefs.NoWideTables
+		toggleRow(c, "wide-tables", i18n.T("宽表格延展到页边"), i18n.T("内容较宽的表格自动加宽，超出正文栏；关闭后表格始终保持正文宽度。"), &wideTables, nil)
+		if wideTables == a.prefs.NoWideTables {
+			a.prefs.NoWideTables = !wideTables
+			a.savePrefs()
+		}
 	})
 	settingsSection(c, i18n.T("阅读"))
 	settingsGroup(c, "reading", func() {

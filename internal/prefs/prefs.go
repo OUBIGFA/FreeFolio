@@ -28,7 +28,9 @@ import (
 // migrates unchanged.
 // Version 12 adds the ChatGPT first-use disclosure flag; existing connections
 // and all other preferences migrate unchanged.
-const CurrentVersion = 12
+// Version 13 adds NoWideTables; zero keeps wide tables extending past the
+// text column, so version 12 migrates unchanged.
+const CurrentVersion = 13
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -64,6 +66,9 @@ type Prefs struct {
 	// CodeNoWrap disables soft wrapping in code blocks by default so long
 	// lines scroll horizontally instead.
 	CodeNoWrap bool `json:"codeNoWrap,omitempty"`
+	// NoWideTables keeps wide tables inside the text column instead of
+	// extending them into the page's margins, which the zero value allows.
+	NoWideTables bool `json:"noWideTables,omitempty"`
 	// RecentCommands are the command bar's commands used last, latest
 	// first, which it lists first.
 	RecentCommands []string `json:"recentCommands,omitempty"`

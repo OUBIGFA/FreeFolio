@@ -175,6 +175,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		NoAutoPair:       a.prefs.NoAutoPair,
 		AutoSpace:        a.prefs.AutoSpace,
 		CodeNoWrap:       a.prefs.CodeNoWrap,
+		NoWideTables:     a.prefs.NoWideTables,
 		EmojiSuggest:     suggestEmoji,
 		Resizing:         a.splitResizing || a.qa.resizing,
 		Width:            width,

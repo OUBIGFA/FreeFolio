@@ -261,8 +261,9 @@ func (e *Editor) blockPointer(ev ui.InputEvent) bool {
 				}
 			}
 		}
-		// The margin left of the handles, beside the page's blocks.
-		if ev.Mods == 0 && len(e.handles) > 0 && ev.X < e.padding-60 && ev.Y >= e.indexedHandle(0).top-8 && ev.Y <= e.contentEnd {
+		// The margin left of the handles, beside the page's blocks. A table
+		// widened into the margin moves that margin out to its own edge.
+		if ev.Mods == 0 && len(e.handles) > 0 && ev.X < e.textLeft(ev.Y)-60 && ev.Y >= e.indexedHandle(0).top-8 && ev.Y <= e.contentEnd {
 			hs, he := e.visibleHandleRange(ev.Y-64, ev.Y+64)
 			for hi := hs; hi < he; hi++ {
 				h := *e.indexedHandle(hi)

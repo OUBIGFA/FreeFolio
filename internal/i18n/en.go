@@ -1560,6 +1560,8 @@ var en = map[string]string{
 	"回到最新":                         "Jump to latest",
 	"代码块自动换行":                      "Wrap Code Lines",
 	"关闭后长代码行横向滚动，也可在单个代码块右上角单独切换。": "When off, long lines scroll horizontally. Toggle per block from the top-right corner.",
+	"宽表格延展到页边": "Extend Wide Tables into Margins",
+	"内容较宽的表格自动加宽，超出正文栏；关闭后表格始终保持正文宽度。": "Tables with wide content grow past the text column. When off, tables always keep the text column's width.",
 	"自动换行":           "Wrap",
 	"不换行":            "No Wrap",
 	"代码块：切换自动换行":     "Code Block: Toggle Line Wrap",

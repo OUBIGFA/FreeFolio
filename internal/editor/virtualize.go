@@ -426,11 +426,50 @@ func distributeTableWidths(cw cachedTableWidths, w float32) []float32 {
 	return widths
 }
 
+// tableColumnMin is the narrowest a table column may be laid out with cell
+// padding padX: its padding plus the 24 a cell keeps for its text, so a
+// narrow column wraps its text instead of letting it spill over neighbors.
+func tableColumnMin(padX float32) float32 { return 2*padX + 24 }
+
+// floorTableWidths raises columns narrower than floor to floor, taking the
+// room from the wider columns in proportion to their excess over floor. When
+// the columns cannot all fit in w, every column gets floor and the table
+// grows to their total, which is returned.
+func floorTableWidths(widths []float32, w, floor float32) float32 {
+	need, flex := float32(0), float32(0)
+	for _, v := range widths {
+		if v < floor {
+			need += floor - v
+		} else {
+			flex += v - floor
+		}
+	}
+	if need <= 0 {
+		return w
+	}
+	if need > flex {
+		for i := range widths {
+			widths[i] = floor
+		}
+		return max(w, floor*float32(len(widths)))
+	}
+	for i, v := range widths {
+		if v < floor {
+			widths[i] = floor
+		} else if flex > 0 {
+			widths[i] = v - need*(v-floor)/flex
+		}
+	}
+	return w
+}
+
 // tableSpan gives a top-level table wider horizontal room on wide pages when
 // its columns or formulas naturally exceed the standard prose column, while
-// keeping margins for its left block handle and right bookmark mark.
+// keeping margins for its left block handle and right bookmark mark. Columns
+// the reader sized keep the total width they were sized at, so resizing a
+// widened table does not shrink it back into the prose column.
 func (e *Editor) tableSpan(b *document.Block, pageW, bodyW float32) (x, w float32) {
-	if b == nil || b.Kind != "table" || b.Indent > 0 || e.printing || e.mapTablePreview || len(b.Children) == 0 || len(b.Children[0].Children) == 0 {
+	if b == nil || b.Kind != "table" || b.Indent > 0 || e.printing || e.mapTablePreview || e.noWideTables || len(b.Children) == 0 || len(b.Children[0].Children) == 0 {
 		return e.padding, bodyW
 	}
 	availW := max(bodyW, pageW-160)
@@ -438,12 +477,13 @@ func (e *Editor) tableSpan(b *document.Block, pageW, bodyW float32) (x, w float3
 		return e.padding, bodyW
 	}
 	cw := e.cachedTableNaturalWidths(b, 14)
-	wantW := bodyW
+	wantW := max(bodyW, float32(cw.cols)*tableColumnMin(14))
 	if len(b.Widths) == cw.cols {
 		sum := float32(0)
 		for _, v := range b.Widths {
-			sum += v
+			sum += max(0, v)
 		}
+		wantW = max(wantW, sum)
 		if sum > 0 {
 			for i, v := range b.Widths {
 				if v > 0 && cw.mathNeed[i] > 0 {
@@ -495,6 +535,9 @@ func (e *Editor) layoutTable(b *document.Block, x, y, w float32, canDefer bool, 
 	} else {
 		widths = distributeTableWidths(e.cachedTableNaturalWidths(b, padX), w)
 	}
+	// The floor never asks for more than an equal share, so a table never
+	// grows past the room its container gave it.
+	w = floorTableWidths(widths, w, min(tableColumnMin(padX), w/float32(cols)))
 	colEdges := []float32{x}
 	for _, cw := range widths {
 		colEdges = append(colEdges, colEdges[len(colEdges)-1]+cw)
