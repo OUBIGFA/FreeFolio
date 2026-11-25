@@ -33,7 +33,8 @@ func boardToolKind(t BoardTool) whiteboard.ElementKind {
 	}
 }
 func (b *Board) input(ev ui.InputEvent, o BoardOptions) bool {
-	if o.ImageAnnotation && b.imageViewerInput(ev, o) {
+	if o.ImageAnnotation && o.DismissImage != nil && ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEscape {
+		o.DismissImage()
 		return true
 	}
 	if b.editing != nil {
@@ -213,6 +214,10 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 		b.spaceDown = true
 		return true
 	case ui.KeyEscape:
+		if b.mode != "" {
+			// Cancel the current gesture before changing selection or tools.
+			return b.pointerUp(ui.InputEvent{Canceled: true}, o)
+		}
 		if b.ai.picker != nil {
 			b.ai.picker = nil
 		} else if b.ai.link != nil {
@@ -385,7 +390,7 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 	if ev.Button != 0 {
 		return false
 	}
-	hit := b.Scene.Hit(p, 6/b.Zoom, true)
+	hit := b.canvasHit(p)
 	if ev.Clicks >= 2 && hit != nil && o.AI != nil {
 		if n := b.aiNode(hit); n != nil && (n.Role == whiteboard.AIImageInput || n.Output() != nil && n.Output().Kind == "image") {
 			r := b.aiLayout(hit, n).preview
@@ -405,6 +410,14 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 	}
 	if b.ReadOnly {
 		return false
+	}
+	if hit != nil && hit.Locked && (b.Tool == ToolSelect || b.Tool == ToolText || b.Tool == ToolEraser) {
+		// Locked objects can still be selected to unlock them, but cannot
+		// start a transform, edit session or eraser gesture.
+		if b.Tool == ToolSelect {
+			b.selectIDs([]string{hit.ID})
+		}
+		return true
 	}
 	if b.Tool == ToolSelect && o.AI != nil {
 		// Node links are not board elements: a slot starts a link drag and
@@ -468,46 +481,23 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		return true
 	}
 	if b.Tool == ToolSelect {
-		if e := b.Scene.ElementByID(b.linearEdit); e != nil {
-			for i, point := range e.Points {
-				wp := whiteboard.Add(whiteboard.Point{e.X, e.Y}, point)
-				if whiteboard.Distance(p, wp) < 8/b.Zoom {
-					b.linearPoint = i
-					b.mode = "line-point"
-					return true
-				}
+		if i, insert := b.linePointAt(p); i >= 0 {
+			if insert {
+				e := b.Scene.ElementByID(b.linearEdit)
+				local := boardLineLocalPoint(e, p)
+				e.Points = append(e.Points[:i], append([]whiteboard.Point{local}, e.Points[i:]...)...)
 			}
-			for i := 1; i < len(e.Points); i++ {
-				a, z := whiteboard.Add(whiteboard.Point{e.X, e.Y}, e.Points[i-1]), whiteboard.Add(whiteboard.Point{e.X, e.Y}, e.Points[i])
-				if whiteboard.SegmentDistance(p, a, z) < 6/b.Zoom {
-					local := whiteboard.Sub(p, whiteboard.Point{e.X, e.Y})
-					e.Points = append(e.Points[:i], append([]whiteboard.Point{local}, e.Points[i:]...)...)
-					b.linearPoint = i
-					b.mode = "line-point"
-					return true
-				}
-			}
+			b.linearPoint, b.mode = i, "line-point"
+			return true
 		}
-		ids := b.SelectedIDs()
-		if len(ids) > 0 {
-			bounds := whiteboard.SelectionBounds(b.Scene, ids)
-			singleAI := len(ids) == 1 && b.aiNode(b.Scene.ElementByID(ids[0])) != nil
-			for i, handle := range boardHandles(bounds) {
-				if singleAI && (i == 3 || i == 7 || i == 8) {
-					continue
-				}
-				if whiteboard.Distance(p, handle) < 8/b.Zoom {
-					b.handle = i
-					b.selectionBox = bounds
-					b.mode = "resize"
-					if i == 8 {
-						b.mode = "rotate"
-						c := bounds.Center()
-						b.rotateStart = math.Atan2(p[1]-c[1], p[0]-c[0])
-					}
-					return true
-				}
+		if i, bounds := b.selectionHandleAt(p); i >= 0 {
+			b.handle, b.selectionBox, b.mode = i, bounds, "resize"
+			if i == 8 {
+				b.mode = "rotate"
+				c := bounds.Center()
+				b.rotateStart = math.Atan2(p[1]-c[1], p[0]-c[0])
 			}
+			return true
 		}
 		if hit != nil {
 			if ev.Clicks >= 2 && hit.IsLinear() {
@@ -599,27 +589,7 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 		b.moveApplied = d
 	case "resize":
 		b.resetTransform()
-		r := b.selectionBox
-		right, bottom := r.X+r.W, r.Y+r.H
-		switch b.handle {
-		case 0, 6, 7:
-			r.X = p[0]
-		case 2, 3, 4:
-			right = p[0]
-		}
-		switch b.handle {
-		case 0, 1, 2:
-			r.Y = p[1]
-		case 4, 5, 6:
-			bottom = p[1]
-		}
-		r.W = right - r.X
-		r.H = bottom - r.Y
-		if ev.Mods&ui.Shift != 0 && b.selectionBox.H != 0 {
-			ratio := b.selectionBox.W / b.selectionBox.H
-			r.H = r.W / ratio
-		}
-		b.Scene.Resize(b.SelectedIDs(), r)
+		b.Scene.Resize(b.SelectedIDs(), b.resizeBounds(p, ev.Mods))
 	case "rotate":
 		b.resetTransform()
 		c := b.selectionBox.Center()
@@ -639,7 +609,7 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 	case "line-point":
 		e := b.Scene.ElementByID(b.linearEdit)
 		if e != nil && b.linearPoint >= 0 {
-			e.Points[b.linearPoint] = whiteboard.Sub(p, whiteboard.Point{e.X, e.Y})
+			e.Points[b.linearPoint] = boardLineLocalPoint(e, p)
 			whiteboard.Touch(e)
 		}
 	case "create":
@@ -676,6 +646,30 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 		whiteboard.Touch(e)
 	}
 	return true
+}
+
+// resizeBounds retains signed dimensions so cursor feedback follows crossed
+// edges and the same aspect-ratio constraint as the applied transform.
+func (b *Board) resizeBounds(p whiteboard.Point, mods ui.Modifiers) whiteboard.Box {
+	r := b.selectionBox
+	right, bottom := r.X+r.W, r.Y+r.H
+	switch b.handle {
+	case 0, 6, 7:
+		r.X = p[0]
+	case 2, 3, 4:
+		right = p[0]
+	}
+	switch b.handle {
+	case 0, 1, 2:
+		r.Y = p[1]
+	case 4, 5, 6:
+		bottom = p[1]
+	}
+	r.W, r.H = right-r.X, bottom-r.Y
+	if mods&ui.Shift != 0 && b.selectionBox.H != 0 && b.selectionBox.W != 0 {
+		r.H = r.W / (b.selectionBox.W / b.selectionBox.H)
+	}
+	return r
 }
 
 // resetTransform restores only the gesture's elements and attached lines.

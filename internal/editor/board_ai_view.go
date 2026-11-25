@@ -980,16 +980,3 @@ func (b *Board) aiContextMenu(m *ui.Menu, o BoardOptions) {
 		b.ai.bar = true
 	}
 }
-
-// aiPortCursor reports a hover over a node's slot or a link, or a link
-// being dragged.
-func (b *Board) aiPortCursor() bool {
-	if b.ai.drag != nil {
-		return true
-	}
-	if b.Tool != ToolSelect || b.mode != "" || b.ReadOnly || b.options.AI == nil {
-		return false
-	}
-	id, _, _ := b.aiSlotHit(b.hover)
-	return id != ""
-}

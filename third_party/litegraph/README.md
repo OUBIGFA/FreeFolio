@@ -12,7 +12,7 @@ TypeScript, canvas runtime or ComfyUI frontend (GPL-3.0) code is included.
 | `utils/collections.findFreeSlotOfType`, `LGraphNode.findInputByType` | `whiteboard.AIFindInputByType` |
 | `LGraphNode.connectSlots` (an input holds one link; a new one replaces it) | `whiteboard.AINode.Connect` |
 | `LGraphNode.drawWidgets` (`computedDisabled` while a widget's input is linked) | in-node instruction field, `internal/editor/board_ai_card.go` |
-| `LGraphCanvas.renderLink`, `#addSplineOffset`, `computeConnectionPoint` | `aiSpline`, `aiSplineAt`, `paintAILink` in `internal/editor/board_ai_graph.go` |
+| `LGraphCanvas.renderLink`, `#addSplineOffset`, `computeConnectionPoint` | `aiSpline`, `aiSplineAt`, `paintAILink` and circular link centre markers in `internal/editor/board_ai_graph.go`; FreeFolio keeps a screen-sized selection target and disconnects only through Delete or the context menu |
 | `canvas/LinkConnector` drop rules, `MovingInputLink`, `release_link_on_empty_shows_menu` | `aiBeginDrag`, `aiDragTo`, `aiDrop`, `aiPickerRoles` in `internal/editor/board_ai_graph.go` |
 
 Growing list inputs follow ComfyUI's growing inputs as a behavior; slot

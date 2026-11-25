@@ -243,6 +243,10 @@ func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box) 
 			continue
 		}
 		b.paintAILink(p, l.curve, aiTypeColor(l.typ, dark), 2.5, dark)
+		// LiteGraph's circular link centre, kept legible at every zoom.
+		mid := aiSplineAt(l.curve, .5)
+		radius := float32(5 / b.Zoom)
+		p.Fill(ui.Rect{X: float32(mid[0]) - radius, Y: float32(mid[1]) - radius, W: radius * 2, H: radius * 2}, aiTypeColor(l.typ, dark), radius)
 	}
 }
 
@@ -301,30 +305,45 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 	b.paintAILink(p, shown.curve, color, 4, dark)
 }
 
-// aiLinkControls uses a screen-sized button above the cards. Keeping hit testing
-// in the native UI makes the visible target clickable at every board zoom.
+// aiLinkControls gives the small centre marker a screen-sized hit target.
+// Clicking selects only; disconnection stays with Delete and the context menu.
 func (b *Board) aiLinkControls(c *ui.Context, o BoardOptions) {
-	if b.ai.link == nil || o.AI == nil {
+	if o.AI == nil || b.ReadOnly || b.Tool != ToolSelect || b.spaceDown || b.mode != "" || b.editing != nil {
 		return
 	}
 	for _, l := range b.aiLinks() {
-		if l.aiLinkRef == *b.ai.link {
-			mid := aiSplineAt(l.curve, .5)
-			x, y, _, _ := b.canvasRect(mid[0], mid[1], 0, 0)
-			if x < 0 || y < 0 || x > b.lastRect.W || y > b.lastRect.H {
-				return
-			}
-			node := b.Scene.ElementByID(l.node)
-			button := boardIconButton(c, "board-ai-unlink", "trash", i18n.T("移除连线"), false).
-				Absolute().Left(x-16).Top(y-16).Size(32, 32).
-				Background(o.Theme.Background).Border(1, o.Theme.Border).
-				Disabled(b.ReadOnly || node == nil || node.Locked)
-			if button.Clicked() {
-				b.deleteAILink(l.aiLinkRef, o)
-				b.RequestFocus = true
-			}
-			return
+		mid := aiSplineAt(l.curve, .5)
+		x, y, _, _ := b.canvasRect(mid[0], mid[1], 0, 0)
+		if x < 0 || y < 0 || x > b.lastRect.W || y > b.lastRect.H {
+			continue
 		}
+		node := b.Scene.ElementByID(l.node)
+		button := ui.ButtonBase(c.Key("board-ai-link:"+l.node+":"+l.slot)).
+			Absolute().Left(x-14).Top(y-14).Size(28, 28).Radius(14).
+			Focusable().Label(i18n.T("选择连线")).Tooltip(i18n.T("选择连线，按 Delete 或右键断开")).
+			Cursor(ui.CursorPointer).Disabled(node == nil || node.Locked)
+		if node == nil || node.Locked {
+			button.Cursor(ui.CursorNotAllowed)
+		}
+		if button.Hovered() || b.ai.link != nil && *b.ai.link == l.aiLinkRef {
+			color := aiTypeColor(l.typ, o.Theme.Dark)
+			button.Draw(func(p *ui.Painter, r ui.Rect) {
+				p.Stroke(ui.Rect{X: r.X + 5, Y: r.Y + 5, W: 18, H: 18}, color, 9, 2)
+			})
+		}
+		selectLink := func() {
+			ref := l.aiLinkRef
+			b.ai.link = &ref
+			b.Selected = map[string]bool{}
+			b.RequestFocus = true
+		}
+		if button.Clicked() {
+			selectLink()
+		}
+		button.ContextMenu(func(m *ui.Menu) {
+			selectLink()
+			b.contextMenu(m, o)
+		})
 	}
 }
 

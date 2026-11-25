@@ -76,6 +76,7 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 	w := &boardImageWindow{doc: d, nodeID: id, sourceKey: string(key), editing: edit, loading: true}
 	a.boardImages = append(a.boardImages, w)
 	w.win = a.makeWindow(i18n.T("图片查看与标注"), func(c *ui.Context) { a.boardImageView(c, w) }, func() bool { return a.closeBoardImage(w) })
+	watchBoardImageOutsidePress(w.win, func() { a.dismissBoardImageOutside(w) })
 	read := a.boardAI(d).ReadFile
 	a.backgroundResult(func() func() {
 		var data []byte
@@ -116,6 +117,14 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 func (a *App) redrawBoardImage(w *boardImageWindow) {
 	if win, ok := w.win.(*mygo.Window); ok {
 		win.Update(func() {})
+	}
+}
+
+func (a *App) dismissBoardImageOutside(w *boardImageWindow) {
+	// Only passive viewing dismisses automatically. Annotation and save
+	// sessions keep their window and the existing unsaved-changes protection.
+	if !w.closed && !w.editing && !w.saving && !w.confirmClose && w.win != nil {
+		w.win.Close()
 	}
 }
 func (w *boardImageWindow) dirty() bool {
@@ -351,7 +360,10 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 				})
 			}
 
-			hint := i18n.T("滚轮缩放 · 拖动查看 · 点击空白处或按 Esc 关闭")
+			hint := i18n.T("滚轮缩放 · 拖动查看 · 按 Esc 关闭")
+			if boardImageOutsidePressSupported {
+				hint = i18n.T("滚轮缩放 · 拖动查看 · 点击窗口外或按 Esc 关闭")
+			}
 			if w.editing {
 				hint = i18n.T("滚轮缩放 · 拖动查看 · 标注后保存副本，原图不变")
 			}

@@ -373,16 +373,11 @@ func (b *Board) paintSelection(p *ui.Painter, r ui.Rect, dark bool) {
 		bounds := whiteboard.SelectionBounds(b.Scene, ids)
 		x, y := b.screenPoint(whiteboard.Point{bounds.X, bounds.Y})
 		p.Stroke(ui.Rect{X: x, Y: y, W: float32(bounds.W * b.Zoom), H: float32(bounds.H * b.Zoom)}, color, 0, 1)
-		if !b.ReadOnly {
-			singleAI := len(ids) == 1 && b.aiNode(b.Scene.ElementByID(ids[0])) != nil
-			for i, pt := range boardHandles(bounds) {
-				if singleAI && (i == 3 || i == 7 || i == 8) {
-					continue
-				}
-				x, y := b.screenPoint(pt)
-				p.Fill(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, boardColor("#ffffff", dark), 2)
-				p.Stroke(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, color, 2, 1)
-			}
+		_, handles := b.selectionHandles()
+		for _, handle := range handles {
+			x, y := b.screenPoint(handle.point)
+			p.Fill(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, boardColor("#ffffff", dark), 2)
+			p.Stroke(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, color, 2, 1)
 		}
 	}
 	if b.mode == "marquee" {
@@ -399,9 +394,9 @@ func (b *Board) paintSelection(p *ui.Painter, r ui.Rect, dark bool) {
 			p.Line(x, y, X, Y, 1, color)
 		}
 	}
-	if e := b.Scene.ElementByID(b.linearEdit); e != nil {
-		for _, pt := range e.Points {
-			x, y := b.screenPoint(whiteboard.Add(whiteboard.Point{e.X, e.Y}, pt))
+	if e := b.Scene.ElementByID(b.linearEdit); e != nil && !e.IsDeleted && !e.Locked && !b.ReadOnly {
+		for _, pt := range boardLineControlPoints(e) {
+			x, y := b.screenPoint(pt)
 			p.Fill(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, color, 4)
 		}
 	}

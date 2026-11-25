@@ -14,13 +14,13 @@ import (
 	"testing"
 )
 
-func TestBoardImageViewingClosesOnlyOnBlankClick(t *testing.T) {
+func TestBoardImageViewingKeepsInternalClicksAndPans(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
 		editing, inside, drag bool
 		wantClose             bool
 	}{
-		{"blank", false, false, false, true},
+		{"blank", false, false, false, false},
 		{"image", false, true, false, false},
 		{"pan-from-blank", false, false, true, false},
 		{"annotation-blank", true, false, false, false},
@@ -50,6 +50,58 @@ func TestBoardImageViewingClosesOnlyOnBlankClick(t *testing.T) {
 				t.Fatalf("close count %d, want close %v", win.closed, tc.wantClose)
 			}
 		})
+	}
+}
+
+func TestBoardImageOutsideDismissPreservesEditingAndSaving(t *testing.T) {
+	for _, mode := range []string{"view", "loading", "edit", "saving", "confirm", "closed"} {
+		t.Run(mode, func(t *testing.T) {
+			a, w, win, _ := boardImageFixture(t)
+			w.editing = mode == "edit"
+			w.loading = mode == "loading"
+			w.saving = mode == "saving"
+			w.confirmClose = mode == "confirm"
+			w.closed = mode == "closed"
+			a.dismissBoardImageOutside(w)
+			want := 0
+			if mode == "view" || mode == "loading" {
+				want = 1
+			}
+			if win.closed != want {
+				t.Fatalf("close count = %d, want %d", win.closed, want)
+			}
+		})
+	}
+}
+
+func TestBoardImageViewingKeepsControlsAndEscape(t *testing.T) {
+	a, w, win, _ := boardImageFixture(t)
+	w.editing = false
+	w.image.Board.Tool = editor.ToolHand
+	tt := ui.NewTester(win.view, 900, 650)
+	tt.Frame()
+	r, ok := tt.Find("手绘白板")
+	if !ok {
+		t.Fatal("viewer canvas missing")
+	}
+	x, y := r.X+r.W/2, r.Y+r.H/2
+	before := w.image.Board.Zoom
+	tt.Wheel(x, y, 0, -40)
+	if w.image.Board.Zoom <= before || win.closed != 0 {
+		t.Fatal("zoom failed or closed the viewer")
+	}
+	tt.SetFocused(false)
+	if win.closed != 0 {
+		t.Fatal("view dismissed on keyboard focus loss")
+	}
+	tt.SetFocused(true)
+	tt.ClickAt(x, y)
+	tt.Key(0, ui.KeyEscape)
+	if win.closed != 1 {
+		t.Fatal("Escape did not close the viewer")
+	}
+	if a.doc == nil {
+		t.Fatal("viewer changed the main document")
 	}
 }
 

@@ -552,7 +552,7 @@ func TestBoardAILinkedPromptDisablesFieldAndLinksMove(t *testing.T) {
 	}
 }
 
-func TestBoardAILinkRemoveButtonAtEveryZoom(t *testing.T) {
+func TestBoardAILinkCenterSelectsWithoutDisconnectingAtEveryZoom(t *testing.T) {
 	for _, zoom := range []float64{0.1, 1, 2} {
 		t.Run(fmt.Sprint(zoom), func(t *testing.T) {
 			b := NewBoard(nil)
@@ -563,21 +563,33 @@ func TestBoardAILinkRemoveButtonAtEveryZoom(t *testing.T) {
 			to := b.AddAINode(whiteboard.AIText, whiteboard.Point{520, 0}, o)
 			b.setAILink(to, "prompt", from)
 			b.Selected = map[string]bool{}
-			b.ai.link = &aiLinkRef{to, "prompt"}
 			mid := aiSplineAt(b.aiLinks()[0].curve, .5)
 			b.Zoom, b.PanX, b.PanY = zoom, 480-mid[0]*zoom, 300-mid[1]*zoom
 			tt.Frame()
-			button, ok := tt.Access(i18n.T("移除连线"))
-			if !ok || button.Bounds.W < 28 || button.Bounds.H < 28 {
-				t.Fatalf("missing usable remove button at zoom %v: %+v", zoom, button)
+			button, ok := tt.Access(i18n.T("选择连线"))
+			if !ok || button.Bounds.W < 24 || button.Bounds.H < 24 {
+				t.Fatalf("missing usable link center at zoom %v: %+v", zoom, button)
 			}
 			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			if b.ai.link == nil || b.ai.link.node != to || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("center did not select the intact link")
+			}
+			tt.Key(0, ui.KeyDelete)
 			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {
-				t.Fatal("remove button did not disconnect")
+				t.Fatal("Delete did not disconnect")
 			}
 			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
 				t.Fatal("disconnect was not undoable")
 			}
+			tt.Frame()
+			tt.RightClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			if err := tt.ChooseMenuItem(i18n.T("删除连线")); err != nil {
+				t.Fatal(err)
+			}
+			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {
+				t.Fatal("context menu did not disconnect")
+			}
+			b.Undo()
 			b.Scene.ElementByID(to).Locked = true
 			b.deleteAILink(aiLinkRef{to, "prompt"}, o)
 			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {

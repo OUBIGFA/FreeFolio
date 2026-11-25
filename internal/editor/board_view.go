@@ -81,20 +81,12 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 		if gesture {
 			c.After(b.gestureUntil.Sub(now))
 		}
-		cursor := ui.CursorCrosshair
-		switch {
-		case b.mode == "pan":
-			cursor = ui.CursorGrabbing
-		case b.mode == "" && gesture:
-			cursor = b.gestureCursor
-		case b.Tool == ToolHand || b.spaceDown:
-			cursor = ui.CursorGrab
-		case b.aiPortCursor():
-			cursor = ui.CursorCrosshair
-		case b.Tool == ToolSelect:
-			cursor = ui.CursorDefault
+		// Reproject the current pointer after pan/zoom as well as pointer moves.
+		// PointerPosition also requests frames for hover-only target changes.
+		if x, y, over := canvas.PointerPosition(); over {
+			b.hover = b.scenePoint(x, y)
 		}
-		canvas.Cursor(cursor)
+		canvas.Cursor(b.canvasCursor(c.Modifiers(), gesture))
 		canvas.Draw(func(p *ui.Painter, r ui.Rect) {
 			b.lastRect = r
 			// The first view has no LayoutBounds yet. Fit the inspector using
@@ -499,7 +491,7 @@ func (b *Board) textOverlay(c *ui.Context, o BoardOptions) {
 	lw, lh := t.layout.Size()
 	w = math.Max(w, float64(lw+20))
 	h = math.Max(h, float64(lh+12))
-	el := ui.Box(c.Key("board-text-input")).Absolute().Left(x-b.lastRect.X).Top(y-b.lastRect.Y).Size(float32(w), float32(h)).Focusable().FocusRing(false).Role(ui.RoleTextField).Label(i18n.T("白板文字")).HandleTextInput(t)
+	el := ui.Box(c.Key("board-text-input")).Absolute().Left(x-b.lastRect.X).Top(y-b.lastRect.Y).Size(float32(w), float32(h)).Cursor(ui.CursorText).Focusable().FocusRing(false).Role(ui.RoleTextField).Label(i18n.T("白板文字")).HandleTextInput(t)
 	if b.textFocus {
 		el.Focus()
 		b.textFocus = false
