@@ -136,9 +136,9 @@ func TestBoardAIChainsImagesWritesBackAndBlocksDownstream(t *testing.T) {
 	edit := b.AddAINode(whiteboard.AIImage, whiteboard.Point{1200, 0}, o)
 	text := b.AddAINode(whiteboard.AIText, whiteboard.Point{1800, 0}, o)
 	b.edit(o, func() {
-		b.connectAI(src, b.Scene.ElementByID(gen))
-		b.connectAI(b.Scene.ElementByID(gen), b.Scene.ElementByID(edit))
-		b.connectAI(src, b.Scene.ElementByID(text))
+		_ = b.connectAI(src, b.Scene.ElementByID(gen), true)
+		_ = b.connectAI(b.Scene.ElementByID(gen), b.Scene.ElementByID(edit), true)
+		_ = b.connectAI(src, b.Scene.ElementByID(text), true)
 	})
 	b.updateAINode(o, edit, func(n *whiteboard.AINode) { n.Instruction = "make it blue" })
 	b.updateAINode(o, text, func(n *whiteboard.AINode) { n.Params.Write = "replace"; n.Instruction = "rewrite" })
@@ -161,7 +161,7 @@ func TestBoardAIChainsImagesWritesBackAndBlocksDownstream(t *testing.T) {
 	// A failing upstream node leaves its downstream unrun.
 	f.fail = text
 	down := b.AddAINode(whiteboard.AIText, whiteboard.Point{2400, 0}, o)
-	b.edit(o, func() { b.connectAI(b.Scene.ElementByID(text), b.Scene.ElementByID(down)) })
+	b.edit(o, func() { _ = b.connectAI(b.Scene.ElementByID(text), b.Scene.ElementByID(down), true) })
 	b.RunAI([]string{down}, true, true, o)
 	if b.ai.runs[text].status != "error" || b.ai.runs[down].status != "blocked" || whiteboard.AINodeOf(b.Scene.ElementByID(text)).Error != "service down" {
 		t.Fatalf("%+v %+v", b.ai.runs[text], b.ai.runs[down])
@@ -186,9 +186,9 @@ func TestBoardAIFrameNoteAndConcatInputs(t *testing.T) {
 	b.updateAINode(o, cat, func(n *whiteboard.AINode) { n.Params.Template = "<{1}>" })
 	img := b.AddAINode(whiteboard.AIImage, whiteboard.Point{900, 0}, o)
 	b.edit(o, func() {
-		b.connectAI(b.Scene.ElementByID(ref), b.Scene.ElementByID(cat))
-		b.connectAI(frame, b.Scene.ElementByID(img))
-		b.connectAI(b.Scene.ElementByID(cat), b.Scene.ElementByID(img))
+		_ = b.connectAI(b.Scene.ElementByID(ref), b.Scene.ElementByID(cat), true)
+		_ = b.connectAI(frame, b.Scene.ElementByID(img), true)
+		_ = b.connectAI(b.Scene.ElementByID(cat), b.Scene.ElementByID(img), true)
 	})
 	b.RunAI([]string{img}, true, false, o)
 	if out := whiteboard.AINodeOf(b.Scene.ElementByID(cat)).Output(); out == nil || out.Text != "<note body of 说明>" {
@@ -200,7 +200,39 @@ func TestBoardAIFrameNoteAndConcatInputs(t *testing.T) {
 	}
 }
 
-func TestBoardAIViewPortDragAndPanel(t *testing.T) {
+// slotAt is a node slot's point in the canvas: the output when slot is "".
+func slotAt(b *Board, id, slot string) (float32, float32) {
+	e := b.Scene.ElementByID(id)
+	n := b.aiNode(e)
+	l := b.aiLayout(e, n)
+	p := aiOutputPoint(e, l)
+	for i, sl := range l.slots {
+		if sl.Name == slot {
+			p = aiInputPoint(e, l, i)
+		}
+	}
+	x, y, _, _ := b.canvasRect(p[0], p[1], 0, 0)
+	return x, y
+}
+
+func drag(tt *ui.Tester, x, y, X, Y float32) {
+	tt.Press(x, y)
+	tt.Move((x+X)/2, (y+Y)/2)
+	tt.Move(X, Y)
+	tt.Release(X, Y)
+	tt.Frame()
+}
+
+func noArrows(t *testing.T, b *Board) {
+	t.Helper()
+	for _, el := range b.Scene.Elements {
+		if el.IsLinear() && !el.IsDeleted {
+			t.Fatal("a node link became a board line")
+		}
+	}
+}
+
+func TestBoardAIOutputDragPickerAndPanel(t *testing.T) {
 	f := &fakeAI{}
 	o := f.options(t)
 	b := NewBoard(whiteboard.NewScene())
@@ -216,17 +248,23 @@ func TestBoardAIViewPortDragAndPanel(t *testing.T) {
 	if e == nil || n.Role != whiteboard.AIText {
 		t.Fatal("node bar did not add a node")
 	}
-	if _, ok := tt.Find("运行节点"); !ok {
-		t.Fatal("properties panel missing")
+	b.ai.bar = false
+	// Settings live on the card; the full panel opens on demand.
+	if _, ok := tt.Find("运行节点"); ok {
+		t.Fatal("panel opened by itself")
 	}
-	// Drag from the output port to empty canvas: the picker offers nodes.
-	x, y, _, _ := b.canvasRect(e.X+e.W, e.Y+e.H/2, 0, 0)
-	tt.Press(x, y)
-	tt.Move(x+120, y+40)
-	tt.Move(x+200, y+60)
-	tt.Release(x+200, y+60)
+	if err := tt.Click("全部设置"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Frame()
-	if b.ai.pickerAt == nil {
+	if _, ok := tt.Find("运行节点"); !ok {
+		t.Fatal("full settings missing")
+	}
+	b.ai.panel = false
+	// A link dragged from the output onto empty canvas offers nodes.
+	x, y := slotAt(b, e.ID, "")
+	drag(tt, x, y, x+260, y+40)
+	if b.ai.picker == nil {
 		t.Fatal("picker did not open")
 	}
 	if err := tt.Click("图像生成"); err != nil {
@@ -239,25 +277,25 @@ func TestBoardAIViewPortDragAndPanel(t *testing.T) {
 			image = el
 		}
 	}
-	if image == nil || len(b.Scene.AIInputs(image.ID)) != 1 || b.Scene.AIInputs(image.ID)[0].From != e.ID {
-		t.Fatal("picked node not connected")
+	if image == nil || whiteboard.AINodeOf(image).LinkAt("prompt") != e.ID {
+		t.Fatal("picked node not linked into its prompt")
 	}
-	for _, el := range b.Scene.Elements {
-		if el.Kind == whiteboard.KindArrow && !el.IsDeleted && el.EndBinding == nil {
-			t.Fatal("loose line left behind")
-		}
+	noArrows(t, b)
+	// The new node's slot sits where the link was dropped.
+	if px, py := slotAt(b, image.ID, "prompt"); px < x+250 || px > x+270 || py < y+30 || py > y+50 {
+		t.Fatalf("slot at %v,%v", px, py)
 	}
-	// Typing an instruction is one undo step.
+	// Typing in the card is one undo step.
 	b.selectIDs([]string{e.ID})
-	tt.Frame()
 	b.ai.focusInstruction = true
+	tt.Frame()
 	tt.Frame()
 	tt.Type("写一首诗")
 	tt.Frame()
 	if whiteboard.AINodeOf(b.Scene.ElementByID(e.ID)).Instruction != "写一首诗" {
 		t.Fatal("instruction not stored")
 	}
-	b.Selected = map[string]bool{}
+	b.RequestFocus = true
 	tt.Frame()
 	b.Undo()
 	if whiteboard.AINodeOf(b.Scene.ElementByID(e.ID)).Instruction != "" {
@@ -265,60 +303,146 @@ func TestBoardAIViewPortDragAndPanel(t *testing.T) {
 	}
 }
 
-func TestBoardAIPromptNodeInlineEditAndBidirectionalPorts(t *testing.T) {
+func TestBoardAILinkedPromptDisablesFieldAndLinksMove(t *testing.T) {
 	f := &fakeAI{}
 	o := f.options(t)
 	b := NewBoard(whiteboard.NewScene())
 	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1280, 860)
 	tt.Frame()
-
-	// Add a Text Node (AIPrompt) and an Image Node without running the Text Node first.
 	promptID := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{240, 320}, o)
 	imgID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{760, 320}, o)
+	b.Selected = map[string]bool{}
 	tt.Frame()
 
-	// Type directly in the node's inline TextArea on the canvas.
 	area, ok := tt.Access("文字内容")
 	if !ok {
-		t.Fatal("inline text area missing on prompt node")
+		t.Fatal("text node field missing")
 	}
 	tt.ClickAt(area.Bounds.X+area.Bounds.W/2, area.Bounds.Y+area.Bounds.H/2)
 	tt.Type("a sunlit studio")
 	tt.Frame()
 	if got := whiteboard.AINodeOf(b.Scene.ElementByID(promptID)).Instruction; got != "a sunlit studio" {
-		t.Fatalf("inline prompt edit got %q", got)
+		t.Fatalf("inline edit got %q", got)
+	}
+	if field, ok := tt.Access("指令"); !ok || field.Disabled {
+		t.Fatal("unlinked instruction field should be editable")
 	}
 
-	// Drag backward from the Image Node's input port to the Text Node's output port.
-	pEl := b.Scene.ElementByID(promptID)
-	iEl := b.Scene.ElementByID(imgID)
-	sx, sy, _, _ := b.canvasRect(iEl.X, iEl.Y+iEl.H/2, 0, 0)
-	ex, ey, _, _ := b.canvasRect(pEl.X+pEl.W, pEl.Y+pEl.H/2, 0, 0)
-	tt.Press(sx, sy)
-	tt.Move((sx+ex)/2, (sy+ey)/2)
-	tt.Move(ex-4, ey+4)
-	tt.Release(ex-4, ey+4)
-	tt.Frame()
-
-	ins := b.Scene.AIInputs(imgID)
-	if len(ins) != 1 || ins[0].From != promptID {
-		t.Fatalf("backward magnetic wiring failed: %+v", ins)
+	// From the image node's free prompt input back onto the text node.
+	sx, sy := slotAt(b, imgID, "prompt")
+	p := b.Scene.ElementByID(promptID)
+	ex, ey, _, _ := b.canvasRect(p.X+p.W/2, p.Y+20, 0, 0)
+	drag(tt, sx, sy, ex, ey)
+	if got := whiteboard.AINodeOf(b.Scene.ElementByID(imgID)).LinkAt("prompt"); got != promptID {
+		t.Fatalf("backward link failed: %q", got)
 	}
-
-	// Running the image node reads the Text Node directly without needing to run it first.
+	noArrows(t, b)
+	field, ok := tt.Access("指令")
+	if !ok || !field.Disabled || field.Value != "" || !strings.Contains(field.Description, "已连接") {
+		t.Fatalf("linked instruction field: %+v", field)
+	}
+	// Run: the linked text is the prompt, not the node's own instruction.
+	b.updateAINode(o, imgID, func(n *whiteboard.AINode) { n.Instruction = "ignored" })
 	b.RunAI([]string{imgID}, false, false, o)
-	if len(f.jobs) != 1 || !strings.Contains(f.jobs[0].Prompt, "a sunlit studio") {
-		t.Fatalf("prompt node input not used: %+v", f.jobs)
+	if len(f.jobs) != 1 || f.jobs[0].Prompt != "a sunlit studio" {
+		t.Fatalf("prompt %+v", f.jobs)
 	}
 
-	// Disconnect button in the properties panel removes the wire.
-	b.selectIDs([]string{imgID})
-	tt.Frame()
-	if err := tt.Click("断开连接"); err != nil {
-		t.Fatal(err)
+	// Picking the link up from its input and dropping it on nothing
+	// disconnects it, as one undo step.
+	sx, sy = slotAt(b, imgID, "prompt")
+	drag(tt, sx, sy, sx-80, sy+260)
+	if whiteboard.AINodeOf(b.Scene.ElementByID(imgID)).LinkAt("prompt") != "" || b.ai.picker != nil {
+		t.Fatal("picked-up link not removed")
+	}
+	b.Undo()
+	if whiteboard.AINodeOf(b.Scene.ElementByID(imgID)).LinkAt("prompt") != promptID {
+		t.Fatal("undo did not restore the link")
 	}
 	tt.Frame()
-	if got := b.Scene.AIInputs(imgID); len(got) != 0 {
-		t.Fatalf("disconnect failed: %+v", got)
+
+	// A click on the link selects it; Delete removes it.
+	links := b.aiLinks()
+	if len(links) != 1 {
+		t.Fatal(links)
+	}
+	mid := aiSplineAt(links[0].curve, 0.3)
+	mx, my, _, _ := b.canvasRect(mid[0], mid[1], 0, 0)
+	tt.ClickAt(mx, my)
+	tt.Frame()
+	if b.ai.link == nil || b.ai.link.node != imgID {
+		t.Fatal("link not selected")
+	}
+	tt.Key(0, ui.KeyDelete)
+	tt.Frame()
+	if whiteboard.AINodeOf(b.Scene.ElementByID(imgID)).LinkAt("prompt") != "" || b.Scene.ElementByID(promptID).IsDeleted {
+		t.Fatal("Delete did not remove just the link")
+	}
+	if field, ok := tt.Access("指令"); !ok || field.Disabled {
+		t.Fatal("field stays disabled after unlinking")
+	}
+}
+
+func TestBoardAIRejectsIncompatibleAndCyclicLinks(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1400, 900)
+	tt.Frame()
+	img := b.AddAINode(whiteboard.AIImage, whiteboard.Point{300, 300}, o)
+	cat := b.AddAINode(whiteboard.AIConcat, whiteboard.Point{800, 300}, o)
+	text := b.AddAINode(whiteboard.AIText, whiteboard.Point{1200, 300}, o)
+	tt.Frame()
+	// A picture cannot feed a text-only node.
+	x, y := slotAt(b, img, "")
+	c := b.Scene.ElementByID(cat)
+	cx, cy, _, _ := b.canvasRect(c.X+c.W/2, c.Y+c.H/2, 0, 0)
+	drag(tt, x, y, cx, cy)
+	if len(whiteboard.AINodeOf(c).Links) != 0 || b.ai.picker != nil {
+		t.Fatal("incompatible link made or picker opened over a node")
+	}
+	// text → concat, then concat → text would be a cycle.
+	b.edit(o, func() { _ = b.connectAI(b.Scene.ElementByID(text), c, false) })
+	if err := b.Connect(o, cat, text, ""); err == nil {
+		t.Fatal("cycle accepted")
+	}
+	noArrows(t, b)
+}
+
+func TestBoardAICardControlsStayWhileDragging(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	tt.Frame()
+	b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{300, 300}, o)
+	b.Selected = map[string]bool{}
+	tt.Frame()
+	present := func(when string) {
+		t.Helper()
+		if _, ok := tt.Access("文字内容"); !ok {
+			t.Fatalf("card field gone %s", when)
+		}
+	}
+	// A selection box from empty canvas, then a pan: the card keeps its
+	// widgets in every frame.
+	tt.Press(900, 600)
+	tt.Move(850, 560)
+	tt.Frame()
+	present("during a selection box")
+	tt.Release(850, 560)
+	tt.PressButton(2, 900, 600)
+	tt.Move(880, 590)
+	tt.Frame()
+	present("during a pan")
+	tt.ReleaseButton(2, 880, 590)
+	tt.Frame()
+	// Widgets scale with the board.
+	before, _ := tt.Access("文字内容")
+	b.Zoom = 0.5
+	tt.Frame()
+	after, ok := tt.Access("文字内容")
+	if !ok || after.Bounds.W > before.Bounds.W*0.6 {
+		t.Fatalf("field did not scale: %v → %v", before.Bounds, after.Bounds)
 	}
 }

@@ -129,6 +129,18 @@ func ExportCanvas(s *Scene) ([]byte, error) {
 		}
 		out.Edges = append(out.Edges, edge)
 	}
+	// Node links are edges too, labeled with their slot.
+	for _, e := range s.Elements {
+		n := AINodeOf(e)
+		if n == nil || !exported[e.ID] {
+			continue
+		}
+		for _, sl := range AISlots(n) {
+			if from := s.AILinkSource(n, sl.Name); from != nil && exported[from.ID] {
+				out.Edges = append(out.Edges, canvasEdge{ID: e.ID + "-" + sl.Name, FromNode: from.ID, FromSide: "right", ToNode: e.ID, ToSide: "left", Label: sl.Label})
+			}
+		}
+	}
 	return json.MarshalIndent(out, "", "\t")
 }
 

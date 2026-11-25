@@ -142,7 +142,7 @@ func (a *App) boardAgentTools(d *document, deliver func(func())) []agent.Tool {
 			})
 			return "updated " + args.ID, nil
 		}),
-		tool("board_connect", "Draw an arrow from one element to another, with an optional label. An arrow into an AI node makes the source one of its inputs; the label names the input (\"mask\" marks an edit mask).", schema(`"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}`, "from", "to"), true, func(raw json.RawMessage) (string, error) {
+		tool("board_connect", "Connect one element to another. Into an AI node it links the source to an input slot: label picks the slot (\"prompt\" replaces the node's instruction, \"text\", \"image\", \"mask\"); without a label the source is material, put in the first free text or picture slot. Between other elements it draws an arrow with label as its text.", schema(`"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}`, "from", "to"), true, func(raw json.RawMessage) (string, error) {
 			var args struct{ From, To, Label string }
 			if err := parse(raw, &args); err != nil {
 				return "", err
@@ -296,6 +296,20 @@ func boardListing(b *editor.Board, selection bool) string {
 			line += fmt.Sprintf(" label %q", label)
 		}
 		lines = append(lines, line)
+	}
+	// Node links are not arrows; they are listed by their input slot.
+	for _, e := range s.Elements {
+		n := whiteboard.AINodeOf(e)
+		if n == nil || e.IsDeleted {
+			continue
+		}
+		for _, sl := range whiteboard.AISlots(n) {
+			from := s.AILinkSource(n, sl.Name)
+			if from == nil || selection && !chosen[from.ID] && !chosen[e.ID] {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("link %s -> %s slot %s", from.ID, e.ID, sl.Name))
+		}
 	}
 	if len(lines) == 0 {
 		return "The whiteboard is empty."

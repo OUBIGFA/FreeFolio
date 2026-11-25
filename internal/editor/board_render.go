@@ -198,34 +198,53 @@ func (b *Board) paint(p *ui.Painter, r ui.Rect, dark bool, controls bool) {
 		}
 	}
 	viewport := whiteboard.Box{X: -b.PanX / b.Zoom, Y: -b.PanY / b.Zoom, W: float64(r.W) / b.Zoom, H: float64(r.H) / b.Zoom}.Expand(40)
+	b.aiPainting = controls
 	if controls && len(b.Scene.Elements) > 500 && b.paintDenseScene(p, r, dark, viewport) {
+		p.Clip(r, 0, func() {
+			p.Transform(ui.Scaling(float32(b.Zoom), float32(b.Zoom)).Then(ui.Translation(r.X+float32(b.PanX), r.Y+float32(b.PanY))), 0, 0, func() { b.paintAIOverlay(p, dark) })
+		})
 		b.paintSelection(p, r, dark)
 		return
 	}
 	p.Clip(r, 0, func() {
 		p.Transform(ui.Scaling(float32(b.Zoom), float32(b.Zoom)).Then(ui.Translation(r.X+float32(b.PanX), r.Y+float32(b.PanY))), 0, 0, func() {
-			for _, e := range b.Scene.Elements {
-				if e.IsDeleted || !viewport.Intersects(b.elementBounds(e).Expand(e.StrokeWidth*5)) {
-					continue
-				}
-				if b.editing != nil && b.editing.id == e.ID {
-					continue
-				}
-				draw := func() { b.paintElement(p, e, dark) }
-				if frame := b.Scene.ElementByID(e.FrameID); frame != nil {
-					cx, cy := float32(frame.X+frame.W/2), float32(frame.Y+frame.H/2)
-					p.Transform(ui.Rotation(float32(frame.Angle*180/math.Pi)), cx, cy, func() {
-						p.Clip(ui.Rect{X: float32(frame.X), Y: float32(frame.Y), W: float32(frame.W), H: float32(frame.H)}, 0, func() { p.Transform(ui.Rotation(float32(-frame.Angle*180/math.Pi)), cx, cy, draw) })
-					})
-				} else {
-					draw()
-				}
+			b.paintScene(p, viewport, dark)
+			if controls {
+				b.paintAIOverlay(p, dark)
 			}
 		})
 	})
 	if controls {
 		b.paintSelection(p, r, dark)
 	}
+}
+
+// paintScene draws the board's elements, then the node links over them,
+// then the node cards on top, as a node editor layers its canvas: the
+// cards carry live widgets that sit above every drawing anyway.
+func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool) {
+	paint := func(nodes bool) {
+		for _, e := range b.Scene.Elements {
+			if e.IsDeleted || (b.aiNode(e) != nil) != nodes || !viewport.Intersects(b.elementBounds(e).Expand(e.StrokeWidth*5)) {
+				continue
+			}
+			if b.editing != nil && b.editing.id == e.ID {
+				continue
+			}
+			draw := func() { b.paintElement(p, e, dark) }
+			if frame := b.Scene.ElementByID(e.FrameID); frame != nil {
+				cx, cy := float32(frame.X+frame.W/2), float32(frame.Y+frame.H/2)
+				p.Transform(ui.Rotation(float32(frame.Angle*180/math.Pi)), cx, cy, func() {
+					p.Clip(ui.Rect{X: float32(frame.X), Y: float32(frame.Y), W: float32(frame.W), H: float32(frame.H)}, 0, func() { p.Transform(ui.Rotation(float32(-frame.Angle*180/math.Pi)), cx, cy, draw) })
+				})
+			} else {
+				draw()
+			}
+		}
+	}
+	paint(false)
+	b.paintAILinks(p, dark)
+	paint(true)
 }
 
 // A dense viewport is a retained native render target. Panning inside its
@@ -263,6 +282,11 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		signature ^= h * 1099511628211 // order-free: maps iterate at random
 	}
 	signature = signature*31 + uint64(len(b.ai.media))
+	if d := b.ai.drag; d != nil && d.live {
+		for _, ch := range d.from + d.to + d.typ + d.target + d.targetSlot {
+			signature = signature*31 + uint64(ch)
+		}
+	}
 	if b.editing != nil {
 		for _, ch := range b.editing.id {
 			signature = signature*31 + uint64(ch)
@@ -283,20 +307,7 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		c.dark = dark
 		c.layer.Draw(p, func(cp *ui.Painter) {
 			cp.Transform(ui.Scaling(float32(bucket), float32(bucket)).Then(ui.Translation(float32(-world.X*bucket), float32(-world.Y*bucket))), 0, 0, func() {
-				for _, e := range b.Scene.Elements {
-					if e.IsDeleted || !world.Intersects(b.elementBounds(e).Expand(e.StrokeWidth*5)) || b.editing != nil && b.editing.id == e.ID {
-						continue
-					}
-					draw := func() { b.paintElement(cp, e, dark) }
-					if frame := b.Scene.ElementByID(e.FrameID); frame != nil {
-						cx, cy := float32(frame.X+frame.W/2), float32(frame.Y+frame.H/2)
-						cp.Transform(ui.Rotation(float32(frame.Angle*180/math.Pi)), cx, cy, func() {
-							cp.Clip(ui.Rect{X: float32(frame.X), Y: float32(frame.Y), W: float32(frame.W), H: float32(frame.H)}, 0, func() { cp.Transform(ui.Rotation(float32(-frame.Angle*180/math.Pi)), cx, cy, draw) })
-						})
-					} else {
-						draw()
-					}
-				}
+				b.paintScene(cp, world, dark)
 			})
 		})
 	}

@@ -20,12 +20,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The whiteboard's AI workflow follows Vibe-Workflow (MIT): typed content
-// nodes, a node bar by category, a properties panel for the selected node,
-// per-node and whole-board runs, and a result history on each node. It is
-// drawn on the Excalidraw scene itself: nodes are rectangles with
-// customData, arrows are the data lines, and any shape, note, picture or
-// frame on the board is an input. No Vibe-Workflow code is used.
+// The whiteboard's AI workflow is a node graph on the Excalidraw scene:
+// nodes are rectangles with customData, edited in place on their cards;
+// typed slots and links follow LiteGraph, ComfyUI's graph core (see
+// board_ai_graph.go), and are drawn apart from the board's own lines. Any
+// shape, note, picture or frame on the board can feed a node. The node bar
+// and per-node result history follow Vibe-Workflow (MIT); no code of it is
+// used.
 
 // BoardAI is what the host lends the board to run AI nodes. A nil BoardAI
 // hides the AI tools.
@@ -130,16 +131,16 @@ type boardAIState struct {
 	// before its first change, so a typing session is one undo step.
 	edit, extra, extraErr string
 	before                *whiteboard.Scene
-	// pickerAt is where a line dragged from a port was let go on the empty
-	// canvas; the node types that can connect there are offered.
-	pickerAt   *whiteboard.Point
-	pickerFrom string
-	pickerDir  string
-	pickerLine string
-	portFrom   string
-	portDir    string
-	snapID     string
-	snapDir    string
+	// drag is the link being dragged, link the selected link, and picker
+	// the node menu a link dropped on empty canvas opens.
+	drag   *aiDrag
+	link   *aiLinkRef
+	picker *aiPicker
+	// panel shows the selected node's full settings beside the board.
+	panel bool
+	// linkedOut marks elements whose output is linked, for the frame
+	// being painted.
+	linkedOut map[string]bool
 	// buf holds the panel's text fields while a node is edited; bufs holds
 	// per-node inline text buffers for direct canvas editing.
 	buf              aiEditBuffers
@@ -155,10 +156,6 @@ type boardAICardText struct {
 
 // aiRoleNames are the roles' names in the interface.
 var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
-
-// aiKindColors are the data types' colors, as Vibe-Workflow colors its
-// handles and edges: text blue, image green, video orange.
-var aiKindColors = map[string]string{"text": "#1971c2", "image": "#2f9e44", "video": "#e8590c"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -182,6 +179,7 @@ func (b *Board) aiState() *boardAIState {
 		s.videos = map[string]*ui.VideoPlayer{}
 		s.texts = map[string]boardAICardText{}
 		s.bufs = map[string]*boardAINodeBuffer{}
+		s.linkedOut = map[string]bool{}
 	}
 	if s.bufs == nil {
 		s.bufs = map[string]*boardAINodeBuffer{}
@@ -235,6 +233,17 @@ func (b *Board) AddAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	if b.ReadOnly {
 		return ""
 	}
+	var id string
+	b.edit(o, func() {
+		id = b.newAINode(role, at, o).ID
+		b.selectIDs([]string{id})
+	})
+	return id
+}
+
+// newAINode appends a node of the role centered at a scene point, with the
+// role's remembered model, inside the caller's edit.
+func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOptions) *whiteboard.Element {
 	w, h := whiteboard.AINodeSize(role)
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
@@ -245,59 +254,15 @@ func (b *Board) AddAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	if role == whiteboard.AIImage || role == whiteboard.AIVideo {
 		n.Params.Count = 1
 	}
+	e.H = max(e.H, aiMinHeight(n))
 	_ = whiteboard.SetAINode(e, n)
-	b.edit(o, func() {
-		b.Scene.Elements = append(b.Scene.Elements, e)
-		b.selectIDs([]string{e.ID})
-	})
-	return e.ID
+	b.Scene.Elements = append(b.Scene.Elements, e)
+	return e
 }
 
 // viewCenter is the scene point at the canvas's middle.
 func (b *Board) viewCenter() whiteboard.Point {
 	return b.scenePoint(b.lastRect.W/2, b.lastRect.H/2)
-}
-
-// connectAI draws a bound arrow from an element to a node.
-func (b *Board) connectAI(from, to *whiteboard.Element) {
-	fb, tb := whiteboard.ElementBounds(from), whiteboard.ElementBounds(to)
-	start := whiteboard.Point{fb.X + fb.W, fb.Y + fb.H/2}
-	end := whiteboard.Point{tb.X, tb.Y + tb.H/2}
-	if tb.X+tb.W < fb.X {
-		start, end = whiteboard.Point{fb.X, fb.Y + fb.H/2}, whiteboard.Point{tb.X + tb.W, tb.Y + tb.H/2}
-	}
-	a := whiteboard.NewElement(whiteboard.KindArrow, start[0], start[1], math.Abs(end[0]-start[0]), math.Abs(end[1]-start[1]))
-	a.Points = []whiteboard.Point{{0, 0}, whiteboard.Sub(end, start)}
-	a.StrokeColor = aiKindColors[b.aiOutputKind(from)]
-	a.StrokeWidth = 2
-	a.Roughness = 0
-	b.Scene.Elements = append(b.Scene.Elements, a)
-	b.Scene.Bind(a.ID, false, from.ID, start)
-	b.Scene.Bind(a.ID, true, to.ID, end)
-}
-
-// aiHasConnection reports whether an unlabeled arrow already links from to to.
-func (b *Board) aiHasConnection(fromID, toID string) bool {
-	for _, e := range b.Scene.Elements {
-		if e.IsDeleted || e.Kind != whiteboard.KindArrow || e.StartBinding == nil || e.EndBinding == nil {
-			continue
-		}
-		if e.StartBinding.ElementID == fromID && e.EndBinding.ElementID == toID {
-			return true
-		}
-	}
-	return false
-}
-
-// aiOutputKind is the data an element supplies.
-func (b *Board) aiOutputKind(e *whiteboard.Element) string {
-	if n := b.aiNode(e); n != nil {
-		return n.Kind()
-	}
-	if e.Kind == whiteboard.KindImage || e.IsFrame() {
-		return "image"
-	}
-	return "text"
 }
 
 // aiSelectionInputs are the selected elements a new node reads: whole
@@ -342,7 +307,9 @@ func (b *Board) AIFromSelection(role whiteboard.AIRole, o BoardOptions) string {
 	}
 	b.edit(o, func() {
 		for _, e := range inputs {
-			b.connectAI(e, node)
+			if err := b.connectAI(e, node, true); err != nil {
+				b.err = err
+			}
 		}
 	})
 	return id
@@ -405,24 +372,18 @@ func (b *Board) insertAITemplate(key string, o BoardOptions) {
 				b.Scene.Elements = append([]*whiteboard.Element{e}, b.Scene.Elements...)
 				x += 420
 			default:
-				w, h := whiteboard.AINodeSize(step.role)
-				e = whiteboard.NewAINode(step.role, x, at[1]-h/2)
+				w, _ := whiteboard.AINodeSize(step.role)
+				e = b.newAINode(step.role, whiteboard.Point{x + w/2, at[1]}, o)
 				n := whiteboard.AINodeOf(e)
 				n.Instruction = i18n.T(step.instr)
-				if o.AI != nil && o.AI.Default != nil {
-					m := o.AI.Default(step.role)
-					n.Connection, n.Model = m.Connection, m.Model
-				}
-				if step.role == whiteboard.AIImage {
-					n.Params.Count = 1
-				}
 				_ = whiteboard.SetAINode(e, n)
-				b.Scene.Elements = append(b.Scene.Elements, e)
 				x += w + 120
 				last = e.ID
 			}
 			if prev != nil {
-				b.connectAI(prev, e)
+				if err := b.connectAI(prev, e, true); err != nil {
+					b.err = err
+				}
 			}
 			prev = e
 		}
@@ -592,10 +553,17 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	var images []BoardAIImage
 	var mask *BoardAIImage
 	annotated := false
+	// A linked prompt slot replaces the node's instruction, as a widget
+	// input does in ComfyUI.
+	instruction, group := n.Instruction, ""
 	addText := func(label, text string) {
+		hashes = append(hashes, "t:"+group+"\x00"+label+"\x00"+text)
+		if group == "prompt" {
+			instruction = text
+			return
+		}
 		texts = append(texts, text)
 		labels = append(labels, label)
-		hashes = append(hashes, "t:"+label+"\x00"+text)
 	}
 	addImage := func(label string, data []byte, isMask bool) error {
 		mime, err := sniffImage(data)
@@ -603,7 +571,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			return err
 		}
 		img := BoardAIImage{Label: label, Data: data, MIME: mime}
-		hashes = append(hashes, "i:"+label+"\x00"+digest(data))
+		hashes = append(hashes, "i:"+group+"\x00"+label+"\x00"+digest(data))
 		if isMask {
 			mask = &img
 		} else {
@@ -612,9 +580,10 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		return nil
 	}
 	for _, in := range snap.AIInputs(id) {
+		group = in.Group
 		switch in.Kind {
 		case "text":
-			addText(in.Label, in.Text)
+			addText("", in.Text)
 		case "note":
 			if runner.Note == nil {
 				return nil, errors.New(i18n.T("无法读取笔记"))
@@ -623,13 +592,13 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			if err != nil {
 				return nil, fmt.Errorf(i18n.T("无法读取笔记 [[%s]]：%v"), in.Note, err)
 			}
-			addText(cmpOr(in.Label, in.Note), text)
+			addText(in.Note, text)
 		case "image":
 			data, err := boardFileBytes(snap.Files[in.FileID], o)
 			if err != nil {
 				return nil, err
 			}
-			if err := addImage(in.Label, data, in.Mask); err != nil {
+			if err := addImage("", data, in.Mask); err != nil {
 				return nil, err
 			}
 		case "frame":
@@ -637,7 +606,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			if err != nil {
 				return nil, err
 			}
-			if err := addImage(in.Label, data, false); err != nil {
+			if err := addImage("", data, false); err != nil {
 				return nil, err
 			}
 			annotated = true
@@ -647,11 +616,11 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		case "node":
 			if r := upstream(in.From); r != nil {
 				if r.text != "" {
-					addText(in.Label, r.text)
+					addText("", r.text)
 				}
 				for _, m := range r.media {
 					if strings.HasPrefix(m.Output.MIME, "image/") {
-						if err := addImage(in.Label, m.Data, in.Mask); err != nil {
+						if err := addImage("", m.Data, in.Mask); err != nil {
 							return nil, err
 						}
 					}
@@ -663,7 +632,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 				if strings.TrimSpace(up.Instruction) == "" {
 					return nil, errors.New(i18n.T("上游文字节点内容为空"))
 				}
-				addText(in.Label, up.Instruction)
+				addText("", up.Instruction)
 				continue
 			}
 			out := up.Output()
@@ -672,7 +641,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			}
 			switch out.Kind {
 			case "text":
-				addText(in.Label, out.Text)
+				addText("", out.Text)
 			case "image":
 				if o.AI.ReadFile == nil {
 					return nil, errors.New(i18n.T("无法读取上游图片"))
@@ -681,7 +650,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 				if err != nil {
 					return nil, err
 				}
-				if err := addImage(in.Label, data, in.Mask); err != nil {
+				if err := addImage("", data, in.Mask); err != nil {
 					return nil, err
 				}
 			}
@@ -700,6 +669,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		return res, nil
 	}
 	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask}
+	job.Node.Instruction = instruction
 	switch n.Role {
 	case whiteboard.AIPrompt:
 		res.text = n.Instruction
@@ -722,7 +692,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			return nil, errors.New(i18n.T("请先为节点选择模型"))
 		}
 		var sb strings.Builder
-		sb.WriteString(cmpOr(strings.TrimSpace(n.Instruction), i18n.T("根据输入内容完成任务。")))
+		sb.WriteString(cmpOr(strings.TrimSpace(instruction), i18n.T("根据输入内容完成任务。")))
 		for i, t := range texts {
 			fmt.Fprintf(&sb, "\n\n### %s %d", i18n.T("输入"), i+1)
 			if labels[i] != "" {
@@ -742,7 +712,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		return nil, errors.New(i18n.T("请先为节点选择模型"))
 	}
 	var parts []string
-	if s := strings.TrimSpace(n.Instruction); s != "" {
+	if s := strings.TrimSpace(instruction); s != "" {
 		parts = append(parts, s)
 	}
 	for i, t := range texts {
@@ -855,7 +825,7 @@ func (b *Board) writeAIText(node *whiteboard.Element, n *whiteboard.AINode, text
 	}
 }
 
-// placeAIText adds a sticky note with the text beside the node, connected.
+// placeAIText adds a sticky note with the text beside the node.
 func (b *Board) placeAIText(node *whiteboard.Element, text string) *whiteboard.Element {
 	note := whiteboard.NewElement(whiteboard.KindNote, node.X+node.W+100, node.Y, 260, 220)
 	label := b.newElement(whiteboard.KindText, whiteboard.Point{note.X, note.Y}, 0, 0)
@@ -863,13 +833,12 @@ func (b *Board) placeAIText(node *whiteboard.Element, text string) *whiteboard.E
 	label.Text, label.OriginalText = text, text
 	b.Scene.Elements = append(b.Scene.Elements, note, label)
 	b.err = b.Scene.BindText(label.ID, note.ID, boardMeasure)
-	b.connectAI(node, note)
 	return note
 }
 
-// placeAIOutput puts a node's current result on the board as an ordinary
-// element connected to the node: a picture embedded in the scene, so the
-// board stays portable, or a sticky note of text.
+// placeAIOutput puts a node's current result beside the node as an
+// ordinary element: a picture embedded in the scene, so the board stays
+// portable, or a sticky note of text.
 func (b *Board) placeAIOutput(id string, o BoardOptions) {
 	node := b.Scene.ElementByID(id)
 	n := b.aiNode(node)
@@ -894,11 +863,12 @@ func (b *Board) placeAIOutput(id string, o BoardOptions) {
 		b.err = err
 		return
 	}
-	ids := b.SelectedIDs()
-	if len(ids) == 1 {
-		img := b.Scene.ElementByID(ids[0])
-		img.X = node.X + node.W + 100
-		b.edit(o, func() { b.connectAI(node, img) })
+	if ids := b.SelectedIDs(); len(ids) == 1 {
+		b.edit(o, func() {
+			img := b.Scene.ElementByID(ids[0])
+			img.X = node.X + node.W + 100
+			whiteboard.Touch(img)
+		})
 	}
 }
 
@@ -1015,18 +985,39 @@ func (b *Board) Edit(o BoardOptions, fn func()) { b.edit(o, fn) }
 // BoardMeasure measures whiteboard text with the board's fonts.
 func BoardMeasure(text string, font whiteboard.Font) float64 { return boardMeasure(text, font) }
 
-// Connect draws a bound arrow from one element to another, with an
-// optional label, as one undoable change.
+// Connect links an element into an AI node as one undoable change: into
+// the slot the label names ("prompt", "mask", or a slot's name or label),
+// else as material into the first free slot of its type that is not the
+// instruction's. Between other elements it draws a
+// bound arrow, a drawing on the board.
 func (b *Board) Connect(o BoardOptions, fromID, toID, label string) error {
 	from, to := b.Scene.ElementByID(fromID), b.Scene.ElementByID(toID)
 	if from == nil || to == nil || from.IsDeleted || to.IsDeleted || from.ID == to.ID || !from.IsBindable() || !to.IsBindable() {
 		return errors.New("both ends must be existing shapes, notes, pictures, frames or nodes")
 	}
 	var err error
+	if n := b.aiNode(to); n != nil {
+		b.edit(o, func() {
+			for _, sl := range whiteboard.AISlots(n) {
+				named := strings.EqualFold(label, sl.Group) || label == sl.Name || label == sl.Label || label == i18n.T(sl.Label)
+				if label != "" && named && whiteboard.AIValidConnection(b.Scene.AISourceType(from), sl.Type) && !b.Scene.AICreatesCycle(from.ID, to.ID) {
+					b.setAILink(to.ID, sl.Name, from.ID)
+					return
+				}
+			}
+			err = b.connectAI(from, to, true)
+		})
+		return err
+	}
 	b.edit(o, func() {
-		b.connectAI(from, to)
+		fb, tb := whiteboard.ElementBounds(from), whiteboard.ElementBounds(to)
+		start, end := whiteboard.Point{fb.X + fb.W, fb.Y + fb.H/2}, whiteboard.Point{tb.X, tb.Y + tb.H/2}
+		a := whiteboard.NewElement(whiteboard.KindArrow, start[0], start[1], math.Abs(end[0]-start[0]), math.Abs(end[1]-start[1]))
+		a.Points = []whiteboard.Point{{0, 0}, whiteboard.Sub(end, start)}
+		b.Scene.Elements = append(b.Scene.Elements, a)
+		b.Scene.Bind(a.ID, false, from.ID, start)
+		b.Scene.Bind(a.ID, true, to.ID, end)
 		if label != "" {
-			a := b.Scene.Elements[len(b.Scene.Elements)-1]
 			t := b.newElement(whiteboard.KindText, whiteboard.Point{a.X, a.Y}, 0, 0)
 			t.Text, t.OriginalText = label, label
 			b.Scene.Elements = append(b.Scene.Elements, t)

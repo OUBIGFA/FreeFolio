@@ -89,7 +89,7 @@ func TestOneBotEditsTheOpenWhiteboardWithTools(t *testing.T) {
 		},
 		call("board_read", `{}`),
 		func(req agent.Request) agent.Message {
-			if !strings.Contains(req.Messages[len(req.Messages)-1].Text, "connection ") || !strings.Contains(req.System, "whiteboard") {
+			if !strings.Contains(req.Messages[len(req.Messages)-1].Text, "slot text.0") || !strings.Contains(req.System, "whiteboard") {
 				t.Errorf("listing: %q", req.Messages[len(req.Messages)-1].Text)
 			}
 			return agent.Message{Role: agent.Assistant, Text: "已添加。"}

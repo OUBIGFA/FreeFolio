@@ -117,6 +117,9 @@ type Board struct {
 	cropValues                                 [4]string
 	cropper                                    *Editor
 	ai                                         boardAIState
+	// aiPainting is set while the interactive view paints, where node
+	// cards get live widgets; exports draw the widgets' values instead.
+	aiPainting bool
 }
 
 func NewBoard(s *whiteboard.Scene) *Board {

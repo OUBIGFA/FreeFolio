@@ -298,6 +298,47 @@
           "destination": "internal/solar/icons_gen.go"
         }
       ]
+    },
+    {
+      "name": "LiteGraph",
+      "purpose": "ComfyUI's graph core: slot type matching, free-slot search, single-link inputs, widget inputs, spline links and link drag/drop rules, ported to Go for the whiteboard's AI node graph",
+      "sourceUrl": "https://github.com/Comfy-Org/litegraph.js",
+      "revision": "ea0e1a85c612454540152aa56b0d1e104738e6dc",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/litegraph/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/litegraph/LICENSE",
+          "bytes": 1058,
+          "sha256": "8bc224b3d4a8e3a7729f57bc7f4eb35f3946d6b476edbf9e725c551dd7f6d72b"
+        }
+      ],
+      "adaptedFiles": [
+        {
+          "path": "src/LiteGraphGlobal.ts",
+          "sha256": "df686b3c17de1d3b83bcb801a2c4832ca8e1a8fff8998953ccac82f6cb435223"
+        },
+        {
+          "path": "src/utils/collections.ts",
+          "sha256": "604d97d32785c8bd74d6b0f72280e9a5e39328f8a926645b5844d08f79ee2f62"
+        },
+        {
+          "path": "src/LGraphNode.ts",
+          "sha256": "a09f1e012ee50d4530ec295f8bac9382d4e973e36f81e075edac78eb5a4cd609"
+        },
+        {
+          "path": "src/LGraphCanvas.ts",
+          "sha256": "4be3a8035f9dc276a94c90f944ea1bcac4dfdeaf9966c2168cc39737a94f1685"
+        },
+        {
+          "path": "src/canvas/LinkConnector.ts",
+          "sha256": "dfa4dbf6359d5db40bd7a276e71b564c870af43b5eecfa684f3536b7a941b663"
+        },
+        {
+          "path": "src/canvas/MovingInputLink.ts",
+          "sha256": "6209d57ce81452dcad52250d75100084ed815b05436f5e9037038fda3b0e3f22"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [

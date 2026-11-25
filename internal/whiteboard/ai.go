@@ -10,12 +10,12 @@ import (
 	"time"
 )
 
-// AI workflow nodes live on ordinary Excalidraw rectangles. Their settings
-// and results are kept in customData under AINamespace, so other Excalidraw
-// readers open the file unchanged and other namespaces survive. Arrows are
-// the data lines: an arrow whose end is bound to a node feeds it whatever
-// its start is bound to. Transient run state (queued, streaming text) is
-// never stored here.
+// AI workflow nodes live on ordinary Excalidraw rectangles. Their settings,
+// input links and results are kept in customData under AINamespace, so
+// other Excalidraw readers open the file unchanged and other namespaces
+// survive. Links are not board elements: the board's arrows and lines stay
+// drawings (see aigraph.go). Transient run state (queued, streaming text)
+// is never stored here.
 const AINamespace = "freefolioAI"
 
 // AIRole is what a node does.
@@ -84,6 +84,7 @@ type AINode struct {
 	Instruction string     `json:"instruction,omitempty"`
 	Note        string     `json:"note,omitempty"`
 	Params      AIParams   `json:"params,omitzero"`
+	Links       []AILink   `json:"links,omitempty"`
 	Outputs     []AIOutput `json:"outputs,omitempty"`
 	Current     int        `json:"current,omitempty"`
 	InputHash   string     `json:"inputHash,omitempty"`
@@ -190,21 +191,22 @@ func SetAINode(e *Element, n *AINode) error {
 	return nil
 }
 
-// AINodeSize is a new node's card size by role.
+// AINodeSize is a new node's card size by role. The editor grows a card
+// that needs more room for its slots.
 func AINodeSize(role AIRole) (float64, float64) {
 	switch role {
 	case AIPrompt:
-		return 300, 200
+		return 300, 220
 	case AIImage:
-		return 320, 400
+		return 360, 480
 	case AIVideo:
-		return 360, 380
+		return 360, 440
 	case AIText:
-		return 320, 320
+		return 340, 420
 	case AIConcat:
-		return 300, 240
+		return 300, 260
 	}
-	return 280, 180
+	return 280, 190
 }
 
 // NewAINode makes a node card at a scene point (its top left).
@@ -224,18 +226,19 @@ func NewAINode(role AIRole, x, y float64) *Element {
 	return e
 }
 
-// AIInput is one thing an arrow feeds into a node, in the arrows' order.
+// AIInput is what one linked slot feeds into a node, in slot order.
 type AIInput struct {
-	From  string
-	Label string
+	From string
+	// Slot is the input's slot name; Group is its slot group: "prompt"
+	// replaces the node's instruction, "mask" is an edit's mask.
+	Slot, Group string
 	// Kind is "text", "image", "frame" (a region to picture), "node" (an
 	// upstream node's current output) or "note" (a [[document]] to read).
 	Kind   string
 	Text   string
 	FileID string
 	Note   string
-	// Mask marks a picture to use as an edit's mask, by the arrow's label.
-	Mask bool
+	Mask   bool
 }
 
 // ElementText is the text an element shows: its own or its bound label's.
@@ -266,21 +269,20 @@ func WikiTarget(link string) string {
 	return ""
 }
 
-// AIInputs are the inputs of a node, by the scene order of their arrows.
+// AIInputs are the inputs of a node, by its slots' order. Links to
+// elements that are gone and text sources without text are left out.
 func (s *Scene) AIInputs(id string) []AIInput {
+	n := AINodeOf(s.ElementByID(id))
+	if n == nil {
+		return nil
+	}
 	var out []AIInput
-	for _, a := range s.Elements {
-		if a.IsDeleted || a.Kind != KindArrow || a.EndBinding == nil || a.StartBinding == nil || a.EndBinding.ElementID != id {
+	for _, sl := range AISlots(n) {
+		from := s.AILinkSource(n, sl.Name)
+		if from == nil || from.ID == id {
 			continue
 		}
-		from := s.ElementByID(a.StartBinding.ElementID)
-		if from == nil || from.IsDeleted || from.ID == id {
-			continue
-		}
-		label := strings.TrimSpace(s.ElementText(s.ElementByID(a.BoundTextID())))
-		in := AIInput{From: from.ID, Label: label}
-		lower := strings.ToLower(label)
-		in.Mask = lower == "mask" || label == "遮罩" || label == "蒙版"
+		in := AIInput{From: from.ID, Slot: sl.Name, Group: sl.Group, Mask: sl.Group == "mask"}
 		switch {
 		case IsAINode(from):
 			in.Kind = "node"
@@ -290,13 +292,8 @@ func (s *Scene) AIInputs(id string) []AIInput {
 			in.Kind, in.Text = "frame", s.frameText(from.ID)
 		default:
 			in.Kind, in.Text = "text", s.ElementText(from)
-		}
-		if note := WikiTarget(from.Link); note != "" && in.Kind != "node" {
-			if in.Kind == "text" && strings.TrimSpace(in.Text) == "" {
+			if note := WikiTarget(from.Link); note != "" && strings.TrimSpace(in.Text) == "" {
 				in.Kind, in.Note = "note", note
-			} else {
-				out = append(out, in)
-				in = AIInput{From: from.ID, Label: label, Kind: "note", Note: note}
 			}
 		}
 		if in.Kind == "text" && strings.TrimSpace(in.Text) == "" {
@@ -353,9 +350,10 @@ func (s *Scene) AIDependencies() map[string][]string {
 			continue
 		}
 		deps[e.ID] = nil
-		for _, in := range s.AIInputs(e.ID) {
-			if in.Kind == "node" && !slices.Contains(deps[e.ID], in.From) {
-				deps[e.ID] = append(deps[e.ID], in.From)
+		n := AINodeOf(e)
+		for _, sl := range AISlots(n) {
+			if from := s.AILinkSource(n, sl.Name); IsAINode(from) && !slices.Contains(deps[e.ID], from.ID) {
+				deps[e.ID] = append(deps[e.ID], from.ID)
 			}
 		}
 	}

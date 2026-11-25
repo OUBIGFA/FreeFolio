@@ -83,7 +83,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			}
 			b.aiBar(c, o)
 			b.aiSelectionBar(c, o)
-			b.aiPicker(c, o)
+			b.aiPickerMenu(c, o)
 		}
 		b.aiNodeOverlay(c, o)
 		b.aiProperties(c, o)

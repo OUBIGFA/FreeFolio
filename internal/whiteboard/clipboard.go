@@ -117,6 +117,7 @@ func (s *Scene) Paste(text string, at Point) ([]string, error) {
 		if id := fileIDs[e.FileID]; id != "" {
 			e.FileID = id
 		}
+		remapAILinks(e, ids)
 		out = append(out, e.ID)
 	}
 	if s.Files == nil {

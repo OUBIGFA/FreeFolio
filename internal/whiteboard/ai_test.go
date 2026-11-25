@@ -40,7 +40,7 @@ func textCard(s *Scene, text string) *Element {
 func TestAINodeRoundTripKeepsOtherCustomData(t *testing.T) {
 	e := NewAINode(AIImage, 10, 20)
 	n := AINodeOf(e)
-	if n == nil || n.Role != AIImage || e.W != 320 {
+	if n == nil || n.Role != AIImage || e.W != 360 {
 		t.Fatalf("%+v", n)
 	}
 	e.CustomData = json.RawMessage(`{"other":{"keep":true},"freefolioAI":{"v":1,"role":"text"}}`)
@@ -80,49 +80,12 @@ func TestAINodeRoundTripKeepsOtherCustomData(t *testing.T) {
 	}
 }
 
-func TestAIInputsFollowArrowsAndLabels(t *testing.T) {
-	s := NewScene()
-	style := textCard(s, "赛博朋克风格")
-	img := NewElement(KindImage, 0, 0, 50, 50)
-	img.FileID = "f1"
-	frame := NewElement(KindFrame, 0, 0, 300, 300)
-	note := NewElement(KindNote, 10, 10, 50, 50)
-	note.FrameID = frame.ID
-	noteText := NewElement(KindText, 10, 10, 0, 0)
-	noteText.Text, noteText.OriginalText = "换成陶瓷", "换成陶瓷"
-	linked := NewElement(KindEllipse, 0, 0, 40, 40)
-	linked.Link = "[[产品说明|说明]]"
-	up := NewAINode(AIText, 0, 0)
-	node := NewAINode(AIImage, 400, 0)
-	s.Elements = append(s.Elements, img, frame, note, noteText, linked, up, node)
-	_ = s.BindText(noteText.ID, note.ID, nil)
-	connect(t, s, style, node, "风格")
-	connect(t, s, img, node, "遮罩")
-	connect(t, s, frame, node, "")
-	connect(t, s, linked, node, "")
-	connect(t, s, up, node, "")
-	ins := s.AIInputs(node.ID)
-	kinds := []string{}
-	for _, in := range ins {
-		kinds = append(kinds, in.Kind)
-	}
-	if !slices.Equal(kinds, []string{"text", "image", "frame", "note", "node"}) {
-		t.Fatalf("%v %+v", kinds, ins)
-	}
-	if ins[0].Label != "风格" || ins[0].Text != "赛博朋克风格" || !ins[1].Mask || ins[1].FileID != "f1" || ins[2].Text != "换成陶瓷" || ins[3].Note != "产品说明" {
-		t.Fatalf("%+v", ins)
-	}
-	if deps := s.AIDependencies(); !slices.Equal(deps[node.ID], []string{up.ID}) {
-		t.Fatalf("%v", deps)
-	}
-}
-
 func TestAIPlanOrdersAndDetectsCycles(t *testing.T) {
 	s := NewScene()
 	a, b, c, d := NewAINode(AIText, 0, 0), NewAINode(AIText, 0, 0), NewAINode(AIImage, 0, 0), NewAINode(AIText, 0, 0)
 	s.Elements = append(s.Elements, c, b, a, d)
-	connect(t, s, a, b, "")
-	connect(t, s, b, c, "")
+	link(t, s, a, b, "")
+	link(t, s, b, c, "")
 	order, deps, err := s.AIPlan(nil, false)
 	if err != nil || len(order) != 4 || slices.Index(order, a.ID) > slices.Index(order, b.ID) || slices.Index(order, b.ID) > slices.Index(order, c.ID) || !slices.Equal(deps[c.ID], []string{b.ID}) {
 		t.Fatalf("%v %v %v", order, deps, err)
@@ -135,7 +98,7 @@ func TestAIPlanOrdersAndDetectsCycles(t *testing.T) {
 	if !slices.Equal(order, []string{c.ID}) || len(deps[c.ID]) != 0 {
 		t.Fatalf("single %v %v", order, deps)
 	}
-	connect(t, s, c, a, "")
+	link(t, s, c, a, "")
 	if _, _, err := s.AIPlan(nil, false); !errors.Is(err, ErrAICycle) {
 		t.Fatal(err)
 	}

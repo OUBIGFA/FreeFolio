@@ -52,15 +52,15 @@ func TestWhiteboardAISnapshot(t *testing.T) {
 			d := a.doc
 			b := d.board
 			o := a.boardOptionsWith(nil, d)
-			src := whiteboard.NewElement(whiteboard.KindNote, 80, 160, 220, 160)
-			label := whiteboard.NewElement(whiteboard.KindText, 80, 160, 0, 0)
+			src := whiteboard.NewElement(whiteboard.KindNote, 60, 280, 220, 160)
+			label := whiteboard.NewElement(whiteboard.KindText, 60, 280, 0, 0)
 			label.Text, label.OriginalText = "黄昏的咖啡馆", "黄昏的咖啡馆"
 			b.Edit(o, func() {
 				b.Scene.Elements = append(b.Scene.Elements, src, label)
 				_ = b.Scene.BindText(label.ID, src.ID, editor.BoardMeasure)
 			})
-			text := b.AddAINode(whiteboard.AIText, whiteboard.Point{560, 240}, o)
-			img := b.AddAINode(whiteboard.AIImage, whiteboard.Point{1000, 260}, o)
+			text := b.AddAINode(whiteboard.AIText, whiteboard.Point{500, 380}, o)
+			img := b.AddAINode(whiteboard.AIImage, whiteboard.Point{900, 400}, o)
 			_ = b.Connect(o, src.ID, text, "")
 			_ = b.Connect(o, text, img, "")
 			b.Edit(o, func() {
