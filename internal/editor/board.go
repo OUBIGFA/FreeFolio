@@ -14,6 +14,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
@@ -92,6 +93,9 @@ type Board struct {
 	selectionBox                               whiteboard.Box
 	lasso                                      []whiteboard.Point
 	spaceDown                                  bool
+	gestureCursor                              ui.Cursor
+	gestureChanged                             bool
+	gestureUntil                               time.Time
 	hover                                      whiteboard.Point
 	editing                                    *boardTextSession
 	textFocus                                  bool
@@ -258,6 +262,13 @@ func (b *Board) fit(selection bool) {
 	b.fitted = true
 }
 func (b *Board) zoomAt(x, y float32, factor float64) {
+	if factor != 1 {
+		b.gestureCursor = ui.CursorZoomIn
+		if factor < 1 {
+			b.gestureCursor = ui.CursorZoomOut
+		}
+		b.gestureChanged = true
+	}
 	p := b.scenePoint(x, y)
 	b.Zoom = math.Max(.05, math.Min(30, b.Zoom*factor))
 	b.PanX = float64(x) - p[0]*b.Zoom

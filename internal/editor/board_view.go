@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
@@ -63,14 +64,29 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			}
 		}
 		canvas.ContextMenu(func(m *ui.Menu) { b.contextMenu(m, o) })
-		cursor := ui.CursorCrosshair
-		if b.Tool == ToolSelect {
-			cursor = ui.CursorDefault
-		} else if b.Tool == ToolHand || b.spaceDown {
-			cursor = ui.CursorGrab
+		// Scroll and pinch events have no release event. Keep their feedback
+		// briefly between events, then restore the tool cursor without a move.
+		now := c.Now()
+		if b.gestureChanged {
+			b.gestureUntil = now.Add(180 * time.Millisecond)
+			b.gestureChanged = false
 		}
-		if b.aiPortCursor() {
+		gesture := b.gestureCursor != ui.CursorDefault && now.Before(b.gestureUntil)
+		if gesture {
+			c.After(b.gestureUntil.Sub(now))
+		}
+		cursor := ui.CursorCrosshair
+		switch {
+		case b.mode == "pan":
+			cursor = ui.CursorGrabbing
+		case b.mode == "" && gesture:
+			cursor = b.gestureCursor
+		case b.Tool == ToolHand || b.spaceDown:
+			cursor = ui.CursorGrab
+		case b.aiPortCursor():
 			cursor = ui.CursorCrosshair
+		case b.Tool == ToolSelect:
+			cursor = ui.CursorDefault
 		}
 		canvas.Cursor(cursor)
 		canvas.Draw(func(p *ui.Painter, r ui.Rect) { b.lastRect = r; b.paint(p, r, o.Theme.Dark, true) })

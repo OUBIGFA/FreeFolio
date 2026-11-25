@@ -454,12 +454,14 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 	}
 	over := live && a.dropZone(h, "")
 	lit := live && h.Hovered()
+	// Only a header with pins offers a disclosure action; its menu remains
+	// available on hover even when there is nothing to fold.
 	switch {
 	case over:
 		h.Background(t.Accent.Alpha(0.16))
-	case lit && t.Dark:
+	case lit && hasPins && t.Dark:
 		h.Background(white.Alpha(0.1))
-	case lit:
+	case lit && hasPins:
 		h.Background(hoverFill(t))
 	}
 	ink := t.Text

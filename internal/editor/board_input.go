@@ -64,6 +64,10 @@ func (b *Board) input(ev ui.InputEvent, o BoardOptions) bool {
 		} else {
 			b.PanX -= float64(ev.DX)
 			b.PanY -= float64(ev.DY)
+			if ev.DX != 0 || ev.DY != 0 {
+				b.gestureCursor = ui.CursorGrabbing
+				b.gestureChanged = true
+			}
 		}
 		b.fitted = true
 		return true
@@ -341,6 +345,8 @@ func (b *Board) penSelection() {
 }
 
 func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
+	b.gestureCursor = ui.CursorDefault
+	b.gestureChanged = false
 	p := b.scenePoint(ev.X, ev.Y)
 	if b.multiLine {
 		if e := b.Scene.ElementByID(b.creating); e != nil {

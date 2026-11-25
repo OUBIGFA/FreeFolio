@@ -11,6 +11,38 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestSpaceHeaderHoverRequiresPins(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%v", dark), func(t *testing.T) {
+			a, tt := newTestApp(t)
+			tt.SetDark(dark)
+			tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+			sp := a.state.ActiveSpace()
+			sp.Pinned = nil
+			for _, pinned := range []bool{false, true} {
+				if pinned {
+					a.togglePin(sp, "Welcome.md")
+				}
+				tt.Move(400, 400)
+				settle(tt)
+				r, ok := tt.Find("空间标题")
+				if !ok {
+					t.Fatal("space header missing")
+				}
+				// Sample the header's blank padding, away from text and menu icons.
+				x, y := int(r.X+r.W/2), int(r.Y+3)
+				before := tt.Image().RGBAAt(x, y)
+				tt.Move(r.X+r.W/2, r.Y+r.H/2)
+				settle(tt)
+				after := tt.Image().RGBAAt(x, y)
+				if changed := before != after; changed != pinned {
+					t.Fatalf("pinned=%v header hover changed=%v", pinned, changed)
+				}
+			}
+		})
+	}
+}
+
 func TestSidebarDoubleClickDoesNotRename(t *testing.T) {
 	for _, name := range []string{"Journal", "Ideas"} {
 		t.Run(name, func(t *testing.T) {

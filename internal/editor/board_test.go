@@ -5,10 +5,87 @@ import (
 	"image"
 	"image/png"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestBoardPanCursors(t *testing.T) {
+	for _, mode := range []string{"hand", "space", "middle"} {
+		t.Run(mode, func(t *testing.T) {
+			b := NewBoard(nil)
+			tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 960, 640)
+			b.RequestFocus = true
+			tt.Frame()
+			tt.Move(500, 350)
+			button, resting := 0, ui.CursorGrab
+			switch mode {
+			case "hand":
+				tt.Key(0, ui.KeyH)
+			case "space":
+				tt.KeyDown(ui.KeySpace)
+			case "middle":
+				button, resting = 2, ui.CursorDefault
+			}
+			if got := tt.Cursor(); got != resting {
+				t.Fatalf("ready cursor = %v, want %v", got, resting)
+			}
+			tt.PressButton(button, 500, 350)
+			tt.Move(540, 380)
+			if got := tt.Cursor(); got != ui.CursorGrabbing || b.PanX != 40 || b.PanY != 30 {
+				t.Fatalf("pan cursor=%v offset=%v,%v", got, b.PanX, b.PanY)
+			}
+			tt.ReleaseButton(button, 540, 380)
+			if got := tt.Cursor(); got != resting {
+				t.Fatalf("released cursor = %v, want %v", got, resting)
+			}
+			if mode == "space" {
+				tt.KeyUp(ui.KeySpace)
+				if tt.Cursor() != ui.CursorDefault {
+					t.Fatal("space release kept the hand cursor")
+				}
+			}
+		})
+	}
+}
+
+func TestBoardScrollAndZoomCursors(t *testing.T) {
+	b := NewBoard(nil)
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 960, 640)
+	b.RequestFocus = true
+	tt.Frame()
+	tt.Move(500, 350)
+	// Tester.Scroll sends unmodified events; deliver the modified wheel event
+	// to the same input handler and let the real view resolve its cursor.
+	wheel := func(dy float32) {
+		b.input(ui.InputEvent{Kind: ui.InputScroll, X: 500, Y: 350, DY: dy, Mods: ui.Ctrl}, BoardOptions{})
+		tt.Frame()
+	}
+	for _, step := range []struct {
+		name   string
+		act    func()
+		cursor ui.Cursor
+	}{
+		{"scroll pan", func() { tt.Scroll(500, 350, 20, 30) }, ui.CursorGrabbing},
+		{"wheel zoom in", func() { wheel(-30) }, ui.CursorZoomIn},
+		{"wheel zoom out", func() { wheel(30) }, ui.CursorZoomOut},
+		{"pinch in", func() { tt.Pinch(500, 350, 1.2) }, ui.CursorZoomIn},
+		{"pinch out", func() { tt.Pinch(500, 350, .8) }, ui.CursorZoomOut},
+		{"keyboard zoom", func() { tt.Key(ui.Cmd, ui.KeyEqual) }, ui.CursorZoomIn},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			step.act()
+			if got := tt.Cursor(); got != step.cursor {
+				t.Fatalf("cursor = %v, want %v", got, step.cursor)
+			}
+			tt.Advance(time.Second)
+			if got := tt.Cursor(); got != ui.CursorDefault {
+				t.Fatalf("idle cursor = %v", got)
+			}
+		})
+	}
+}
 
 func TestBoardNativeDrawUndoAndTextComposition(t *testing.T) {
 	b := NewBoard(whiteboard.NewScene())
