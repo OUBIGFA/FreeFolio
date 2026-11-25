@@ -8,7 +8,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/richardlehane/msoleps v1.0.3 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 )
@@ -23,6 +22,7 @@ require (
 	github.com/pdfcpu/pdfcpu v0.16.4
 	github.com/richardlehane/mscfb v1.0.10
 	github.com/tetratelabs/wazero v1.12.0
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.49.0

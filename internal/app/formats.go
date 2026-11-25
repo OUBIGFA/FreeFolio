@@ -253,6 +253,7 @@ func (a *App) formatCorner(c *ui.Context, d *document) {
 				ui.Text(c, label).FontSize(12.5).TextColor(t.TextMuted).NoWrap()
 			})
 		}
+		a.sourceToolsButton(c, d)
 		if d.converted && iconButton(c, "format-copy", iconFileImport, i18n.T("存为 Markdown 副本"), i18n.T("存为可编辑的 Markdown 副本"), d.boardLoading).Clicked() {
 			a.saveEditableCopy(d)
 		}

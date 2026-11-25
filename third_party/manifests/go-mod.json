@@ -1,5 +1,5 @@
 {
-  "goModSha256": "9ed13b23c4bb70f5368cbfe629c3a7d7970acd171b15dc9599eacf9621972971",
+  "goModSha256": "c122e1808837e746fd753494f61bb7a98c9627ffbe63d583454d6f3faa6df622",
   "goSumSha256": "69dfbbe86809428aaa5becb0a51527cd9746ce2a4e03636e690bf1534b302b7b",
   "modules": [
     {
@@ -175,7 +175,7 @@
     {
       "module": "go.yaml.in/yaml/v3",
       "version": "v3.0.5",
-      "relation": "indirect",
+      "relation": "direct",
       "sourceUrl": "https://go.yaml.in/yaml/v3",
       "archiveHash": "h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=",
       "goModHash": "h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=",
