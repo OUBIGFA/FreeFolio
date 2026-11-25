@@ -266,7 +266,6 @@ func folderRow(c *ui.Context, key, label, dir string) {
 }
 
 func (a *App) settingsGeneral(c *ui.Context) {
-	defer a.settingsQuickNote(c)
 	t := c.Theme()
 	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹"))
 	settingsSection(c, i18n.T("位置"))
@@ -299,6 +298,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 			}
 		})
 	})
+	a.settingsQuickNote(c)
 }
 
 func (a *App) settingsWriting(c *ui.Context) {
@@ -456,9 +456,9 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			})
 		}
 		for _, forUI := range []bool{true, false} {
-			label, value := i18n.T("正文字体"), a.prefs.BodyFont
+			label, note, value := i18n.T("正文字体"), i18n.T("用于文档编辑与阅读排版"), a.prefs.BodyFont
 			if forUI {
-				label, value = i18n.T("界面字体"), a.prefs.InterfaceFont
+				label, note, value = i18n.T("界面字体"), i18n.T("用于侧边栏、菜单与设置界面"), a.prefs.InterfaceFont
 			}
 			if value == "" {
 				value = i18n.T("跟随系统字体")
@@ -466,7 +466,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 					value = a.prefs.Font
 				}
 			}
-			settingRow(c, label, label, "", func() {
+			settingRow(c, label, label, note, func() {
 				if ui.Button(c.Key("choose-font"), value).MaxWidth(300).Clicked() {
 					a.openFontPicker(forUI)
 				}
@@ -670,34 +670,28 @@ func (a *App) settingsSpaces(c *ui.Context) {
 			a.newSpaceForm()
 		}
 	})
+	active := a.state.ActiveSpace()
 	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(12).Children(func() {
-		ui.Row(c.Key("space-tools")).Gap(8).Children(func() {
-			if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记")).Clicked() {
-				a.openImportGuide()
-			}
-			if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件")).Clicked() {
-				a.scanUnusedAssets()
-			}
-		})
-		settingsGroup(c, "space-defaults", func() {
-			starter := !a.prefs.NoSpaceStarter
-			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换"), &starter, nil)
-			if starter == a.prefs.NoSpaceStarter {
-				a.prefs.NoSpaceStarter = !starter
-				a.savePrefs()
-			}
-		})
+		settingsSection(c, i18n.T("我的空间"))
 		settingsGroup(c, "spaces", func() {
 			for i, s := range a.state.Spaces {
 				if i > 0 {
 					settingsSeparator(c)
 				}
+				accent := spaceAccent(space.ThemeOf(s).Colors[0], t.Dark)
 				ui.Row(c.Key("space-row-"+s.ID)).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().Background(spaceAccent(space.ThemeOf(s).Colors[0], t.Dark).Alpha(0.12)).Children(func() {
-						a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, spaceAccent(space.ThemeOf(s).Colors[0], t.Dark))
+					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().Background(accent.Alpha(0.12)).Children(func() {
+						a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, accent)
 					})
 					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
-						ui.Text(c, s.Name).FontSize(13).FontWeight(500).SingleLine()
+						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, s.Name).FontSize(13).FontWeight(500).SingleLine()
+							if active != nil && active.ID == s.ID {
+								ui.Row(c).Padding(1, 6).Radius(4).Background(accent.Alpha(0.12)).AlignItems(ui.Center).Shrink(0).Children(func() {
+									ui.Text(c, i18n.T("当前")).FontSize(10.5).FontWeight(600).TextColor(accent).SingleLine()
+								})
+							}
+						})
 						if s.IsExternal() {
 							ui.Text(c, i18n.T("内置空间 · 文件保留在原位置")).FontSize(12).TextColor(t.TextMuted).SingleLine()
 						} else {
@@ -716,6 +710,47 @@ func (a *App) settingsSpaces(c *ui.Context) {
 						a.removeSpace(s.ID)
 					}
 				})
+			}
+		})
+		settingsSection(c, i18n.T("空间工具"))
+		settingsGroup(c, "space-tools", func() {
+			ui.Row(c.Key("space-tool-import")).Padding(settingsRowInset(c), 16).Gap(12).AlignItems(ui.Center).MinHeight(52).Children(func() {
+				ui.Box(c).Size(32, 32).Radius(8).Shrink(0).Center().Background(t.Accent.Alpha(0.10)).Children(func() {
+					ui.Icon(c, iconFileImport).FontSize(15).TextColor(t.Accent)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+					ui.Text(c, i18n.T("导入已有笔记")).FontSize(13).FontWeight(500)
+					ui.Text(c, i18n.T("从 Obsidian、Logseq、Typora、iA Writer 或思源复制导入，原文件不变")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
+				})
+				if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记")).Shrink(0).Clicked() {
+					a.openImportGuide()
+				}
+			})
+			settingsSeparator(c)
+			cleanupNote := i18n.T("扫描当前空间的未引用附件，备份后移到系统回收站")
+			if active == nil || active.IsExternal() {
+				cleanupNote = i18n.T("切换到普通空间后可检查未引用附件")
+			}
+			ui.Row(c.Key("space-tool-cleanup")).Padding(settingsRowInset(c), 16).Gap(12).AlignItems(ui.Center).MinHeight(52).Children(func() {
+				ui.Box(c).Size(32, 32).Radius(8).Shrink(0).Center().Background(t.Warning.Alpha(0.12)).Children(func() {
+					ui.Icon(c, iconTrash).FontSize(15).TextColor(t.Warning)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+					ui.Text(c, i18n.T("清理未使用附件")).FontSize(13).FontWeight(500)
+					ui.Text(c, cleanupNote).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
+				})
+				if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件")).Shrink(0).Disabled(active == nil || active.IsExternal()).Clicked() {
+					a.scanUnusedAssets()
+				}
+			})
+		})
+		settingsSection(c, i18n.T("新建默认"))
+		settingsGroup(c, "space-defaults", func() {
+			starter := !a.prefs.NoSpaceStarter
+			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换"), &starter, nil)
+			if starter == a.prefs.NoSpaceStarter {
+				a.prefs.NoSpaceStarter = !starter
+				a.savePrefs()
 			}
 		})
 	})

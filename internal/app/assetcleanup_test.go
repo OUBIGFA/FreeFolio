@@ -47,3 +47,36 @@ func TestCleanupRescansAndKeepsOriginalOnRecycleFailure(t *testing.T) {
 		t.Fatal("no recovery copy before recycle")
 	}
 }
+
+func TestCleanupViewSelectAllToggle(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1100, 760)
+	if e := os.MkdirAll(filepath.Join(root(a), "assets"), 0755); e != nil {
+		t.Fatal(e)
+	}
+	for _, name := range []string{"one.png", "two.png"} {
+		if e := os.WriteFile(filepath.Join(root(a), "assets", name), []byte("image-bytes"), 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	a.openSettings(tabSpaces)
+	a.scanUnusedAssets()
+	tt.Frame()
+	if !tt.HasText("全选（已选 2 / 2 项）") {
+		t.Fatalf("expected select-all summary, got %q", tt.Texts())
+	}
+	if err := tt.Click("全选（已选 2 / 2 项）"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("全选（已选 0 / 2 项）") {
+		t.Fatalf("select-all did not uncheck all: %q", tt.Texts())
+	}
+	if err := tt.Click("全选（已选 0 / 2 项）"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("全选（已选 2 / 2 项）") {
+		t.Fatalf("select-all did not re-check all: %q", tt.Texts())
+	}
+}

@@ -227,67 +227,157 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 	d := w.doc
 	source := d.board.Scene.ElementByID(w.nodeID)
 	canEdit := !d.ed.ReadOnly && source != nil && !source.IsDeleted && !source.Locked && !d.board.AIRunning()
-	ui.Column(c.Key("board-image-window")).Fill().Background(t.Background).Children(func() {
-		ui.Row(c.Key("board-image-header")).Height(max(48, bar.Height)).Padding(6, bar.Right+12, 6, bar.Left+12).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Text(c, i18n.T("图片查看与标注")).FontSize(15).FontWeight(600).Grow(1)
-			if w.image != nil {
-				ui.Text(c, fmt.Sprintf("%d × %d", w.image.Width, w.image.Height)).FontSize(12).TextColor(t.TextMuted)
-			}
-			if !w.editing {
-				if ui.Button(c.Key("start-image-annotation"), i18n.T("标注图片")).Disabled(!canEdit || w.loading || w.image == nil).Clicked() {
-					w.editing = true
-					w.image.Board.Tool = editor.ToolFreedraw
-					w.image.Board.RequestFocus = true
-				}
-			} else {
-				if ui.Button(c.Key("save-annotation-reference"), i18n.T("保存为参考图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
-					a.saveBoardImage(w, false)
-				}
-				if ui.PrimaryButton(c.Key("annotation-generate"), i18n.T("用于生图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
-					a.saveBoardImage(w, true)
-				}
-			}
+
+	pill := func(key, text string, bg, fg, border ui.Color) {
+		b := ui.Row(c.Key(key)).Padding(3, 8).Radius(5).Background(bg).AlignItems(ui.Center).Shrink(0)
+		if border != ui.Transparent {
+			b.Border(1, border)
+		}
+		b.Children(func() {
+			ui.Text(c, text).FontSize(11.5).FontWeight(500).TextColor(fg).SingleLine()
 		})
-		if w.err != "" {
-			ui.Text(c, w.err).TextColor(t.Danger).Padding(8, 12)
-		}
-		if w.message != "" {
-			ui.Text(c, w.message).TextColor(t.TextMuted).Padding(8, 12)
-		}
-		if w.loading {
-			ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, i18n.T("正在加载图片")) })
-			c.After(50 * time.Millisecond)
-			return
-		}
-		if w.saving {
-			ui.Text(c, i18n.T("正在保存标注图片")).Padding(8, 12)
-			c.After(50 * time.Millisecond)
-		}
-		if w.image != nil {
+	}
+
+	ui.Column(c.Key("board-image-window")).Fill().Background(t.Background).Children(func() {
+		ui.Row(c.Key("board-image-header")).Height(max(52, bar.Height)).Background(t.Surface).
+			Padding(0, bar.Right+16, 0, bar.Left+16).Gap(10).AlignItems(ui.Center).DragWindow().Children(func() {
+			ui.Row(c.Key("board-image-title-group")).Grow(1).MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
+				badgeIcon := iconImage
+				title := i18n.T("图片查看")
+				if w.editing {
+					badgeIcon = iconPencil
+					title = i18n.T("图片标注")
+				}
+				ui.Box(c.Key("board-image-badge")).Size(28, 28).Radius(7).Shrink(0).Center().
+					Background(t.Accent.Alpha(0.10)).Children(func() {
+					ui.Icon(c, badgeIcon).FontSize(15).TextColor(t.Accent)
+				})
+				ui.Text(c, title).FontSize(14).FontWeight(600).SingleLine()
+				if w.image != nil {
+					pill("board-image-dims", fmt.Sprintf("%d × %d", w.image.Width, w.image.Height), t.Background, t.TextMuted, t.Border.Alpha(0.75))
+				}
+				if !canEdit {
+					ui.Row(c.Key("board-image-readonly")).Padding(3, 8).Gap(4).Radius(5).Background(t.Background).Border(1, t.Border.Alpha(0.75)).AlignItems(ui.Center).Shrink(0).Children(func() {
+						ui.Icon(c, iconLocked).FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, i18n.T("只读")).FontSize(11.5).FontWeight(500).TextColor(t.TextMuted).SingleLine()
+					})
+				}
+				if w.editing && w.dirty() {
+					pill("board-image-dirty", i18n.T("未保存"), t.Accent.Alpha(0.12), t.Accent, ui.Transparent)
+				}
+			})
+			ui.Row(c.Key("board-image-actions")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				if !w.editing {
+					if ui.PrimaryButton(c.Key("start-image-annotation"), i18n.T("标注图片")).Disabled(!canEdit || w.loading || w.image == nil).Clicked() {
+						w.editing = true
+						w.image.Board.Tool = editor.ToolFreedraw
+						w.image.Board.RequestFocus = true
+					}
+				} else {
+					if ui.Button(c.Key("save-annotation-reference"), i18n.T("保存为参考图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
+						a.saveBoardImage(w, false)
+					}
+					if ui.PrimaryButton(c.Key("annotation-generate"), i18n.T("用于生图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
+						a.saveBoardImage(w, true)
+					}
+				}
+			})
+		})
+		ui.Box(c).Height(1).Shrink(0).Background(t.Border)
+
+		ui.Box(c.Key("board-image-stage")).Grow(1).MinHeight(0).Background(imageStageBg(t)).Clip().Children(func() {
+			if w.loading {
+				ui.Column(c.Key("board-image-loading")).Fill().Center().Gap(10).Children(func() {
+					ui.Spinner(c.Key("board-image-spinner")).TextColor(t.Accent).Label(i18n.T("正在加载图片"))
+					ui.Text(c, i18n.T("正在加载图片")).FontSize(13).TextColor(t.TextMuted)
+				})
+				c.After(50 * time.Millisecond)
+				return
+			}
+			if w.image == nil {
+				ui.Column(c.Key("board-image-empty")).Fill().Center().Padding(24).Children(func() {
+					ui.Column(c).MaxWidth(360).Padding(20).Gap(12).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Children(func() {
+						ui.Box(c).Size(36, 36).Radius(18).Center().Background(t.Danger.Alpha(0.12)).Children(func() {
+							ui.Icon(c, iconAlert).FontSize(18).TextColor(t.Danger)
+						})
+						errText := w.err
+						if errText == "" {
+							errText = i18n.T("无法显示图片")
+						}
+						ui.Text(c, errText).FontSize(13).TextColor(t.Danger).LineHeight(1.45)
+						if ui.Button(c.Key("board-image-close-err"), i18n.T("关闭")).Clicked() && w.win != nil {
+							w.win.Close()
+						}
+					})
+				})
+				return
+			}
+
 			var dismiss func()
 			if !w.editing && !w.saving && w.win != nil {
 				dismiss = func() { w.win.Close() }
 			}
 			editor.ImageAnnotationView(c, w.image, !w.editing || !canEdit || w.saving, dismiss)
-		}
-		if w.image != nil && max(w.image.Width, w.image.Height) > 4096 {
-			ui.Text(c, i18n.T("标注副本最长边为 4096 像素，原图保持原分辨率")).FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
-		}
-		hint := "滚轮缩放 · 拖动查看 · 点击空白处或按 Esc 关闭"
-		if w.editing {
-			hint = "滚轮缩放 · 拖动查看 · 标注后保存副本，原图不变"
-		}
-		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(t.TextMuted).Padding(6, 12)
+
+			if w.saving || w.err != "" || w.message != "" {
+				borderCol := t.Border
+				switch {
+				case w.err != "":
+					borderCol = t.Danger.Alpha(0.55)
+				case w.message != "":
+					borderCol = t.Success.Alpha(0.5)
+				}
+				ui.Row(c.Key("board-image-status")).Absolute().Top(12).Right(14).MaxWidth(380).Padding(8, 12).Gap(8).
+					AlignItems(ui.Center).Background(t.Surface).Border(1, borderCol).Radius(8).
+					Shadow(0, 4, 14, 0, black.Alpha(0.12)).Children(func() {
+					switch {
+					case w.saving:
+						ui.Spinner(c.Key("board-image-save-spinner")).TextColor(t.Accent).Label(i18n.T("正在保存标注图片"))
+						ui.Text(c, i18n.T("正在保存标注图片")).FontSize(12.5).Grow(1).MinWidth(0)
+						c.After(50 * time.Millisecond)
+					case w.err != "":
+						ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Shrink(0)
+						ui.Text(c, w.err).FontSize(12.5).TextColor(t.Danger).Grow(1).MinWidth(0).LineHeight(1.4)
+					default:
+						ui.Icon(c, iconCheck).FontSize(14).TextColor(t.Success).Shrink(0)
+						ui.Text(c, w.message).FontSize(12.5).TextColor(t.Text).Grow(1).MinWidth(0).LineHeight(1.4)
+					}
+					if !w.saving {
+						if iconButton(c, "board-image-status-close", iconX, i18n.T("关闭"), i18n.T("关闭"), false).Size(22, 22).Clicked() {
+							w.err = ""
+							w.message = ""
+						}
+					}
+				})
+			}
+
+			hint := i18n.T("滚轮缩放 · 拖动查看 · 点击空白处或按 Esc 关闭")
+			if w.editing {
+				hint = i18n.T("滚轮缩放 · 拖动查看 · 标注后保存副本，原图不变")
+			}
+			if max(w.image.Width, w.image.Height) > 4096 {
+				hint += " · " + i18n.T("导出上限 4096 像素")
+			}
+			ui.Row(c.Key("board-image-hint")).Absolute().Bottom(12).Right(12).Padding(6, 10).Radius(8).
+				Background(t.Surface.Alpha(0.92)).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, hint).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
+			})
+		})
 	})
 	if win, ok := w.win.(*mygo.Window); ok && hasAppWindowControls() {
 		windowButtons(c, win)
 	}
 	if w.confirmClose {
 		ui.Modal(c.Key("annotation-unsaved"), &w.confirmClose, func() {
-			ui.Column(c).Width(360).Gap(12).Children(func() {
-				ui.Text(c, i18n.T("标注尚未保存")).FontSize(17)
-				ui.Text(c, i18n.T("保存为参考图后关闭，或放弃这次标注"))
-				ui.Row(c).Gap(8).Children(func() {
+			ui.Column(c).Width(380).Gap(14).Children(func() {
+				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(32, 32).Radius(8).Center().Shrink(0).Background(t.Warning.Alpha(0.14)).Children(func() {
+						ui.Icon(c, iconAlert).FontSize(17).TextColor(t.Warning)
+					})
+					ui.Text(c, i18n.T("标注尚未保存")).FontSize(16).FontWeight(600)
+				})
+				ui.Text(c, i18n.T("保存为参考图后关闭，或放弃这次标注")).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
+				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 					if ui.Button(c, i18n.T("继续编辑")).Clicked() {
 						w.confirmClose = false
 					}

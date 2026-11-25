@@ -13,7 +13,7 @@ import (
 
 func TestQuietAdoptionSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect adopted interactions")
-	for _, name := range []string{"fonts", "history", "import", "cleanup", "quick-settings"} {
+	for _, name := range []string{"fonts", "fonts-ui", "history", "import", "cleanup", "quick-settings"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			tt.SetSize(1280, 820)
@@ -23,6 +23,11 @@ func TestQuietAdoptionSnapshot(t *testing.T) {
 				a.fonts.loaded = true
 				a.fonts.families = []ui.FontFamily{{Name: "Arial"}, {Name: "Georgia"}, {Name: "Microsoft YaHei"}, {Name: "SimSun"}, {Name: "KaiTi"}, {Name: "Consolas", Monospaced: true}}
 				a.openFontPicker(false)
+			case "fonts-ui":
+				a.openSettings(tabAppearance)
+				a.fonts.loaded = true
+				a.fonts.families = []ui.FontFamily{{Name: "Arial"}, {Name: "Georgia"}, {Name: "Microsoft YaHei"}, {Name: "SimSun"}, {Name: "KaiTi"}, {Name: "Consolas", Monospaced: true}}
+				a.openFontPicker(true)
 			case "history":
 				if e := vault.Write(root(a), "Preview.md", "# 当前稿\n\n当前内容\n"); e != nil {
 					t.Fatal(e)

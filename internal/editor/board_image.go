@@ -160,19 +160,29 @@ func (b *Board) imageViewerInput(ev ui.InputEvent, o BoardOptions) bool {
 }
 
 func (b *Board) annotationToolbar(c *ui.Context, o BoardOptions) {
-	ui.Row(c.Key("annotation-tools")).Absolute().Top(10).Left(10).Right(10).Justify(ui.Center).PassThrough().Children(func() {
-		ui.Row(c).Padding(4).Gap(2).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
-			for _, tool := range boardTools {
-				switch tool.tool {
-				case ToolHand, ToolSelect, ToolRect, ToolEllipse, ToolArrow, ToolLine, ToolFreedraw, ToolText, ToolEraser:
-				default:
-					continue
+	groups := [][]BoardTool{
+		{ToolHand, ToolSelect},
+		{ToolFreedraw, ToolRect, ToolEllipse, ToolArrow, ToolLine, ToolText},
+		{ToolEraser},
+	}
+	toolMeta := map[BoardTool]boardToolDef{}
+	for _, t := range boardTools {
+		toolMeta[t.tool] = t
+	}
+	ui.Row(c.Key("annotation-tools")).Absolute().Top(12).Left(12).Right(12).Justify(ui.Center).PassThrough().Children(func() {
+		ui.Row(c).Padding(4, 6).Gap(2).AlignItems(ui.Center).Background(o.Theme.Surface).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 18, 0, ui.RGBA(0, 0, 0, 0.12)).Children(func() {
+			for gi, group := range groups {
+				if gi > 0 {
+					ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(o.Theme.Border.Alpha(0.7))
 				}
-				if boardIconButton(c, fmt.Sprintf("annotation-tool-%d", tool.tool), boardToolIcons[tool.tool], i18n.T(tool.label)+" "+tool.key, b.Tool == tool.tool).Clicked() {
-					b.finishText(o)
-					b.Tool = tool.tool
-					b.penSelection()
-					b.RequestFocus = true
+				for _, toolID := range group {
+					tool := toolMeta[toolID]
+					if boardIconButton(c, fmt.Sprintf("annotation-tool-%d", tool.tool), boardToolIcons[tool.tool], i18n.T(tool.label)+" "+tool.key, b.Tool == tool.tool).Clicked() {
+						b.finishText(o)
+						b.Tool = tool.tool
+						b.penSelection()
+						b.RequestFocus = true
+					}
 				}
 			}
 		})
@@ -199,15 +209,21 @@ func (b *Board) annotationProperties(c *ui.Context, o BoardOptions) {
 			return
 		}
 	}
-	ui.Column(c.Key("annotation-properties")).Absolute().Top(66).Left(12).Width(204).Padding(12).Gap(10).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
+	ui.Column(c.Key("annotation-properties")).Absolute().Top(64).Left(12).Width(220).Padding(12).Gap(10).
+		Background(o.Theme.Surface).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.12)).Children(func() {
 		for _, which := range []struct{ key, label, value string }{{"stroke", "颜色", e.StrokeColor}, {"fill", "填充", e.FillColor}} {
 			if which.key == "fill" && b.Tool != ToolRect && b.Tool != ToolEllipse && e.Kind != whiteboard.KindRectangle && e.Kind != whiteboard.KindEllipse {
 				continue
 			}
-			ui.Text(c, i18n.T(which.label)).FontSize(13)
-			ui.Row(c.Key(which.key)).Gap(5).Children(func() {
+			ui.Text(c, i18n.T(which.label)).FontSize(11.5).FontWeight(600).TextColor(o.Theme.TextMuted)
+			ui.Row(c.Key(which.key)).Gap(6).Children(func() {
 				for _, color := range []string{"#e03131", "#1971c2", "#2f9e44", "#f08c00", "#1e1e1e", "#ffffff", "transparent"} {
-					button := ui.ButtonBase(c.Key(color)).Size(21, 21).Radius(3).Background(boardColor(color, false)).Border(1, o.Theme.Border).Focusable().Label(i18n.T(which.label) + color)
+					button := ui.ButtonBase(c.Key(color)).Size(22, 22).Radius(6).Background(boardColor(color, false)).Border(1, o.Theme.Border).Focusable().Label(i18n.T(which.label) + color)
+					if color == "transparent" {
+						button.Draw(func(p *ui.Painter, r ui.Rect) {
+							p.StrokePolyline([][2]float32{{r.X + 4, r.Y + r.H - 4}, {r.X + r.W - 4, r.Y + 4}}, 1.6, o.Theme.Danger)
+						})
+					}
 					if color == which.value {
 						button.Border(2, o.Theme.Accent)
 					}
@@ -217,27 +233,35 @@ func (b *Board) annotationProperties(c *ui.Context, o BoardOptions) {
 				}
 			})
 		}
+		ui.Box(c).Height(1).Background(o.Theme.Border.Alpha(0.6))
 		for _, field := range []struct {
-			key, label    string
-			value, lo, hi float64
-		}{{"width", "线宽", e.StrokeWidth, 1, 16}, {"opacity", "不透明度", e.Opacity, 10, 100}} {
-			ui.Text(c, fmt.Sprintf("%s %.0f", i18n.T(field.label), field.value)).FontSize(13)
-			value := field.value
-			ui.Slider(c.Key(field.key), &value, field.lo, field.hi)
-			if value != field.value {
-				b.ChangeProperty(field.key, value, o)
-			}
+			key, label, unit string
+			value, lo, hi    float64
+		}{{"width", "线宽", " px", e.StrokeWidth, 1, 16}, {"opacity", "不透明度", "%", e.Opacity, 10, 100}} {
+			ui.Column(c.Key(field.key + "-group")).Gap(4).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, i18n.T(field.label)).FontSize(11.5).FontWeight(600).TextColor(o.Theme.TextMuted).Grow(1)
+					ui.Text(c, fmt.Sprintf("%.0f%s", field.value, field.unit)).FontSize(11.5).TextColor(o.Theme.Text)
+				})
+				value := field.value
+				ui.Slider(c.Key(field.key), &value, field.lo, field.hi)
+				if value != field.value {
+					b.ChangeProperty(field.key, value, o)
+				}
+			})
 		}
 		if b.Tool == ToolText || e.Kind == whiteboard.KindText {
-			ui.Text(c, i18n.T("字号")).FontSize(13)
-			size := e.FontSize
-			if size == 0 {
-				size = 20
-			}
-			ui.NumberInput(c.Key("annotation-font-size"), &size, 12, 96, 1)
-			if size != e.FontSize {
-				b.ChangeProperty("font-size", size, o)
-			}
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Text(c, i18n.T("字号")).FontSize(11.5).FontWeight(600).TextColor(o.Theme.TextMuted).Grow(1)
+				size := e.FontSize
+				if size == 0 {
+					size = 20
+				}
+				ui.NumberInput(c.Key("annotation-font-size"), &size, 12, 96, 1).Width(92)
+				if size != e.FontSize {
+					b.ChangeProperty("font-size", size, o)
+				}
+			})
 		}
 	})
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -65,5 +66,61 @@ func TestFontKeyboardSelectionStaysVisibleAndCancelDoesNotPersist(t *testing.T) 
 	tt.Frame()
 	if a.fonts.open || a.prefs.BodyFont != "" {
 		t.Fatal("escape did not cancel")
+	}
+}
+
+func TestFontUIPreviewButtonsDoNotJumpAndUseNewSpecimen(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetSize(1280, 820)
+	a.openSettings(tabAppearance)
+	a.fonts.loaded = true
+	a.fonts.families = []ui.FontFamily{
+		{Name: "Arial"},
+		{Name: "Georgia"},
+		{Name: "Microsoft YaHei"},
+		{Name: "SimSun"},
+		{Name: "Consolas", Monospaced: true},
+	}
+	a.openFontPicker(true)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("自由的文字胜于一切 · Abc 123") {
+		t.Fatalf("missing updated specimen copy: %q", tt.Texts())
+	}
+	if tt.HasText("春风与笔记 · Abc 123") {
+		t.Fatal("old specimen copy still present")
+	}
+	wantSettings, ok := tt.Find("设置")
+	if !ok {
+		t.Fatal("preview settings button missing")
+	}
+	wantSave, ok := tt.Find("保存")
+	if !ok {
+		t.Fatal("preview save button missing")
+	}
+	sameCenter := func(a, b ui.Rect) bool {
+		return math.Abs(float64((a.X+a.W/2)-(b.X+b.W/2))) < 1.0 &&
+			math.Abs(float64((a.Y+a.H/2)-(b.Y+b.H/2))) < 1.0
+	}
+	for _, family := range []string{"Arial", "Georgia", "Microsoft YaHei", "SimSun", "Consolas", ""} {
+		a.previewFont(family)
+		tt.Frame()
+		tt.Frame()
+		gotSettings, ok := tt.Find("设置")
+		if !ok || !sameCenter(gotSettings, wantSettings) {
+			t.Fatalf("settings button jumped for %q: got %+v, want %+v", family, gotSettings, wantSettings)
+		}
+		gotSave, ok := tt.Find("保存")
+		if !ok || !sameCenter(gotSave, wantSave) {
+			t.Fatalf("save button jumped for %q: got %+v, want %+v", family, gotSave, wantSave)
+		}
+	}
+	if err := tt.Click("等宽"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	rows := a.fontChoices()
+	if len(rows) != 1 || rows[0].name != "Consolas" {
+		t.Fatalf("category filter failed: %+v", rows)
 	}
 }

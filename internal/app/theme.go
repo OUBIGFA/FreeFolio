@@ -801,3 +801,8 @@ func resizeGrip(c *ui.Context, h ui.Element, vertical, lit, snapped bool) {
 		p.Fill(ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-l)/2, W: w, H: l}, col, resizeGripThickness/2)
 	})
 }
+
+// imageStageBg is the calm backdrop behind the image viewer and annotator canvas.
+func imageStageBg(t *ui.Theme) ui.Color {
+	return pick(t, t.Background.Mix(black, 0.03), t.Background.Mix(black, 0.28))
+}
