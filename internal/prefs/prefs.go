@@ -34,7 +34,9 @@ import (
 // where it was read to, so version 13 migrates unchanged.
 // Version 15 adds AI.Whiteboard, the models new whiteboard AI nodes start
 // with; zero leaves them unset, so version 14 migrates unchanged.
-const CurrentVersion = 15
+// Version 16 adds NoSpaceStarter; zero keeps creating the starter page in
+// new blank spaces by default, so version 15 migrates unchanged.
+const CurrentVersion = 16
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -57,11 +59,14 @@ type Prefs struct {
 	// StartAtHome opens the space's home page when FreeFolio starts or its
 	// window comes back, instead of the document last read, at the place
 	// it was read to, which the zero value keeps.
-	StartAtHome bool    `json:"startAtHome,omitempty"`
-	Version     int     `json:"version"`
-	FontSize    float32 `json:"fontSize,omitempty"`
-	LineHeight  float32 `json:"lineHeight,omitempty"`
-	NoAutoPair  bool    `json:"noAutoPair,omitempty"`
+	StartAtHome bool `json:"startAtHome,omitempty"`
+	// NoSpaceStarter skips creating the starter example page when a new
+	// blank space is created; the zero value enables the starter by default.
+	NoSpaceStarter bool    `json:"noSpaceStarter,omitempty"`
+	Version        int     `json:"version"`
+	FontSize       float32 `json:"fontSize,omitempty"`
+	LineHeight     float32 `json:"lineHeight,omitempty"`
+	NoAutoPair     bool    `json:"noAutoPair,omitempty"`
 	// NoAutosave turns background saving off: edits stay in memory until
 	// saved with the save shortcut or confirmed when a document closes.
 	NoAutosave bool `json:"noAutosave,omitempty"`

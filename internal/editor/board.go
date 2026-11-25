@@ -685,5 +685,7 @@ func (b *Board) Close() {
 }
 func (b *Board) resetFrom(before *whiteboard.Scene) { b.Scene = before.Clone() }
 func boardDeleteElement(s *whiteboard.Scene, id string) {
+	s.Delete([]string{id})
 	s.Elements = slices.DeleteFunc(s.Elements, func(e *whiteboard.Element) bool { return e.ID == id })
+	_ = s.ElementByID(id)
 }

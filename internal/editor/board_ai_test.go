@@ -264,3 +264,61 @@ func TestBoardAIViewPortDragAndPanel(t *testing.T) {
 		t.Fatal("typing session not undone in one step")
 	}
 }
+
+func TestBoardAIPromptNodeInlineEditAndBidirectionalPorts(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1280, 860)
+	tt.Frame()
+
+	// Add a Text Node (AIPrompt) and an Image Node without running the Text Node first.
+	promptID := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{240, 320}, o)
+	imgID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{760, 320}, o)
+	tt.Frame()
+
+	// Type directly in the node's inline TextArea on the canvas.
+	area, ok := tt.Access("文字内容")
+	if !ok {
+		t.Fatal("inline text area missing on prompt node")
+	}
+	tt.ClickAt(area.Bounds.X+area.Bounds.W/2, area.Bounds.Y+area.Bounds.H/2)
+	tt.Type("a sunlit studio")
+	tt.Frame()
+	if got := whiteboard.AINodeOf(b.Scene.ElementByID(promptID)).Instruction; got != "a sunlit studio" {
+		t.Fatalf("inline prompt edit got %q", got)
+	}
+
+	// Drag backward from the Image Node's input port to the Text Node's output port.
+	pEl := b.Scene.ElementByID(promptID)
+	iEl := b.Scene.ElementByID(imgID)
+	sx, sy, _, _ := b.canvasRect(iEl.X, iEl.Y+iEl.H/2, 0, 0)
+	ex, ey, _, _ := b.canvasRect(pEl.X+pEl.W, pEl.Y+pEl.H/2, 0, 0)
+	tt.Press(sx, sy)
+	tt.Move((sx+ex)/2, (sy+ey)/2)
+	tt.Move(ex-4, ey+4)
+	tt.Release(ex-4, ey+4)
+	tt.Frame()
+
+	ins := b.Scene.AIInputs(imgID)
+	if len(ins) != 1 || ins[0].From != promptID {
+		t.Fatalf("backward magnetic wiring failed: %+v", ins)
+	}
+
+	// Running the image node reads the Text Node directly without needing to run it first.
+	b.RunAI([]string{imgID}, false, false, o)
+	if len(f.jobs) != 1 || !strings.Contains(f.jobs[0].Prompt, "a sunlit studio") {
+		t.Fatalf("prompt node input not used: %+v", f.jobs)
+	}
+
+	// Disconnect button in the properties panel removes the wire.
+	b.selectIDs([]string{imgID})
+	tt.Frame()
+	if err := tt.Click("断开连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := b.Scene.AIInputs(imgID); len(got) != 0 {
+		t.Fatalf("disconnect failed: %+v", got)
+	}
+}

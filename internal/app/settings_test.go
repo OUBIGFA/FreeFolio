@@ -324,3 +324,51 @@ func TestAppearanceLineHeightShowsOneDecimal(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSpaceStarterSettingAndDraftChoice(t *testing.T) {
+	a, tt := newTestApp(t)
+	if a.prefs.NoSpaceStarter {
+		t.Fatal("starter template should be enabled by default")
+	}
+	a.openSettings(tabSpaces)
+	tt.Frame()
+	sw, ok := tt.AccessByRole(ui.RoleSwitch, "新建空白空间时从模板开始")
+	if !ok || !sw.Checked {
+		t.Fatalf("space starter switch should default on: %+v", sw)
+	}
+	tt.ClickAt(sw.Bounds.X+sw.Bounds.W/2, sw.Bounds.Y+sw.Bounds.H/2)
+	tt.Frame()
+	saved, err := a.prefStore.Load()
+	if err != nil || !a.prefs.NoSpaceStarter || !saved.NoSpaceStarter {
+		t.Fatalf("NoSpaceStarter not saved: %+v, %v", saved, err)
+	}
+	a.settingsOpen = false
+	a.newSpaceForm()
+	if a.spaceForm.starter {
+		t.Fatal("newSpaceForm should inherit disabled starter preference")
+	}
+	a.spaceForm.name = "BlankSpace"
+	a.submitSpace()
+	tt.Frame()
+	blank := a.state.ActiveSpace()
+	if _, err := os.Stat(filepath.Join(blank.Root, starterFile())); err == nil {
+		t.Fatal("blank space created starter file despite preference off")
+	}
+
+	// Re-enabling on an individual draft creates the starter file.
+	a.newSpaceForm()
+	tt.Frame()
+	draftSw, ok := tt.AccessByRole(ui.RoleSwitch, "从模板开始")
+	if !ok || draftSw.Checked {
+		t.Fatalf("draft starter switch should inherit off: %+v", draftSw)
+	}
+	tt.ClickAt(draftSw.Bounds.X+draftSw.Bounds.W/2, draftSw.Bounds.Y+draftSw.Bounds.H/2)
+	tt.Frame()
+	a.spaceForm.name = "TemplateSpace"
+	a.submitSpace()
+	tt.Frame()
+	withTpl := a.state.ActiveSpace()
+	if _, err := os.Stat(filepath.Join(withTpl.Root, starterFile())); err != nil {
+		t.Fatalf("starter file missing when enabled on draft: %v", err)
+	}
+}

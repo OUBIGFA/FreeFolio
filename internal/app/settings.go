@@ -647,7 +647,15 @@ func (a *App) settingsSpaces(c *ui.Context) {
 			a.newSpaceForm()
 		}
 	})
-	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Children(func() {
+	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(12).Children(func() {
+		settingsGroup(c, "space-defaults", func() {
+			starter := !a.prefs.NoSpaceStarter
+			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换。"), &starter, nil)
+			if starter == a.prefs.NoSpaceStarter {
+				a.prefs.NoSpaceStarter = !starter
+				a.savePrefs()
+			}
+		})
 		settingsGroup(c, "spaces", func() {
 			for i, s := range a.state.Spaces {
 				if i > 0 {

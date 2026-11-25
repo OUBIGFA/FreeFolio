@@ -125,6 +125,12 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			f.cardOpen = !f.cardOpen
 		}
 
+		tile(ui.Row(c.Key("draft-starter-row")), false).Padding(0, 10, 0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, i18n.T("从模板开始")).FontSize(13).TextColor(t.Text).Shrink(0)
+			ui.Spacer(c)
+			ui.Switch(c.Key("space-starter"), &f.starter).Label(i18n.T("从模板开始")).Tooltip(i18n.T("空白空间自动创建入门示例文档"))
+		})
+
 		ui.Spacer(c)
 		blank := strings.TrimSpace(f.name) == ""
 		if ui.PrimaryButton(c.Key("space-submit"), i18n.T("创建空间")).Height(fieldH).Radius(fieldR).FontSize(13).

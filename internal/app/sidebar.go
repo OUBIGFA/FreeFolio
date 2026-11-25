@@ -210,11 +210,11 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 		// Cra's column: the header 8 DIPs under the favorites, the list
 		// from just under it.
 		ui.Column(c.Key("column")).Grow(1).MinHeight(0).PaddingX(rowInset).Children(func() {
-			if header {
-				ui.Column(c.Key("header-pad")).Margin(8, 0, 0, 0).Children(func() { a.spaceHeader(c, sp, live) })
-			}
 			nodes, err := a.treeOf(sp)
 			pins := pinnedNodes(sp, nodes)
+			if header {
+				ui.Column(c.Key("header-pad")).Margin(8, 0, 0, 0).Children(func() { a.spaceHeader(c, sp, live, len(pins) > 0) })
+			}
 			scroll := &a.session(sp.ID).tree
 			tree := ui.Scroll(c.Key("tree")).Grow(1).MinHeight(0).TrackScroll(scroll)
 			var prev []rowFrame
@@ -445,7 +445,7 @@ func monogram(title string) string {
 // folded, turning a quarter over 0.12 s) and ••• opens the space's menu. A
 // click on the icon folds the pins; renaming is an explicit menu action.
 // Files dropped on the header move to the root.
-func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
+func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 	t := c.Theme()
 	h := ui.Row(c.Key("space-header")).Height(36).PaddingEnd(5).Radius(12).AlignItems(ui.Center).
 		Label(i18n.T("空间标题"))
@@ -466,12 +466,12 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 	collapsed := sp.PinsCollapsed
 	h.Children(func() {
 		icon := ui.Box(c.Key("header-icon")).Size(26, 26).Margin(0, 0, 0, 5).Center()
-		if live {
+		if live && hasPins {
 			icon.Focusable().Cursor(ui.CursorPointer).Role(ui.RoleButton).Label(i18n.T("折叠或展开置顶")).Expanded(!collapsed).Tooltip(i18n.T("折叠或展开置顶"))
 		}
 		icon.Children(func() {
-			hasIcon := sp.Icon != "" || sp.Symbol != ""
-			chevron := lit || collapsed && !hasIcon
+			hasIcon := sp.Icon != "" || sp.Symbol != "" || sp.Image != ""
+			chevron := hasPins && (lit || collapsed && !hasIcon)
 			if chevron {
 				turn := float32(0)
 				if collapsed {
@@ -483,7 +483,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live bool) {
 				a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 14.5, t.Accent)
 			}
 		})
-		if live && icon.Clicked() {
+		if live && hasPins && icon.Clicked() {
 			sp.PinsCollapsed = !sp.PinsCollapsed
 			a.saveState()
 		}

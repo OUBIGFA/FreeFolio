@@ -392,3 +392,29 @@ func TestFoldSlides(t *testing.T) {
 		t.Fatalf("the rows jumped instead of sliding: %v", ys)
 	}
 }
+
+// Hovering the space header only reveals the pin-collapse control when the space
+// has at least one pinned document.
+func TestHeaderCollapseHiddenWithoutPins(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.state.Favorites = nil
+	sp := a.state.ActiveSpace()
+	sp.Pins = nil
+	settle(tt)
+
+	h, _ := tt.Find("Personal")
+	tt.Move(h.X+h.W/2, h.Y+h.H/2)
+	settle(tt)
+	if _, ok := tt.Find("折叠或展开置顶"); ok {
+		t.Fatal("collapse icon should stay hidden when no documents are pinned")
+	}
+
+	a.togglePin(sp, "Welcome.md")
+	settle(tt)
+	h, _ = tt.Find("Personal")
+	tt.Move(h.X+h.W/2, h.Y+h.H/2)
+	settle(tt)
+	if _, ok := tt.Find("折叠或展开置顶"); !ok {
+		t.Fatal("collapse icon should appear on hover when documents are pinned")
+	}
+}

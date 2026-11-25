@@ -167,3 +167,34 @@ func typeHex(t *testing.T, tt *ui.Tester, hex string) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type(hex)
 }
+
+func TestExpandedSpaceSymbolsResolveAndSearch(t *testing.T) {
+	if len(spaceSymbols) < 120 {
+		t.Fatalf("expected expanded spaceSymbols, got %d", len(spaceSymbols))
+	}
+	for _, name := range spaceSymbols {
+		if symbolIcon(name) == nil {
+			t.Fatalf("symbolIcon(%q) returned nil", name)
+		}
+	}
+	a, tt := newTestApp(t)
+	a.newSpaceForm()
+	tt.Frame()
+	if err := tt.Click("空间图标"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("图标集"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	a.spaceForm.picker.symbolQuery = "rocket"
+	tt.Frame()
+	if err := tt.Click("图标 rocket"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.spaceForm.symbol != "rocket" || a.spaceForm.iconsOpen {
+		t.Fatalf("symbol picker selection failed: %+v", a.spaceForm)
+	}
+}

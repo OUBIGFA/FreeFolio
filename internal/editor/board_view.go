@@ -74,6 +74,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 		}
 		canvas.Cursor(cursor)
 		canvas.Draw(func(p *ui.Painter, r ui.Rect) { b.lastRect = r; b.paint(p, r, o.Theme.Dark, true) })
+		b.aiNodeInlineControls(c, o)
 		b.textOverlay(c, o)
 		if !b.ReadOnly {
 			b.toolbar(c, o)
@@ -119,7 +120,7 @@ func boardButton(c *ui.Context, id, label string, active bool) ui.Element {
 }
 func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 	ui.Row(c.Key("board-toolbar-wrap")).Absolute().Top(10).Left(8).Right(8).Justify(ui.Center).PassThrough().Children(func() {
-		ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
+		ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
 			lock := "unlocked"
 			if b.ToolLocked {
 				lock = "locked"
@@ -196,12 +197,12 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 func (b *Board) toolCapacity(o BoardOptions) int {
 	fixed := 2
 	if o.AI != nil {
-		fixed += 3
+		fixed += 4
 	}
 	return max(3, int((b.lastRect.W-32)/36)-fixed)
 }
 func (b *Board) footer(c *ui.Context, o BoardOptions) {
-	ui.Row(c.Key("board-footer")).Absolute().Bottom(12).Left(12).Gap(2).Padding(3).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(7).Children(func() {
+	ui.Row(c.Key("board-footer")).Absolute().Bottom(12).Left(12).Gap(2).Padding(4).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
 		run := func(id string) {
 			b.RunAction(id, o)
 			b.RequestFocus = true
@@ -252,12 +253,12 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 	if len(ids) > 0 {
 		e = b.Scene.ElementByID(ids[0])
 	}
-	ui.Scroll(c.Key("board-properties")).Absolute().Top(66).Left(12).Width(220).MaxHeight(max(100, b.lastRect.H-132)).Padding(12).Gap(8).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(7).Children(func() {
+	ui.Scroll(c.Key("board-properties")).Absolute().Top(66).Left(12).Width(226).MaxHeight(max(100, b.lastRect.H-132)).Padding(12).Gap(8).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
 		for _, which := range []struct{ key, label, current string }{{"stroke", "描边", e.StrokeColor}, {"fill", "填充", e.FillColor}} {
 			ui.Text(c, i18n.T(which.label)).FontSize(12).TextColor(o.Theme.TextMuted)
 			ui.Row(c.Key(which.key)).Gap(5).Children(func() {
 				for _, color := range []string{"#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00", "transparent"} {
-					el := ui.ButtonBase(c.Key(which.key+color)).Size(22, 22).Radius(3).Background(boardColor(color, o.Theme.Dark)).Border(1, o.Theme.Border).Focusable().Label(which.label + color)
+					el := ui.ButtonBase(c.Key(which.key+color)).Size(22, 22).Radius(4).Background(boardColor(color, o.Theme.Dark)).Border(1, o.Theme.Border).Focusable().Label(which.label + color)
 					if color == which.current {
 						el.Border(2, o.Theme.Accent)
 					}
@@ -274,6 +275,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 				})
 			})
 		}
+		ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
 		b.propSelect(c, "fill-style", "填充样式", string(e.FillStyle), []string{"hachure", "cross-hatch", "solid", "zigzag"}, o)
 		b.propSelect(c, "stroke-style", "线条样式", string(e.StrokeStyle), []string{"solid", "dashed", "dotted"}, o)
 		round := e.Roundness != nil
@@ -282,6 +284,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 		if round != beforeRound {
 			b.ChangeProperty("round", round, o)
 		}
+		ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
 		for _, p := range []struct {
 			key, label    string
 			value, lo, hi float64
@@ -294,6 +297,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 			}
 		}
 		if len(ids) == 0 || e.Kind == whiteboard.KindText || e.BoundTextID() != "" {
+			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
 			v := fmt.Sprint(e.FontFamily)
 			if e.FontFamily == 0 {
 				v = "5"
@@ -318,6 +322,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 			b.propSelect(c, "vertical-align", "垂直对齐", e.VerticalAlign, []string{"top", "middle", "bottom"}, o)
 		}
 		if e.IsLinear() || b.Tool == ToolArrow || b.Tool == ToolLine {
+			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
 			routing := "sharp"
 			if e.Elbowed {
 				routing = "elbow"
@@ -330,6 +335,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 			b.propSelect(c, "end-arrow", "终点", string(e.EndArrowhead), heads, o)
 		}
 		if len(ids) > 0 {
+			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
 			ui.Row(c).Gap(3).Children(func() {
 				for _, a := range []struct{ id, label string }{{"duplicate", "复制图形"}, {"delete", "删除"}} {
 					if boardButton(c, a.id, i18n.T(a.label), false).Clicked() {

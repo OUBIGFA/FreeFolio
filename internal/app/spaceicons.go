@@ -118,9 +118,10 @@ type iconPickerState struct {
 	// tab is the tab shown: pickerEmoji, pickerSymbols or pickerCustom.
 	tab int
 	// text is the custom tab's field, the user's own text as the icon.
-	text  string
-	query string
-	grid  ui.GridState
+	text        string
+	query       string
+	symbolQuery string
+	grid        ui.GridState
 	// scroll is the emoji to bring to the top of the grid in the next
 	// frame, -1 for none.
 	scroll   int
@@ -141,6 +142,7 @@ func (f *spaceForm) openIconPicker() {
 		f.picker.tab, f.picker.text = pickerCustom, f.icon
 	}
 	f.picker.query = ""
+	f.picker.symbolQuery = ""
 	f.picker.selected = -1
 	f.picker.scroll = -1
 	if i := emojiIndex(f.icon); i >= 0 {
@@ -153,7 +155,7 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 	fill, _, rim := spaceEditorSurface(c.Theme().Dark)
 	ui.Overlay(c, func() {
 		pop := ui.PopoverBase(c.Key("space-icons"), anchor, &f.iconsOpen, func(panel ui.Element) {
-			panel.Width(pickerW).Height(310).Padding(10, 10, 8, 10).Radius(panelRadius).
+			panel.Width(pickerW).Height(348).Padding(10, 10, 8, 10).Radius(panelRadius).
 				LinearGradient(fill).Border(1, rim).Shadow(0, 8, 24, 0, black.Alpha(0.14)).
 				Role(ui.RoleDialog).Label(i18n.T("选择空间图标"))
 			if f.id != "" {
@@ -292,23 +294,38 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 	})
 }
 
-// symbolGrid is the symbol tab: Arc's 56 glyphs in a scrollable six-column grid.
+// symbolGrid is the symbol tab: searchable Solar glyphs in a scrollable six-column grid.
 func symbolGrid(c *ui.Context, f *spaceForm) {
 	t := c.Theme()
+	p := &f.picker
+	ui.TextInput(c.Key("symbol-query"), &p.symbolQuery).Height(26).Margin(8, 0, 0, 0).Padding(2, 6).Radius(10).
+		Placeholder(i18n.T("搜索图标")).Label(i18n.T("搜索图标")).
+		Background(t.Background.Alpha(0.3)).Border(1, t.Text.Alpha(0.14))
+	q := strings.ToLower(strings.TrimSpace(p.symbolQuery))
+	var matches []string
+	for _, name := range spaceSymbols {
+		if q == "" || strings.Contains(strings.ToLower(name), q) {
+			matches = append(matches, name)
+		}
+	}
+	if len(matches) == 0 {
+		ui.Text(c, i18n.T("未能找到相关图标")).FontSize(12).TextColor(t.TextMuted).Padding(24, 0).AlignSelf(ui.Center).Grow(1)
+		return
+	}
 	ui.Scroll(c.Key("symbol-scroll")).Grow(1).MinHeight(0).Margin(8, 0, 0, 0).Children(func() {
 		ui.Grid(c.Key("symbols")).Columns(6).Gap(8).AlignSelf(ui.Center).Label(i18n.T("图标列表")).FocusGroup(ui.Horizontal).Children(func() {
-			for _, name := range spaceSymbols {
+			for _, name := range matches {
 				on := name == f.symbol && f.image == ""
 				b := ui.Box(c.Key("symbol:"+name)).Size(pickerCell, pickerCell).Center().Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleButton).Label(i18n.T("图标 ") + name).Tooltip(name).Checked(on)
 				hovered := b.Hovered()
-				b.Draw(func(p *ui.Painter, r ui.Rect) {
+				b.Draw(func(pt *ui.Painter, r ui.Rect) {
 					tile := ui.Rect{X: r.X + 1, Y: r.Y + 1, W: r.W - 2, H: r.H - 2}
 					switch {
 					case on:
-						p.Fill(tile, t.Text.Alpha(0.16), 5)
+						pt.Fill(tile, t.Text.Alpha(0.16), 5)
 					case hovered:
-						p.Fill(tile, t.Text.Alpha(0.1), 5)
+						pt.Fill(tile, t.Text.Alpha(0.1), 5)
 					}
 				})
 				b.Children(func() { ui.Icon(c, symbolIcon(name)).FontSize(15).TextColor(t.Text) })

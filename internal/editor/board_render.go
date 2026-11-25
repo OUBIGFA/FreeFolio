@@ -363,7 +363,11 @@ func (b *Board) paintSelection(p *ui.Painter, r ui.Rect, dark bool) {
 		x, y := b.screenPoint(whiteboard.Point{bounds.X, bounds.Y})
 		p.Stroke(ui.Rect{X: x, Y: y, W: float32(bounds.W * b.Zoom), H: float32(bounds.H * b.Zoom)}, color, 0, 1)
 		if !b.ReadOnly {
-			for _, pt := range boardHandles(bounds) {
+			singleAI := len(ids) == 1 && b.aiNode(b.Scene.ElementByID(ids[0])) != nil
+			for i, pt := range boardHandles(bounds) {
+				if singleAI && (i == 3 || i == 7 || i == 8) {
+					continue
+				}
 				x, y := b.screenPoint(pt)
 				p.Fill(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, boardColor("#ffffff", dark), 2)
 				p.Stroke(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, color, 2, 1)

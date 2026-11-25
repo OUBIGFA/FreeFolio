@@ -137,3 +137,22 @@ func TestKeyStrategyMigratesAndRoundTrips(t *testing.T) {
 		t.Fatalf("key strategy round-trip: %+v, %v", again, err)
 	}
 }
+
+func TestNoSpaceStarterMigratesAndRoundTrips(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":15,"sidebarLeft":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || !p.SidebarLeft || p.NoSpaceStarter {
+		t.Fatalf("version 15 migrated: %+v, %v", p, err)
+	}
+	p.NoSpaceStarter = true
+	if err := store.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Load()
+	if err != nil || !again.NoSpaceStarter {
+		t.Fatalf("noSpaceStarter round-trip: %+v, %v", again, err)
+	}
+}

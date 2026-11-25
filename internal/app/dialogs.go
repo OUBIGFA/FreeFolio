@@ -34,9 +34,9 @@ type spaceForm struct {
 	page int
 	knob int
 	// cardOpen shows the theme card beside the sidebar; iconsOpen shows the
-	// icon picker.
-	cardOpen, iconsOpen bool
-	picker              iconPickerState
+	// icon picker; starter creates the starter page in an empty folder.
+	cardOpen, iconsOpen, starter bool
+	picker                       iconPickerState
 }
 
 // newSpaceForm starts a new space in the sidebar, as Arc does: the sidebar
@@ -45,7 +45,7 @@ type spaceForm struct {
 func (a *App) newSpaceForm() {
 	a.finishSpaceEdit()
 	n := len(a.state.Spaces)
-	a.spaceForm = spaceForm{open: true, icon: space.Icons[n%len(space.Icons)], theme: space.NewTheme(n), knob: -1, cardOpen: true}
+	a.spaceForm = spaceForm{open: true, icon: space.Icons[n%len(space.Icons)], theme: space.NewTheme(n), knob: -1, cardOpen: true, starter: !a.prefs.NoSpaceStarter}
 	a.spaceForm.page = max(0, space.PageOf(a.spaceForm.theme.Colors))
 	a.revealSidebar()
 }
@@ -135,12 +135,14 @@ func (a *App) submitSpace() {
 	s := a.state.Add(name, root)
 	s.SetIcon(icon, f.symbol, f.image)
 	s.SetTheme(f.theme)
-	// An empty folder starts with a page showing how to write. Only whether
+	// An empty folder starts with a starter page when enabled. Only whether
 	// it holds any document is asked: listing a large folder whole took
 	// seconds before the new space showed.
-	if has, err := vault.HasDocument(root); err == nil && !has {
-		if name := starterFile(); writeStarter(root, name) == nil {
-			s.LastOpen = name
+	if f.starter {
+		if has, err := vault.HasDocument(root); err == nil && !has {
+			if name := starterFile(); writeStarter(root, name) == nil {
+				s.LastOpen = name
+			}
 		}
 	}
 	f.open = false
@@ -176,7 +178,7 @@ func (a *App) spacesFromFolders(paths []string) {
 		swatches := pages[rand.IntN(len(pages))].Swatches
 		theme := space.Theme{Colors: swatches[rand.IntN(len(swatches))], Intensity: 0.8, Appearance: space.AppearanceAuto}
 		a.finishSpaceEdit()
-		a.spaceForm = spaceForm{open: true, name: name, symbol: spaceSymbols[rand.IntN(len(spaceSymbols))], root: dir, theme: theme, knob: -1}
+		a.spaceForm = spaceForm{open: true, name: name, symbol: spaceSymbols[rand.IntN(len(spaceSymbols))], root: dir, theme: theme, knob: -1, starter: !a.prefs.NoSpaceStarter}
 		a.submitSpace()
 		if a.spaceForm.open {
 			a.cancelSpaceForm() // its failure was told; no draft stays behind

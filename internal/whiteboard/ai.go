@@ -22,6 +22,8 @@ const AINamespace = "freefolioAI"
 type AIRole string
 
 const (
+	// AIPrompt holds editable prompt or text directly on the board.
+	AIPrompt AIRole = "prompt"
 	// AIText writes text from its inputs: summaries, rewrites, prompts.
 	AIText AIRole = "text"
 	// AIImage generates a picture, or edits one when it has picture inputs.
@@ -35,7 +37,7 @@ const (
 )
 
 // AIRoles are the roles in the order the node bar offers them.
-var AIRoles = []AIRole{AIText, AIImage, AIVideo, AIConcat, AINote}
+var AIRoles = []AIRole{AIPrompt, AIText, AIImage, AIVideo, AIConcat, AINote}
 
 // MaxAIOutputs bounds a node's kept history; older entries are dropped from
 // the node, never deleted from disk.
@@ -191,14 +193,18 @@ func SetAINode(e *Element, n *AINode) error {
 // AINodeSize is a new node's card size by role.
 func AINodeSize(role AIRole) (float64, float64) {
 	switch role {
+	case AIPrompt:
+		return 300, 200
 	case AIImage:
-		return 320, 380
+		return 320, 400
 	case AIVideo:
-		return 360, 340
+		return 360, 380
 	case AIText:
-		return 320, 280
+		return 320, 320
+	case AIConcat:
+		return 300, 240
 	}
-	return 300, 200
+	return 280, 180
 }
 
 // NewAINode makes a node card at a scene point (its top left).

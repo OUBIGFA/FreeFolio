@@ -110,6 +110,11 @@ type boardAINodeCache struct {
 	node           *whiteboard.AINode
 }
 
+type boardAINodeBuffer struct {
+	version, nonce int64
+	text           string
+}
+
 type boardAIState struct {
 	bar, barFocus bool
 	query         string
@@ -125,14 +130,21 @@ type boardAIState struct {
 	// before its first change, so a typing session is one undo step.
 	edit, extra, extraErr string
 	before                *whiteboard.Scene
-	// pickerAt is where a line dragged from an output port was let go on
-	// the empty canvas; the node types that can take it are offered there.
+	// pickerAt is where a line dragged from a port was let go on the empty
+	// canvas; the node types that can connect there are offered.
 	pickerAt   *whiteboard.Point
 	pickerFrom string
+	pickerDir  string
 	pickerLine string
 	portFrom   string
-	// buf holds the panel's text fields while a node is edited.
+	portDir    string
+	snapID     string
+	snapDir    string
+	// buf holds the panel's text fields while a node is edited; bufs holds
+	// per-node inline text buffers for direct canvas editing.
 	buf              aiEditBuffers
+	bufs             map[string]*boardAINodeBuffer
+	inlineFocused    string
 	focusInstruction bool
 }
 
@@ -142,7 +154,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
 
 // aiKindColors are the data types' colors, as Vibe-Workflow colors its
 // handles and edges: text blue, image green, video orange.
@@ -169,6 +181,10 @@ func (b *Board) aiState() *boardAIState {
 		s.mediaPending = map[string]bool{}
 		s.videos = map[string]*ui.VideoPlayer{}
 		s.texts = map[string]boardAICardText{}
+		s.bufs = map[string]*boardAINodeBuffer{}
+	}
+	if s.bufs == nil {
+		s.bufs = map[string]*boardAINodeBuffer{}
 	}
 	return s
 }
@@ -222,7 +238,7 @@ func (b *Board) AddAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	w, h := whiteboard.AINodeSize(role)
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
-	if o.AI != nil && o.AI.Default != nil && role != whiteboard.AIConcat && role != whiteboard.AINote {
+	if o.AI != nil && o.AI.Default != nil && role != whiteboard.AIPrompt && role != whiteboard.AIConcat && role != whiteboard.AINote {
 		m := o.AI.Default(role)
 		n.Connection, n.Model = m.Connection, m.Model
 	}
@@ -253,10 +269,24 @@ func (b *Board) connectAI(from, to *whiteboard.Element) {
 	a := whiteboard.NewElement(whiteboard.KindArrow, start[0], start[1], math.Abs(end[0]-start[0]), math.Abs(end[1]-start[1]))
 	a.Points = []whiteboard.Point{{0, 0}, whiteboard.Sub(end, start)}
 	a.StrokeColor = aiKindColors[b.aiOutputKind(from)]
+	a.StrokeWidth = 2
 	a.Roughness = 0
 	b.Scene.Elements = append(b.Scene.Elements, a)
 	b.Scene.Bind(a.ID, false, from.ID, start)
 	b.Scene.Bind(a.ID, true, to.ID, end)
+}
+
+// aiHasConnection reports whether an unlabeled arrow already links from to to.
+func (b *Board) aiHasConnection(fromID, toID string) bool {
+	for _, e := range b.Scene.Elements {
+		if e.IsDeleted || e.Kind != whiteboard.KindArrow || e.StartBinding == nil || e.EndBinding == nil {
+			continue
+		}
+		if e.StartBinding.ElementID == fromID && e.EndBinding.ElementID == toID {
+			return true
+		}
+	}
+	return false
 }
 
 // aiOutputKind is the data an element supplies.
@@ -629,6 +659,13 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 				continue
 			}
 			up := whiteboard.AINodeOf(snap.ElementByID(in.From))
+			if up != nil && up.Role == whiteboard.AIPrompt {
+				if strings.TrimSpace(up.Instruction) == "" {
+					return nil, errors.New(i18n.T("上游文字节点内容为空"))
+				}
+				addText(in.Label, up.Instruction)
+				continue
+			}
 			out := up.Output()
 			if out == nil {
 				return nil, errors.New(i18n.T("上游节点还没有结果"))
@@ -664,6 +701,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	}
 	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask}
 	switch n.Role {
+	case whiteboard.AIPrompt:
+		res.text = n.Instruction
+		return res, nil
 	case whiteboard.AIConcat:
 		res.text = whiteboard.ConcatTemplate(n.Params.Template, texts)
 		return res, nil
@@ -868,6 +908,56 @@ func (b *Board) flushAIEdit() {
 	if s.before != nil {
 		b.History.Record(s.before, b.Scene)
 		s.before = nil
+	}
+}
+
+// aiNodeBuf returns the per-node inline text buffer, syncing from the node
+// whenever the element's revision changed externally.
+func (b *Board) aiNodeBuf(e *whiteboard.Element, n *whiteboard.AINode) *boardAINodeBuffer {
+	s := b.aiState()
+	buf := s.bufs[e.ID]
+	current := n.Instruction
+	switch n.Role {
+	case whiteboard.AINote:
+		current = n.Note
+	case whiteboard.AIConcat:
+		current = n.Params.Template
+	}
+	if buf == nil {
+		buf = &boardAINodeBuffer{version: e.Version, nonce: e.VersionNonce, text: current}
+		s.bufs[e.ID] = buf
+	} else if buf.version != e.Version || buf.nonce != e.VersionNonce {
+		buf.version, buf.nonce, buf.text = e.Version, e.VersionNonce, current
+	}
+	return buf
+}
+
+// setAINodeText updates the node's primary inline text field as part of an
+// undoable typing session and keeps both inline and properties buffers synced.
+func (b *Board) setAINodeText(o BoardOptions, id, text string) {
+	b.editAINode(o, id, func(n *whiteboard.AINode) {
+		switch n.Role {
+		case whiteboard.AINote:
+			n.Note = strings.Trim(strings.TrimSpace(text), "[]")
+			if b.ai.edit == id {
+				b.ai.buf.note = text
+			}
+		case whiteboard.AIConcat:
+			n.Params.Template = text
+			if b.ai.edit == id {
+				b.ai.buf.template = text
+			}
+		default:
+			n.Instruction = text
+			if b.ai.edit == id {
+				b.ai.buf.instruction = text
+			}
+		}
+	})
+	if e := b.Scene.ElementByID(id); e != nil {
+		if buf := b.aiState().bufs[id]; buf != nil {
+			buf.version, buf.nonce, buf.text = e.Version, e.VersionNonce, text
+		}
 	}
 }
 

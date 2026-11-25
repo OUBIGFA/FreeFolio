@@ -418,21 +418,30 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		return true
 	}
 	if b.Tool == ToolSelect && o.AI != nil {
-		// Dragging from a node's output port draws a data line, as a node
-		// editor's handles do; the line binds wherever it is let go.
-		if id := b.aiPortAt(p); id != "" {
+		// Dragging from either port draws a data line with magnetic snapping
+		// to compatible ports, or opens a node picker on empty canvas.
+		if id, dir := b.aiPortHit(p); id != "" {
 			node := b.Scene.ElementByID(id)
 			start := whiteboard.Point{node.X + node.W, node.Y + node.H/2}
+			if dir == "in" {
+				start = whiteboard.Point{node.X, node.Y + node.H/2}
+			}
 			a := whiteboard.NewElement(whiteboard.KindArrow, start[0], start[1], 0, 0)
 			a.Points = []whiteboard.Point{{0, 0}, {0, 0}}
 			a.Roughness = 0
+			a.StrokeWidth = 2
 			a.StrokeColor = aiKindColors[b.aiOutputKind(node)]
+			if dir == "in" {
+				a.StartArrowhead, a.EndArrowhead = "arrow", ""
+			}
 			b.Scene.Elements = append(b.Scene.Elements, a)
 			b.Scene.Bind(a.ID, false, id, start)
 			b.creating = a.ID
 			b.selectIDs([]string{a.ID})
 			b.mode = "create"
 			b.ai.portFrom = id
+			b.ai.portDir = dir
+			b.ai.snapID, b.ai.snapDir = "", ""
 			b.start = start
 			return true
 		}
@@ -461,7 +470,11 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		ids := b.SelectedIDs()
 		if len(ids) > 0 {
 			bounds := whiteboard.SelectionBounds(b.Scene, ids)
+			singleAI := len(ids) == 1 && b.aiNode(b.Scene.ElementByID(ids[0])) != nil
 			for i, handle := range boardHandles(bounds) {
+				if singleAI && (i == 3 || i == 7 || i == 8) {
+					continue
+				}
 				if whiteboard.Distance(p, handle) < 8/b.Zoom {
 					b.handle = i
 					b.selectionBox = bounds
@@ -617,7 +630,15 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 			bb := whiteboard.PointsBounds(e.Points)
 			e.W, e.H = bb.W, bb.H
 		} else if e.IsLinear() {
-			if ev.Mods&ui.Shift != 0 {
+			if b.ai.portFrom != "" {
+				target, snapPt, snapDir := b.aiSnapTarget(p, b.ai.portFrom, b.ai.portDir)
+				if target != nil {
+					b.ai.snapID, b.ai.snapDir = target.ID, snapDir
+					d = whiteboard.Sub(snapPt, b.start)
+				} else {
+					b.ai.snapID, b.ai.snapDir = "", ""
+				}
+			} else if ev.Mods&ui.Shift != 0 {
 				angle := math.Round(math.Atan2(d[1], d[0])/(math.Pi/12)) * (math.Pi / 12)
 				l := math.Hypot(d[0], d[1])
 				d = whiteboard.Point{math.Cos(angle) * l, math.Sin(angle) * l}
@@ -649,8 +670,9 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	if b.multiLine {
 		return true
 	}
-	port := b.ai.portFrom
-	b.ai.portFrom = ""
+	port, portDir := b.ai.portFrom, b.ai.portDir
+	b.ai.portFrom, b.ai.portDir = "", ""
+	b.ai.snapID, b.ai.snapDir = "", ""
 	if mode == "create" && port != "" && whiteboard.Distance(b.start, b.scenePoint(ev.X, ev.Y)) < 6/b.Zoom {
 		// A click on a port is not a line.
 		b.mode = ""
@@ -699,7 +721,24 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	if mode == "create" {
 		e := b.Scene.ElementByID(b.creating)
 		if e != nil {
-			if e.Kind == whiteboard.KindArrow && b.ArrowBinding {
+			if port != "" {
+				if target, _, _ := b.aiSnapTarget(p, port, portDir); target != nil {
+					origin := b.Scene.ElementByID(port)
+					boardDeleteElement(b.Scene, e.ID)
+					if origin != nil {
+						fromEl, toEl := origin, target
+						if portDir == "in" {
+							fromEl, toEl = target, origin
+						}
+						if !b.aiHasConnection(fromEl.ID, toEl.ID) {
+							b.connectAI(fromEl, toEl)
+						}
+						b.selectIDs([]string{toEl.ID})
+					}
+					e = nil
+				}
+			}
+			if e != nil && e.Kind == whiteboard.KindArrow && b.ArrowBinding {
 				for i := len(b.Scene.Elements) - 1; i >= 0; i-- {
 					target := b.Scene.Elements[i]
 					if target.ID != e.ID && target.IsBindable() && whiteboard.HitTest(target, p, 10/b.Zoom) {
@@ -708,13 +747,13 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 					}
 				}
 			}
-			if e.Kind == whiteboard.KindNote {
+			if e != nil && e.Kind == whiteboard.KindNote {
 				note = e
 			}
-			if e.W < 2 && e.H < 2 && e.Kind != whiteboard.KindFreedraw {
+			if e != nil && e.W < 2 && e.H < 2 && e.Kind != whiteboard.KindFreedraw {
 				boardDeleteElement(b.Scene, e.ID)
 			}
-			if e.IsFrame() {
+			if e != nil && e.IsFrame() {
 				for _, child := range b.Scene.Elements {
 					if child.ID != e.ID && !child.IsFrame() && (whiteboard.Box{X: e.X, Y: e.Y, W: e.W, H: e.H}).Contains(whiteboard.ElementBounds(child).Center()) {
 						child.FrameID = e.ID
@@ -742,7 +781,7 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	b.cleanSelection()
 	if loose != nil {
 		end := whiteboard.Add(whiteboard.Point{loose.X, loose.Y}, loose.Points[len(loose.Points)-1])
-		b.ai.pickerAt, b.ai.pickerFrom, b.ai.pickerLine = &end, port, loose.ID
+		b.ai.pickerAt, b.ai.pickerFrom, b.ai.pickerDir, b.ai.pickerLine = &end, port, portDir, loose.ID
 	}
 	if note != nil {
 		b.startText(note, p, o)
