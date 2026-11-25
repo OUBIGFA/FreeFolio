@@ -252,6 +252,24 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 	text := func(id, t string, color ui.Color) {
 		p.TextLayout(b.aiCardTextFont(id, t, r.W, ui.Font{Size: 13, LineHeight: 1.45}), r.X, r.Y, color)
 	}
+	if n.Role == whiteboard.AIImageInput {
+		p.Fill(r, pal.mediaBg, 6)
+		bm := b.images[e.FileID]
+		if bm == nil {
+			message, _ := b.aiStatus(e, n)
+			text(e.ID+"#picture", message, pal.muted)
+			return
+		}
+		iw, ih := bm.Size()
+		src := ui.Rect{W: float32(iw), H: float32(ih)}
+		if crop := e.Crop; crop != nil {
+			src = ui.Rect{X: float32(crop.X), Y: float32(crop.Y), W: float32(crop.Width), H: float32(crop.Height)}
+		}
+		scale := min(r.W/src.W, r.H/src.H)
+		w, h := src.W*scale, src.H*scale
+		p.ImageRegion(bm, src, ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}, ui.ImageOptions{FlipX: e.Scale[0] < 0, FlipY: e.Scale[1] < 0, Tint: ui.RGB(255, 255, 255).Alpha(float32(e.Opacity / 100))})
+		return
+	}
 	if run := s.runs[e.ID]; run != nil && run.status == "running" && run.stream != "" {
 		stream := run.stream
 		if len(stream) > 4000 {

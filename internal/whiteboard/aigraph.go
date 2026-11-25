@@ -65,7 +65,7 @@ var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 // result is not passed on.
 func AIOutputType(role AIRole) string {
 	switch role {
-	case AIImage:
+	case AIImage, AIImageInput:
 		return AITypeImage
 	case AIVideo:
 		return ""

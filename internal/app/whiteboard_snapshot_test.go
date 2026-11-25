@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -9,6 +10,45 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
+
+func TestWhiteboardImageInputSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect imported picture nodes")
+	for _, dark := range []bool{false, true} {
+		name := "whiteboard-image-input"
+		if dark {
+			name += "-dark"
+		}
+		t.Run(name, func(t *testing.T) {
+			a, tt := coverApp(t, 360, 240)
+			data, err := os.ReadFile(filepath.Join(root(a), "assets", "cover.png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.prefs.AI.Connections = append(a.prefs.AI.Connections, prefs.AIConnection{ID: "draw", Name: "Draw", Protocol: agent.Media, Models: []agent.ModelInfo{{ID: "gpt-image-1", Enabled: true}}})
+			a.newWhiteboard("")
+			tt.Frame()
+			b := a.doc.board
+			if err := b.InsertImage(data, whiteboard.Point{300, 350}); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			source := b.SelectedIDs()[0]
+			if err := tt.Click("转为节点"); err != nil {
+				t.Fatal(err)
+			}
+			o := a.boardOptionsWith(nil, a.doc)
+			target := b.AddAINode(whiteboard.AIImage, whiteboard.Point{750, 350}, o)
+			if err := b.Connect(o, source, target, "image.0"); err != nil {
+				t.Fatal(err)
+			}
+			b.Selected = map[string]bool{source: true}
+			b.Zoom, b.PanX, b.PanY = 1, 0, 0
+			tt.SetDark(dark)
+			tt.Frame()
+			savePNG(t, filepath.Join(dir, name+".png"), tt)
+		})
+	}
+}
 
 func TestWhiteboardSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect the native whiteboard")

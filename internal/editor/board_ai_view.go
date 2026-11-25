@@ -15,8 +15,8 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中…", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note"}
 )
 
 type aiNodeColors struct {
@@ -83,6 +83,15 @@ func aiNodePalette(kind string, dark bool) aiNodeColors {
 
 // aiStatus is the card's status line and whether it reports a failure.
 func (b *Board) aiStatus(e *whiteboard.Element, n *whiteboard.AINode) (string, bool) {
+	if n.Role == whiteboard.AIImageInput && n.Error == "" {
+		if b.imageErrors[e.FileID] != nil {
+			return i18n.T("图片无法读取"), true
+		}
+		if b.images[e.FileID] == nil {
+			return i18n.T("正在加载图片"), false
+		}
+		return i18n.T("可作为参考图"), false
+	}
 	r := b.aiState().runs[e.ID]
 	if r != nil {
 		switch r.status {
@@ -431,7 +440,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 				s.panel = false
 			}
 		})
-		if n.Role != whiteboard.AIPrompt {
+		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
 			b.aiRunControls(c, o, id)
 		}
 		aiPropDivider(c, o)
@@ -445,6 +454,8 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		}
 		aiPropDivider(c, o)
 		switch n.Role {
+		case whiteboard.AIImageInput:
+			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入。")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIPrompt:
 			aiPropSection(c, o, "文字内容")
 			area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本…")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
@@ -498,7 +509,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 				b.setAINodeText(o, id, b.ai.buf.instruction)
 			}
 		}
-		if n.Role != whiteboard.AIPrompt {
+		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
 			aiPropDivider(c, o)
 			inputs := b.Scene.AIInputs(id)
 			aiPropSection(c, o, fmt.Sprintf(i18n.T("输入（%d）"), len(inputs)))
@@ -784,7 +795,7 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 				if boardButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel).Height(26).Label(i18n.T("全部设置")).Clicked() {
 					s.panel = !s.panel
 				}
-				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && !b.AIRunning() {
+				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && !b.AIRunning() {
 					if boardButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false).Height(26).Clicked() {
 						b.RunAI([]string{e.ID}, true, false, o)
 					}
@@ -870,6 +881,9 @@ func (b *Board) aiSelectionBar(c *ui.Context, o BoardOptions) {
 		top = y + h + 10
 	}
 	ui.Row(c.Key("board-ai-selection")).Absolute().Left(max(8, x)).Top(top).Gap(4).Padding(4, 6).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleToolbar).Label(i18n.T("用选中内容运行 AI")).Children(func() {
+		if len(b.selectedImagesForNodes()) > 0 && boardButton(c, "board-ai-convert-image", i18n.T("转为节点"), false).Height(28).Clicked() {
+			b.convertImagesToNodes(o)
+		}
 		for _, a := range []struct {
 			role  whiteboard.AIRole
 			label string
@@ -889,6 +903,9 @@ func (b *Board) aiContextMenu(m *ui.Menu, o BoardOptions) {
 		return
 	}
 	m.Separator()
+	if len(b.selectedImagesForNodes()) > 0 && m.Item(i18n.T("转为节点")).Chosen() {
+		b.convertImagesToNodes(o)
+	}
 	if ref := b.ai.link; ref != nil && m.Item(i18n.T("删除连线")).Chosen() {
 		b.deleteAILink(*ref, o)
 	}

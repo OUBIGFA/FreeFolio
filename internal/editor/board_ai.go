@@ -155,7 +155,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -190,7 +190,7 @@ func (b *Board) aiState() *boardAIState {
 // aiNode is an element's node, parsed once per element revision: the card
 // is painted every frame.
 func (b *Board) aiNode(e *whiteboard.Element) *whiteboard.AINode {
-	if e == nil || e.Kind != whiteboard.KindRectangle || len(e.CustomData) == 0 {
+	if e == nil || (e.Kind != whiteboard.KindRectangle && e.Kind != whiteboard.KindImage) || len(e.CustomData) == 0 {
 		return nil
 	}
 	s := b.aiState()
@@ -247,7 +247,7 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	w, h := whiteboard.AINodeSize(role)
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
-	if o.AI != nil && o.AI.Default != nil && role != whiteboard.AIPrompt && role != whiteboard.AIConcat && role != whiteboard.AINote {
+	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIVideo) {
 		m := o.AI.Default(role)
 		n.Connection, n.Model = m.Connection, m.Model
 	}
@@ -258,6 +258,44 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	_ = whiteboard.SetAINode(e, n)
 	b.Scene.Elements = append(b.Scene.Elements, e)
 	return e
+}
+
+// selectedImagesForNodes keeps conversion available only for editable,
+// ordinary pictures. Reusing their IDs preserves existing reference links.
+func (b *Board) selectedImagesForNodes() []*whiteboard.Element {
+	if b.ReadOnly {
+		return nil
+	}
+	var images []*whiteboard.Element
+	for _, id := range b.SelectedIDs() {
+		e := b.Scene.ElementByID(id)
+		if e != nil && !e.Locked && e.Kind == whiteboard.KindImage && b.aiNode(e) == nil {
+			images = append(images, e)
+		}
+	}
+	return images
+}
+
+// convertImagesToNodes adds picture outputs in one undo step without copying,
+// deleting or rewriting the images. Node cards keep their original centers.
+func (b *Board) convertImagesToNodes(o BoardOptions) {
+	images := b.selectedImagesForNodes()
+	if len(images) == 0 {
+		return
+	}
+	b.edit(o, func() {
+		for _, e := range images {
+			n := &whiteboard.AINode{Role: whiteboard.AIImageInput}
+			if err := whiteboard.SetAINode(e, n); err != nil {
+				b.err = err
+				continue
+			}
+			cx, cy := e.X+e.W/2, e.Y+e.H/2
+			w, h := whiteboard.AINodeSize(n.Role)
+			e.W, e.H = max(w, e.W), max(h, e.H)
+			e.X, e.Y, e.Angle = cx-e.W/2, cy-e.H/2, 0
+		}
+	})
 }
 
 // viewCenter is the scene point at the canvas's middle.
@@ -549,6 +587,18 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	if n == nil {
 		return nil, errors.New(i18n.T("节点已不存在"))
 	}
+	if n.Role == whiteboard.AIImageInput {
+		// A source validates its existing asset during an upstream run;
+		// generation nodes read the same file directly through AIInputs.
+		data, err := boardFileBytes(snap.Files[e.FileID], o)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := sniffImage(data); err != nil {
+			return nil, err
+		}
+		return &boardAIResult{}, nil
+	}
 	var texts, labels, hashes []string
 	var images []BoardAIImage
 	var mask *BoardAIImage
@@ -769,6 +819,12 @@ func (b *Board) applyAIResult(id string, res *boardAIResult, err error, o BoardO
 	case err != nil:
 		r.status, r.err = "error", err
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = err.Error() })
+		return
+	case b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImageInput:
+		r.status, r.err = "done", nil
+		if n := b.aiNode(b.Scene.ElementByID(id)); n.Error != "" {
+			b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = "" })
+		}
 		return
 	case res.cached:
 		r.status = "cached"

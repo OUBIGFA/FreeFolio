@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-// AI workflow nodes live on ordinary Excalidraw rectangles. Their settings,
+// AI workflow nodes live on Excalidraw rectangles, or images for picture
+// inputs so their file, crop and clipboard behavior stay intact. Their settings,
 // input links and results are kept in customData under AINamespace, so
 // other Excalidraw readers open the file unchanged and other namespaces
 // survive. Links are not board elements: the board's arrows and lines stay
@@ -24,6 +25,8 @@ type AIRole string
 const (
 	// AIPrompt holds editable prompt or text directly on the board.
 	AIPrompt AIRole = "prompt"
+	// AIImageInput supplies an imported picture without generating a new one.
+	AIImageInput AIRole = "image-input"
 	// AIText writes text from its inputs: summaries, rewrites, prompts.
 	AIText AIRole = "text"
 	// AIImage generates a picture, or edits one when it has picture inputs.
@@ -36,8 +39,8 @@ const (
 	AINote AIRole = "note"
 )
 
-// AIRoles are the roles in the order the node bar offers them.
-var AIRoles = []AIRole{AIPrompt, AIText, AIImage, AIVideo, AIConcat, AINote}
+// AIRoles are the supported roles stored in a scene.
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote}
 
 // MaxAIOutputs bounds a node's kept history; older entries are dropped from
 // the node, never deleted from disk.
@@ -104,7 +107,7 @@ func (n *AINode) Output() *AIOutput {
 // Kind is the data a node supplies downstream.
 func (n *AINode) Kind() string {
 	switch n.Role {
-	case AIImage:
+	case AIImage, AIImageInput:
 		return "image"
 	case AIVideo:
 		return "video"
@@ -151,7 +154,7 @@ func (n *AINode) RemoveOutput(i int) {
 // AINodeOf reads an element's node, or nil for an ordinary element or a
 // node this version does not understand.
 func AINodeOf(e *Element) *AINode {
-	if e == nil || e.IsDeleted || e.Kind != KindRectangle || len(e.CustomData) == 0 {
+	if e == nil || e.IsDeleted || (e.Kind != KindRectangle && e.Kind != KindImage) || len(e.CustomData) == 0 {
 		return nil
 	}
 	var data map[string]json.RawMessage
@@ -160,6 +163,9 @@ func AINodeOf(e *Element) *AINode {
 	}
 	var n AINode
 	if json.Unmarshal(data[AINamespace], &n) != nil || n.V != 1 || !slices.Contains(AIRoles, n.Role) {
+		return nil
+	}
+	if (n.Role == AIImageInput) != (e.Kind == KindImage) {
 		return nil
 	}
 	return &n
@@ -197,6 +203,8 @@ func AINodeSize(role AIRole) (float64, float64) {
 	switch role {
 	case AIPrompt:
 		return 300, 220
+	case AIImageInput:
+		return 300, 300
 	case AIImage:
 		return 360, 480
 	case AIVideo:
@@ -213,6 +221,9 @@ func AINodeSize(role AIRole) (float64, float64) {
 func NewAINode(role AIRole, x, y float64) *Element {
 	w, h := AINodeSize(role)
 	e := NewElement(KindRectangle, x, y, w, h)
+	if role == AIImageInput {
+		e.Kind = KindImage
+	}
 	e.Roughness = 0
 	e.StrokeWidth = 1
 	e.StrokeColor = "#868e96"
@@ -284,10 +295,12 @@ func (s *Scene) AIInputs(id string) []AIInput {
 		}
 		in := AIInput{From: from.ID, Slot: sl.Name, Group: sl.Group, Mask: sl.Group == "mask"}
 		switch {
+		case from.Kind == KindImage:
+			// Imported picture nodes read the original asset even when only
+			// the downstream node runs; they have no generated output history.
+			in.Kind, in.FileID = "image", from.FileID
 		case IsAINode(from):
 			in.Kind = "node"
-		case from.Kind == KindImage:
-			in.Kind, in.FileID = "image", from.FileID
 		case from.IsFrame():
 			in.Kind, in.Text = "frame", s.frameText(from.ID)
 		default:

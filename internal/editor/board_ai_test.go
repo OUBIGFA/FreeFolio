@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -197,6 +198,124 @@ func TestBoardAIFrameNoteAndConcatInputs(t *testing.T) {
 	job := f.jobs[len(f.jobs)-1]
 	if len(job.Images) != 1 || !strings.Contains(job.Prompt, "换成陶瓷") || !strings.Contains(job.Prompt, "<note body of 说明>") {
 		t.Fatalf("frame job %+v", job.Prompt)
+	}
+}
+
+func TestBoardAIConvertImageToReferenceNode(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	data := testPNG(t)
+	if err := b.InsertImage(data, whiteboard.Point{240, 270}); err != nil {
+		t.Fatal(err)
+	}
+	picture := b.Scene.ElementByID(b.SelectedIDs()[0])
+	picture.X, picture.Y, picture.W, picture.H = 120, 180, 240, 180
+	picture.Crop = &whiteboard.ImageCrop{X: 1, Y: 0, Width: 2, Height: 3, NaturalWidth: 4, NaturalHeight: 4}
+	picture.Scale = [2]float64{-1, 1}
+	id, fileID := picture.ID, picture.FileID
+	original := picture.Clone()
+	// Imported attachments may already live on disk instead of in a data URL.
+	asset := b.Scene.Files[fileID]
+	asset.Path, asset.DataURL = "assets/reference.png", ""
+	o.ResolveFile = func(file *whiteboard.FileData) ([]byte, error) {
+		if file.Path != "assets/reference.png" {
+			return nil, errors.New("unexpected asset")
+		}
+		return data, nil
+	}
+	targetID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{800, 360}, o)
+	if err := b.connectAI(picture, b.Scene.ElementByID(targetID), true); err != nil {
+		t.Fatal(err)
+	}
+	b.selectIDs([]string{id})
+	b.fitted = true
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	if err := tt.Click("转为节点"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	converted := b.Scene.ElementByID(id)
+	n := whiteboard.AINodeOf(converted)
+	if n == nil || n.Role != "image-input" || converted.FileID != fileID || len(b.Scene.Files) != 1 || converted.Scale != original.Scale || !reflect.DeepEqual(converted.Crop, original.Crop) {
+		t.Fatalf("conversion lost picture data: %+v", converted)
+	}
+	if len(f.jobs) != 0 || n.Model != "" || n.Connection != "" || len(n.Outputs) != 0 {
+		t.Fatal("conversion must reuse the picture without generating it")
+	}
+	if whiteboard.AINodeOf(b.Scene.ElementByID(targetID)).LinkAt("image.0") != id {
+		t.Fatal("conversion broke the existing reference link")
+	}
+	if !b.Undo() || whiteboard.IsAINode(b.Scene.ElementByID(id)) || b.Scene.ElementByID(id).W != original.W {
+		t.Fatal("conversion could not be undone")
+	}
+	if !b.Redo() || !whiteboard.IsAINode(b.Scene.ElementByID(id)) {
+		t.Fatal("conversion could not be redone")
+	}
+	tt.Frame()
+	x, y := slotAt(b, id, "")
+	X, Y := slotAt(b, targetID, "image.0")
+	drag(tt, x, y, X, Y)
+	if whiteboard.AINodeOf(b.Scene.ElementByID(targetID)).LinkAt("image.0") != id {
+		t.Fatal("image output did not connect to the reference slot")
+	}
+	noArrows(t, b)
+	for _, upstream := range []bool{false, true} {
+		before := len(f.jobs)
+		b.RunAI([]string{targetID}, upstream, true, o)
+		if len(f.jobs) != before+1 {
+			t.Fatalf("generation did not run once: %+v", b.ai.runs[targetID])
+		}
+		job := f.jobs[len(f.jobs)-1]
+		if job.NodeID != targetID || len(job.Images) != 1 || !bytes.Equal(job.Images[0].Data, data) {
+			t.Fatalf("reference picture did not reach generation: %+v", job)
+		}
+	}
+	if len(f.jobs) != 2 || len(whiteboard.AINodeOf(b.Scene.ElementByID(id)).Outputs) != 0 {
+		t.Fatal("running upstream regenerated the input picture")
+	}
+	delete(b.Scene.Files, fileID)
+	b.RunAI([]string{targetID}, true, true, o)
+	if len(f.jobs) != 2 || b.ai.runs[id].status != "error" || b.ai.runs[targetID].status != "blocked" {
+		t.Fatal("a missing reference picture reached generation")
+	}
+}
+
+func TestBoardAIImageConversionMenuAndPermissions(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	if err := b.InsertImage(testPNG(t), whiteboard.Point{260, 280}); err != nil {
+		t.Fatal(err)
+	}
+	picture := b.Scene.ElementByID(b.SelectedIDs()[0])
+	picture.X, picture.Y, picture.W, picture.H = 160, 180, 200, 200
+	b.fitted = true
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	picture.Locked = true
+	tt.Frame()
+	if tt.HasText("转为节点") {
+		t.Fatal("locked picture offers conversion")
+	}
+	b.convertImagesToNodes(o)
+	if whiteboard.IsAINode(picture) {
+		t.Fatal("locked picture was converted")
+	}
+	picture.Locked = false
+	o.ReadOnly = true
+	tt.Frame()
+	b.convertImagesToNodes(o)
+	if tt.HasText("转为节点") || whiteboard.IsAINode(picture) {
+		t.Fatal("read-only picture was converted")
+	}
+	o.ReadOnly = false
+	tt.Frame()
+	tt.RightClickAt(260, 280)
+	if err := tt.ChooseMenuItem("转为节点"); err != nil {
+		t.Fatal(err)
+	}
+	if !whiteboard.IsAINode(b.Scene.ElementByID(picture.ID)) {
+		t.Fatal("context menu did not convert the picture")
 	}
 }
 

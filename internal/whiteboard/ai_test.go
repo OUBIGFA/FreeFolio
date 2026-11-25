@@ -80,6 +80,67 @@ func TestAINodeRoundTripKeepsOtherCustomData(t *testing.T) {
 	}
 }
 
+func TestAIImageInputRetainsFileAndLinks(t *testing.T) {
+	s := NewScene()
+	picture := NewElement(KindImage, 20, 40, 300, 240)
+	picture.FileID, picture.Status = "reference", "saved"
+	picture.CustomData = json.RawMessage(`{"other":{"keep":true}}`)
+	picture.Crop = &ImageCrop{X: 1, Y: 0, Width: 2, Height: 3, NaturalWidth: 4, NaturalHeight: 4}
+	s.Files[picture.FileID] = &FileData{ID: picture.FileID, MIMEType: "image/png", Path: "assets/reference.png"}
+	if err := SetAINode(picture, &AINode{Role: "image-input"}); err != nil {
+		t.Fatal(err)
+	}
+	n := AINodeOf(picture)
+	if n == nil || AIOutputType(n.Role) != AITypeImage || len(AISlots(n)) != 0 {
+		t.Fatalf("picture is not an image source node: %+v", n)
+	}
+	target := NewAINode(AIImage, 500, 40)
+	s.Elements = append(s.Elements, picture, target)
+	link(t, s, picture, target, "")
+	raw, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := back.ElementByID(picture.ID)
+	inputs := back.AIInputs(target.ID)
+	var custom struct {
+		Other struct{ Keep bool }
+	}
+	if err := json.Unmarshal(got.CustomData, &custom); err != nil {
+		t.Fatal(err)
+	}
+	if AINodeOf(got) == nil || got.Kind != KindImage || got.FileID != picture.FileID || !custom.Other.Keep {
+		t.Fatalf("picture metadata lost after reload: %+v", got)
+	}
+	if c := got.Crop; c == nil || c.X != 1 || c.Y != 0 || c.Width != 2 || c.Height != 3 || c.NaturalWidth != 4 || c.NaturalHeight != 4 {
+		t.Fatalf("picture crop lost after reload: %+v", c)
+	}
+	if len(inputs) != 1 || inputs[0].Kind != "image" || inputs[0].Slot != "image.0" || inputs[0].FileID != picture.FileID {
+		t.Fatalf("reference input lost after reload: %+v", inputs)
+	}
+	clip, err := back.Clipboard([]string{picture.ID, target.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pasted := NewScene()
+	ids, err := pasted.Paste(clip, Point{800, 300})
+	if err != nil || len(ids) != 2 {
+		t.Fatalf("paste: %v, %v", ids, err)
+	}
+	for _, e := range pasted.Elements {
+		if n := AINodeOf(e); n != nil && n.Role == AIImage {
+			ins := pasted.AIInputs(e.ID)
+			if len(ins) != 1 || ins[0].From == picture.ID || pasted.Files[ins[0].FileID] == nil {
+				t.Fatalf("copied node lost its reference picture: %+v", ins)
+			}
+		}
+	}
+}
+
 func TestAIPlanOrdersAndDetectsCycles(t *testing.T) {
 	s := NewScene()
 	a, b, c, d := NewAINode(AIText, 0, 0), NewAINode(AIText, 0, 0), NewAINode(AIImage, 0, 0), NewAINode(AIText, 0, 0)

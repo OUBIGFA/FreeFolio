@@ -49,7 +49,7 @@ func aiWidgetHeight(role whiteboard.AIRole) float32 {
 		return 34
 	case whiteboard.AIConcat:
 		return 76
-	case whiteboard.AIPrompt:
+	case whiteboard.AIPrompt, whiteboard.AIImageInput:
 		return 0
 	}
 	// Model row, settings row and the instruction field.

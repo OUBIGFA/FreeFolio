@@ -2062,7 +2062,11 @@ var en = map[string]string{
 	"OpenAI 兼容图像/视频（Images / Videos API）":     "OpenAI-compatible images/videos (Images / Videos API)",
 	"OpenAI 绘画与视频": "OpenAI Images and Videos",
 	// Whiteboard AI inline & node cards, extended space icons & starter choice.
-	"文字节点":       "Text Node",
+	"文字节点":   "Text Node",
+	"图片输入":   "Image Input",
+	"转为节点":   "Convert to Node",
+	"可作为参考图": "Ready as a reference image",
+	"从右侧图片输出拖线到 AI 生图节点的参考图输入。": "Drag the image output on the right to an image generation node's reference input.",
 	"拼接":         "Concat",
 	"已生成":        "Generated",
 	"%d 输入":      "%d inputs",
