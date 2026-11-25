@@ -3,6 +3,14 @@
 FreeFolio uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,
 text shaping and system input transport. Its module cache stays untouched.
 
+Six workflows follow Quiet.md at `dfdf6da369eb0432a7f6c9024ca4f5c7605de4da`:
+font browsing, unused-attachment review, formatted history, library migration,
+quick capture and three-way block merging. Algorithm ports and SiYuan text
+fixtures use [Quiet.md's MIT notice](quiet-md/LICENSE). No Nucleo icons, branding
+or GPUI runtime are included. Scope and file hashes are in
+[upstreams.json](manifests/upstreams.json). Optional fonts have separate
+[OFL notices](fonts/README.md).
+
 Whiteboard arrowheads, brush connectors and additional hand-drawn shapes port
 [dim0](dim0/README.md)'s pinned [canvas-harness](canvas-harness/README.md) geometry
 under MIT. Source references and parity fixture generation are retained.

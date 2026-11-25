@@ -92,6 +92,11 @@ type startupDocPrefetch struct {
 
 // App is FreeFolio's state.
 type App struct {
+	boardImages  []*boardImageWindow
+	imports      noteImportState
+	quick        quickNoteState
+	cleanup      cleanupState
+	fonts        fontState
 	boardLibrary *boardLibraryState
 	cloud        cloudState
 	// Sidebar selection belongs to one space and retains a range anchor.
@@ -415,6 +420,7 @@ func New(cfg Config) (*App, error) {
 		}
 	}
 	first := len(st.Spaces) == 0
+	a.imports.offer = first
 	if first {
 		if err := a.firstRun(); err != nil {
 			return nil, err
@@ -741,6 +747,7 @@ func (a *App) syncTray() {
 		ToolTip: "FreeFolio",
 		Menu: mygo.NewMenu([]*mygo.MenuItem{
 			{Label: i18n.T("打开 FreeFolio"), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},
+			{Label: i18n.T("快速笔记"), Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Update(a.openQuickNote) }},
 			mygo.Separator(),
 			{Label: i18n.T("退出 FreeFolio"), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 		}),

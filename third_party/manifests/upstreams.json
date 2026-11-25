@@ -454,6 +454,122 @@
           "sha256": "d112c8255ceadc549a228504e22d58155d6cda2c08fca35f9c63d87b6aa56713"
         }
       ]
+    },
+    {
+      "name": "Quiet.md selected workflows",
+      "sourceUrl": "https://github.com/s1dashu/quiet-md",
+      "revision": "dfdf6da369eb0432a7f6c9024ca4f5c7605de4da",
+      "spdxLicenseId": "MIT",
+      "licensePath": "third_party/quiet-md/LICENSE",
+      "purpose": "Native fonts, attachment cleanup, formatted history, migration, quick capture and three-way merge behavior",
+      "adaptedFiles": [
+        {
+          "path": "crates/core/src/merge.rs",
+          "sha256": "4ef92de985fcd3bdd0a07da8f4a3622cd941efcafcb5d9f24b0805a2f15a32c0"
+        },
+        {
+          "path": "crates/core/src/siyuan/mod.rs",
+          "sha256": "ecc22db4f18b19daac5329323a420d6e2e78ff3ea96dd45e76492c432b58ba27"
+        },
+        {
+          "path": "crates/core/src/siyuan/av.rs",
+          "sha256": "f93cccbea283e4ed099101f572f1d8c8e77746e5a23851febc36efd217a52326"
+        },
+        {
+          "path": "src/onboarding.rs",
+          "sha256": "a673dde1a11e3ceb6225bc7c7fdc8439e41aab608c782127d5fc3cc9366f1da4"
+        },
+        {
+          "path": "src/history.rs",
+          "sha256": "433872b0902ad3c5770cc5e32ca545c1dff64c6e941d9ef35d3c4e3e32a22ebb"
+        },
+        {
+          "path": "src/settings.rs",
+          "sha256": "13ef086222fdadab11438a01a000a585b5cb3a870848b2c6bed891cb284d1b47"
+        },
+        {
+          "path": "src/font_downloads.rs",
+          "sha256": "7b274db390b546fc775526ef17cd03f16b26b089c90c745f8c405a46976cd486"
+        },
+        {
+          "path": "crates/core/src/store.rs",
+          "sha256": "d8227f833f991a42e7a9ebef413ae3e4f5be3bc5a8d2c4a873668651f37baba5"
+        }
+      ],
+      "trackedEvidence": [
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbinbox/.siyuan/conf.json",
+          "bytes": 55,
+          "sha256": "5ec55280c362273425bdf22a1484a58820d9529c1bbeb03c2dbb71883f6f877f"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbinbox/20240101000400-inboxdd.sy",
+          "bytes": 480,
+          "sha256": "44cae46d03f27881c169fef197d9f613abcaec2618a6bf64b209bbbd81a0fb2e"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbnotes/.siyuan/conf.json",
+          "bytes": 76,
+          "sha256": "b8575ec52d2e4f31b43f5f6d23897597717b2c601ac1fb9912cf06af096fc775"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbnotes/.siyuan/sort.json",
+          "bytes": 63,
+          "sha256": "d183842f2b9ad31cefd3c6222f0b007f2d7c3401c02cb5a268f5bba52a00f7b5"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbnotes/20240101000100-docaaaa/20240101000300-childcc.sy",
+          "bytes": 735,
+          "sha256": "3b5207c73f2795ac6b3d96fb64e50b744e28eff4b6a2e84b997e9f5850fd1020"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbnotes/20240101000100-docaaaa.sy",
+          "bytes": 19890,
+          "sha256": "396b3737fa9d2ff29fae697859efa216283c1d7a799a5ae33359ad09797b3539"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/20240101000000-nbnotes/20240101000200-docbbbb.sy",
+          "bytes": 4646,
+          "sha256": "00cc5bae003b3e2e945968e9a5895662c42e9698db4bfd9cc8d7943a7f1b8295"
+        },
+        {
+          "path": "internal/noteimport/testdata/siyuan/storage/av/20240101000700-avbooks.json",
+          "bytes": 2679,
+          "sha256": "c890f4bed8e8f2f815d37f33a8efbc1e5d97793fc061ca60acf8493a3086d033"
+        }
+      ]
+    },
+    {
+      "name": "LXGW WenKai",
+      "sourceUrl": "https://github.com/lxgw/LxgwWenKai",
+      "revision": "4becfb4d5cf0c92cfdb60a6e9b504bda43315325",
+      "tag": "v1.530",
+      "spdxLicenseId": "OFL-1.1",
+      "licensePath": "third_party/fonts/LXGW-WenKai-OFL.txt",
+      "purpose": "Optional verified document font download; font binaries not tracked",
+      "trackedEvidence": [
+        {
+          "path": "third_party/fonts/LXGW-WenKai-OFL.txt",
+          "bytes": 5170,
+          "sha256": "4248ee53f0c37edaf4cfabe67ef620f8eef50cb2700d090c59337919d6539f1b"
+        }
+      ]
+    },
+    {
+      "name": "Zhuque Fangsong",
+      "sourceUrl": "https://github.com/TrionesType/zhuque",
+      "revision": "803217b9663d1c6e1402e91acc94e4f572713d73",
+      "tag": "v0.212",
+      "spdxLicenseId": "OFL-1.1",
+      "licensePath": "third_party/fonts/Zhuque-Fangsong-OFL.txt",
+      "purpose": "Optional verified document font download; font binaries not tracked",
+      "trackedEvidence": [
+        {
+          "path": "third_party/fonts/Zhuque-Fangsong-OFL.txt",
+          "bytes": 4388,
+          "sha256": "4382349a899ec4cde90e89c241c0a0f63409dfd3fee498232ff9cb4d8989dc7f"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [
@@ -483,6 +599,12 @@
       "sourceUrl": "https://github.com/vcmf/dim0",
       "revision": "1bf00bae37bf06234271b6e16e014f2395b3d335",
       "scope": "Native drawing arrows and seven hand-drawn shapes from pinned canvas-harness; four-direction layout, board search and editable outline insertion. No web runtime, collaboration or hosted services."
+    },
+    {
+      "name": "Quiet.md",
+      "sourceUrl": "https://github.com/s1dashu/quiet-md",
+      "revision": "dfdf6da369eb0432a7f6c9024ca4f5c7605de4da",
+      "scope": "Six selected workflows implemented in Go and MyGo: font browsing and verified optional fonts, guarded unused attachment cleanup, formatted history preview, Markdown/SiYuan copy migration with reports, native global quick notes, and block-level merge integrated with existing WebDAV/S3 synchronization. No GPUI runtime, commercial Nucleo icons, branding, GitHub transport or mobile shell copied."
     }
   ],
   "maintainerCodeReuse": [

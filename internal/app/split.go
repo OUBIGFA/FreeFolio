@@ -367,6 +367,11 @@ func (a *App) residentDocuments() []*document {
 	for _, w := range a.windows {
 		add(w.doc)
 	}
+	for _, w := range a.boardImages {
+		if !w.closed {
+			add(w.doc)
+		}
+	}
 	return out
 }
 

@@ -33,6 +33,7 @@ func TestVersionGraphemeDiffAndMilestones(t *testing.T) {
 		t.Fatalf("expected versions modal open with >= 2 versions, got %+v", a.versions)
 	}
 	a.selectVersion(1)
+	a.versions.showDiff = true // The original text-difference view remains available.
 	tt.Frame()
 
 	hasSpans := false

@@ -24,11 +24,16 @@ import (
 
 // versionsState is the history window's.
 type versionsState struct {
-	board    *editor.Board
-	open     bool
-	err      error
-	versions []history.Version
-	sel      int
+	loading   bool
+	preview   *editor.Editor
+	marks     map[string]bool
+	showDiff  bool
+	showMarks bool
+	board     *editor.Board
+	open      bool
+	err       error
+	versions  []history.Version
+	sel       int
 	// for is the document the versions are of; shown the version whose
 	// difference diff holds.
 	for_           *document
@@ -89,8 +94,22 @@ func (a *App) openVersions() {
 		a.flush()
 	}
 	v := &a.versions
-	*v = versionsState{open: true, for_: d}
-	v.versions, v.err = history.List(d.space.Root, d.rel)
+	*v = versionsState{open: true, for_: d, showMarks: true}
+	v.loading = true
+	root, rel := d.space.Root, d.rel
+	a.backgroundResult(func() func() {
+		versions, err := history.List(root, rel)
+		return func() {
+			if !v.open || v.for_ != d {
+				return
+			}
+			v.loading = false
+			v.versions, v.err = versions, err
+			if err == nil && len(versions) > 0 {
+				a.selectVersion(0)
+			}
+		}
+	})
 }
 
 // selectVersion reads the version at i and compares it with the document
@@ -107,41 +126,67 @@ func (a *App) selectVersion(i int) {
 	}
 	v.shown, v.doc, v.diff, v.err = ver.File, nil, nil, nil
 	v.board = nil
-	text, err := history.Read(v.for_.space.Root, v.for_.rel, ver)
-	if err == nil && v.for_.board != nil {
-		scene, readErr := whiteboard.Decode(text)
-		if readErr != nil {
-			v.err = readErr
-			return
+	v.preview = nil
+	v.loading = true
+	d := v.for_
+	root, rel := d.space.Root, d.rel
+	base := d.ed.Committed().Clone()
+	isBoard := d.board != nil
+	current := base.PlainText()
+	if isBoard {
+		current = d.board.Scene.PlainText()
+	}
+	a.backgroundResult(func() func() {
+		text, err := history.Read(root, rel, ver)
+		var doc *model.Document
+		var scene *whiteboard.Scene
+		var diff []history.Line
+		var marks map[string]bool
+		if err == nil {
+			if isBoard {
+				scene, err = whiteboard.Decode(text)
+				if err == nil {
+					doc = model.New()
+					diff = history.Diff(strings.Split(current, "\n"), strings.Split(scene.PlainText(), "\n"))
+				}
+			} else {
+				if strings.EqualFold(path.Ext(ver.File), ".arcmd") {
+					doc, err = model.Decode(text)
+				} else {
+					doc = editor.ImportMarkdown(text)
+				}
+				if err == nil {
+					marks = model.ChangedBlocks(base, doc)
+					diff = history.Diff(strings.Split(current, "\n"), strings.Split(doc.PlainText(), "\n"))
+				}
+			}
 		}
-		v.board = editor.NewBoard(scene)
-		v.doc = model.New()
-		v.diff = history.Diff(strings.Split(v.for_.board.Scene.PlainText(), "\n"), strings.Split(scene.PlainText(), "\n"))
-		return
-	}
-	if err == nil {
-		if strings.EqualFold(path.Ext(ver.File), ".arcmd") {
-			v.doc, err = model.Decode(text)
-		} else {
-			v.doc = editor.ImportMarkdown(text)
+		return func() {
+			if !v.open || v.for_ != d || v.shown != ver.File {
+				return
+			}
+			v.loading = false
+			v.err = err
+			if err != nil {
+				return
+			}
+			v.doc, v.diff, v.marks = doc, diff, marks
+			if scene != nil {
+				v.board = editor.NewBoard(scene)
+			} else {
+				v.preview = editor.FromDocument(doc)
+				v.preview.ReadOnly = true
+			}
+			v.added, v.gone = 0, 0
+			for _, line := range diff {
+				if line.Op == history.Added {
+					v.added++
+				} else if line.Op == history.Removed {
+					v.gone++
+				}
+			}
 		}
-	}
-	if err != nil {
-		v.err = err
-		return
-	}
-	now := strings.Split(v.for_.ed.Committed().PlainText(), "\n")
-	then := strings.Split(v.doc.PlainText(), "\n")
-	v.diff = history.Diff(now, then)
-	v.added, v.gone = 0, 0
-	for _, l := range v.diff {
-		switch l.Op {
-		case history.Added:
-			v.added++
-		case history.Removed:
-			v.gone++
-		}
-	}
+	})
 }
 
 // restoreVersion puts the version shown in place of the document, as one
@@ -258,14 +303,21 @@ func (a *App) versionsView(c *ui.Context) {
 		a.retireClosedDocuments(old)
 		return
 	}
-	t := c.Theme()
-	if len(v.versions) > 0 && v.shown == "" {
-		a.selectVersion(0)
+	t := documentTheme(a.paperDark)
+	c.SetTheme(t)
+	w, h := c.Size()
+	bar := a.titleBar(c)
+	if c.Shortcut(0, ui.KeyEscape) {
+		v.open = false
+		return
 	}
-	ui.Modal(c.Key("versions"), &v.open, func() {
-		ui.Column(c.Key("versions-body")).Size(760, 500).Gap(12).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
+	ui.Column(c.Key("versions")).Fill().Background(t.Background).Children(func() {
+		ui.Column(c.Key("versions-body")).Size(w, h).Padding(12).Gap(12).Children(func() {
+			ui.Row(c).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 				ui.Icon(c, iconHistory).FontSize(16).TextColor(t.TextMuted)
+				if ui.Button(c.Key("history-return"), i18n.T("返回当前文档")).Clicked() {
+					v.open = false
+				}
 				ui.Text(c, i18n.T("版本历史 · ")+v.for_.title()).FontSize(16).FontWeight(600).Grow(1).SingleLine().MinWidth(0)
 				if ui.Button(c.Key("version-milestone-new"), i18n.T("保存里程碑…")).Clicked() {
 					v.creating = !v.creating
@@ -306,6 +358,8 @@ func (a *App) versionsView(c *ui.Context) {
 			if len(v.versions) == 0 {
 				ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
 					switch {
+					case v.loading:
+						ui.Text(c, i18n.T("正在读取历史版本…"))
 					case v.err != nil:
 						ui.Text(c, i18n.T("读取版本历史失败。")+v.err.Error()).TextColor(t.Danger)
 					default:
@@ -316,7 +370,7 @@ func (a *App) versionsView(c *ui.Context) {
 				})
 				return
 			}
-			ui.Row(c).Grow(1).MinHeight(0).Gap(12).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(12).AlignItems(ui.Stretch).Reverse().Children(func() {
 				ui.Column(c).Width(210).MinHeight(0).Gap(8).Children(func() {
 					ui.Row(c.Key("version-filter")).Gap(4).Padding(2).Radius(8).Background(t.Text.Alpha(0.05)).Children(func() {
 						filterBtn := func(key, label string, active bool, onClick func()) {
@@ -428,8 +482,34 @@ func (a *App) versionsView(c *ui.Context) {
 				})
 				ui.Box(c).Width(1).Background(t.Text.Alpha(0.08))
 				ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+					if v.loading {
+						ui.Text(c, i18n.T("正在读取历史版本…"))
+						return
+					}
+					ui.Row(c.Key("history-display")).Gap(8).AlignItems(ui.Center).Children(func() {
+						mode := 0
+						if v.showDiff {
+							mode = 1
+						}
+						segmentedChoice(c.Key("history-mode"), &mode, i18n.T("正文预览"), i18n.T("文字差异"))
+						v.showDiff = mode == 1
+						if !v.showDiff {
+							ui.Checkbox(c.Key("history-marks"), &v.showMarks, i18n.T("显示改动"))
+						}
+					})
 					if v.board != nil {
 						editor.BoardView(c, v.board, editor.BoardOptions{ReadOnly: true, Theme: c.Theme()})
+						return
+					}
+					if !v.showDiff && v.preview != nil {
+						if v.added > 0 || v.gone > 0 {
+							ui.Text(c, fmt.Sprintf(i18n.T("与当前内容相比：恢复后增加 %d 行、删除 %d 行"), v.added, v.gone)).FontSize(12).TextColor(t.TextMuted)
+						}
+						opts := editor.Options{Width: max(100, w-270), Theme: t, Page: pageStyle(a.paperDark), FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.prefs.BodyFamily(), Column: a.prefs.Column(), LoadImage: func(url string) editor.ImageResource { return a.imageResourceFor(v.for_, url) }}
+						if v.showMarks {
+							opts.HighlightBlocks = v.marks
+						}
+						editor.View(c.Key("history-preview:"+v.shown), v.preview, opts)
 						return
 					}
 					switch {
@@ -500,6 +580,9 @@ func (a *App) versionsView(c *ui.Context) {
 			})
 		})
 	})
+	if a.win != nil && hasAppWindowControls() {
+		windowButtons(c, a.win)
+	}
 }
 
 // nearChange reports whether a line is within two lines of a change, the

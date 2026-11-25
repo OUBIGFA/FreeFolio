@@ -192,6 +192,12 @@ func (a *App) writeAsset(dir, name string, data []byte) (string, error) {
 }
 
 func (a *App) writeAssetFor(d *document, dir, name string, data []byte) (string, error) {
+	return writeAssetForTarget(d, dir, name, data, a.markSelfWrite)
+}
+
+// Background exports share attachment placement but announce completed writes
+// on the UI thread, avoiding concurrent access to the window's file-watch state.
+func writeAssetForTarget(d *document, dir, name string, data []byte, written func(string)) (string, error) {
 	root, nameOnDisk, err := fileLocation(d.space, d.rel)
 	if err != nil {
 		return "", err
@@ -232,7 +238,9 @@ func (a *App) writeAssetFor(d *document, dir, name string, data []byte) (string,
 			}
 			return "", err
 		}
-		a.markSelfWrite(full)
+		if written != nil {
+			written(full)
+		}
 		if folderMode {
 			rel = docRelativeURL(dir, path.Join(urlDir, name))
 		}

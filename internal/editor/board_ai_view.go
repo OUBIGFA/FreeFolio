@@ -696,6 +696,10 @@ func (b *Board) aiRunControls(c *ui.Context, o BoardOptions, id string) {
 }
 
 func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
+	if n.Role == whiteboard.AIImageInput {
+		b.aiImageButtons(c, o, id)
+		return
+	}
 	out := n.Output()
 	if out == nil {
 		return
@@ -717,6 +721,9 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 		ui.Text(c, i18n.T("服务改写的提示词：")+out.Prompt).FontSize(12).TextColor(o.Theme.TextMuted)
 	}
 	ui.Row(c.Key("board-ai-out")).Gap(6).Wrap().Children(func() {
+		if out.Kind == "image" {
+			b.aiImageButtons(c, o, id)
+		}
 		if out.Kind == "text" && ui.Button(c.Key("copy"), i18n.T("复制文字")).Clicked() {
 			b.services.WriteClipboard(out.Text)
 		}
@@ -789,6 +796,9 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 				top = y + h + 8
 			}
 			ui.Row(c.Key("board-ai-node-bar")).Absolute().Left(x).Top(top).Gap(4).Padding(4, 6).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleToolbar).Label(i18n.T("节点操作")).Children(func() {
+				if n.Role == whiteboard.AIImageInput || out != nil && out.Kind == "image" {
+					b.aiImageButtons(c, o, e.ID)
+				}
 				// Running is on the card; the bar holds what a card has no
 				// room for, as ComfyUI's selection toolbox.
 				if boardButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel).Height(26).Label(i18n.T("全部设置")).Clicked() {

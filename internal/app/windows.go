@@ -141,6 +141,9 @@ func (a *App) closeWindow(w *docWindow) bool {
 		}
 	}
 	a.retireClosedDocuments(w.doc)
+	if a.quick.window == w {
+		a.quick.window = nil
+	}
 	return true
 }
 

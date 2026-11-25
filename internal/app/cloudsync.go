@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
@@ -148,6 +149,7 @@ func (a *App) startCloudSync(probe, manual bool) {
 		}
 		for _, sp := range spaces {
 			hooks := cloudsync.Hooks{
+				Merge: editor.MergeFiles,
 				// Keep the latest progress without making the worker wait for a frame.
 				Progress: func(p cloudsync.Progress) { progress.Store(&cloudProgress{sp.Name, p}) },
 				Resolve:  resolutions[sp.ID],
@@ -180,6 +182,7 @@ func (a *App) startCloudSync(probe, manual bool) {
 			out.result.Uploaded += r.Uploaded
 			out.result.Downloaded += r.Downloaded
 			out.result.Deleted += r.Deleted
+			out.result.Merged += r.Merged
 			for _, detail := range r.Details {
 				out.conflicts = append(out.conflicts, cloudConflict{sp.ID, sp.Name, detail})
 			}
@@ -232,6 +235,8 @@ func (a *App) cloudTick(c *ui.Context) {
 					phase = i18n.T("正在上传文件")
 				case "download":
 					phase = i18n.T("正在应用云端更改")
+				case "merge":
+					phase = i18n.T("正在合并文档改动")
 				case "delete":
 					phase = i18n.T("正在同步删除")
 				}
@@ -285,6 +290,9 @@ func (a *App) cloudTick(c *ui.Context) {
 				r := out.result
 				s.retries = 0
 				s.message = fmt.Sprintf(i18n.T("同步完成：上传 %d，下载 %d，删除 %d，冲突 %d"), r.Uploaded, r.Downloaded, r.Deleted, len(r.Conflicts))
+				if r.Merged > 0 {
+					s.message += fmt.Sprintf(i18n.T("；已合并 %d 篇文档"), r.Merged)
+				}
 				if r.Uploaded == 0 && r.Downloaded == 0 && r.Deleted == 0 && len(r.Conflicts) == 0 && len(r.Skipped) == 0 {
 					s.message = i18n.T("无需同步：本地与云端内容一致")
 				}

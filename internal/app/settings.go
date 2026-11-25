@@ -122,6 +122,8 @@ func (a *App) settingsView(c *ui.Context) {
 	if !a.settingsOpen {
 		return
 	}
+	defer a.fontPickerView(c)
+	defer a.cleanupView(c)
 	t := c.Theme()
 	w, h := c.Size()
 	bar := a.titleBar(c)
@@ -264,6 +266,7 @@ func folderRow(c *ui.Context, key, label, dir string) {
 }
 
 func (a *App) settingsGeneral(c *ui.Context) {
+	defer a.settingsQuickNote(c)
 	t := c.Theme()
 	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹。"))
 	settingsSection(c, i18n.T("位置"))
@@ -452,7 +455,26 @@ func (a *App) settingsAppearance(c *ui.Context) {
 				}
 			})
 		}
-		choice("font", i18n.T("正文字体"), "", prefs.Fonts, []string{i18n.T("系统"), i18n.T("衬线"), i18n.T("楷体"), i18n.T("等宽")}, &a.prefs.Font, nil)
+		for _, forUI := range []bool{true, false} {
+			label, value := i18n.T("正文字体"), a.prefs.BodyFont
+			if forUI {
+				label, value = i18n.T("界面字体"), a.prefs.InterfaceFont
+			}
+			if value == "" {
+				value = i18n.T("跟随系统字体")
+				if !forUI && a.prefs.Font != "" {
+					value = a.prefs.Font
+				}
+			}
+			settingRow(c, label, label, "", func() {
+				if ui.Button(c.Key("choose-font"), value).MaxWidth(300).Clicked() {
+					a.openFontPicker(forUI)
+				}
+			})
+			if forUI {
+				settingsSeparator(c)
+			}
+		}
 		settingsSeparator(c)
 		choice("page", i18n.T("页面宽度"), "", prefs.Pages, []string{i18n.T("窄"), i18n.T("标准"), i18n.T("宽"), i18n.T("全宽")}, &a.prefs.Page, a.setPageWidth)
 		settingsSeparator(c)
@@ -488,6 +510,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 	})
 	if ui.Button(c.Key("appearance-reset"), i18n.T("恢复默认外观")).AlignSelf(ui.Start).Clicked() {
 		a.prefs.FontSize, a.prefs.LineHeight, a.prefs.Font, a.prefs.Page = 0, 0, "", ""
+		a.prefs.BodyFont, a.prefs.InterfaceFont = "", ""
 		a.prefs.SidebarLeft = false
 		a.prefs.GrayFolderIcons = false
 		a.savePrefs()
@@ -612,7 +635,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 			sheet.Children(func() {
 				editor.View(c.Key("sample-text"), a.sampleEditor, editor.Options{
 					Width: w - 2, Theme: paper, Page: pageStyle(a.paperDark), Column: col,
-					FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.prefs.BodyFamily(),
+					FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.bodyFont(),
 				})
 			})
 		})
@@ -648,6 +671,14 @@ func (a *App) settingsSpaces(c *ui.Context) {
 		}
 	})
 	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(12).Children(func() {
+		ui.Row(c.Key("space-tools")).Gap(8).Children(func() {
+			if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记…")).Clicked() {
+				a.openImportGuide()
+			}
+			if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件…")).Clicked() {
+				a.scanUnusedAssets()
+			}
+		})
 		settingsGroup(c, "space-defaults", func() {
 			starter := !a.prefs.NoSpaceStarter
 			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换。"), &starter, nil)

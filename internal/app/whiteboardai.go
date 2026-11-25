@@ -127,6 +127,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		return readBoardBytes(f, 256<<20)
 	}
 	ai := &editor.BoardAI{Models: a.boardAIModels, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
+	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
 	ai.Prepare = func() (*editor.BoardAIRunner, error) { return a.boardAIRunner(d) }
 	ai.OpenFile = func(rel string) {
 		if f, err := full(rel); err == nil {

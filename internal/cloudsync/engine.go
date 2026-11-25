@@ -23,6 +23,7 @@ import (
 type Space struct{ ID, Root, Remote string }
 type Result struct {
 	Uploaded, Downloaded, Deleted int
+	Merged                        int
 	Conflicts                     []string
 	Skipped                       []string
 	Details                       []Conflict
@@ -46,6 +47,9 @@ type Hooks struct {
 	Progress    func(Progress)
 	BeforeApply func(string) error
 	Trash       func(string) error
+	// Merge combines disjoint document edits against persisted common bytes.
+	// False preserves the existing conflict-copy and explicit-choice behavior.
+	Merge func(path string, base, local, remote []byte) ([]byte, bool)
 	// Resolve names explicit user choices for this run. The remote digest
 	// binds a choice to the version the user saw, so a newer version conflicts.
 	Resolve map[string]Resolution
@@ -191,6 +195,13 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 	}
 	key := hashBytes([]byte(c.TargetID() + "\x00" + sp.ID + "\x00" + sp.Root + "\x00" + sp.Remote))[:32]
 	stateFile := filepath.Join(stateDir, key+".json")
+	ancestorDir := filepath.Join(stateDir, "ancestors", key)
+	remember := func(rel string, data []byte) error {
+		if h.Merge == nil || !mergeablePath(rel) {
+			return nil
+		}
+		return saveAncestor(ancestorDir, data, c)
+	}
 	b := baseline{Version: 1, Files: map[string]baselineRow{}}
 	if raw, e := os.ReadFile(stateFile); e == nil {
 		if e = json.Unmarshal(raw, &b); e != nil {
@@ -329,6 +340,9 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		}
 		if lh == rh && !needEncrypt {
 			if lexists {
+				if err = remember(rel, l); err != nil {
+					return result, err
+				}
 				row := baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt || old.Encrypted}
 				if !known || row != old {
 					b.Files[rel], dirty = row, true
@@ -358,6 +372,90 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		}
 		switch {
 		case localChanged && remoteChanged:
+			if known && lexists && rexists && h.Merge != nil && mergeablePath(rel) {
+				ancestor, found, e := readAncestor(ancestorDir, old.Hash, c.EncryptPassword)
+				if e != nil {
+					return result, e
+				}
+				if found {
+					if merged, clean := h.Merge(rel, ancestor, l, r); clean {
+						if int64(len(merged)) > maxFileBytes {
+							return result, errors.New("合并后的文件超过 64 MiB")
+						}
+						// Both destinations are version-checked. Keep the old baseline
+						// on any partial failure so a retry cannot discard either edit.
+						if h.BeforeApply != nil && h.BeforeApply(rel) != nil {
+							if ctx.Err() != nil {
+								return result, ctx.Err()
+							}
+							result.Skipped = append(result.Skipped, rel)
+							checked++
+							continue
+						}
+						current, exists, e := readLocal(sp.Root, rel)
+						if e != nil {
+							return result, e
+						}
+						if !exists || !bytes.Equal(current, l) {
+							result.Skipped = append(result.Skipped, rel)
+							checked++
+							continue
+						}
+						if e = backupLocal(stateDir, key, rel, l, c.KeepSnapshots); e != nil {
+							return result, e
+						}
+						if e = archiveRemote(s, sp.Remote, rel, raw, c.KeepSnapshots); e != nil {
+							return result, e
+						}
+						payload := merged
+						if c.Encrypt {
+							payload, e = sealBackup(merged, c.EncryptPassword)
+							if e != nil {
+								return result, e
+							}
+						}
+						report("merge", rel)
+						newTag, e := writeRemote(s, sp.Remote+"/"+rel, payload, etag, true)
+						if e != nil {
+							return result, e
+						}
+						result.Uploaded++
+						if h.BeforeApply != nil && h.BeforeApply(rel) != nil {
+							result.Skipped = append(result.Skipped, rel)
+							checked++
+							continue
+						}
+						current, exists, e = readLocal(sp.Root, rel)
+						if e != nil {
+							return result, e
+						}
+						if !exists || !bytes.Equal(current, l) {
+							result.Skipped = append(result.Skipped, rel)
+							checked++
+							continue
+						}
+						file, e := localFile(sp.Root, rel)
+						if e != nil {
+							return result, e
+						}
+						if e = fsutil.WriteFileAtomic(file, merged, 0o644); e != nil {
+							return result, e
+						}
+						if e = remember(rel, merged); e != nil {
+							return result, e
+						}
+						b.Files[rel] = baselineRow{Hash: hashBytes(merged), RemoteETag: newTag, Encrypted: c.Encrypt}
+						dirty = true
+						result.Downloaded++
+						result.Merged++
+						checked++
+						if e = checkpoint(); e != nil {
+							return result, e
+						}
+						continue
+					}
+				}
+			}
 			if rexists {
 				conflict := strings.TrimSuffix(rel, path.Ext(rel)) + " (同步冲突 " + rh[:12] + ")" + path.Ext(rel)
 				file, e := localFile(sp.Root, conflict)
@@ -405,6 +503,9 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 					}
 				}
 				if etag, err = writeRemote(s, sp.Remote+"/"+rel, payload, etag, rexists); err != nil {
+					return result, err
+				}
+				if err = remember(rel, l); err != nil {
 					return result, err
 				}
 				b.Files[rel] = baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt}
@@ -469,6 +570,9 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 					err = fsutil.CreateFileAtomic(file, r, 0o644)
 				}
 				if err != nil {
+					return result, err
+				}
+				if err = remember(rel, r); err != nil {
 					return result, err
 				}
 				b.Files[rel] = baselineRow{Hash: rh, RemoteETag: etag, Encrypted: c.Encrypt}

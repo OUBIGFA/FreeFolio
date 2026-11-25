@@ -55,7 +55,14 @@ time out after 30 seconds without traffic; the overall run is limited to ten
 minutes. These timeouts report a failure instead of leaving a stalled transfer
 indefinitely busy. Completed transfers and recovery copies remain in place.
 
-When both copies changed, the local original stays intact and the remote content
+Markdown and `.arcmd` retain a local common-content ancestor. Disjoint block edits
+merge automatically. Overlapping paragraphs, metadata, delete/edit conflicts,
+unsupported files and missing pre-upgrade ancestors retain explicit conflicts.
+Merge writes keep local and remote recovery copies, check active edits and local
+bytes, and use the remote ETag. Partial failures do not advance the common baseline.
+New ancestors use the configured content encryption.
+
+When both copies changed and cannot merge cleanly, the local original stays intact and the remote content
 is saved beside it as `name (同步冲突 <digest>).md` (or the attachment's extension).
 The settings page lists conflicts and offers **Keep local version** and
 **Use remote version**. A remote deletion is labeled separately. A decision is

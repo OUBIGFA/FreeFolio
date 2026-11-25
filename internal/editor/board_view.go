@@ -63,7 +63,13 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 				o.DropFiles(paths)
 			}
 		}
-		canvas.ContextMenu(func(m *ui.Menu) { b.contextMenu(m, o) })
+		canvas.ContextMenu(func(m *ui.Menu) {
+			if o.ImageAnnotation {
+				b.annotationMenu(m, o)
+			} else {
+				b.contextMenu(m, o)
+			}
+		})
 		// Scroll and pinch events have no release event. Keep their feedback
 		// briefly between events, then restore the tool cursor without a move.
 		now := c.Now()
@@ -89,13 +95,24 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			cursor = ui.CursorDefault
 		}
 		canvas.Cursor(cursor)
-		canvas.Draw(func(p *ui.Painter, r ui.Rect) { b.lastRect = r; b.paint(p, r, o.Theme.Dark, true) })
+		canvas.Draw(func(p *ui.Painter, r ui.Rect) {
+			b.lastRect = r
+			b.paint(p, r, o.Theme.Dark && !o.ImageAnnotation, true)
+		})
 		b.aiNodeInlineControls(c, o)
 		b.textOverlay(c, o)
 		if !b.ReadOnly {
-			b.toolbar(c, o)
+			if o.ImageAnnotation {
+				b.annotationToolbar(c, o)
+			} else {
+				b.toolbar(c, o)
+			}
 			if e, _ := b.selectedAINode(); e == nil && !(b.ai.bar && o.AI != nil) {
-				b.properties(c, o)
+				if o.ImageAnnotation {
+					b.annotationProperties(c, o)
+				} else {
+					b.properties(c, o)
+				}
 			}
 			b.aiBar(c, o)
 			b.aiSelectionBar(c, o)

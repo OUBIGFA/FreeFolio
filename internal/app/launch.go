@@ -77,12 +77,22 @@ func (a *App) finishLaunch() {
 				a.notify("无法设置窗口图标。%v", err)
 			}
 			a.syncTray()
+			a.configureQuickShortcut()
 		}
 	}
 	a.runDeferredStartup()
 }
 
 func (a *App) runDeferredStartup() {
+	if a.imports.offer && !a.imports.discovering && a.win != nil {
+		if sp := a.state.ActiveSpace(); sp != nil {
+			a.imports.spaceID = sp.ID
+		}
+		a.discoverLibraries()
+	}
+	if a.prefs.BodyFont != "" || a.prefs.InterfaceFont != "" {
+		a.loadFonts()
+	}
 	if a.launch.savePrefs {
 		a.launch.savePrefs = false
 		if !a.prefsBroken {

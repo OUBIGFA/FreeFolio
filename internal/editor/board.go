@@ -42,6 +42,8 @@ const (
 )
 
 type BoardOptions struct {
+	// ImageAnnotation keeps the image inspector's tools and base image protected.
+	ImageAnnotation   bool
 	Theme             *ui.Theme
 	Page              Page
 	ReadOnly, Compact bool
@@ -68,6 +70,7 @@ type BoardOptions struct {
 // Board owns an editing session. Persisted content is separate from viewport,
 // hover, selection and IME preedit, so navigation cannot dirty user files.
 type Board struct {
+	annotationBase                             string
 	Scene                                      *whiteboard.Scene
 	History                                    whiteboard.History
 	Selected                                   map[string]bool
@@ -372,6 +375,13 @@ func (b *Board) SetImageCrop(id string, crop whiteboard.ImageCrop) error {
 }
 
 func (b *Board) RunAction(action string, o BoardOptions) {
+	if o.ImageAnnotation {
+		switch action {
+		case "clear", "clear-confirm", "lock", "unlock-all", "insert-image", "paste", "frame", "remove-frame", "library", "background":
+			return
+		}
+		delete(b.Selected, b.annotationBase)
+	}
 	ids := b.SelectedIDs()
 	switch action {
 	case "select-all":

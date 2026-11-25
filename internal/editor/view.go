@@ -195,12 +195,13 @@ type Editor struct {
 	footerH float32
 	// printing paints for paper: no caret, hints, controls or hover
 	// (print.go).
-	printing        bool
-	printPageH      float32
-	mapTablePreview bool // compact cell metrics for read-only document map previews
-	mapMathPreview  bool // compact formula width (no full-column \tag stretch) in document map
-	mapListNumber   int  // explicit numbered-list ordinal for single-block document map previews
-	mapListIndent   int  // original list indent level for numbered-list marker style (1., a., i.)
+	historyHighlights map[string]bool
+	printing          bool
+	printPageH        float32
+	mapTablePreview   bool // compact cell metrics for read-only document map previews
+	mapMathPreview    bool // compact formula width (no full-column \tag stretch) in document map
+	mapListNumber     int  // explicit numbered-list ordinal for single-block document map previews
+	mapListIndent     int  // original list indent level for numbered-list marker style (1., a., i.)
 	// typewriter keeps the caret's line at the middle of the page; dim
 	// fades the blocks but the caret's, as focus mode does.
 	typewriter, dim bool
@@ -544,6 +545,8 @@ type cachedShape struct {
 }
 
 type Options struct {
+	// HighlightBlocks is a view-only history overlay; it never changes content.
+	HighlightBlocks  map[string]bool
 	CreateWhiteboard func()
 	OpenWhiteboard   func(string)
 	BoardOptions     BoardOptions
@@ -966,6 +969,7 @@ func (e *Editor) surfaceBounds(surface ui.Element) ui.Rect {
 
 func (e *Editor) layout(o Options) {
 	e.collectNotes()
+	e.historyHighlights = o.HighlightBlocks
 	e.readingSize, e.readingLine, e.fontFamily = o.FontSize, o.LineHeight, o.FontFamily
 	defer func() { e.laidInline = e.inlineEditing }()
 	pageKey := layoutPageKey{
@@ -1642,6 +1646,16 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 		}
 	}
 	paintDecorationPass(false)
+	if !e.printing && len(e.historyHighlights) > 0 {
+		for i := range e.visibleRows(1) {
+			r := e.ensureRow(i)
+			if e.historyHighlights[r.leaf.Block.ID] || e.historyHighlights[r.leaf.Owner] {
+				rect := offset(r.rect)
+				p.Fill(rect, t.Accent.Alpha(0.09), 3)
+				p.Fill(ui.Rect{X: rect.X - 5, Y: rect.Y, W: 3, H: rect.H}, t.Accent.Alpha(0.7), 1)
+			}
+		}
+	}
 	e.paintBlockSelection(p, bounds, t)
 	if !e.printing {
 		e.paintHoverControls(p, bounds, t)

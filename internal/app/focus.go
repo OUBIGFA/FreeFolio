@@ -170,7 +170,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		AddToAI:          func() { run(func() { a.addSelectionToOneBot(d) }) },
 		FontSize:         a.prefs.ReadingSize(),
 		LineHeight:       a.prefs.ReadingLine(),
-		FontFamily:       a.prefs.BodyFamily(),
+		FontFamily:       a.bodyFont(),
 		Column:           a.prefs.Column(),
 		NoAutoPair:       a.prefs.NoAutoPair,
 		AutoSpace:        a.prefs.AutoSpace,

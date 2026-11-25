@@ -31,6 +31,8 @@ import (
 // BoardAI is what the host lends the board to run AI nodes. A nil BoardAI
 // hides the AI tools.
 type BoardAI struct {
+	// OpenImage opens an isolated viewer or annotation window for a node image.
+	OpenImage func(nodeID string, edit bool)
 	// Models are the models that can run a node of the role.
 	Models func(role whiteboard.AIRole) []BoardAIModel
 	// Default is the model a new node of the role starts with.

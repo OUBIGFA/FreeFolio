@@ -59,7 +59,7 @@ func (b *Board) input(ev ui.InputEvent, o BoardOptions) bool {
 		b.RunAction(action, o)
 		return true
 	case ui.InputScroll:
-		if ev.Mods&(ui.Cmd|ui.Ctrl) != 0 {
+		if o.ImageAnnotation || ev.Mods&(ui.Cmd|ui.Ctrl) != 0 {
 			b.zoomAt(ev.X, ev.Y, math.Pow(1.008, float64(-ev.DY)))
 		} else {
 			b.PanX -= float64(ev.DX)
@@ -85,6 +85,12 @@ func (b *Board) input(ev ui.InputEvent, o BoardOptions) bool {
 	return false
 }
 func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
+	if o.ImageAnnotation && b.editing == nil && ev.Mods&(ui.Cmd|ui.Ctrl|ui.Alt) == 0 {
+		switch ev.Key {
+		case ui.Key9, ui.KeyF, ui.KeyN, ui.KeyB:
+			return true
+		}
+	}
 	if b.multiLine && (ev.Key == ui.KeyEnter || ev.Key == ui.KeyEscape) {
 		b.finishLine(o)
 		return true
@@ -377,6 +383,15 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		return false
 	}
 	hit := b.Scene.Hit(p, 6/b.Zoom, true)
+	if ev.Clicks >= 2 && hit != nil && o.AI != nil {
+		if n := b.aiNode(hit); n != nil && (n.Role == whiteboard.AIImageInput || n.Output() != nil && n.Output().Kind == "image") {
+			r := b.aiLayout(hit, n).preview
+			if p[0] >= hit.X+float64(r.X) && p[0] <= hit.X+float64(r.X+r.W) && p[1] >= hit.Y+float64(r.Y) && p[1] <= hit.Y+float64(r.Y+r.H) {
+				b.OpenAIImage(hit.ID, false, o)
+				return true
+			}
+		}
+	}
 	if ev.Mods&(ui.Cmd|ui.Ctrl) != 0 && hit != nil && hit.Link != "" {
 		if strings.HasPrefix(hit.Link, "[[") && o.OpenWiki != nil {
 			o.OpenWiki(strings.TrimSuffix(strings.TrimPrefix(hit.Link, "[["), "]]"), ev.Mods&ui.Shift != 0)

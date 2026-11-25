@@ -173,15 +173,18 @@ func TestAppearanceFontAndPageWidth(t *testing.T) {
 	if err := tt.Click("宽"); err != nil {
 		t.Fatal(err)
 	}
-	scrollIntoView(tt, "衬线", 1500, 860)
-	if err := tt.Click("衬线"); err != nil {
+	a.fonts.loaded = true
+	a.fonts.families = []ui.FontFamily{{Name: "Georgia"}}
+	a.openFontPicker(false)
+	tt.Frame()
+	if err := tt.Click("Georgia"); err != nil {
 		t.Fatal(err)
 	}
-	if a.prefs.Page != "wide" || a.prefs.Font != "serif" {
+	if a.prefs.Page != "wide" || a.prefs.BodyFont != "Georgia" {
 		t.Fatal("choices", a.prefs.Page, a.prefs.Font)
 	}
 	saved, err := (prefs.Store{Path: a.prefStore.Path}).Load()
-	if err != nil || saved.Page != "wide" || saved.Font != "serif" {
+	if err != nil || saved.Page != "wide" || saved.BodyFont != "Georgia" {
 		t.Fatal("saved", saved, err)
 	}
 	a.settingsOpen = false

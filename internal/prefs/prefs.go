@@ -36,12 +36,23 @@ import (
 // with; zero leaves them unset, so version 14 migrates unchanged.
 // Version 16 adds NoSpaceStarter; zero keeps creating the starter page in
 // new blank spaces by default, so version 15 migrates unchanged.
-const CurrentVersion = 16
+// Version 17 adds independent font families, font lists and quick-note choices.
+// Empty values preserve the previous font category and leave global capture off.
+const CurrentVersion = 17
 
 // Prefs are the preferences.
 type Prefs struct {
-	MindMapOpen      bool `json:"mindMapOpen,omitempty"`
-	MindMapBothSides bool `json:"mindMapBothSides,omitempty"`
+	BodyFont             string   `json:"bodyFont,omitempty"`
+	InterfaceFont        string   `json:"interfaceFont,omitempty"`
+	FavoriteFonts        []string `json:"favoriteFonts,omitempty"`
+	RecentBodyFonts      []string `json:"recentBodyFonts,omitempty"`
+	RecentInterfaceFonts []string `json:"recentInterfaceFonts,omitempty"`
+	QuickNoteEnabled     bool     `json:"quickNoteEnabled,omitempty"`
+	QuickNoteShortcut    string   `json:"quickNoteShortcut,omitempty"`
+	QuickNoteSpace       string   `json:"quickNoteSpace,omitempty"`
+	QuickNoteFolder      string   `json:"quickNoteFolder,omitempty"`
+	MindMapOpen          bool     `json:"mindMapOpen,omitempty"`
+	MindMapBothSides     bool     `json:"mindMapBothSides,omitempty"`
 	// SidebarLeft opts out of the default right-hand workspace sidebar.
 	SidebarLeft bool `json:"sidebarLeft,omitempty"`
 	// GrayFolderIcons renders sidebar folder icons in a uniform light gray
@@ -221,7 +232,12 @@ var fontFamilies = map[string]string{
 }
 
 // BodyFamily is the family list body text is set in, "" for the system's.
-func (p *Prefs) BodyFamily() string { return fontFamilies[p.Font] }
+func (p *Prefs) BodyFamily() string {
+	if p.BodyFont != "" {
+		return p.BodyFont
+	}
+	return fontFamilies[p.Font]
+}
 
 // Column is the width of the text column: 680 narrow, 1040 wide, -1 (the
 // editor's FullColumn) to span the page, 0 for the standard 820.
