@@ -254,6 +254,15 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		}
 		signature ^= h
 	}
+	// Node cards show run state and loaded results outside the scene.
+	for id, r := range b.ai.runs {
+		h := uint64(len(r.stream))
+		for _, ch := range id + r.status + r.progress {
+			h = h*31 + uint64(ch)
+		}
+		signature ^= h * 1099511628211 // order-free: maps iterate at random
+	}
+	signature = signature*31 + uint64(len(b.ai.media))
 	if b.editing != nil {
 		for _, ch := range b.editing.id {
 			signature = signature*31 + uint64(ch)
@@ -299,6 +308,10 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 func (b *Board) paintElement(p *ui.Painter, e *whiteboard.Element, dark bool) {
 	p.Transform(ui.Rotation(float32(e.Angle*180/math.Pi)), float32(e.X+e.W/2), float32(e.Y+e.H/2), func() {
 		p.Transform(ui.Translation(float32(e.X), float32(e.Y)), 0, 0, func() {
+			if n := b.aiNode(e); n != nil {
+				b.paintAINode(p, e, n, dark)
+				return
+			}
 			for _, path := range b.elementPaths(e) {
 				s := path.style
 				if s.Fill != "" && s.Fill != "transparent" {

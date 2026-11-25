@@ -37,6 +37,7 @@ var Presets = []Preset{
 	{ID: "moonshotai", Name: "Moonshot", BaseURL: "https://api.moonshot.ai/v1"},
 	{ID: "alibaba", Name: "Alibaba Model Studio", BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
 	{ID: "zai", Name: "Z.AI", BaseURL: "https://api.z.ai/api/paas/v4"},
+	{ID: "openai-media", Name: "OpenAI 绘画与视频", BaseURL: "https://api.openai.com/v1", Protocol: Media, Example: "gpt-image-1"},
 	{ID: "ollama", Name: "Ollama", BaseURL: "http://localhost:11434", Protocol: Ollama, Local: true},
 	{ID: "lmstudio", Name: "LM Studio", BaseURL: "http://127.0.0.1:1234/v1", Local: true},
 	{ID: Custom, Name: "自定义"},
@@ -73,6 +74,9 @@ type Settings struct {
 	TokenSource interface {
 		AccessToken(context.Context) (string, error)
 	}
+	// Wait waits between polls of a long media generation; tests replace it
+	// so they never sleep.
+	Wait func(ctx context.Context, attempt int) error
 }
 
 // Errors of settings that cannot be used.

@@ -36,6 +36,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 	b.services = c.Services()
 	b.ShowGrid = b.Scene.AppState.GridModeEnabled
 	b.prepareImages(o)
+	b.aiPrepareMedia(o)
 	root := ui.Box(c.Key("whiteboard-root")).Grow(1).WidthPercent(100).MinWidth(0).MinHeight(0).Clip()
 	root.Children(func() {
 		canvas := ui.Box(c.Key("board-canvas")).Fill().Focusable().FocusRing(false).Role(ui.RoleGroup).Label(i18n.T("手绘白板"))
@@ -68,13 +69,23 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 		} else if b.Tool == ToolHand || b.spaceDown {
 			cursor = ui.CursorGrab
 		}
+		if b.aiPortCursor() {
+			cursor = ui.CursorCrosshair
+		}
 		canvas.Cursor(cursor)
 		canvas.Draw(func(p *ui.Painter, r ui.Rect) { b.lastRect = r; b.paint(p, r, o.Theme.Dark, true) })
 		b.textOverlay(c, o)
 		if !b.ReadOnly {
 			b.toolbar(c, o)
-			b.properties(c, o)
+			if e, _ := b.selectedAINode(); e == nil && !(b.ai.bar && o.AI != nil) {
+				b.properties(c, o)
+			}
+			b.aiBar(c, o)
+			b.aiSelectionBar(c, o)
+			b.aiPicker(c, o)
 		}
+		b.aiNodeOverlay(c, o)
+		b.aiProperties(c, o)
 		b.footer(c, o)
 		b.panelView(c, o)
 		if b.cropper != nil {
@@ -118,7 +129,7 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				b.RequestFocus = true
 			}
 			for _, d := range boardTools {
-				capacity := max(3, int((b.lastRect.W-32)/36)-2)
+				capacity := b.toolCapacity(o)
 				if int(d.tool) > capacity {
 					continue
 				}
@@ -132,9 +143,10 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 					}
 				}
 			}
+			b.aiToolbar(c, o)
 			menu := boardIconButton(c, "board-more", "dots", i18n.T("更多工具"), false)
 			menu.Menu(func(m *ui.Menu) {
-				capacity := max(3, int((b.lastRect.W-32)/36)-2)
+				capacity := b.toolCapacity(o)
 				for _, d := range boardTools {
 					if int(d.tool) > capacity && m.Item(i18n.T(d.label)).Chosen() {
 						b.Tool = d.tool
@@ -157,6 +169,9 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 					m.Separator()
 				}
 				if o.Export != nil {
+					if m.Item(i18n.T("导出 JSON Canvas…")).Chosen() {
+						o.Export("canvas")
+					}
 					if m.Item(i18n.T("导出 SVG…")).Chosen() {
 						o.Export("svg")
 					}
@@ -174,6 +189,16 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 			})
 		})
 	})
+}
+
+// toolCapacity is how many tools fit in the toolbar beside its fixed
+// buttons; the rest are in the More menu.
+func (b *Board) toolCapacity(o BoardOptions) int {
+	fixed := 2
+	if o.AI != nil {
+		fixed += 3
+	}
+	return max(3, int((b.lastRect.W-32)/36)-fixed)
 }
 func (b *Board) footer(c *ui.Context, o BoardOptions) {
 	ui.Row(c.Key("board-footer")).Absolute().Bottom(12).Left(12).Gap(2).Padding(3).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(7).Children(func() {
@@ -366,6 +391,7 @@ func (b *Board) contextMenu(m *ui.Menu, o BoardOptions) {
 			b.RunAction(a.id, o)
 		}
 	}
+	b.aiContextMenu(m, o)
 }
 func (b *Board) textOverlay(c *ui.Context, o BoardOptions) {
 	t := b.editing

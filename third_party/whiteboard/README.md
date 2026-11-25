@@ -30,6 +30,9 @@ bundled. Every bundled font is registered in the repository binary manifest.
 The SVG icons in `internal/editor/boardicons/` are the corresponding pinned
 Quiet.md files. Each retains the Excalidraw/Tabler source comment. No Nucleo
 icons, GPUI runtime, Rust library, vello renderer or platform patch is included.
+The AI node icons `sparkles.svg`, `player-play.svg` and `player-stop.svg` are
+Tabler Icons paths under the [MIT License](LICENSE-Tabler.txt), each with its
+source comment.
 
 Markdown, wiki links, library and Mermaid integration use FreeFolio's existing
 native services and reference ArcMD `70711e1694699207400f751c01d28b11bdaefac5`.

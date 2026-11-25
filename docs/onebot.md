@@ -11,11 +11,30 @@ OneBot 在原问答侧栏中提供对话、文档修改和方案审阅。文件�
 3. 搜索并勾选需要使用的模型。服务未列出的模型可以手动添加。
 4. 在对话输入框底部的模型菜单中切换供应商和模型。
 
-支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Gemini 和 Ollama 协议。常用服务预设仅填写地址和协议，模型列表以实际接口返回为准。已有对话保留；正在运行的请求使用发送时的模型。
+支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Gemini、Ollama 和 OpenAI 兼容图像/视频协议。常用服务预设仅填写地址和协议，模型列表以实际接口返回为准。已有对话保留；正在运行的请求使用发送时的模型。
 
 能力信息优先采用服务返回，再补充 models.dev 目录数据。能力详情保留来源，可手动校正。缺少数据时显示未知。输出上限、温度和推理参数在设置中调整，发送时校验模型能力。
 
 API Key 单独保存在配置目录的 `credentials/ai-api-key`，不写入偏好或笔记。OneBot 从新配置开始，不复用旧单供应商设置和密钥。
+
+## 图片和视频生成
+
+OneBot 的连接也用于白板 AI 节点生成图片和视频。可以只为绘画添加独立供应商：
+
+1. 在「设置 → OneBot → 常用服务」选择「OpenAI 绘画与视频」，或添加供应商后把接口协议设为「OpenAI 兼容图像/视频」。
+2. 填写服务地址和 API Key。OpenAI 官方使用 `https://api.openai.com/v1`；new-api、one-api 等中转填写其 `/v1` 地址。
+3. 点击「获取模型」，勾选绘画或视频模型，例如 `gpt-image-1`、`sora-2`。
+
+| 协议 | 图片 | 视频 |
+| --- | --- | --- |
+| OpenAI 兼容图像/视频 | `/images/generations`；有图片输入时用 `/images/edits`（多图与遮罩） | `/videos` 提交任务、轮询并下载 |
+| OpenAI Responses | 内置 `image_generation` 工具 | 输出模态含 video 时使用同地址 `/videos` |
+| OpenAI Chat Completions | 模型输出模态含 image 时使用同地址 `/images/*`；OpenRouter 使用 `modalities` | 输出模态含 video 时使用 `/videos` |
+| Google Gemini | 图像模型的原生图片输出；`imagen-*` 使用 `predict` | Veo 长任务轮询并下载 |
+
+模型列表按能力筛选：图像/视频协议的模型默认可用；其他协议需要「输出模态」包含 `image` 或 `video`，可在模型能力中手动校正。图像/视频供应商不会出现在对话的模型菜单中。ChatGPT 套餐、Anthropic 和 Ollama 不提供图片或视频生成。
+
+结果下载限制大小，只接受 https 地址（本机服务除外）；API Key 只发送给服务自身的主机。生成的文件保存为白板附件。
 
 ## 使用 ChatGPT 登录
 

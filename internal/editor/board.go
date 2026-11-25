@@ -60,6 +60,8 @@ type BoardOptions struct {
 	SaveLibrary       func([]whiteboard.LibraryItem)
 	ImportLibrary     func(func([]whiteboard.LibraryItem, error))
 	ExportLibrary     func([]whiteboard.LibraryItem)
+	// AI runs the board's AI nodes; nil hides the AI tools.
+	AI *BoardAI
 }
 
 // Board owns an editing session. Persisted content is separate from viewport,
@@ -84,6 +86,7 @@ type Board struct {
 	start, last                                whiteboard.Point
 	before                                     *whiteboard.Scene
 	creating                                   string
+	lastCreated                                string
 	handle                                     int
 	rotateStart                                float64
 	selectionBox                               whiteboard.Box
@@ -113,6 +116,7 @@ type Board struct {
 	cropID                                     string
 	cropValues                                 [4]string
 	cropper                                    *Editor
+	ai                                         boardAIState
 }
 
 func NewBoard(s *whiteboard.Scene) *Board {
@@ -174,6 +178,7 @@ func (b *Board) edit(o BoardOptions, fn func()) {
 	if b.ReadOnly {
 		return
 	}
+	b.flushAIEdit()
 	b.History.Begin(b.Scene)
 	fn()
 	if b.History.Commit(b.Scene) {
@@ -184,6 +189,7 @@ func (b *Board) Undo() bool {
 	if b.ReadOnly {
 		return false
 	}
+	b.flushAIEdit()
 	s, ok := b.History.Undo(b.Scene)
 	if ok {
 		b.Scene = s
@@ -196,6 +202,7 @@ func (b *Board) Redo() bool {
 	if b.ReadOnly {
 		return false
 	}
+	b.flushAIEdit()
 	s, ok := b.History.Redo(b.Scene)
 	if ok {
 		b.Scene = s
@@ -670,6 +677,11 @@ func (b *Board) Close() {
 	b.imagePending = nil
 	b.before = nil
 	b.editing = nil
+	b.StopAI()
+	for _, v := range b.ai.videos {
+		v.Close()
+	}
+	b.ai = boardAIState{}
 }
 func (b *Board) resetFrom(before *whiteboard.Scene) { b.Scene = before.Clone() }
 func boardDeleteElement(s *whiteboard.Scene, id string) {

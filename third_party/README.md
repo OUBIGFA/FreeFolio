@@ -163,3 +163,18 @@ OneBot's `read/edit/write/patch` tools port the MIT OpenCode implementation at
 in `internal/fileedit`; provider-independent tool adapters are in
 `internal/agent/edit.go`. See [source mapping, compatibility fixtures and host
 adaptations](opencode/README.md) and [the MIT notice](opencode/LICENSE).
+
+The whiteboard AI workflow (`internal/whiteboard/ai*.go`, `canvas.go`,
+`internal/editor/board_ai*.go`) is FreeFolio's own code. Its interface follows
+the design of [Vibe-Workflow](https://github.com/SamurAIGPT/Vibe-Workflow)
+(MIT) at `121bde4ef0499ea000be98bdeaf1b244b928a8f3`: a node bar by category,
+typed ports, a properties panel and per-node result history. Board-aware OneBot
+tools follow Dim0's described design; the scheduler's cascading cancellation
+follows Azure/go-workflow's description. No code of these projects, nor of the
+GPL, AGPL or commercially restricted projects named in the research report
+(ComfyUI, NodeTool, Jaaz, Refly, tldraw), is included. JSON Canvas import and
+export implement the open [JSON Canvas 1.0](https://jsoncanvas.org) format
+(MIT). Image and video generation call OpenAI's Images, Videos and Responses
+APIs and Google's Gemini, Imagen and Veo APIs directly from their public
+documentation, with the request conventions OpenAI-compatible gateways such as
+new-api and LiteLLM accept; no SDK or gateway code is bundled.

@@ -341,7 +341,15 @@ func (s Settings) DiscoverModels(ctx context.Context) ([]ModelInfo, error) {
 			}
 			if s.Protocol == Gemini {
 				methods := texts(m["supportedGenerationMethods"])
-				if !slices.Contains(methods, "generateContent") {
+				// Imagen answers predict and Veo predictLongRunning: the
+				// method is the service's own statement of what it makes.
+				switch {
+				case slices.Contains(methods, "generateContent"):
+				case slices.Contains(methods, "predictLongRunning"):
+					c.Output = []string{MediaVideo}
+				case slices.Contains(methods, "predict"):
+					c.Output = []string{MediaImage}
+				default:
 					continue
 				}
 				// generateContent alone does not specify output modalities;

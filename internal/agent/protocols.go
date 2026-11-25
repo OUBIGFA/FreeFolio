@@ -112,6 +112,9 @@ func dataPart(p ContentPart) (string, string, error) {
 
 func (p *nativeProvider) Complete(ctx context.Context, req Request, onDelta func(Delta)) (Response, error) {
 	s := p.settings
+	if s.Protocol == Media {
+		return Response{}, errors.New("this connection only generates images and videos; choose a conversation model")
+	}
 	if s.Protocol == ChatGPT && (s.Parameters.MaxOutput != 0 || s.Parameters.Temperature != nil || s.Parameters.ThinkingBudget != 0) {
 		return Response{}, errors.New("ChatGPT plan requests do not support output limits, temperature or thinking budgets")
 	}

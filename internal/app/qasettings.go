@@ -78,7 +78,7 @@ func (a *App) settingsAI(c *ui.Context) {
 		formRow("protocol", "接口协议", func() {
 			// A select lines up with the text fields beside it; a menu button
 			// centred its label and looked like an action rather than a value.
-			protocols := []string{agent.Chat, agent.Responses, agent.Anthropic, agent.Gemini, agent.Ollama}
+			protocols := []string{agent.Chat, agent.Responses, agent.Anthropic, agent.Gemini, agent.Ollama, agent.Media}
 			labels := make([]string, len(protocols))
 			for i, p := range protocols {
 				labels[i] = oneBotProtocolLabel(p)
@@ -93,6 +93,9 @@ func (a *App) settingsAI(c *ui.Context) {
 				}
 			}
 		})
+		if conn.Protocol == agent.Media {
+			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话。")).FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 8, 16)
+		}
 		settingsSeparator(c)
 		formRow("address", "服务地址", func() {
 			if ui.TextInput(c.Key("field"), &conn.BaseURL).Grow(1).Placeholder("https://api.example.com/v1").Label(i18n.T("服务地址")).Changed() {
@@ -444,6 +447,8 @@ func oneBotProtocolLabel(protocol string) string {
 		return "Google Gemini"
 	case agent.Ollama:
 		return "Ollama"
+	case agent.Media:
+		return i18n.T("OpenAI 兼容图像/视频（Images / Videos API）")
 	default:
 		return "OpenAI Chat Completions"
 	}

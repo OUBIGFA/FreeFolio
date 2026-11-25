@@ -198,7 +198,10 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 		b.spaceDown = true
 		return true
 	case ui.KeyEscape:
-		if b.panel != "" {
+		if b.ai.pickerAt != nil {
+			b.removeAIPickerLine(o)
+			b.ai.pickerAt = nil
+		} else if b.panel != "" {
 			b.panel = ""
 		} else if b.linearEdit != "" {
 			b.linearEdit = ""
@@ -228,7 +231,9 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 		ids := b.SelectedIDs()
 		if len(ids) == 1 {
 			e := b.Scene.ElementByID(ids[0])
-			if e.IsFrame() {
+			if b.aiNode(e) != nil {
+				b.ai.focusInstruction = true
+			} else if e.IsFrame() {
 				b.panel = "frame-name"
 				b.propertyInput = e.Name
 			} else if e.IsLinear() {
@@ -371,6 +376,12 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 	if b.ReadOnly {
 		return false
 	}
+	// A node card is edited in its properties panel, never as text.
+	if hit != nil && b.aiNode(hit) != nil && (b.Tool == ToolText || b.Tool == ToolSelect && ev.Clicks >= 2) {
+		b.selectIDs([]string{hit.ID})
+		b.ai.focusInstruction = true
+		return true
+	}
 	if b.Tool == ToolText || (b.Tool == ToolSelect && ev.Clicks >= 2 && (hit == nil || !hit.IsLinear())) {
 		if hit != nil && hit.IsFrame() {
 			b.selectIDs([]string{hit.ID})
@@ -405,6 +416,26 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		b.mode = "lasso"
 		b.lasso = []whiteboard.Point{p}
 		return true
+	}
+	if b.Tool == ToolSelect && o.AI != nil {
+		// Dragging from a node's output port draws a data line, as a node
+		// editor's handles do; the line binds wherever it is let go.
+		if id := b.aiPortAt(p); id != "" {
+			node := b.Scene.ElementByID(id)
+			start := whiteboard.Point{node.X + node.W, node.Y + node.H/2}
+			a := whiteboard.NewElement(whiteboard.KindArrow, start[0], start[1], 0, 0)
+			a.Points = []whiteboard.Point{{0, 0}, {0, 0}}
+			a.Roughness = 0
+			a.StrokeColor = aiKindColors[b.aiOutputKind(node)]
+			b.Scene.Elements = append(b.Scene.Elements, a)
+			b.Scene.Bind(a.ID, false, id, start)
+			b.creating = a.ID
+			b.selectIDs([]string{a.ID})
+			b.mode = "create"
+			b.ai.portFrom = id
+			b.start = start
+			return true
+		}
 	}
 	if b.Tool == ToolSelect {
 		if e := b.Scene.ElementByID(b.linearEdit); e != nil {
@@ -618,6 +649,18 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	if b.multiLine {
 		return true
 	}
+	port := b.ai.portFrom
+	b.ai.portFrom = ""
+	if mode == "create" && port != "" && whiteboard.Distance(b.start, b.scenePoint(ev.X, ev.Y)) < 6/b.Zoom {
+		// A click on a port is not a line.
+		b.mode = ""
+		b.resetFrom(b.before)
+		b.History.Cancel()
+		b.before = nil
+		b.creating = ""
+		b.selectIDs([]string{port})
+		return true
+	}
 	if mode == "create" {
 		if e := b.Scene.ElementByID(b.creating); e != nil && e.IsLinear() && whiteboard.Distance(b.start, b.scenePoint(ev.X, ev.Y)) < 3/b.Zoom && !ev.Canceled {
 			b.multiLine = true
@@ -680,9 +723,16 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 				}
 			}
 		}
+		b.lastCreated = b.creating
 		b.creating = ""
 		if !b.ToolLocked && (e == nil || e.Kind != whiteboard.KindFreedraw) {
 			b.Tool = ToolSelect
+		}
+	}
+	var loose *whiteboard.Element
+	if mode == "create" && port != "" {
+		if e := b.Scene.ElementByID(b.lastCreated); e != nil && e.EndBinding == nil && !e.IsDeleted {
+			loose = e
 		}
 	}
 	if b.History.Commit(b.Scene) {
@@ -690,6 +740,10 @@ func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	}
 	b.before = nil
 	b.cleanSelection()
+	if loose != nil {
+		end := whiteboard.Add(whiteboard.Point{loose.X, loose.Y}, loose.Points[len(loose.Points)-1])
+		b.ai.pickerAt, b.ai.pickerFrom, b.ai.pickerLine = &end, port, loose.ID
+	}
 	if note != nil {
 		b.startText(note, p, o)
 	}

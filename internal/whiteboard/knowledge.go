@@ -1,6 +1,7 @@
 package whiteboard
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/OUBIGFA/FreeFolio/internal/wiki"
@@ -22,6 +23,17 @@ func (s *Scene) MarkdownSummary() []SummaryLine {
 			}
 		} else if e.IsFrame() {
 			text = e.Name
+		} else if n := AINodeOf(e); n != nil {
+			// A node's instruction and text result are searchable content;
+			// media paths and settings are not.
+			parts := []string{n.Title, n.Instruction}
+			if out := n.Output(); out != nil && out.Kind == "text" {
+				parts = append(parts, out.Text)
+			}
+			if n.Note != "" {
+				parts = append(parts, "[["+n.Note+"]]")
+			}
+			text = strings.TrimSpace(strings.Join(slices.DeleteFunc(parts, func(p string) bool { return strings.TrimSpace(p) == "" }), "\n"))
 		}
 		if e.Link != "" {
 			if text != "" {

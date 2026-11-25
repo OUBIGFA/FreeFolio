@@ -313,10 +313,16 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 		}
 	}
 	b := ui.MenuButton(c.Key("onebot-model"), label, func(m *ui.Menu) {
-		for i, conn := range a.prefs.AI.Connections {
-			if i > 0 {
+		first := true
+		for _, conn := range a.prefs.AI.Connections {
+			// Image and video services cannot hold a conversation.
+			if conn.Protocol == agent.Media {
+				continue
+			}
+			if !first {
 				m.Separator()
 			}
+			first = false
 			for _, model := range conn.Models {
 				if !model.Enabled {
 					continue

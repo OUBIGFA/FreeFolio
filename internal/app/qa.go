@@ -547,13 +547,21 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 		deliver = func(f func()) { a.win.Update(f) }
 	}
 	var writableAll []string
-	if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
+	// An open whiteboard is edited through its own tools, never as JSON.
+	var board *document
+	if a.doc != nil && a.doc.space.ID == spaceID && a.doc.board != nil && !a.doc.ed.ReadOnly && a.doc.loadErr == nil {
+		board = a.doc
+	} else if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
 		writableAll = append(writableAll, a.doc.rel)
 	}
 	for _, rel := range writableRels {
 		writableAll = append(writableAll, rel)
 	}
 	editTask := a.captureOneBotEditableDocs(spaceID, writableAll)
+	var imageTool *agent.Tool
+	if a.doc != nil && a.doc.space.ID == spaceID {
+		imageTool = a.chatImageTool(a.doc)
+	}
 	run := func() {
 		overview, _ := fs.Overview(6000)
 		tools := agent.SpaceTools(fs)
@@ -566,6 +574,13 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 			}
 		}
 		system := agent.Prompt(agent.Context{Space: name, Overview: overview, Open: open, Now: now})
+		if board != nil && settings.Capabilities.Tools != agent.Unsupported {
+			system += "\n" + boardAgentSystem
+			tools = append(tools, a.boardAgentTools(board, deliver)...)
+		}
+		if imageTool != nil && settings.Capabilities.Tools != agent.Unsupported {
+			tools = append(tools, *imageTool)
+		}
 		var workspace *agent.EditWorkspace
 		if editTask != nil && settings.Capabilities.Tools != agent.Unsupported {
 			workspace, _ = agent.NewEditWorkspace(oneBotEditFiles(editTask), nil)

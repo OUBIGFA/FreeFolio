@@ -32,7 +32,9 @@ import (
 // text column, so version 12 migrates unchanged.
 // Version 14 adds Files.NoRememberPlace; zero keeps reopening a loose file
 // where it was read to, so version 13 migrates unchanged.
-const CurrentVersion = 14
+// Version 15 adds AI.Whiteboard, the models new whiteboard AI nodes start
+// with; zero leaves them unset, so version 14 migrates unchanged.
+const CurrentVersion = 15
 
 // Prefs are the preferences.
 type Prefs struct {

@@ -16,6 +16,15 @@ type AI struct {
 	Candidates  int            `json:"candidates,omitempty"`
 	// ChatGPTWelcomeSeen records the first-use plan disclosure, never identity.
 	ChatGPTWelcomeSeen bool `json:"chatGPTWelcomeSeen,omitempty"`
+	// Whiteboard holds the connection and model each kind of whiteboard AI
+	// node last used, which new nodes of the kind start with.
+	Whiteboard map[string]AIModelRef `json:"whiteboard,omitempty"`
+}
+
+// AIModelRef names a model of a connection.
+type AIModelRef struct {
+	Connection string `json:"connection"`
+	Model      string `json:"model"`
 }
 
 type AIConnection struct {

@@ -59,3 +59,22 @@ func TestOneBotWidthMigratesAndPersists(t *testing.T) {
 		t.Fatalf("round trip %+v %v", q, err)
 	}
 }
+
+func TestWhiteboardAIModelsMigrateAndPersist(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(s.Path, []byte(`{"version":14,"fontSize":18}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.Load()
+	if err != nil || p.Version != CurrentVersion || p.FontSize != 18 || p.AI.Whiteboard != nil {
+		t.Fatalf("%+v %v", p, err)
+	}
+	p.AI.Whiteboard = map[string]AIModelRef{"image": {Connection: "c", Model: "gpt-image-1"}}
+	if err := s.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	p, err = s.Load()
+	if err != nil || p.AI.Whiteboard["image"].Model != "gpt-image-1" {
+		t.Fatalf("%+v %v", p.AI, err)
+	}
+}

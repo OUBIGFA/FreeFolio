@@ -377,7 +377,13 @@ func (a *App) whiteboardView(c *ui.Context, d *document) {
 	})
 }
 func (a *App) boardOptions(c *ui.Context, d *document) editor.BoardOptions {
-	o := editor.BoardOptions{Theme: c.Theme(), Page: pageStyle(a.paperDark), ReadOnly: d.ed.ReadOnly, OnChange: func() { a.boardChanged(d) }, OpenLink: a.followLink, OpenWiki: func(name string, split bool) { a.withDocument(d, func() { a.openWiki(name) }) }, WikiSuggest: func(q string) []string {
+	return a.boardOptionsWith(c.Theme(), d)
+}
+
+// boardOptionsWith are a board's options outside a view, as OneBot's
+// whiteboard tools edit it; theme may be nil there.
+func (a *App) boardOptionsWith(theme *ui.Theme, d *document) editor.BoardOptions {
+	o := editor.BoardOptions{Theme: theme, Page: pageStyle(a.paperDark), ReadOnly: d.ed.ReadOnly, OnChange: func() { a.boardChanged(d) }, OpenLink: a.followLink, OpenWiki: func(name string, split bool) { a.withDocument(d, func() { a.openWiki(name) }) }, WikiSuggest: func(q string) []string {
 		var names []string
 		for _, item := range a.wikiSuggestFor(d, q) {
 			names = append(names, item.Name)
@@ -386,6 +392,11 @@ func (a *App) boardOptions(c *ui.Context, d *document) editor.BoardOptions {
 	}, PickImage: func() { a.pickBoardImages(d) }, DropFiles: func(paths []string) { a.insertBoardFiles(d, paths) }, UserLibrary: a.userBoardLibrary, SaveLibrary: a.saveBoardLibrary, ImportLibrary: a.importBoardLibrary, ExportLibrary: a.exportBoardLibrary}
 	if a.win != nil {
 		o.Dispatch = func(fn func()) { a.win.Update(fn) }
+	}
+	// Only a board document owns its results' paths; a Markdown document's
+	// embedded preview gets no AI tools.
+	if d.board != nil && !d.ed.ReadOnly && d.loadErr == nil {
+		o.AI = a.boardAI(d)
 	}
 	o.ResolveFile = func(f *whiteboard.FileData) ([]byte, error) {
 		rel := path.Clean(path.Join(path.Dir(d.rel), f.Path))
@@ -567,6 +578,9 @@ func (a *App) exportBoard(d *document, format string) {
 	}
 	scene := d.board.Scene.Clone()
 	work := func() ([]byte, error) {
+		if format == "canvas" {
+			return whiteboard.ExportCanvas(scene)
+		}
 		if format == "png" {
 			return editor.BoardPNG(scene, editor.BoardOptions{})
 		}
