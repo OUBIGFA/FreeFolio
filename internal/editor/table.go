@@ -795,6 +795,49 @@ func (e *Editor) tableToolbar(c *ui.Context, surface ui.Element) {
 					}
 				}
 			}
+			e.tableAlignButton(c, "table:align", sel.id, lines)
+			more := markButton(c, e.page, "table:more", iconMore, i18n.T("更多表格操作"), false)
+			more.Menu(func(m *ui.Menu) {
+				id, rows, at := sel.id, sel.rows, sel.index
+				done := func() {
+					e.tableSel, e.tableDanger = tableSelection{}, false
+					e.sync()
+					e.RequestFocus = true
+				}
+				copyLabel, clearLabel := i18n.T("复制此列"), i18n.T("清空此列")
+				back, forward := i18n.T("左移"), i18n.T("右移")
+				last := len(d.cols) - 2
+				if rows {
+					copyLabel, clearLabel = i18n.T("复制此行"), i18n.T("清空此行")
+					back, forward = i18n.T("上移"), i18n.T("下移")
+					last = len(d.rows) - 2
+				}
+				if m.Item(copyLabel).Chosen() {
+					e.Engine.DuplicateTableLine(id, rows, at)
+					done()
+				}
+				if m.Item(clearLabel).Chosen() {
+					e.Engine.ClearCells(id, lines)
+					done()
+				}
+				m.Separator()
+				move := func(to int) {
+					if rows {
+						e.Engine.MoveTableRow(id, at, to)
+					} else {
+						e.Engine.MoveTableColumn(id, at, to)
+					}
+					e.sync()
+					e.tableSel.index = to
+					e.RequestFocus = true
+				}
+				if m.Item(back).Disabled(at == 0).Chosen() {
+					move(at - 1)
+				}
+				if m.Item(forward).Disabled(at >= last).Chosen() {
+					move(at + 1)
+				}
+			})
 			ui.Box(c).Size(1, 20).Background(c.Theme().Border)
 			del := ui.ButtonBase(c.Key("table:delete")).Size(24, 24).Radius(4).Center().Label(remove).Tooltip(remove + " (⌫)").KeepFocus().Cursor(ui.CursorPointer)
 			e.tableDanger = del.Hovered()
@@ -857,8 +900,35 @@ func (e *Editor) cellToolbar(c *ui.Context, bounds ui.Rect, id string, r documen
 				e.RequestFocus = true
 			}
 			e.cellFillButton(c)
+			e.tableAlignButton(c, "cell:align", id, r)
+			if markButton(c, e.page, "cell:clear", iconEraser, i18n.T("清空单元格内容"), false).Clicked() {
+				e.Engine.ClearCells(id, r)
+				e.sync()
+				e.RequestFocus = true
+			}
 		})
 		e.cellFillPanel(c, bounds.X+x, bounds.Y+y+44, id, r, current)
+	})
+}
+
+// tableAlignButton aligns the text of the cells r of table id from a menu.
+func (e *Editor) tableAlignButton(c *ui.Context, key, id string, r document.CellRange) {
+	current := ""
+	if table := e.blockByID(id); table != nil && r.Row0 < len(table.Children) && r.Col0 < len(table.Children[r.Row0].Children) {
+		current = table.Children[r.Row0].Children[r.Col0].Align
+	}
+	icon := map[string]*ui.SVG{"center": iconAlignCenter, "right": iconAlignRight}[current]
+	if icon == nil {
+		icon = iconAlignLeft
+	}
+	markButton(c, e.page, key, icon, i18n.T("单元格对齐"), false).Menu(func(m *ui.Menu) {
+		for _, a := range []struct{ name, value string }{{i18n.T("左对齐"), "left"}, {i18n.T("居中对齐"), "center"}, {i18n.T("右对齐"), "right"}} {
+			if m.Item(a.name).Checked(current == a.value || a.value == "left" && current == "").Chosen() {
+				e.Engine.AlignCells(id, r, a.value)
+				e.sync()
+				e.RequestFocus = true
+			}
+		}
 	})
 }
 

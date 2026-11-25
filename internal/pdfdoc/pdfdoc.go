@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf16"
+
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 )
 
 const maxPDFPages = 20000
@@ -407,6 +409,46 @@ func (d *Document) PlainText(maxPages int) string {
 		d.allText = out
 		d.allReady = true
 		d.textMu.Unlock()
+	}
+	return out
+}
+
+// FindWith searches all pages for query as o says (case, whole words,
+// regular expression) and returns ordered matches. With no options it is
+// Find, which may use the platform's search and its highlight rectangles;
+// with options it searches the pages' text, so its matches have no Rects.
+func (d *Document) FindWith(query string, o textfind.Options) []Match {
+	if o == (textfind.Options{}) {
+		return d.Find(query)
+	}
+	q := query
+	if !o.Regex {
+		q = strings.TrimSpace(query)
+	}
+	if d == nil || q == "" {
+		return nil
+	}
+	m := textfind.New(q, o)
+	if m.Err() != nil {
+		return nil
+	}
+	var out []Match
+	for p := range len(d.pages) {
+		txt := d.PageText(p)
+		if txt == "" {
+			continue
+		}
+		full := false
+		m.Each(txt, func(a, z int) {
+			if full {
+				return
+			}
+			out = append(out, Match{Page: p, Snippet: snippetAround(txt, a, z-a)})
+			full = len(out) >= 2000
+		})
+		if full {
+			return out
+		}
 	}
 	return out
 }

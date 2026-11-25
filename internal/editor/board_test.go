@@ -216,3 +216,37 @@ func TestBoardFreedrawContinuousWithoutSelectionBox(t *testing.T) {
 		t.Fatalf("clicking the first stroke did not select it: %+v", b.Selected)
 	}
 }
+
+func TestBoardSelectionArrangeMenus(t *testing.T) {
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 960, 640)
+	b.RequestFocus = true
+	tt.Frame()
+	draw := func(x0, y0, x1, y1 float32) {
+		tt.Key(0, ui.KeyR)
+		tt.Frame()
+		tt.Press(x0, y0)
+		tt.Move(x1, y1)
+		tt.Release(x1, y1)
+		tt.Frame()
+	}
+	draw(300, 160, 400, 240)
+	if !tt.HasText("图层 ▾") || tt.HasText("对齐 ▾") {
+		t.Fatal("one element: layers and arrange, no alignment", tt.Texts())
+	}
+	draw(500, 300, 640, 420)
+	var ids []string
+	for _, e := range b.Scene.VisibleElements() {
+		ids = append(ids, e.ID)
+	}
+	b.selectIDs(ids)
+	tt.Frame()
+	if !tt.HasText("对齐 ▾") || !tt.HasText("排列 ▾") {
+		t.Fatal("two elements: alignment", tt.Texts())
+	}
+	b.RunAction("align-x-start", BoardOptions{})
+	es := b.Scene.VisibleElements()
+	if len(es) != 2 || es[0].X != es[1].X {
+		t.Fatalf("align left: %v %v", es[0].X, es[1].X)
+	}
+}

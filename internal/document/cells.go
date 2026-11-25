@@ -135,6 +135,100 @@ func (e *Engine) SplitCell(cellID string) {
 	})
 }
 
+// ClearCells empties the cells of r in table id, keeping the cells, their
+// spans and backgrounds, as an office suite's Clear Contents does.
+func (e *Engine) ClearCells(id string, r CellRange) {
+	e.Edit(func() {
+		table := e.table(id)
+		if table == nil {
+			return
+		}
+		for ri := max(0, r.Row0); ri <= min(r.Row1, len(table.Children)-1); ri++ {
+			row := table.Children[ri]
+			for ci := max(0, r.Col0); ci <= min(r.Col1, len(row.Children)-1); ci++ {
+				row.Children[ci].Runs, row.Children[ci].Comments = nil, nil
+			}
+		}
+		if r.Row0 >= 0 && r.Row0 < len(table.Children) && r.Col0 >= 0 && r.Col0 < len(table.Children[r.Row0].Children) {
+			e.FocusBlock(table.Children[r.Row0].Children[r.Col0].ID)
+		}
+	})
+}
+
+// AlignCells aligns the text of the cells of r in table id: "left",
+// "center" or "right".
+func (e *Engine) AlignCells(id string, r CellRange, align string) {
+	if align == "left" {
+		align = ""
+	}
+	e.Edit(func() {
+		table := e.table(id)
+		if table == nil {
+			return
+		}
+		for ri := max(0, r.Row0); ri <= min(r.Row1, len(table.Children)-1); ri++ {
+			row := table.Children[ri]
+			for ci := max(0, r.Col0); ci <= min(r.Col1, len(row.Children)-1); ci++ {
+				row.Children[ci].Align = align
+			}
+		}
+	})
+}
+
+// DuplicateTableLine copies row (rows) or column at of table id just after
+// it, the copy's cells unmerged, and moves the caret into the copy.
+func (e *Engine) DuplicateTableLine(id string, rows bool, at int) {
+	e.Edit(func() {
+		table := e.table(id)
+		if table == nil || len(table.Children) == 0 {
+			return
+		}
+		copyCell := func(cell *Block) *Block {
+			c := cell.Clone()
+			freshIDs(c)
+			c.ColSpan, c.RowSpan = 0, 0
+			return c
+		}
+		focus := ""
+		if rows {
+			if at < 0 || at >= len(table.Children) {
+				return
+			}
+			shiftSpans(table, true, at+1, 1)
+			src := table.Children[at]
+			line := src.Clone()
+			freshIDs(line)
+			for i, cell := range src.Children {
+				line.Children[i] = copyCell(cell)
+			}
+			table.Children = append(table.Children[:at+1:at+1], append([]*Block{line}, table.Children[at+1:]...)...)
+			if len(line.Children) > 0 {
+				focus = line.Children[0].ID
+			}
+		} else {
+			if at < 0 || at >= len(table.Children[0].Children) {
+				return
+			}
+			shiftSpans(table, false, at+1, 1)
+			for i, row := range table.Children {
+				if at >= len(row.Children) {
+					continue
+				}
+				cell := copyCell(row.Children[at])
+				row.Children = append(row.Children[:at+1:at+1], append([]*Block{cell}, row.Children[at+1:]...)...)
+				if i == 0 {
+					focus = cell.ID
+				}
+			}
+			if at < len(table.Widths) {
+				table.Widths = append(table.Widths[:at+1:at+1], append([]float32{table.Widths[at]}, table.Widths[at+1:]...)...)
+			}
+		}
+		normalizeSpans(table)
+		e.FocusBlock(focus)
+	})
+}
+
 // MoveTableRow reorders row from to index to within table id as one history
 // step, normalizing any multi-row cell spans afterwards.
 func (e *Engine) MoveTableRow(id string, from, to int) {

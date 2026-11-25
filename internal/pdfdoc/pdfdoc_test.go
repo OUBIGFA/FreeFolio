@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/FreeFolio/internal/pdf"
+
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 )
 
 func buildSamplePDF(t *testing.T) []byte {
@@ -149,6 +151,18 @@ func TestOpenRenderExtractAndSearch(t *testing.T) {
 	m0 := doc.Find("Architecture")
 	if len(m0) == 0 || m0[0].Page != 0 {
 		t.Fatalf("expected Find('Architecture') on page 0, got %+v", m0)
+	}
+	if got := doc.FindWith("benchmark", textfind.Options{CaseSensitive: true}); len(got) != 0 {
+		t.Fatalf("case-sensitive find matched other case: %+v", got)
+	}
+	if got := doc.FindWith("Benchmark", textfind.Options{CaseSensitive: true, WholeWord: true}); len(got) == 0 || got[0].Page != 1 {
+		t.Fatalf("whole-word find: %+v", got)
+	}
+	if got := doc.FindWith(`Arch\w+`, textfind.Options{Regex: true}); len(got) == 0 || got[0].Page != 0 {
+		t.Fatalf("regex find: %+v", got)
+	}
+	if got := doc.FindWith(`Arch(`, textfind.Options{Regex: true}); got != nil {
+		t.Fatalf("invalid regex matched: %+v", got)
 	}
 	if len(m0[0].Rects) > 0 {
 		r := m0[0].Rects[0]

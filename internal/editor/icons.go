@@ -38,6 +38,8 @@ var (
 	iconLocked     = solar.Must("lock")
 	iconUnlocked   = solar.Must("lock-unlocked")
 	iconAlignRight = solar.Must("text-align-right")
+	iconMore       = solar.Must("menu-dots")
+	iconEraser     = solar.Must("eraser")
 )
 
 // Icons drawn on the page.

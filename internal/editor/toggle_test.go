@@ -123,3 +123,25 @@ func TestColumnToolbarSorts(t *testing.T) {
 		t.Fatal("sorted by the column, header kept")
 	}
 }
+
+func TestTableToolbarAlignsAndHasMoreActions(t *testing.T) {
+	e, tt := newTester("| 名称 | 数量 |\n|---|---|\n| b | 2 |\n| a | 10 |")
+	focus(e, tt)
+	id := e.Doc.Blocks[0].ID
+	for _, label := range []string{"单元格对齐", "更多表格操作"} {
+		e.SelectTableLine(id, false, 1)
+		tt.Frame()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(label, err)
+		}
+		tt.Key(0, ui.KeyEscape)
+		tt.Frame()
+	}
+	e.Engine.AlignCells(id, document.CellRange{Row0: 0, Col0: 1, Row1: 2, Col1: 1}, "right")
+	if e.Doc.Blocks[0].Children[2].Children[1].Align != "right" {
+		t.Fatal("column aligned")
+	}
+	if md := ExportMarkdown(e.Doc); !strings.Contains(md, "---:") {
+		t.Fatalf("right alignment saved as a pipe table %q", md)
+	}
+}

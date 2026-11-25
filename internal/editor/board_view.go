@@ -312,6 +312,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 					}
 				}
 			})
+			b.arrangeButtons(c, o, len(ids))
 			if boardButton(c, "board-link", i18n.T("关联文档或链接"), false).Clicked() {
 				b.panel = "link"
 				b.propertyInput = e.Link
@@ -322,6 +323,43 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 		}
 	})
 }
+
+// boardActionGroup is a menu of related actions on the selection.
+type boardActionGroup struct {
+	key, label string
+	min        int // selected elements the group needs
+	actions    []struct{ id, label string }
+}
+
+// boardArrange are the selection's layout actions, as an office suite's
+// Arrange menu offers them: layers, alignment, spacing, flips, grouping
+// and locking.
+var boardArrange = []boardActionGroup{
+	{"board-layers", "图层", 1, []struct{ id, label string }{{"front", "置于顶层"}, {"forward", "上移一层"}, {"backward", "下移一层"}, {"back", "置于底层"}}},
+	{"board-align", "对齐", 2, []struct{ id, label string }{{"align-x-start", "左对齐"}, {"align-x-center", "水平居中"}, {"align-x-end", "右对齐"}, {"align-y-start", "顶部对齐"}, {"align-y-center", "垂直居中"}, {"align-y-end", "底部对齐"}, {"distribute-x", "水平分布"}, {"distribute-y", "垂直分布"}}},
+	{"board-arrange", "排列", 1, []struct{ id, label string }{{"flip-horizontal", "水平翻转"}, {"flip-vertical", "垂直翻转"}, {"group", "组合"}, {"ungroup", "取消组合"}, {"lock", "锁定或解锁"}, {"copy-style", "复制样式"}, {"paste-style", "粘贴样式"}}},
+}
+
+// arrangeButtons are the selection's layout menus in the properties panel,
+// so they need no right click; alignment needs two elements or more.
+func (b *Board) arrangeButtons(c *ui.Context, o BoardOptions, selected int) {
+	ui.Row(c.Key("board-arrange-row")).Gap(3).Children(func() {
+		for _, g := range boardArrange {
+			if selected < g.min {
+				continue
+			}
+			boardButton(c, g.key, i18n.T(g.label)+" ▾", false).Tooltip(i18n.T(g.label)).Menu(func(m *ui.Menu) {
+				for _, a := range g.actions {
+					if m.Item(i18n.T(a.label)).Chosen() {
+						b.RunAction(a.id, o)
+						b.RequestFocus = true
+					}
+				}
+			})
+		}
+	})
+}
+
 func (b *Board) contextMenu(m *ui.Menu, o BoardOptions) {
 	for _, a := range []struct{ id, label string }{{"copy", "复制"}, {"cut", "剪切"}, {"paste", "粘贴"}, {"duplicate", "复制图形"}, {"delete", "删除"}, {"copy-svg", "复制为 SVG"}, {"copy-png", "复制为 PNG"}, {"copy-text", "复制文字"}, {"group", "组合"}, {"ungroup", "取消组合"}, {"lock", "锁定或解锁"}, {"unlock-all", "解锁全部"}, {"front", "置于顶层"}, {"back", "置于底层"}, {"forward", "上移一层"}, {"backward", "下移一层"}, {"flip-horizontal", "水平翻转"}, {"flip-vertical", "垂直翻转"}, {"copy-style", "复制样式"}, {"paste-style", "粘贴样式"}, {"bind-text", "绑定文字"}, {"unbind-text", "解除文字绑定"}, {"wrap-text", "添加文字容器"}, {"auto-text", "文字自动宽度"}, {"edit-line", "编辑折点"}, {"crop", "裁剪图片"}, {"frame", "由选区创建画框"}, {"remove-frame", "移出画框"}, {"select-frame", "选择画框内容"}, {"align-x-start", "左对齐"}, {"align-x-center", "水平居中"}, {"align-x-end", "右对齐"}, {"align-y-start", "顶部对齐"}, {"align-y-center", "垂直居中"}, {"align-y-end", "底部对齐"}, {"distribute-x", "水平分布"}, {"distribute-y", "垂直分布"}, {"grid", "显示网格"}, {"snap", "对象吸附"}, {"arrow-binding", "箭头绑定"}, {"midpoint-snap", "中点吸附"}, {"fit-selection", "适应选区"}, {"help", "白板快捷键"}} {
 		if m.Item(i18n.T(a.label)).Chosen() {

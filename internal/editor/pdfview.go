@@ -14,6 +14,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/pdfdoc"
 	"github.com/OUBIGFA/FreeFolio/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -118,10 +119,13 @@ type PDFViewer struct {
 	PageInputText  string
 	PageInputFocus bool
 
-	FindOpen      bool
-	FindFocus     bool
-	FindQuery     string
+	FindOpen  bool
+	FindFocus bool
+	FindQuery string
+	// FindOpts match case, whole words or a regular expression.
+	FindOpts      textfind.Options
 	findLastQuery string
+	findLastOpts  textfind.Options
 	Matches       []pdfdoc.Match
 	MatchIndex    int
 	searching     bool
@@ -153,6 +157,7 @@ type PDFViewer struct {
 type pdfSearchResult struct {
 	seq     uint64
 	query   string
+	opts    textfind.Options
 	matches []pdfdoc.Match
 }
 
@@ -269,6 +274,12 @@ func (v *PDFViewer) FindText(query string) {
 	v.runSearchSync(query)
 }
 
+// findStale reports whether the matches were found for another query or
+// other options than the find bar's.
+func (v *PDFViewer) findStale() bool {
+	return v.FindQuery != v.findLastQuery || v.FindOpts != v.findLastOpts
+}
+
 // GoToPage scrolls smoothly (or immediately when instant is true) to 0-based page p.
 func (v *PDFViewer) GoToPage(p int, instant bool) {
 	if v == nil || v.Doc == nil || v.Doc.PageCount() == 0 {
@@ -376,7 +387,7 @@ drainSearch:
 	for {
 		select {
 		case sr := <-v.searchDone:
-			if sr.seq == v.searchSeq && sr.query == v.FindQuery {
+			if sr.seq == v.searchSeq && sr.query == v.FindQuery && sr.opts == v.FindOpts {
 				v.searching = false
 				v.Matches = sr.matches
 				v.MatchIndex = 0
@@ -574,7 +585,7 @@ func (v *PDFViewer) runSearchSync(q string) {
 		v.MatchIndex = 0
 		return
 	}
-	v.Matches = v.Doc.Find(q)
+	v.Matches = v.Doc.FindWith(q, v.FindOpts)
 	v.MatchIndex = 0
 	if len(v.Matches) > 0 {
 		v.GoToPage(v.Matches[0].Page, false)
@@ -582,7 +593,7 @@ func (v *PDFViewer) runSearchSync(q string) {
 }
 
 func (v *PDFViewer) triggerSearch(q string, invalidate func()) {
-	v.findLastQuery = q
+	v.findLastQuery, v.findLastOpts = q, v.FindOpts
 	if strings.TrimSpace(q) == "" || v.Doc == nil {
 		v.searchSeq++
 		v.searching = false
@@ -597,17 +608,17 @@ func (v *PDFViewer) triggerSearch(q string, invalidate func()) {
 	v.searchSeq++
 	seq := v.searchSeq
 	v.searching = true
-	doc := v.Doc
+	doc, opts := v.Doc, v.FindOpts
 	go func() {
 		if v.closed.Load() {
 			return
 		}
-		matches := doc.Find(q)
+		matches := doc.FindWith(q, opts)
 		if v.closed.Load() {
 			return
 		}
 		select {
-		case v.searchDone <- pdfSearchResult{seq: seq, query: q, matches: matches}:
+		case v.searchDone <- pdfSearchResult{seq: seq, query: q, opts: opts, matches: matches}:
 		default:
 		}
 		invalidate()
@@ -750,7 +761,7 @@ func PDFView(c *ui.Context, v *PDFViewer, opts PDFOptions) ui.Element {
 	v.drainRenderResults(c.Now())
 	v.releaseUploadedPixels(c)
 
-	if v.FindOpen && v.FindQuery != v.findLastQuery {
+	if v.FindOpen && v.findStale() {
 		v.triggerSearch(v.FindQuery, invalidate)
 	}
 
@@ -765,6 +776,11 @@ func PDFView(c *ui.Context, v *PDFViewer, opts PDFOptions) ui.Element {
 		v.OpenFind()
 	}
 	if v.FindOpen {
+		for _, tg := range findToggles(&v.FindOpts) {
+			if root.Shortcut(tg.combo.Mods, tg.combo.Key) {
+				*tg.on = !*tg.on
+			}
+		}
 		if root.Shortcut(ui.Cmd, ui.KeyG) {
 			v.stepMatch(1)
 		} else if root.Shortcut(ui.Cmd|ui.Shift, ui.KeyG) {
@@ -1259,7 +1275,7 @@ func (v *PDFViewer) sidebarView(c *ui.Context, t *ui.Theme, pg Page, invalidate 
 }
 
 func (v *PDFViewer) findBarView(c *ui.Context, t *ui.Theme, pg Page, invalidate func()) {
-	bar := ui.Row(c.Key("pdf-find-bar")).Absolute().Right(16).Top(12).Width(348).Height(38).
+	bar := ui.Row(c.Key("pdf-find-bar")).Absolute().Right(16).Top(12).Width(440).Height(38).
 		PaddingX(10).Gap(6).Radius(10).AlignItems(ui.Center).
 		Background(pg.Popover).Border(1, pg.TableLine).Shadow(0, 6, 20, 0, pg.MathShadow)
 
@@ -1278,7 +1294,7 @@ func (v *PDFViewer) findBarView(c *ui.Context, t *ui.Theme, pg Page, invalidate 
 			}
 			switch ev.Key {
 			case ui.KeyEnter:
-				if v.FindQuery != v.findLastQuery {
+				if v.findStale() {
 					v.triggerSearch(v.FindQuery, invalidate)
 				} else if ev.Mods&ui.Shift != 0 {
 					v.stepMatch(-1)
@@ -1294,9 +1310,24 @@ func (v *PDFViewer) findBarView(c *ui.Context, t *ui.Theme, pg Page, invalidate 
 			return false
 		})
 
+		for _, tg := range findToggles(&v.FindOpts) {
+			tip := i18n.T(tg.label) + " (" + tg.combo.Label() + ")"
+			b := ui.ToggleBase(c.Key("pdf-"+tg.key), tg.on).Size(24, 24).Radius(4).Center().Label(i18n.T(tg.label)).Tooltip(tip).KeepFocus().Cursor(ui.CursorPointer)
+			color := pg.CodeText
+			switch {
+			case *tg.on:
+				b.Background(pg.TurnActive)
+				color = pg.Marker
+			case b.Hovered():
+				b.Background(pg.Hover)
+			}
+			b.Children(func() { ui.Text(c, tg.glyph).FontSize(12).FontWeight(600).TextColor(color).NoWrap() })
+		}
 		if strings.TrimSpace(v.FindQuery) != "" {
 			status := i18n.T("无结果")
-			if v.searching {
+			if v.FindOpts.Regex && textfind.New(v.FindQuery, v.FindOpts).Err() != nil {
+				status = i18n.T("表达式无效")
+			} else if v.searching {
 				status = "…"
 			} else if len(v.Matches) > 0 {
 				status = fmt.Sprintf("%d/%d", v.MatchIndex+1, len(v.Matches))
