@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -142,11 +143,93 @@ func TestPaletteIndexRefreshes(t *testing.T) {
 	}
 }
 
+// Every matching document remains reachable, including names that also match
+// the body and tagged documents beyond the old result caps.
+func TestPaletteKeepsAllDocumentMatches(t *testing.T) {
+	a, tt := newTestApp(t)
+	docs := map[string]string{}
+	for i := range 32 {
+		docs[fmt.Sprintf("反推笔记%02d.md", i)] = "# 提示词\n\n反推 | 风格还原\n\n#案例"
+	}
+	id := addSpace(t, a, "Work", docs)
+	a.openPalette()
+	for _, query := range []string{"风格", "反推", "#案例"} {
+		t.Run(query, func(t *testing.T) {
+			a.palette.query = query
+			tt.Frame()
+			seen := map[string]bool{}
+			for _, act := range a.results() {
+				if act.doc.space != id {
+					continue
+				}
+				if seen[act.doc.rel] {
+					t.Errorf("document listed twice: %s", act.doc.rel)
+				}
+				seen[act.doc.rel] = true
+			}
+			if len(seen) != 32 || !seen["反推笔记31.md"] {
+				t.Fatalf("query %q returned %d of 32 documents; last present=%v", query, len(seen), seen["反推笔记31.md"])
+			}
+		})
+	}
+}
+
+// A long search stays within the window; keyboard reveal and wheel scrolling
+// both reach results outside the initial viewport without moving the input.
+func TestPaletteLongResultsScroll(t *testing.T) {
+	for _, size := range []struct {
+		width, height int
+		split         bool
+	}{{1200, 760, false}, {480, 480, false}, {1200, 760, true}} {
+		t.Run(fmt.Sprintf("%dx%d/split=%v", size.width, size.height, size.split), func(t *testing.T) {
+			a, tt := newTestApp(t)
+			tt.SetSize(size.width, size.height)
+			docs := map[string]string{}
+			for i := range 32 {
+				docs[fmt.Sprintf("笔记%02d.md", i)] = "# 提示词\n\n反推 | 风格还原"
+			}
+			id := addSpace(t, a, "Work", docs)
+			typeQuery(a, tt, "反推")
+			if size.split {
+				a.addSplitPane()
+				a.palette.query = "反推"
+				tt.Advance(300 * time.Millisecond)
+			}
+			input, ok := tt.Find("命令栏")
+			if !ok || input.X < 16 || input.X+input.W > float32(size.width)-16 {
+				t.Fatalf("search input outside window: %+v", input)
+			}
+			if size.width == 1200 && !size.split && input.W < 720 {
+				t.Errorf("search is too narrow for titles and snippets: %+v", input)
+			}
+			for range 31 {
+				tt.Key(0, ui.KeyDown)
+			}
+			tt.Advance(200 * time.Millisecond)
+			last, ok := tt.Find("笔记31")
+			if !ok || last.Y < input.Y+input.H || last.Y+last.H > float32(size.height)-16 {
+				t.Fatalf("keyboard did not reveal the final result: %+v, found=%v", last, ok)
+			}
+			tt.Scroll(last.X+last.W/2, last.Y+last.H/2, 0, -100000)
+			tt.Advance(200 * time.Millisecond)
+			if after, ok := tt.Find("命令栏"); !ok || after != input {
+				t.Fatalf("scrolling moved the search input: %+v -> %+v", input, after)
+			}
+			if err := tt.Click("笔记00"); err != nil {
+				t.Fatalf("wheel did not reveal the first result: %v", err)
+			}
+			if a.doc == nil || a.doc.space.ID != id || a.doc.rel != "笔记00.md" {
+				t.Fatal("scrolled result did not open its document")
+			}
+		})
+	}
+}
+
 // TestPaletteSnapshot renders the bar before typing and with text hits,
 // for review.
 func TestPaletteSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the command bar")
-	for _, name := range []string{"idle", "text"} {
+	for _, name := range []string{"idle", "text", "many", "narrow"} {
 		t.Run(name, func(t *testing.T) {
 			a, tt := newTestApp(t)
 			addSpace(t, a, "Work", map[string]string{
@@ -158,6 +241,17 @@ func TestPaletteSnapshot(t *testing.T) {
 			q := ""
 			if name == "text" {
 				q = "folders"
+			}
+			if name == "many" || name == "narrow" {
+				docs := map[string]string{}
+				for i := range 32 {
+					docs[fmt.Sprintf("writing/生图提示词笔记%02d.md", i)] = "# 提示词\n\n反推 | 风格还原：提取参考图像的视觉语言，再应用到新的主题。"
+				}
+				addSpace(t, a, "Writing", docs)
+				q = "反推"
+				if name == "narrow" {
+					tt.SetSize(480, 480)
+				}
 			}
 			typeQuery(a, tt, q)
 			for range 3 {

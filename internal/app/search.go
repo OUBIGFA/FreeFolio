@@ -169,13 +169,12 @@ func (a *App) textHits(query string) []search.Hit {
 	s := &a.search
 	k := hitsKey{query: query, index: a.liveIndex()}
 	if k != s.hitsKey {
-		s.hits, s.hitsKey = k.index.SearchMulti(query, nil, searchLimit), k
+		// The palette scrolls through every matching document, including live
+		// documents already merged into this index.
+		s.hits, s.hitsKey = k.index.SearchMulti(query, nil, k.index.Len()), k
 	}
 	return s.hits
 }
-
-// searchLimit is how many documents the bar lists for their text.
-const searchLimit = 5
 
 // plainText is the document's text as search sees it, kept for the
 // revision.

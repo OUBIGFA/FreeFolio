@@ -17,8 +17,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// paletteLimit is how many results the command bar shows.
-const paletteLimit = 9
+// paletteIdleLimit keeps the initial suggestions compact before a query.
+const paletteIdleLimit = 9
 
 // palette is the command bar's state.
 type palette struct {
@@ -528,13 +528,9 @@ func (a *App) results() []action {
 	}
 	slices.SortStableFunc(ms, func(x, y scored) int { return y.score - x.score })
 	hits := a.textHits(q)
-	limit := paletteLimit
-	if len(hits) > 0 {
-		limit = paletteLimit - min(len(hits), 3) // room for a few text hits
-	}
-	out := make([]action, 0, paletteLimit+searchLimit)
+	out := make([]action, 0, len(ms)+len(hits))
 	named := map[place]bool{}
-	for _, m := range ms[:min(len(ms), limit)] {
+	for _, m := range ms {
 		out = append(out, m.action)
 		if m.kind == i18n.T("文档") {
 			named[m.doc] = true
@@ -607,7 +603,7 @@ func (a *App) idleResults() []action {
 			out = append(out, act)
 		}
 	}
-	return out[:min(len(out), paletteLimit)]
+	return out[:min(len(out), paletteIdleLimit)]
 }
 
 // paletteView is the command bar, over the dimmed window.
@@ -618,11 +614,17 @@ func (a *App) paletteView(c *ui.Context) {
 	}
 	t := c.Theme()
 	winW, winH := c.Size()
-	width := min(float32(560), winW-80)
+	width := min(float32(840), winW-80)
+	resultHeight := max(float32(80), winH-160)
+	var top float32
 	var bounds ui.Rect
 	if p.pane != nil && p.pane.bounds.W > 0 {
 		bounds = p.pane.bounds
 		width = min(width, max(float32(280), bounds.W-64))
+		top = max(24, min(bounds.Y+46, winH-260))
+		// The split picker is anchored below its toolbar instead of centered.
+		// Reserve space below that anchor for the input, padding and window edge.
+		resultHeight = min(resultHeight, max(80, winH-top-120))
 	}
 	panel := ui.Modal(c.Key("palette"), &p.open, func() {
 		res := a.results()
@@ -666,7 +668,9 @@ func (a *App) paletteView(c *ui.Context) {
 				ui.Text(c, empty).TextColor(t.TextMuted).Padding(10, 12)
 				return
 			}
-			ui.Scroll(c.Key("palette-results")).MaxHeight(max(80, winH-190)).MinHeight(0).Children(func() {
+			// Bound the viewport, not the results; keep the input visible while
+			// the user scrolls through long document searches.
+			ui.Scroll(c.Key("palette-results")).MaxHeight(resultHeight).MinHeight(0).Children(func() {
 				for i, act := range res {
 					row := ui.Row(c.Key(i)).Gap(10).Padding(7, 12).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(act.title)
 					confirming := act.danger && p.confirm == act.title
@@ -735,7 +739,7 @@ func (a *App) paletteView(c *ui.Context) {
 		})
 	})
 	if bounds.W > 0 {
-		panel.Absolute().Left(min(max(20, bounds.X+(bounds.W-width-40)/2), winW-width-60)).Top(max(24, min(bounds.Y+46, winH-260)))
+		panel.Absolute().Left(min(max(20, bounds.X+(bounds.W-width-40)/2), winW-width-60)).Top(top)
 	}
 }
 

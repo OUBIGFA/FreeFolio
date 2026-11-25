@@ -245,7 +245,7 @@ func (a *App) tagResults(q string) []action {
 			a.palette.query = "#" + tag
 		}})
 	}
-	return out[:min(len(out), paletteLimit+searchLimit)]
+	return out
 }
 
 // Footer content follows document/index revisions, not redraws or pane widths.
