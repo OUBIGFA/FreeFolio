@@ -11,7 +11,25 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
+	"github.com/egoist/mygo/ui"
 )
+
+func TestWhiteboardSearchShortcutInApp(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	a.newWhiteboard("")
+	tt.Frame()
+	tt.Advance(time.Second)
+	canvas, ok := tt.Access("手绘白板")
+	if !ok {
+		t.Fatal("board canvas missing")
+	}
+	tt.ClickAt(canvas.Bounds.X+canvas.Bounds.W/2, canvas.Bounds.Y+canvas.Bounds.H/2)
+	tt.Key(ui.Ctrl, ui.KeyF)
+	if _, ok := tt.Access("搜索白板内容"); !ok {
+		t.Fatal("Ctrl+F did not open board search")
+	}
+}
 
 func TestWhiteboardCreateAutosaveAndExternalConflict(t *testing.T) {
 	a, tt := newTestApp(t)

@@ -271,5 +271,9 @@ func buildBuiltinLibrary() []LibraryItem {
 		s.Elements = append(s.Elements, t)
 		_ = s.BindText(t.ID, e.ID, nil)
 	})
+	for i, name := range []string{"手绘标签", "手绘思考云", "手绘胶囊", "叠层矩形", "叠层椭圆", "叠层菱形", "柔边菱形"} {
+		kind := DimShapeNames[i]
+		makeItem("dim0-"+kind, name, "dim0 手绘", func(s *Scene) { s.Elements = append(s.Elements, NewDimShape(kind, 0, 0, 180, 110)) })
+	}
 	return items
 }

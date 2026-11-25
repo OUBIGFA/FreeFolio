@@ -9,6 +9,32 @@ import (
 
 type SummaryLine struct{ ElementID, Text string }
 
+// Search follows dim0's node palette: title, body and ID, across the whole
+// board. Bound labels resolve to their owning card; results are never capped.
+func (s *Scene) Search(query string) []SummaryLine {
+	query = strings.ToLower(strings.TrimSpace(query))
+	var out []SummaryLine
+	for _, e := range s.Elements {
+		if e.IsDeleted || e.Kind == KindText && e.ContainerID != "" {
+			continue
+		}
+		text := strings.TrimSpace(s.ElementText(e) + "\n" + e.Name + "\n" + e.Link)
+		if n := AINodeOf(e); n != nil {
+			text = strings.TrimSpace(n.Title + "\n" + n.Instruction + "\n" + n.Note + "\n" + text)
+			if result := n.Output(); result != nil && result.Kind == "text" {
+				text += "\n" + result.Text
+			}
+		}
+		if text == "" {
+			text = string(e.Kind) + " " + e.ID
+		}
+		if query == "" || strings.Contains(strings.ToLower(text+" "+e.ID), query) {
+			out = append(out, SummaryLine{e.ID, text})
+		}
+	}
+	return out
+}
+
 func (s *Scene) MarkdownSummary() []SummaryLine {
 	var out []SummaryLine
 	for _, e := range s.Elements {

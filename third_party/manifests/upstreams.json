@@ -339,6 +339,121 @@
           "sha256": "6209d57ce81452dcad52250d75100084ed815b05436f5e9037038fda3b0e3f22"
         }
       ]
+    },
+    {
+      "name": "dim0",
+      "sourceUrl": "https://github.com/vcmf/dim0",
+      "tag": "v0.3.103",
+      "revision": "1bf00bae37bf06234271b6e16e014f2395b3d335",
+      "spdxLicenseId": "MIT",
+      "purpose": "Native arrow style choices, whole-board node search, layout direction/spacing and editable outline-to-mindmap behavior",
+      "licensePath": "third_party/dim0/LICENSE",
+      "trackedEvidence": [
+        {
+          "path": "third_party/dim0/LICENSE",
+          "bytes": 1061,
+          "sha256": "c313d3a22abc8cfcfe62bf4abc7fbeea53f79a35bef78e9c06fd1e973bb63e0b"
+        },
+        {
+          "path": "third_party/dim0/edge-glyph-options.ts",
+          "bytes": 563,
+          "sha256": "a46f52f0e010453bbba19d911220e921a77fe4cc3a6331952b49435b11bfa64c"
+        },
+        {
+          "path": "third_party/dim0/notes-search.ts",
+          "bytes": 1576,
+          "sha256": "a6411e7742cbcc0feac612c70822929dfb65cd72ba1087ebe230c8c589f0864b"
+        },
+        {
+          "path": "third_party/dim0/settings.ts",
+          "bytes": 1357,
+          "sha256": "6e78eef5af10c3b5ed43ef9b762afa44398e63a1349380b1655a6c530dc082d8"
+        }
+      ]
+    },
+    {
+      "name": "canvas-harness",
+      "sourceUrl": "https://github.com/winlp4ever/canvas-harness",
+      "tag": "@canvas-harness/core@0.2.1",
+      "revision": "8f081358f92007dfaa15d4bcaf008e9f1d3f63fb",
+      "spdxLicenseId": "MIT",
+      "purpose": "dim0 shape paths, composites, content bounds, arrowheads, cubic samples and brush options ported to pure Go",
+      "licensePath": "third_party/canvas-harness/LICENSE",
+      "packageIntegrity": "sha512-WZ63eSvRk3yLeEAZFwv4vfREocrRCuV/ysyS8Eohyv9jeUtbRsLSmaBu2xh5kMIv59V7eGB9CVk3zhejSH+upw==",
+      "trackedEvidence": [
+        {
+          "path": "third_party/canvas-harness/LICENSE",
+          "bytes": 1084,
+          "sha256": "40d529a49f91041c58cf89c6700a3c79b3152c9a8cc9e7f334f42d095ecc3f0b"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/arrowhead.ts",
+          "bytes": 3061,
+          "sha256": "d9505607e6442d46ae9159ec1f873dbd9094e69273615f033422d2905b2c7461"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/auto-route.ts",
+          "bytes": 4251,
+          "sha256": "971db9bc27220e7d63993554a6aa890cf96382f41027d5fd5fd9c0c78af0bdbd"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/constants.ts",
+          "bytes": 1704,
+          "sha256": "031fbe9a0dfd02a35d7caa1047d0073c42b11b91b3c5232073e936a031d15e99"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/content-bounds.ts",
+          "bytes": 2545,
+          "sha256": "136057903ebaff88dcb1f34699245d64e79505a7c81f4427596ddeda3dc0ffa6"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/draw-shape.ts",
+          "bytes": 10833,
+          "sha256": "fc0574c3bacff7e46bf70e57e6bd08fe5d491c59bf49bcaee00f8ba7e633d067"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/draw.ts",
+          "bytes": 10940,
+          "sha256": "7fe9fb7d2024df9f9787f95ad41bdfe9f3fe93c4d8155ee0b1cb94ba1da11391"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/freehand.ts",
+          "bytes": 4972,
+          "sha256": "f4994dde14c93eaa99be325fc707419a7e4e11690100b4bba99d0c4269bb075e"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/paths.ts",
+          "bytes": 6873,
+          "sha256": "aa7bd52343b0b3555d4349a142922fd53ecd0b243553490dd7183a44d4c6fa7c"
+        },
+        {
+          "path": "third_party/canvas-harness/reference/samples.ts",
+          "bytes": 3766,
+          "sha256": "55a04b53ec8efd1e04634d33b6f273f924de71074fbb1e186254b3f3cf9f252a"
+        }
+      ]
+    },
+    {
+      "name": "perfect-freehand",
+      "sourceUrl": "https://github.com/steveruizok/perfect-freehand",
+      "tag": "v1.2.3",
+      "revision": "f56f097e0e211fffa1601b93883e4d9f9dccf122",
+      "spdxLicenseId": "MIT",
+      "purpose": "Optional start/end tapers for dim0 brush connectors; exact upstream outline fixtures",
+      "licensePath": "third_party/perfect-freehand/LICENSE",
+      "packageIntegrity": "sha512-bHZSfqDHGNlPpgH2yxXgPHlQSPpEbo+qg7li0M78J9vNAi2yjwLeA4x79BEQhX44lEWpCLSFCeRZwpw0niiXPA==",
+      "trackedEvidence": [
+        {
+          "path": "third_party/perfect-freehand/LICENSE",
+          "bytes": 1073,
+          "sha256": "6a5ac82b42ce0af6a1e5fe39b46f0b52f1368e81e437175e8d9ae21569c8688e"
+        },
+        {
+          "path": "third_party/perfect-freehand/getStrokeOutlinePoints.ts",
+          "bytes": 13116,
+          "sha256": "d112c8255ceadc549a228504e22d58155d6cda2c08fca35f9c63d87b6aa56713"
+        }
+      ]
     }
   ],
   "adoptedUpdates": [
@@ -362,6 +477,12 @@
       "revision": "3c94584def6aaa5e6406ae2e30dd76c2990cb165",
       "tag": "v0.2.8",
       "scope": "Fixes: slash, wiki-link and completion menus no longer hold the arrow keys after a paste or with no results; mind map ordinal list markers; an 80 px left gutter so the block plus button is never clipped; continuous whiteboard freedraw without a selection box; vertical caret movement through headings, code, callouts, table columns, pictures and whiteboards; the mind map shortcut moved off macOS Minimize All (Ctrl+Cmd+M, Ctrl+Alt+M elsewhere); whiteboards and captionless pictures copied, cut and deleted whole, Enter below an inline whiteboard, and a clickable failed-picture placeholder with replace, reveal and delete; client window controls on KDE Wayland, drawn in FreeFolio's own top bars. Features: a read-only PDF reader in spaces and the file browser (pages, thumbnails, contents, find, zoom, rotation), with the pure Go geometry and outline fallback and the parser race fix. PDF text in search and Q&A, with page citations. System proxy detection (environment first, then the Windows registry or macOS scutil, cached 5 s, local names bypassed) for every client on the default transport. Documents dragged in from the file manager onto a space window, sidebar or folder row are copied in (never overwritten), opened and undoable to the trash; the file browser opens them as tabs. A full-width page mode (narrow, standard, wide, full) from a corner button, the more menus, settings and the command bar, toggled with Alt+Cmd/Ctrl+P back to the width before it. HTML page export with the editor's code highlighting and Mermaid diagrams as inline SVG for light and dark (extended to FreeFolio's gantt, pie and chart diagrams); clipboard HTML unchanged. Remaining v0.2.6-v0.2.8 items are tracked in references/upstream-review.md."
+    },
+    {
+      "name": "dim0",
+      "sourceUrl": "https://github.com/vcmf/dim0",
+      "revision": "1bf00bae37bf06234271b6e16e014f2395b3d335",
+      "scope": "Native drawing arrows and seven hand-drawn shapes from pinned canvas-harness; four-direction layout, board search and editable outline insertion. No web runtime, collaboration or hosted services."
     }
   ],
   "maintainerCodeReuse": [

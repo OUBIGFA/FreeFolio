@@ -93,6 +93,8 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 	if cmd {
 		action := ""
 		switch ev.Key {
+		case ui.KeyF:
+			action = "search"
 		case ui.KeyLeft, ui.KeyRight, ui.KeyUp, ui.KeyDown:
 			if shift {
 				actions := map[ui.Key]string{ui.KeyLeft: "align-x-start", ui.KeyRight: "align-x-end", ui.KeyUp: "align-y-start", ui.KeyDown: "align-y-end"}
@@ -397,10 +399,6 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 			return true
 		}
 		if hit == nil || b.aiNode(hit) == nil {
-			if b.aiLinkMarkerHit(p) {
-				b.deleteAILink(*b.ai.link, o)
-				return true
-			}
 			if l := b.aiLinkHit(p); l != nil {
 				ref := l.aiLinkRef
 				b.ai.link = &ref
@@ -582,7 +580,7 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 		b.Scene.Translate(ids, whiteboard.Sub(d, b.moveApplied))
 		b.moveApplied = d
 	case "resize":
-		b.resetFrom(b.before)
+		b.resetTransform()
 		r := b.selectionBox
 		right, bottom := r.X+r.W, r.Y+r.H
 		switch b.handle {
@@ -605,7 +603,7 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 		}
 		b.Scene.Resize(b.SelectedIDs(), r)
 	case "rotate":
-		b.resetFrom(b.before)
+		b.resetTransform()
 		c := b.selectionBox.Center()
 		angle := math.Atan2(p[1]-c[1], p[0]-c[0]) - b.rotateStart
 		if ev.Mods&ui.Shift != 0 {
@@ -660,6 +658,26 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 		whiteboard.Touch(e)
 	}
 	return true
+}
+
+// resetTransform restores only the gesture's elements and attached lines.
+// The baseline is immutable; unrelated shapes and image resources stay shared
+// with the live scene instead of being cloned for every pointer event.
+func (b *Board) resetTransform() {
+	ids := b.before.ExpandSelection(b.SelectedIDs(), false)
+	changed := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		changed[id] = true
+	}
+	for _, e := range b.Scene.Elements {
+		attached := e.IsLinear() && (e.StartBinding != nil && changed[e.StartBinding.ElementID] || e.EndBinding != nil && changed[e.EndBinding.ElementID])
+		if !changed[e.ID] && !attached {
+			continue
+		}
+		if base := b.before.ElementByID(e.ID); base != nil {
+			*e = *base.Clone()
+		}
+	}
 }
 func (b *Board) pointerUp(ev ui.InputEvent, o BoardOptions) bool {
 	if b.mode == "" {

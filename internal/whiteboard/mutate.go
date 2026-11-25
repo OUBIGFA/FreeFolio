@@ -138,7 +138,7 @@ func (s *Scene) Flip(ids []string, horizontal bool) {
 		if horizontal {
 			e.X = b.X + b.W - (e.X - b.X) - e.W
 			e.Angle = -e.Angle
-			if e.Kind == KindImage {
+			if e.Kind == KindImage || e.Shape != "" {
 				e.Scale[0] *= -1
 			}
 			for i := range e.Points {
@@ -147,7 +147,7 @@ func (s *Scene) Flip(ids []string, horizontal bool) {
 		} else {
 			e.Y = b.Y + b.H - (e.Y - b.Y) - e.H
 			e.Angle = -e.Angle
-			if e.Kind == KindImage {
+			if e.Kind == KindImage || e.Shape != "" {
 				e.Scale[1] *= -1
 			}
 			for i := range e.Points {

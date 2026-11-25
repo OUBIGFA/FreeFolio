@@ -2,6 +2,10 @@
 
 FreeFolio uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,
 text shaping and system input transport. Its module cache stays untouched.
+
+Whiteboard arrowheads, brush connectors and additional hand-drawn shapes port
+[dim0](dim0/README.md)'s pinned [canvas-harness](canvas-harness/README.md) geometry
+under MIT. Source references and parity fixture generation are retained.
 The Markdown editor is implemented in `internal/editor` and has no vendored
 editor component or TeX engine.
 

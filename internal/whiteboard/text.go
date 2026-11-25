@@ -309,6 +309,9 @@ func (s *Scene) LayoutText(id string, m MeasureFunc) {
 		} else if c.Kind == KindEllipse {
 			bounds = Box{c.X + c.W*.15, c.Y + c.H*.15, c.W * .7, c.H * .7}
 		}
+		if c.Shape != "" {
+			bounds = dimContentBounds(c)
+		}
 		width = math.Max(1, bounds.W-padding*2)
 	} else if !e.AutoResize {
 		width = math.Max(1, e.W)

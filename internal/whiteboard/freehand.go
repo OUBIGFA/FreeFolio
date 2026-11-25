@@ -18,6 +18,7 @@ type freehandOptions struct {
 	size, thinning, smoothing, streamline float64
 	simulate                              bool
 	easing                                func(float64) float64
+	taper                                 float64
 }
 
 func perp(p Point) Point { return Point{p[1], -p[0]} }
@@ -160,7 +161,18 @@ func strokeOutline(ps []strokePoint, o freehandOptions) []Point {
 		if firstRadius < 0 {
 			firstRadius = radius
 		}
-		radius = math.Max(radius, .01)
+		startStrength, endStrength := float64(1), float64(1)
+		if o.taper > 0 {
+			if p.running < o.taper {
+				t := p.running / o.taper
+				startStrength = t * (2 - t)
+			}
+			if total-p.running < o.taper {
+				t := (total-p.running)/o.taper - 1
+				endStrength = t*t*t + 1
+			}
+		}
+		radius = math.Max(radius*math.Min(startStrength, endStrength), .01)
 		nextVector := p.v
 		nextDot := float64(1)
 		if i < n-1 {
@@ -217,15 +229,19 @@ func strokeOutline(ps []strokePoint, o freehandOptions) []Point {
 		return circle
 	}
 	var startCap, endCap []Point
-	if len(right) > 0 {
+	if len(right) > 0 && o.taper == 0 {
 		for t := 1.0 / 13; t <= 1; t += 1.0 / 13 {
 			startCap = append(startCap, RotatePoint(right[0], first, fixedPi*t))
 		}
 	}
-	direction := perp(ScalePoint(ps[n-1].v, -1))
-	start := Add(last, ScalePoint(direction, radius))
-	for t := 1.0 / 29; t < 1; t += 1.0 / 29 {
-		endCap = append(endCap, RotatePoint(start, last, fixedPi*3*t))
+	if o.taper > 0 {
+		endCap = append(endCap, last)
+	} else {
+		direction := perp(ScalePoint(ps[n-1].v, -1))
+		start := Add(last, ScalePoint(direction, radius))
+		for t := 1.0 / 29; t < 1; t += 1.0 / 29 {
+			endCap = append(endCap, RotatePoint(start, last, fixedPi*3*t))
+		}
 	}
 	out := append(left, endCap...)
 	for i := len(right) - 1; i >= 0; i-- {

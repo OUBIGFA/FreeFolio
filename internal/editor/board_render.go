@@ -243,7 +243,7 @@ func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool) {
 		}
 	}
 	paint(false)
-	b.paintAILinks(p, dark)
+	b.paintAILinks(p, dark, viewport)
 	paint(true)
 }
 

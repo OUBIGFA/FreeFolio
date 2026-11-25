@@ -114,6 +114,8 @@ type Board struct {
 	panel                                      string
 	propertyInput                              string
 	mermaidInput                               string
+	outline                                    string
+	search                                     boardSearchState
 	libraryQuery                               string
 	libraryName                                string
 	libraryPreviews                            map[string]*Board
@@ -130,7 +132,10 @@ func NewBoard(s *whiteboard.Scene) *Board {
 	if s == nil {
 		s = whiteboard.NewScene()
 	}
-	return &Board{Scene: s, History: whiteboard.NewHistory(), Selected: map[string]bool{}, Zoom: 1, ArrowBinding: true, MidpointSnap: true, style: whiteboard.NewElement(whiteboard.KindRectangle, 0, 0, 0, 0), paths: map[string]boardPathCache{}, texts: map[string]boardTextCache{}, images: map[string]*ui.Bitmap{}, imageErrors: map[string]error{}, imagePending: map[string]bool{}}
+	style := whiteboard.NewElement(whiteboard.KindRectangle, 0, 0, 0, 0)
+	style.DimArrow = true
+	style.EndArrowhead = whiteboard.ArrowTriangle
+	return &Board{Scene: s, History: whiteboard.NewHistory(), Selected: map[string]bool{}, Zoom: 1, ArrowBinding: true, MidpointSnap: true, style: style, paths: map[string]boardPathCache{}, texts: map[string]boardTextCache{}, images: map[string]*ui.Bitmap{}, imageErrors: map[string]error{}, imagePending: map[string]bool{}}
 }
 func (b *Board) Revision() uint64 { return b.revision }
 
@@ -307,6 +312,13 @@ func copyBoardStyle(e, from *whiteboard.Element) {
 	e.StrokeStyle = from.StrokeStyle
 	e.Roughness = from.Roughness
 	e.Opacity = from.Opacity
+	if e.IsLinear() {
+		e.DimArrow = from.DimArrow
+		if e.Kind == whiteboard.KindArrow {
+			e.StartArrowhead, e.EndArrowhead = from.StartArrowhead, from.EndArrowhead
+		}
+		e.Elbowed, e.Roundness = from.Elbowed, from.Roundness
+	}
 	if e.Kind == whiteboard.KindText && from.FontSize > 0 {
 		e.FontSize = from.FontSize
 		e.FontFamily = from.FontFamily
@@ -402,6 +414,10 @@ func (b *Board) RunAction(action string, o BoardOptions) {
 		return
 	case "help":
 		b.panel = "help"
+		return
+	case "search":
+		b.panel = "search"
+		b.search.focus = true
 		return
 	case "copy":
 		b.copyBoard(false)
@@ -623,10 +639,15 @@ func (b *Board) ChangeProperty(name string, value any, o BoardOptions) {
 			}
 		case "start-arrow":
 			e.StartArrowhead = whiteboard.Arrowhead(value.(string))
+			e.DimArrow = true
 		case "end-arrow":
 			e.EndArrowhead = whiteboard.Arrowhead(value.(string))
+			e.DimArrow = true
+		case "dim0-arrow":
+			e.DimArrow = value.(bool)
 		case "routing":
 			v := value.(string)
+			e.DimArrow = true
 			e.Elbowed = v == "elbow"
 			if v == "curved" {
 				e.Roundness = &whiteboard.Roundness{Type: 2}

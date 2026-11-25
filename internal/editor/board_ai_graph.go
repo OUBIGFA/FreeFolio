@@ -10,10 +10,6 @@ import (
 
 // The node graph's interaction ports LiteGraph's (Comfy-Org/litegraph.js,
 // MIT, revision ea0e1a85), the canvas ComfyUI is built on:
-//   - a link is drawn as LGraphCanvas.renderLink's spline: a cubic from
-//     the output to the input whose control points stand a quarter of the
-//     ends' distance out along each slot's direction, with a circle marker
-//     at its middle;
 //   - LinkConnector: dragging from an output connects to an input; from a
 //     free input, to an output; from a linked input, the link is picked up
 //     (MovingInputLink) and dropping it on nothing disconnects it;
@@ -24,6 +20,7 @@ import (
 //     (release_link_on_empty_shows_menu).
 // Board elements that show text, pictures or frames can be sources too, as
 // the board is the workflow's material; their links leave their right edge.
+// Curve control offsets and arrowheads use dim0/canvas-harness 0.2.1 (MIT).
 
 // Card geometry, in scene units.
 const (
@@ -87,6 +84,11 @@ func aiMinHeight(n *whiteboard.AINode) float64 {
 }
 
 func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayout {
+	s := b.aiState()
+	cached, ok := s.nodes[e.ID]
+	if ok && cached.node == n && cached.layout != nil {
+		return *cached.layout
+	}
 	l := aiCardLayout{slots: whiteboard.AISlots(n), out: whiteboard.AIOutputType(n.Role), slotTop: aiHeader + 6}
 	w, h := float32(e.W), float32(e.H)
 	top := l.slotTop + float32(aiSlotRows(l.slots, l.out))*aiSlotRow + 6
@@ -96,10 +98,14 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 		// A text node's field is its body.
 		l.widgets.H = max(0, h-aiFooter-6-top)
 		l.preview = ui.Rect{X: aiPad, Y: top + l.widgets.H, W: l.widgets.W}
-		return l
+	} else {
+		py := top + wh + 8
+		l.preview = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: max(0, h-aiFooter-8-py)}
 	}
-	py := top + wh + 8
-	l.preview = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: max(0, h-aiFooter-8-py)}
+	if ok && cached.node == n {
+		cached.layout = &l
+		s.nodes[e.ID] = cached
+	}
 	return l
 }
 
@@ -123,10 +129,10 @@ func (b *Board) aiSourcePoint(e *whiteboard.Element) whiteboard.Point {
 	return whiteboard.Point{box.X + box.W, box.Y + box.H/2}
 }
 
-// aiSpline is the link curve between two points: renderLink's
-// addSplineOffset, a quarter of their distance along each slot.
+// aiSpline ports dim0/canvas-harness autoRouteControls, with fixed outward
+// normals for the node editor's right output and left input ports.
 func aiSpline(a, z whiteboard.Point) [4]whiteboard.Point {
-	d := whiteboard.Distance(a, z) * 0.25
+	d := math.Min(200, whiteboard.Distance(a, z)*0.4)
 	return [4]whiteboard.Point{a, {a[0] + d, a[1]}, {z[0] - d, z[1]}, z}
 }
 
@@ -149,6 +155,17 @@ type aiLink struct {
 
 // aiLinks are the board's live links, in scene order of their nodes.
 func (b *Board) aiLinks() []aiLink {
+	s := b.aiState()
+	signature := uint64(len(b.Scene.Elements))
+	for _, e := range b.Scene.Elements {
+		signature = (signature ^ uint64(e.Version) ^ uint64(e.VersionNonce)) * 1099511628211
+		if e.IsDeleted {
+			signature ^= 1
+		}
+	}
+	if s.linkScene == b.Scene && s.linkSignature == signature {
+		return s.links
+	}
 	var out []aiLink
 	for _, e := range b.Scene.Elements {
 		n := b.aiNode(e)
@@ -164,7 +181,8 @@ func (b *Board) aiLinks() []aiLink {
 			out = append(out, aiLink{aiLinkRef{e.ID, sl.Name}, from, sl.Type, aiSpline(b.aiSourcePoint(from), aiInputPoint(e, l, i))})
 		}
 	}
-	return out
+	s.linkScene, s.linkSignature, s.links = b.Scene, signature, out
+	return s.links
 }
 
 // aiLinkHit is the link under a board point, by the curve's distance.
@@ -172,6 +190,9 @@ func (b *Board) aiLinkHit(p whiteboard.Point) *aiLink {
 	tol := 6 / max(0.25, b.Zoom)
 	links := b.aiLinks()
 	for i := len(links) - 1; i >= 0; i-- {
+		if !whiteboard.PointsBounds(links[i].curve[:]).Expand(tol).Contains(p) {
+			continue
+		}
 		prev := links[i].curve[0]
 		for k := 1; k <= 24; k++ {
 			next := aiSplineAt(links[i].curve, float64(k)/24)
@@ -199,23 +220,28 @@ func aiSplinePath(c [4]whiteboard.Point) *ui.Path {
 	return new(ui.Path).Cap(ui.RoundCap).MoveTo(float32(c[0][0]), float32(c[0][1])).CubeTo(float32(c[1][0]), float32(c[1][1]), float32(c[2][0]), float32(c[2][1]), float32(c[3][0]), float32(c[3][1]))
 }
 
-// paintAILink draws a link in board units, with renderLink's border and
-// middle marker.
+// paintAILink uses dim0's plain cubic body and filled arrowhead. Node links
+// remain separate from drawing arrows and retain their typed slot semantics.
 func (b *Board) paintAILink(p *ui.Painter, c [4]whiteboard.Point, color ui.Color, width float32, dark bool) {
 	path := aiSplinePath(c)
-	p.StrokePath(path, width+3, boardColor(b.Scene.AppState.ViewBackgroundColor, dark).Alpha(0.85))
 	p.StrokePath(path, width, color)
-	mid := aiSplineAt(c, 0.5)
-	r := width + 2
-	p.Fill(ui.Rect{X: float32(mid[0]) - r, Y: float32(mid[1]) - r, W: 2 * r, H: 2 * r}, color, r)
+	direction := whiteboard.Sub(c[3], c[2])
+	if length := whiteboard.Distance(c[3], c[2]); length > 0 {
+		direction = whiteboard.ScalePoint(direction, 1/length)
+		head := whiteboard.DimArrowhead("arrow-filled", c[3], direction, float64(width), "", 1)
+		p.FillPath(nativeBoardPath(head.Ops), color)
+	}
 }
 
 // paintAILinks draws the stored links, under the cards and over the rest.
-func (b *Board) paintAILinks(p *ui.Painter, dark bool) {
+func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box) {
 	s := b.aiState()
 	clear(s.linkedOut)
 	for _, l := range b.aiLinks() {
 		s.linkedOut[l.from.ID] = true
+		if !viewport.Intersects(whiteboard.PointsBounds(l.curve[:]).Expand(8)) {
+			continue
+		}
 		b.paintAILink(p, l.curve, aiTypeColor(l.typ, dark), 2.5, dark)
 	}
 }
@@ -273,31 +299,33 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 	}
 	color := aiTypeColor(shown.typ, dark)
 	b.paintAILink(p, shown.curve, color, 4, dark)
-	if s.link != nil && *s.link == shown.aiLinkRef {
-		// The selected link's marker deletes it, as LiteGraph's link
-		// menu does.
-		mid := aiSplineAt(shown.curve, 0.5)
-		r := float32(9 / max(0.5, b.Zoom))
-		x, y := float32(mid[0]), float32(mid[1])
-		p.Fill(ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}, color, r)
-		k := r * 0.45
-		w := r * 0.22
-		p.Line(x-k, y-k, x+k, y+k, w, ui.Hex("#FFFFFF"))
-		p.Line(x-k, y+k, x+k, y-k, w, ui.Hex("#FFFFFF"))
-	}
 }
 
-// aiLinkMarkerHit reports a point on the selected link's marker.
-func (b *Board) aiLinkMarkerHit(p whiteboard.Point) bool {
-	if b.ai.link == nil {
-		return false
+// aiLinkControls uses a screen-sized button above the cards. Keeping hit testing
+// in the native UI makes the visible target clickable at every board zoom.
+func (b *Board) aiLinkControls(c *ui.Context, o BoardOptions) {
+	if b.ai.link == nil || o.AI == nil {
+		return
 	}
 	for _, l := range b.aiLinks() {
 		if l.aiLinkRef == *b.ai.link {
-			return whiteboard.Distance(p, aiSplineAt(l.curve, 0.5)) <= 10/max(0.5, b.Zoom)
+			mid := aiSplineAt(l.curve, .5)
+			x, y, _, _ := b.canvasRect(mid[0], mid[1], 0, 0)
+			if x < 0 || y < 0 || x > b.lastRect.W || y > b.lastRect.H {
+				return
+			}
+			node := b.Scene.ElementByID(l.node)
+			button := boardIconButton(c, "board-ai-unlink", "trash", i18n.T("移除连线"), false).
+				Absolute().Left(x-16).Top(y-16).Size(32, 32).
+				Background(o.Theme.Background).Border(1, o.Theme.Border).
+				Disabled(b.ReadOnly || node == nil || node.Locked)
+			if button.Clicked() {
+				b.deleteAILink(l.aiLinkRef, o)
+				b.RequestFocus = true
+			}
+			return
 		}
 	}
-	return false
 }
 
 // aiSlotHit finds the slot under a board point: a node's output, or one of
@@ -308,6 +336,9 @@ func (b *Board) aiSlotHit(p whiteboard.Point) (id, slot string, output bool) {
 		e := b.Scene.Elements[i]
 		n := b.aiNode(e)
 		if n == nil || e.IsDeleted || e.Locked {
+			continue
+		}
+		if !(whiteboard.Box{X: e.X, Y: e.Y, W: e.W, H: e.H}).Expand(r).Contains(p) {
 			continue
 		}
 		l := b.aiLayout(e, n)
@@ -502,7 +533,8 @@ func (e errAI) Error() string { return string(e) }
 // deleteAILink removes a link as one undo step.
 func (b *Board) deleteAILink(ref aiLinkRef, o BoardOptions) {
 	b.ai.link = nil
-	if b.ReadOnly {
+	node := b.Scene.ElementByID(ref.node)
+	if b.ReadOnly || node == nil || node.Locked {
 		return
 	}
 	b.edit(o, func() { b.setAILink(ref.node, ref.slot, "") })

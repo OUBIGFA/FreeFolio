@@ -120,12 +120,11 @@ func (b *Board) aiCardTextFont(id, text string, width float32, font ui.Font) *ui
 	if len(text) > 6000 {
 		text = text[:6000] + "…"
 	}
-	key := fmt.Sprintf("%s\x00%.0f\x00%.1f\x00%d\x00%.2f", text, width, font.Size, font.Weight, font.LineHeight)
-	if c, ok := s.texts[id]; ok && c.key == key {
+	if c, ok := s.texts[id]; ok && c.text == text && c.width == width && c.font == font {
 		return c.layout
 	}
 	layout := ui.ShapeText(text, font, width)
-	s.texts[id] = boardAICardText{key, layout}
+	s.texts[id] = boardAICardText{text: text, width: width, font: font, layout: layout}
 	return layout
 }
 

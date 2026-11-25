@@ -109,6 +109,7 @@ type boardAIRun struct {
 type boardAINodeCache struct {
 	version, nonce int64
 	node           *whiteboard.AINode
+	layout         *aiCardLayout
 }
 
 type boardAINodeBuffer struct {
@@ -140,7 +141,10 @@ type boardAIState struct {
 	panel bool
 	// linkedOut marks elements whose output is linked, for the frame
 	// being painted.
-	linkedOut map[string]bool
+	linkedOut     map[string]bool
+	linkScene     *whiteboard.Scene
+	linkSignature uint64
+	links         []aiLink
 	// buf holds the panel's text fields while a node is edited; bufs holds
 	// per-node inline text buffers for direct canvas editing.
 	buf              aiEditBuffers
@@ -150,7 +154,9 @@ type boardAIState struct {
 }
 
 type boardAICardText struct {
-	key    string
+	text   string
+	width  float32
+	font   ui.Font
 	layout *ui.TextLayout
 }
 
@@ -194,11 +200,12 @@ func (b *Board) aiNode(e *whiteboard.Element) *whiteboard.AINode {
 		return nil
 	}
 	s := b.aiState()
-	if c, ok := s.nodes[e.ID]; ok && c.version == e.Version && c.nonce == e.VersionNonce {
+	version, nonce := e.ShapeRevision()
+	if c, ok := s.nodes[e.ID]; ok && c.version == version && c.nonce == nonce {
 		return c.node
 	}
 	n := whiteboard.AINodeOf(e)
-	s.nodes[e.ID] = boardAINodeCache{e.Version, e.VersionNonce, n}
+	s.nodes[e.ID] = boardAINodeCache{version: version, nonce: nonce, node: n}
 	return n
 }
 

@@ -102,6 +102,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			b.aiPickerMenu(c, o)
 		}
 		b.aiNodeOverlay(c, o)
+		b.aiLinkControls(c, o)
 		b.aiProperties(c, o)
 		b.footer(c, o)
 		b.panelView(c, o)
@@ -163,6 +164,17 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 			b.aiToolbar(c, o)
 			menu := boardIconButton(c, "board-more", "dots", i18n.T("更多工具"), false)
 			menu.Menu(func(m *ui.Menu) {
+				if m.Item(i18n.T("dim0 手绘图形")).Chosen() {
+					b.libraryQuery = "dim0"
+					b.panel = "library"
+				}
+				if m.Item(i18n.T("大纲转思维导图")).Chosen() {
+					b.panel = "outline"
+				}
+				if m.Item(i18n.T("搜索白板内容")).Chosen() {
+					b.RunAction("search", o)
+				}
+				b.layoutMenu(m, o)
 				capacity := b.toolCapacity(o)
 				for _, d := range boardTools {
 					if int(d.tool) > capacity && m.Item(i18n.T(d.label)).Chosen() {
@@ -252,12 +264,38 @@ func (b *Board) footer(c *ui.Context, o BoardOptions) {
 		}
 	})
 }
+
+var boardRouteLabels = map[string]string{"sharp": "直线", "curved": "贝塞尔曲线", "elbow": "折线"}
+var boardArrowLabels = map[string]string{"": "无箭头", "arrow": "空心箭头", "triangle": "实心箭头", "barb": "倒钩箭头"}
+
 func (b *Board) propSelect(c *ui.Context, key, label, current string, options []string, o BoardOptions) {
 	ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted)
 	value := current
-	ui.Select(c.Key("board-property-"+key), &value, options).WidthPercent(100).FontSize(13)
-	if value != current {
-		b.ChangeProperty(key, value, o)
+	labels := make([]string, len(options))
+	for i, v := range options {
+		label := v
+		if key == "routing" {
+			label = boardRouteLabels[v]
+		}
+		if key == "start-arrow" || key == "end-arrow" {
+			if name, ok := boardArrowLabels[v]; ok {
+				label = name
+			}
+		}
+		labels[i] = i18n.T(label)
+		if v == current {
+			value = labels[i]
+		}
+	}
+	before := value
+	ui.Select(c.Key("board-property-"+key), &value, labels).WidthPercent(100).FontSize(13)
+	if value != before {
+		for i, label := range labels {
+			if value == label {
+				b.ChangeProperty(key, options[i], o)
+				break
+			}
+		}
 	}
 }
 func (b *Board) properties(c *ui.Context, o BoardOptions) {
@@ -339,6 +377,10 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 		}
 		if e.IsLinear() || b.Tool == ToolArrow || b.Tool == ToolLine {
 			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
+			dim := e.DimArrow
+			if ui.Checkbox(c.Key("board-dim0-arrow"), &dim, i18n.T("dim0 箭头")).Changed() {
+				b.ChangeProperty("dim0-arrow", dim, o)
+			}
 			routing := "sharp"
 			if e.Elbowed {
 				routing = "elbow"
@@ -346,7 +388,7 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 				routing = "curved"
 			}
 			b.propSelect(c, "routing", "连线", routing, []string{"sharp", "curved", "elbow"}, o)
-			heads := []string{"", "arrow", "bar", "circle", "circle_outline", "triangle", "triangle_outline", "diamond", "diamond_outline", "cardinality_one", "cardinality_many", "cardinality_one_or_many", "cardinality_exactly_one", "cardinality_zero_or_one", "cardinality_zero_or_many"}
+			heads := []string{"", "arrow", "triangle", "barb", "bar", "circle", "circle_outline", "triangle_outline", "diamond", "diamond_outline", "cardinality_one", "cardinality_many", "cardinality_one_or_many", "cardinality_exactly_one", "cardinality_zero_or_one", "cardinality_zero_or_many"}
 			b.propSelect(c, "start-arrow", "起点", string(e.StartArrowhead), heads, o)
 			b.propSelect(c, "end-arrow", "终点", string(e.EndArrowhead), heads, o)
 		}
@@ -408,6 +450,9 @@ func (b *Board) arrangeButtons(c *ui.Context, o BoardOptions, selected int) {
 }
 
 func (b *Board) contextMenu(m *ui.Menu, o BoardOptions) {
+	if !b.ReadOnly {
+		b.layoutMenu(m, o)
+	}
 	for _, a := range []struct{ id, label string }{{"copy", "复制"}, {"cut", "剪切"}, {"paste", "粘贴"}, {"duplicate", "复制图形"}, {"delete", "删除"}, {"copy-svg", "复制为 SVG"}, {"copy-png", "复制为 PNG"}, {"copy-text", "复制文字"}, {"group", "组合"}, {"ungroup", "取消组合"}, {"lock", "锁定或解锁"}, {"unlock-all", "解锁全部"}, {"front", "置于顶层"}, {"back", "置于底层"}, {"forward", "上移一层"}, {"backward", "下移一层"}, {"flip-horizontal", "水平翻转"}, {"flip-vertical", "垂直翻转"}, {"copy-style", "复制样式"}, {"paste-style", "粘贴样式"}, {"bind-text", "绑定文字"}, {"unbind-text", "解除文字绑定"}, {"wrap-text", "添加文字容器"}, {"auto-text", "文字自动宽度"}, {"edit-line", "编辑折点"}, {"crop", "裁剪图片"}, {"frame", "由选区创建画框"}, {"remove-frame", "移出画框"}, {"select-frame", "选择画框内容"}, {"align-x-start", "左对齐"}, {"align-x-center", "水平居中"}, {"align-x-end", "右对齐"}, {"align-y-start", "顶部对齐"}, {"align-y-center", "垂直居中"}, {"align-y-end", "底部对齐"}, {"distribute-x", "水平分布"}, {"distribute-y", "垂直分布"}, {"grid", "显示网格"}, {"snap", "对象吸附"}, {"arrow-binding", "箭头绑定"}, {"midpoint-snap", "中点吸附"}, {"fit-selection", "适应选区"}, {"help", "白板快捷键"}} {
 		if m.Item(i18n.T(a.label)).Chosen() {
 			b.RunAction(a.id, o)
@@ -503,7 +548,7 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 	if b.panel == "" {
 		return
 	}
-	ui.Scroll(c.Key("board-panel")).Absolute().Top(68).Right(12).Width(330).MaxHeight(max(150, b.lastRect.H-140)).Padding(16).Gap(10).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
+	ui.Scroll(c.Key("board-panel")).Absolute().Top(68).Right(12).Width(min(330, max(180, b.lastRect.W-24))).MaxHeight(max(150, b.lastRect.H-140)).Padding(16).Gap(10).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
 		ui.Row(c).Children(func() {
 			ui.Text(c, i18n.T("白板")).FontSize(15).Grow(1)
 			if ui.Button(c, "×").Clicked() {
@@ -511,6 +556,10 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 			}
 		})
 		switch {
+		case b.panel == "search":
+			b.searchPanel(c)
+		case b.panel == "outline":
+			b.outlinePanel(c, o)
 		case b.panel == "clear":
 			ui.Text(c, i18n.T("清空当前白板？可以撤销此操作。"))
 			if ui.Button(c, i18n.T("清空白板")).Clicked() {

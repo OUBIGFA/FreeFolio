@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
@@ -499,6 +501,41 @@ func TestBoardAILinkedPromptDisablesFieldAndLinksMove(t *testing.T) {
 	}
 	if field, ok := tt.Access("指令"); !ok || field.Disabled {
 		t.Fatal("field stays disabled after unlinking")
+	}
+}
+
+func TestBoardAILinkRemoveButtonAtEveryZoom(t *testing.T) {
+	for _, zoom := range []float64{0.1, 1, 2} {
+		t.Run(fmt.Sprint(zoom), func(t *testing.T) {
+			b := NewBoard(nil)
+			o := BoardOptions{AI: &BoardAI{}}
+			tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 960, 640)
+			tt.Frame()
+			from := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{0, 0}, o)
+			to := b.AddAINode(whiteboard.AIText, whiteboard.Point{520, 0}, o)
+			b.setAILink(to, "prompt", from)
+			b.Selected = map[string]bool{}
+			b.ai.link = &aiLinkRef{to, "prompt"}
+			mid := aiSplineAt(b.aiLinks()[0].curve, .5)
+			b.Zoom, b.PanX, b.PanY = zoom, 480-mid[0]*zoom, 300-mid[1]*zoom
+			tt.Frame()
+			button, ok := tt.Access(i18n.T("移除连线"))
+			if !ok || button.Bounds.W < 28 || button.Bounds.H < 28 {
+				t.Fatalf("missing usable remove button at zoom %v: %+v", zoom, button)
+			}
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {
+				t.Fatal("remove button did not disconnect")
+			}
+			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("disconnect was not undoable")
+			}
+			b.Scene.ElementByID(to).Locked = true
+			b.deleteAILink(aiLinkRef{to, "prompt"}, o)
+			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("locked node was disconnected")
+			}
+		})
 	}
 }
 

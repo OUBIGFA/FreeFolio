@@ -106,6 +106,8 @@ type Element struct {
 	shapeNonce       int64
 	ID               string          `json:"id"`
 	Kind             ElementKind     `json:"type"`
+	Shape            string          `json:"freefolioShape,omitempty"`
+	DimArrow         bool            `json:"freefolioDim0Arrow,omitempty"`
 	X                float64         `json:"x"`
 	Y                float64         `json:"y"`
 	W                float64         `json:"width"`
@@ -437,6 +439,9 @@ func (s *Scene) Validate() error {
 		seen[e.ID] = true
 		if !validKind(e.Kind) {
 			return fmt.Errorf("whiteboard: unsupported element %q (%s)", e.Kind, e.ID)
+		}
+		if e.Shape != "" && (e.Kind != KindRectangle || !slices.Contains(DimShapeNames, e.Shape)) {
+			return fmt.Errorf("whiteboard: unsupported shape %q (%s)", e.Shape, e.ID)
 		}
 		values := []float64{e.X, e.Y, e.W, e.H, e.Angle, e.StrokeWidth, e.Roughness, e.Opacity, e.FontSize, e.LineHeight}
 		for _, p := range e.Points {

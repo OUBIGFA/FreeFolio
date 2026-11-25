@@ -14,6 +14,91 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// BenchmarkBoardResize isolates FreeFolio's gesture work from the app shell,
+// native rendering and disk I/O. Unselected elements must not be copied for
+// every pointer move.
+func BenchmarkBoardResize(b *testing.B) {
+	for _, count := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprint(count), func(b *testing.B) {
+			s := whiteboard.NewScene()
+			for i := range count {
+				s.Elements = append(s.Elements, whiteboard.NewElement(whiteboard.KindRectangle, float64(i*150), 100, 100, 80))
+			}
+			board := NewBoard(s)
+			board.selectIDs([]string{s.Elements[0].ID})
+			board.before = s.Clone()
+			board.mode, board.handle = "resize", 4
+			board.selectionBox = whiteboard.SelectionBounds(s, board.SelectedIDs())
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				board.pointerMove(ui.InputEvent{X: float32(110 + i%20), Y: 195}, BoardOptions{})
+			}
+		})
+	}
+}
+
+func TestBoardResizeKeepsUnchangedResources(t *testing.T) {
+	b := NewBoard(nil)
+	selected := whiteboard.NewElement(whiteboard.KindRectangle, 100, 100, 100, 80)
+	other := whiteboard.NewElement(whiteboard.KindRectangle, 400, 100, 100, 80)
+	b.Scene.Elements = append(b.Scene.Elements, selected, other)
+	b.Scene.Files["image"] = &whiteboard.FileData{ID: "image", DataURL: "data:image/png;base64,AAAA"}
+	resource := b.Scene.Files["image"]
+	b.selectIDs([]string{selected.ID})
+	b.pointerDown(ui.InputEvent{X: 200, Y: 180}, BoardOptions{})
+	for _, x := range []float32{220, 240, 230} {
+		b.pointerMove(ui.InputEvent{X: x, Y: 200}, BoardOptions{})
+	}
+	if b.Scene.ElementByID(other.ID) != other || b.Scene.Files["image"] != resource {
+		t.Fatal("resizing one shape replaced untouched shapes or image resources")
+	}
+	b.pointerUp(ui.InputEvent{X: 230, Y: 200}, BoardOptions{})
+	if e := b.Scene.ElementByID(selected.ID); e.W != 130 || e.H != 100 {
+		t.Fatalf("resize accumulated transforms: %v x %v", e.W, e.H)
+	}
+	if !b.Undo() || b.Scene.ElementByID(selected.ID).W != 100 {
+		t.Fatal("gesture was not one undo step")
+	}
+}
+
+func BenchmarkBoardAILinks(b *testing.B) {
+	s := whiteboard.NewScene()
+	for i := range 200 {
+		e := whiteboard.NewAINode(whiteboard.AIText, float64(i*400), 0)
+		n := whiteboard.AINodeOf(e)
+		if i > 0 {
+			n.Links = []whiteboard.AILink{{Slot: "prompt", From: s.Elements[i-1].ID}}
+			_ = whiteboard.SetAINode(e, n)
+		}
+		s.Elements = append(s.Elements, e)
+	}
+	board := NewBoard(s)
+	board.aiLinks()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		board.aiLinks()
+	}
+}
+
+func TestBoardAINodeMoveKeepsParsedContent(t *testing.T) {
+	b := NewBoard(nil)
+	e := whiteboard.NewAINode(whiteboard.AIText, 0, 0)
+	b.Scene.Elements = append(b.Scene.Elements, e)
+	n := b.aiNode(e)
+	b.Scene.Translate([]string{e.ID}, whiteboard.Point{20, 30})
+	if b.aiNode(e) != n {
+		t.Fatal("moving a card reparsed unchanged node content")
+	}
+	whiteboard.Touch(e)
+	n.Instruction = "changed"
+	_ = whiteboard.SetAINode(e, n)
+	if b.aiNode(e).Instruction != "changed" {
+		t.Fatal("node content cache did not invalidate")
+	}
+}
+
 // This opt-in measurement uses the pinned Quiet.md scene generator. Tester
 // frame durations measure CPU event/build work, not GPU/display latency.
 func TestBoardPerformanceReport(t *testing.T) {

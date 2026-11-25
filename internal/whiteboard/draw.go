@@ -114,6 +114,12 @@ func elbowPath(ps []Point) string {
 	return out.String()
 }
 func ElementPrimitives(e *Element) []Primitive {
+	if e.Shape != "" {
+		return dimShapePrimitives(e)
+	}
+	if e.IsLinear() && e.DimArrow {
+		return dimArrowPrimitives(e)
+	}
 	o := RoughOptions(e)
 	var d rough.Drawable
 	opacity := e.Opacity / 100

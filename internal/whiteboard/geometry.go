@@ -43,7 +43,11 @@ func SegmentDistance(p, a, b Point) float64 {
 func WorldPoints(e *Element) []Point {
 	var ps []Point
 	if e.IsLinear() || e.Kind == KindFreedraw {
-		for _, p := range e.Points {
+		points := e.Points
+		if e.DimArrow {
+			points = DimArrowPoints(e)
+		}
+		for _, p := range points {
 			ps = append(ps, Point{e.X + p[0], e.Y + p[1]})
 		}
 	} else if e.Kind == KindDiamond {
@@ -73,6 +77,38 @@ func PointsBounds(ps []Point) Box {
 	return Box{x, y, X - x, Y - y}
 }
 func ElementBounds(e *Element) Box {
+	if e.Shape != "" {
+		var out Box
+		center := Point{e.X + e.W/2, e.Y + e.H/2}
+		for i, part := range dimParts(e) {
+			box := Box{e.X + part.x, e.Y + part.y, part.w, part.h}
+			// The rough fill is offset left/up; layered shapes also extend
+			// past their logical box. Include both in culling and exports.
+			if e.Roughness > 0 {
+				box.X -= 3
+				box.Y -= 2
+				box.W += 3
+				box.H += 2
+			}
+			ps := []Point{{box.X, box.Y}, {box.X + box.W, box.Y}, {box.X + box.W, box.Y + box.H}, {box.X, box.Y + box.H}}
+			for j := range ps {
+				if e.Scale[0] < 0 {
+					ps[j][0] = 2*e.X + e.W - ps[j][0]
+				}
+				if e.Scale[1] < 0 {
+					ps[j][1] = 2*e.Y + e.H - ps[j][1]
+				}
+				ps[j] = RotatePoint(ps[j], center, e.Angle)
+			}
+			bounds := PointsBounds(ps)
+			if i == 0 {
+				out = bounds
+			} else {
+				out = Union(out, bounds)
+			}
+		}
+		return out
+	}
 	if e.Kind == KindFreedraw {
 		ps := FreehandOutline(e)
 		c := Point{e.X + e.W/2, e.Y + e.H/2}
