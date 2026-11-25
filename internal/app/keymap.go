@@ -217,7 +217,7 @@ func (a *App) rebind(id string, k *editor.Combo) bool {
 	}
 	if k != nil {
 		if !k.Valid() {
-			a.notify("快捷键需要包含 ⌘、⌃ 或 ⌥（功能键除外）。")
+			a.notify("快捷键需要包含 ⌘、⌃ 或 ⌥（功能键除外）")
 			return false
 		}
 		for _, b := range bindings {
@@ -226,14 +226,14 @@ func (a *App) rebind(id string, k *editor.Combo) bool {
 			}
 			for _, other := range a.combos(b.id) {
 				if other == *k {
-					a.notify("%s 已被「%s」使用。", k.Label(), i18n.T(b.label))
+					a.notify("%s 已被「%s」使用", k.Label(), i18n.T(b.label))
 					return false
 				}
 			}
 		}
 		for _, f := range reservedCombos() {
 			if f == *k {
-				a.notify("%s 是固定的快捷键，不能使用。", k.Label())
+				a.notify("%s 是固定的快捷键，不能使用", k.Label())
 				return false
 			}
 		}
@@ -292,7 +292,7 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 		ui.Column(c).Grow(1).Children(func() {
-			settingsHeading(c, i18n.T("快捷键"), i18n.T("点击快捷键后按下新的组合键；Esc 取消，⌫ 清除。所有功能也都能从命令栏找到。"))
+			settingsHeading(c, i18n.T("快捷键"), i18n.T("点击快捷键后按下新的组合键；Esc 取消，⌫ 清除；所有功能也都能从命令栏找到"))
 		})
 		if ui.Button(c.Key("keys-reset-all"), i18n.T("全部恢复默认")).Disabled(a.prefs == nil || len(a.prefs.Keys) == 0).Clicked() {
 			a.resetKeys("")
@@ -385,7 +385,7 @@ func (a *App) keyField(c *ui.Context, b binding) {
 	f.Children(func() {
 		switch label := a.keyLabel(b.id); {
 		case recording:
-			ui.Text(c, i18n.T("按下快捷键…")).FontSize(12).TextColor(t.Accent).NoWrap()
+			ui.Text(c, i18n.T("按下快捷键")).FontSize(12).TextColor(t.Accent).NoWrap()
 		case label == "":
 			ui.Text(c, i18n.T("未设置")).FontSize(12).TextColor(t.TextMuted).NoWrap()
 		default:

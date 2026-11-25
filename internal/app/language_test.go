@@ -36,9 +36,9 @@ func TestEnglishInterface(t *testing.T) {
 		t.Fatal("labels made at start follow the language", tt.Texts())
 	}
 	a.settingsOpen = false
-	a.notify("保存 %s 失败。%v", "x", "y")
+	a.notify("保存 %s 失败；%v", "x", "y")
 	tt.Frame()
-	if !tt.HasText("Couldn't save x. y") {
+	if !tt.HasText("Couldn't save x; y") {
 		t.Fatal("messages too", tt.Texts())
 	}
 	if i18n.Pick([]string{"fr-FR", "zh-Hant-TW"}) != "zh-Hans" || i18n.Pick([]string{"de"}) != "en" {

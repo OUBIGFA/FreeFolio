@@ -42,8 +42,8 @@ type MediaRequest struct {
 	Prompt string
 	Images []ContentPart
 	Mask   *ContentPart
-	// Size is OpenAI's "WxH" or "auto"; AspectRatio ("16:9") is what Gemini
-	// and Veo take. Either may be empty for the service's default.
+	// Size is OpenAI's "WxH"/"auto" or Gemini's "1K"/"2K"/"4K";
+	// AspectRatio ("16:9") is what Gemini and Veo take. Empty uses defaults.
 	Size, AspectRatio string
 	Count             int
 	Quality           string
@@ -579,6 +579,9 @@ func (s Settings) geminiModel() string {
 // geminiImage uses a Gemini image model's native output: text and source
 // pictures in, responseModalities TEXT and IMAGE, pictures as inlineData.
 func (s Settings) geminiImage(ctx context.Context, req MediaRequest) (MediaResult, error) {
+	if req.Mask != nil {
+		return MediaResult{}, errors.New("Gemini image generation does not accept an edit mask; use reference images and describe the edit")
+	}
 	parts := []any{map[string]any{"text": req.Prompt}}
 	for _, part := range req.Images {
 		mime, data, err := dataPart(part)
@@ -588,8 +591,24 @@ func (s Settings) geminiImage(ctx context.Context, req MediaRequest) (MediaResul
 		parts = append(parts, map[string]any{"inlineData": map[string]any{"mimeType": mime, "data": data}})
 	}
 	config := map[string]any{"responseModalities": []string{"TEXT", "IMAGE"}}
+	// Match Google Gen AI Go SDK's ImageConfig. Keep advanced image options
+	// while the explicit controls take precedence, without mutating the request.
+	imageConfig := map[string]any{}
+	for k, v := range object(req.Extra["imageConfig"]) {
+		imageConfig[k] = v
+	}
+	switch req.Size {
+	case "", "auto":
+	case "1K", "2K", "4K":
+		imageConfig["imageSize"] = req.Size
+	default:
+		return MediaResult{}, errors.New("Gemini image size must be 1K, 2K or 4K; use aspect ratio to set the shape")
+	}
 	if req.AspectRatio != "" {
-		config["imageConfig"] = map[string]any{"aspectRatio": req.AspectRatio}
+		imageConfig["aspectRatio"] = req.AspectRatio
+	}
+	if len(imageConfig) > 0 {
+		config["imageConfig"] = imageConfig
 	}
 	extraInto(config, req.Extra)
 	res, err := s.postJSON(ctx, s.geminiModel()+":generateContent", map[string]any{"contents": []any{map[string]any{"role": "user", "parts": parts}}, "generationConfig": config})
@@ -600,7 +619,9 @@ func (s Settings) geminiImage(ctx context.Context, req MediaRequest) (MediaResul
 		return MediaResult{}, fmt.Errorf("%w: %s", ErrIncomplete, reason)
 	}
 	var out MediaResult
+	var finish string
 	for _, c := range array(res["candidates"]) {
+		finish = str(object(c)["finishReason"])
 		for _, raw := range array(object(object(c)["content"])["parts"]) {
 			p := object(raw)
 			if thought, _ := p["thought"].(bool); thought {
@@ -615,6 +636,9 @@ func (s Settings) geminiImage(ctx context.Context, req MediaRequest) (MediaResul
 				out.Assets = append(out.Assets, a)
 			}
 		}
+	}
+	if len(out.Assets) == 0 {
+		return out, fmt.Errorf("%w: Gemini returned no image (%s): %s", ErrIncomplete, finish, strings.TrimSpace(out.Text))
 	}
 	return out, nil
 }

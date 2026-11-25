@@ -109,7 +109,7 @@ func (a *App) pdfCorner(c *ui.Context, d *document) {
 // (ArcMD 14e92c1).
 func (a *App) pdfActions(cmd func(string, string, func())) {
 	v := a.doc.pdf
-	cmd(i18n.T("在 PDF 中查找…"), a.keyLabel("find"), func() { v.OpenFind() })
+	cmd(i18n.T("在 PDF 中查找"), a.keyLabel("find"), func() { v.OpenFind() })
 	cmd(i18n.T("PDF：适应宽度"), "⌘0", func() {
 		v.FitMode = editor.PDFFitWidth
 		v.Zoom = 1.0
@@ -125,7 +125,7 @@ func (a *App) pdfActions(cmd func(string, string, func())) {
 	})
 	cmd(i18n.T("PDF：顺时针旋转 90°"), "", func() { v.RotateCW() })
 	if d := a.doc; d.loadErr == nil && v.PageCount() > 0 {
-		cmd(i18n.T("编辑 PDF 页面…"), "", func() { a.openPDFPages(d) })
+		cmd(i18n.T("编辑 PDF 页面"), "", func() { a.openPDFPages(d) })
 	}
 }
 

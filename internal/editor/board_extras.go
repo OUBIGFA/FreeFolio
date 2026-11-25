@@ -76,7 +76,7 @@ func (b *Board) searchPanel(c *ui.Context) {
 }
 
 func (b *Board) outlinePanel(c *ui.Context, o BoardOptions) {
-	ui.Text(c, i18n.T("每行一个主题，用缩进表示子主题。")).FontSize(13)
+	ui.Text(c, i18n.T("每行一个主题，用缩进表示子主题")).FontSize(13)
 	ui.TextArea(c.Key("board-outline-input"), &b.outline).Height(230).WidthPercent(100).Label(i18n.T("文字大纲"))
 	if ui.Button(c, i18n.T("插入思维导图")).Disabled(strings.TrimSpace(b.outline) == "" || b.ReadOnly).Clicked() {
 		s, err := whiteboard.OutlineScene(b.outline, boardMeasure)

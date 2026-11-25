@@ -46,7 +46,11 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 				ok = agent.SupportsMedia(c.Protocol, c.Vendor, m.Capabilities, agent.MediaVideo)
 			}
 			if ok {
-				out = append(out, editor.BoardAIModel{Connection: c.ID, ConnectionName: c.Name, Model: m.ID, Name: m.Name})
+				item := editor.BoardAIModel{Connection: c.ID, ConnectionName: c.Name, Model: m.ID, Name: m.Name}
+				if role == whiteboard.AIImage && c.Protocol == agent.Gemini && !strings.HasPrefix(strings.TrimPrefix(m.ID, "models/"), "imagen") {
+					item.ImageSizes = []string{"1K", "2K", "4K"}
+				}
+				out = append(out, item)
 			}
 		}
 	}
@@ -174,7 +178,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 	find := func(n whiteboard.AINode) (agent.Settings, error) {
 		s, ok := settings[n.Connection+"\x00"+n.Model]
 		if !ok {
-			return s, errors.New(i18n.T("节点的模型已不在 OneBot 设置中，请重新选择。"))
+			return s, errors.New(i18n.T("节点的模型已不在 OneBot 设置中，请重新选择"))
 		}
 		return s, nil
 	}
@@ -191,7 +195,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			return "", err
 		}
 		if s.Protocol == agent.Media {
-			return "", errors.New(i18n.T("图像/视频供应商不能生成文字，请为文本节点选择对话模型。"))
+			return "", errors.New(i18n.T("图像/视频供应商不能生成文字，请为文本节点选择对话模型"))
 		}
 		var provider agent.Provider = s.NewProvider()
 		if providerFor != nil {
@@ -320,15 +324,22 @@ func (a *App) chatImageTool(d *document) *agent.Tool {
 	}
 	s := a.connectionSettings(c, m.Model, keyring.Keys)
 	rel := d.rel
+	sizeHelp := "size is WxH or auto."
+	if len(m.ImageSizes) > 0 {
+		sizeHelp = "size is 1K, 2K or 4K; aspect_ratio sets the shape, for example 16:9. Omit either for the model default."
+	}
 	return &agent.Tool{
-		Spec:    agent.ToolSpec{Name: "generate_image", Description: "Generate a picture with the user's image model (" + m.Model + ") and save it beside the open document " + rel + ". Returns a Markdown image reference relative to that document, which the edit tools can insert. size is WxH or auto.", Parameters: schema(`"prompt":{"type":"string"},"size":{"type":"string"}`, "prompt")},
+		Spec:    agent.ToolSpec{Name: "generate_image", Description: "Generate a picture with the user's image model (" + m.Model + ") and save it beside the open document " + rel + ". Returns a Markdown image reference relative to that document, which the edit tools can insert. " + sizeHelp, Parameters: schema(`"prompt":{"type":"string"},"size":{"type":"string"},"aspect_ratio":{"type":"string"}`, "prompt")},
 		Mutates: true,
 		Run: func(ctx context.Context, raw json.RawMessage) (string, error) {
-			var args struct{ Prompt, Size string }
+			var args struct {
+				Prompt, Size string
+				AspectRatio  string `json:"aspect_ratio"`
+			}
 			if err := json.Unmarshal(raw, &args); err != nil {
 				return "", err
 			}
-			res, err := s.GenerateMedia(ctx, agent.MediaRequest{Kind: agent.MediaImage, Prompt: args.Prompt, Size: args.Size, Count: 1}, nil)
+			res, err := s.GenerateMedia(ctx, agent.MediaRequest{Kind: agent.MediaImage, Prompt: args.Prompt, Size: args.Size, AspectRatio: args.AspectRatio, Count: 1}, nil)
 			if err != nil {
 				return "", err
 			}

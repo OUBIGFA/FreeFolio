@@ -214,7 +214,7 @@ func TestBookmarkRenameInOutline(t *testing.T) {
 	if err := tt.RightClick("跳到书签 The figure below"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("重命名…"); err != nil {
+	if err := tt.ChooseMenuItem("重命名"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -290,7 +290,7 @@ func TestFormulaBookmarkInOutline(t *testing.T) {
 				if err := tt.RightClick("跳到书签 " + title); err != nil {
 					t.Fatal(err)
 				}
-				if err := tt.ChooseMenuItem("重命名…"); err != nil {
+				if err := tt.ChooseMenuItem("重命名"); err != nil {
 					t.Fatal(err)
 				}
 				tt.Frame()

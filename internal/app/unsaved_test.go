@@ -49,7 +49,7 @@ func TestAutosaveToggleAndUnsavedPrompt(t *testing.T) {
 
 	a.open("Journal/Ideas.md")
 	tt.Frame()
-	if !a.unsaved.open || a.doc.rel != "Welcome.md" || !tt.HasText("保存对「Welcome」的修改吗？") {
+	if !a.unsaved.open || a.doc.rel != "Welcome.md" || !tt.HasText("保存对「Welcome」的修改吗") {
 		t.Fatalf("no prompt before leaving: open=%v doc=%q", a.unsaved.open, a.doc.rel)
 	}
 	if err := tt.Click("取消"); err != nil {

@@ -182,7 +182,7 @@ func (a *App) replaceEverywhere() {
 		}
 		if err := d.save(); err != nil {
 			failed++
-			a.notify("替换 %s 失败。%v", h.Path, err)
+			a.notify("替换 %s 失败；%v", h.Path, err)
 			continue
 		}
 		after, _ := readFile(sp, d.rel)
@@ -198,7 +198,7 @@ func (a *App) replaceEverywhere() {
 		note += fmt.Sprintf(i18n.T("，%d 篇失败"), failed)
 	}
 	if docs == 0 {
-		a.notify("没有可替换的文档%s。", note)
+		a.notify("没有可替换的文档%s", note)
 		return
 	}
 	a.replace.open = false
@@ -237,7 +237,7 @@ func (a *App) undoReplace(files []replacedFile, edited []*document) {
 	}
 	a.refreshSearch()
 	if kept > 0 {
-		a.notify("%d 篇文档在替换后又被修改，没有撤销。", kept)
+		a.notify("%d 篇文档在替换后又被修改，没有撤销", kept)
 	}
 }
 
@@ -293,9 +293,9 @@ func (a *App) replaceView(c *ui.Context) {
 					case r.opts.Regex && r.find != "" && r.findMatcher().Err() != nil:
 						ui.Text(c, i18n.T("正则表达式无效：")+r.findMatcher().Err().Error()).FontSize(13).TextColor(t.Danger).Padding(16, 4)
 					case !r.worth():
-						ui.Text(c, i18n.T("输入至少两个字符（或一个汉字）开始查找。")).FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
+						ui.Text(c, i18n.T("输入至少两个字符（或一个汉字）开始查找")).FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
 					case len(hits) == 0:
-						ui.Text(c, i18n.T("没有找到「")+r.query()+"」。").FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
+						ui.Text(c, i18n.T("没有找到「")+r.query()+"」").FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
 					}
 					for _, hit := range hits {
 						a.replaceRow(c, hit)

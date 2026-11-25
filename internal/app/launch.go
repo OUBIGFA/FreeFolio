@@ -74,7 +74,7 @@ func (a *App) finishLaunch() {
 		a.launch.pending = false
 		if a.win != nil {
 			if err := a.win.SetIcon(windowIcon()); err != nil {
-				a.notify("无法设置窗口图标。%v", err)
+				a.notify("无法设置窗口图标；%v", err)
 			}
 			a.syncTray()
 			a.configureQuickShortcut()
@@ -117,7 +117,7 @@ func (a *App) runDeferredStartup() {
 				installed, broken, err := plugins.Scan()
 				win.Update(func() {
 					if err != nil {
-						a.notify("读取插件文件夹失败。%v", err)
+						a.notify("读取插件文件夹失败；%v", err)
 						return
 					}
 					a.installed, a.brokenPlugins = installed, broken
@@ -160,14 +160,14 @@ func (a *App) runDeferredStartup() {
 				if len(errs) > 0 {
 					win.Update(func() {
 						for _, e := range errs {
-							a.notify("迁移空间 %s 的系统文件夹失败。%v", e.name, e.err)
+							a.notify("迁移空间 %s 的系统文件夹失败；%v", e.name, e.err)
 						}
 					})
 				}
 			}()
 		} else {
 			for _, e := range run() {
-				a.notify("迁移空间 %s 的系统文件夹失败。%v", e.name, e.err)
+				a.notify("迁移空间 %s 的系统文件夹失败；%v", e.name, e.err)
 			}
 		}
 	}

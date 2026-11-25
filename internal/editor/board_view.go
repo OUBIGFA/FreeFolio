@@ -97,6 +97,11 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 		canvas.Cursor(cursor)
 		canvas.Draw(func(p *ui.Painter, r ui.Rect) {
 			b.lastRect = r
+			// The first view has no LayoutBounds yet. Fit the inspector using
+			// the actual paint bounds before any full-size pixels are shown.
+			if o.ImageAnnotation && !b.fitted && r.W > 0 && r.H > 0 {
+				b.fit(false)
+			}
 			b.paint(p, r, o.Theme.Dark && !o.ImageAnnotation, true)
 		})
 		b.aiNodeInlineControls(c, o)
@@ -215,17 +220,17 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 					m.Separator()
 				}
 				if o.Export != nil {
-					if m.Item(i18n.T("导出 JSON Canvas…")).Chosen() {
+					if m.Item(i18n.T("导出 JSON Canvas")).Chosen() {
 						o.Export("canvas")
 					}
-					if m.Item(i18n.T("导出 SVG…")).Chosen() {
+					if m.Item(i18n.T("导出 SVG")).Chosen() {
 						o.Export("svg")
 					}
-					if m.Item(i18n.T("导出 PNG…")).Chosen() {
+					if m.Item(i18n.T("导出 PNG")).Chosen() {
 						o.Export("png")
 					}
 				}
-				if o.History != nil && m.Item(i18n.T("版本历史…")).Chosen() {
+				if o.History != nil && m.Item(i18n.T("版本历史")).Chosen() {
 					o.History()
 				}
 				m.Separator()
@@ -578,7 +583,7 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 		case b.panel == "outline":
 			b.outlinePanel(c, o)
 		case b.panel == "clear":
-			ui.Text(c, i18n.T("清空当前白板？可以撤销此操作。"))
+			ui.Text(c, i18n.T("清空当前白板？可以撤销此操作"))
 			if ui.Button(c, i18n.T("清空白板")).Clicked() {
 				b.RunAction("clear-confirm", o)
 			}

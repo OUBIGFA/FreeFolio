@@ -439,23 +439,23 @@ func (a *App) updateSummary() string {
 	u := &a.updates
 	switch {
 	case !a.updatesEnabled():
-		return i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本。")
+		return i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本")
 	case u.installing:
-		return i18n.T("正在启动更新安装器…")
+		return i18n.T("正在启动更新安装器")
 	case u.downloading:
-		return i18n.T("正在下载新版本…")
+		return i18n.T("正在下载新版本")
 	case u.checking:
-		return i18n.T("正在检查更新…")
+		return i18n.T("正在检查更新")
 	case u.failure != "":
 		return u.failure
 	case u.ready != "":
-		return "FreeFolio " + u.ready + i18n.T(" 已下载，可以安装。")
+		return "FreeFolio " + u.ready + i18n.T(" 已下载，可以安装")
 	case u.found != "":
-		return "FreeFolio " + u.found + i18n.T(" 可以更新。")
+		return "FreeFolio " + u.found + i18n.T(" 可以更新")
 	case u.phase == phaseNoRelease:
-		return i18n.T("暂未发布适用于此平台的安装包。")
+		return i18n.T("暂未发布适用于此平台的安装包")
 	case u.phase == phaseUpToDate:
 		return i18n.T("FreeFolio 已是最新版本")
 	}
-	return i18n.T("从 GitHub Releases 获取新版本。")
+	return i18n.T("从 GitHub Releases 获取新版本")
 }

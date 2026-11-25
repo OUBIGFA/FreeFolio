@@ -344,6 +344,54 @@ func drag(tt *ui.Tester, x, y, X, Y float32) {
 	tt.Frame()
 }
 
+func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
+	for _, compact := range []bool{false, true} {
+		t.Run(fmt.Sprint(compact), func(t *testing.T) {
+			b := NewBoard(nil)
+			o := BoardOptions{AI: &BoardAI{Models: func(whiteboard.AIRole) []BoardAIModel {
+				return []BoardAIModel{{Connection: "google", Model: "gemini-3-pro-image", ImageSizes: []string{"1K", "2K", "4K"}}}
+			}}}
+			id := b.AddAINode(whiteboard.AIImage, whiteboard.Point{}, o)
+			el := b.Scene.ElementByID(id)
+			n := whiteboard.AINodeOf(el)
+			n.Connection, n.Model = "google", "gemini-3-pro-image"
+			_ = whiteboard.SetAINode(el, n)
+			tt := ui.NewTester(func(c *ui.Context) {
+				o.Theme = c.Theme()
+				n := whiteboard.AINodeOf(b.Scene.ElementByID(id))
+				ui.Column(c).Width(360).Children(func() {
+					if compact {
+						b.aiInlineParams(c, o, id, n, false)
+					} else {
+						b.aiParamsFields(c, o, id, n)
+					}
+				})
+			}, 600, 600)
+			tt.Frame()
+			if tt.HasText("质量") {
+				t.Fatal("Gemini exposes unsupported OpenAI quality settings")
+			}
+			choice := "服务默认"
+			if compact {
+				choice = "尺寸"
+			}
+			if err := tt.Click(choice); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click("2K"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if got := whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size; got != "2K" {
+				t.Fatalf("resolution selection=%s", got)
+			}
+			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size != "" {
+				t.Fatal("resolution edit is not undoable")
+			}
+		})
+	}
+}
+
 func noArrows(t *testing.T, b *Board) {
 	t.Helper()
 	for _, el := range b.Scene.Elements {

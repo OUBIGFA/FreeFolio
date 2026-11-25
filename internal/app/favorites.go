@@ -256,7 +256,7 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		if m.Item(i18n.T("在分屏中打开")).Disabled(sp == nil || a.doc == nil && a.split == nil).Chosen() {
 			a.openSplit(sp, f.Path, false, false)
 		}
-		if m.Item(i18n.T("重命名…")).Disabled(sp == nil).Chosen() {
+		if m.Item(i18n.T("重命名")).Disabled(sp == nil).Chosen() {
 			a.renameIn(sp, f.Path)
 		}
 		if m.Item(i18n.T("从收藏中移除")).Chosen() {

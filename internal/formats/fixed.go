@@ -276,7 +276,7 @@ func convertIWork(data []byte) (string, error) {
 	}
 	defer doc.Close()
 	var w mdWriter
-	w.raw("> " + i18n.T("以下内容取自文稿内嵌的预览，可能不完整。"))
+	w.raw("> " + i18n.T("以下内容取自文稿内嵌的预览，可能不完整"))
 	for i := range min(doc.PageCount(), 500) {
 		if w.full() {
 			break

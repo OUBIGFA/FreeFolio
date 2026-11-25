@@ -346,7 +346,7 @@ func TestOneBotHistorySnapshot(t *testing.T) {
 			tt.Advance(slide)
 			if mode != "empty" {
 				spID := a.state.ActiveSpace().ID
-				for i, q := range []string{"为什么发布延期？", "总结一下最近修改的几篇笔记", "这个空间里有哪些还没完成的任务？"} {
+				for i, q := range []string{"为什么发布延期？", "总结一下最近修改的几篇笔记", "这个空间里有哪些还没完成的任务"} {
 					if i > 0 {
 						tt.Advance(25 * time.Minute)
 						tt.Frame()

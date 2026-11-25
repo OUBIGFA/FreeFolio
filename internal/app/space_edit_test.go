@@ -31,7 +31,7 @@ func TestSpaceNameEditsInPlace(t *testing.T) {
 		if err := tt.RightClick(sp.Name); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem("重命名空间…"); err != nil {
+		if err := tt.ChooseMenuItem("重命名空间"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()
@@ -85,7 +85,7 @@ func TestSpaceThemeKeepsSidebar(t *testing.T) {
 	settle(tt)
 	before, _ := tt.Find("Journal")
 	tt.RightClick("Personal")
-	if err := tt.ChooseMenuItem("编辑主题颜色…"); err != nil {
+	if err := tt.ChooseMenuItem("编辑主题颜色"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
@@ -261,7 +261,7 @@ func TestSpaceCustomIconTextAndPicture(t *testing.T) {
 	var answer func([]string)
 	a.pickFiles = func(done func([]string)) { answer = done }
 	open()
-	if err := tt.Click("选择图片…"); err != nil {
+	if err := tt.Click("选择图片"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
@@ -297,7 +297,7 @@ func TestSpaceDraftPictureIcon(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("选择图片…"); err != nil {
+	if err := tt.Click("选择图片"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)

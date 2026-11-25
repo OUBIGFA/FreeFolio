@@ -489,7 +489,7 @@ func (e *Editor) bookmarkSection(c *ui.Context) {
 			row.Background(t.Text.Alpha(.05))
 		}
 		row.ContextMenu(func(m *ui.Menu) {
-			if m.Item(i18n.T("重命名…")).Chosen() {
+			if m.Item(i18n.T("重命名")).Chosen() {
 				b.renaming, b.name, b.focused = id, b.marks[id], false
 			}
 			if m.Item(i18n.T("移除书签")).Chosen() {

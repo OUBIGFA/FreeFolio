@@ -173,13 +173,13 @@ func (a *App) setAttachmentsFolder(sp *space.Space, dir string) {
 		}
 		rel, err := filepath.Rel(root, resolved)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			a.notify("附件目录必须在空间文件夹内。")
+			a.notify("附件目录必须在空间文件夹内")
 			return
 		}
 		dir = filepath.ToSlash(rel)
 	}
 	if !sp.SetAttachmentsDir(dir) {
-		a.notify("附件目录必须在空间文件夹内。")
+		a.notify("附件目录必须在空间文件夹内")
 		return
 	}
 	a.saveState()
@@ -193,7 +193,7 @@ func (a *App) setAttachmentsFolder(sp *space.Space, dir string) {
 	if label == "" {
 		label = i18n.T("文档旁的 assets")
 	}
-	a.notify("附件目录已设为「%s」。", label)
+	a.notify("附件目录已设为「%s」", label)
 }
 
 // attachmentMatches lists where url may live under the space's attachment
@@ -609,14 +609,14 @@ func (a *App) applyAttachmentRewrite(sp *space.Space, change attachmentRewrite) 
 		return
 	}
 	if err := history.Record(root, change.rel, change.before, time.Now(), true); err != nil {
-		a.notify("更新图片引用失败。%v", err)
+		a.notify("更新图片引用失败；%v", err)
 		return
 	}
 	if now, err := readFile(sp, change.rel); err != nil || now != change.before {
 		return
 	}
 	if err := vault.Write(root, name, change.after); err != nil {
-		a.notify("更新图片引用失败。%v", err)
+		a.notify("更新图片引用失败；%v", err)
 		return
 	}
 	a.invalidateResolvedImages()

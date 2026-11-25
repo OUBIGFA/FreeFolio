@@ -125,12 +125,12 @@ func (a *App) submitSpace() {
 		root = a.defaultRoot(name)
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		a.notify("创建文件夹 %s 失败。%v", root, err)
+		a.notify("创建文件夹 %s 失败；%v", root, err)
 		return
 	}
 	// An existing folder may hold a legacy system folder.
 	if err := vault.MigrateSystemDir(root); err != nil {
-		a.notify("迁移空间 %s 的系统文件夹失败。%v", name, err)
+		a.notify("迁移空间 %s 的系统文件夹失败；%v", name, err)
 	}
 	s := a.state.Add(name, root)
 	s.SetIcon(icon, f.symbol, f.image)
@@ -185,7 +185,7 @@ func (a *App) spacesFromFolders(paths []string) {
 		}
 	}
 	if len(skipped) > 0 {
-		a.notify("只能用文件夹新建空间：%s 未添加。", strings.Join(skipped, "、"))
+		a.notify("只能用文件夹新建空间：%s 未添加", strings.Join(skipped, "、"))
 	}
 }
 

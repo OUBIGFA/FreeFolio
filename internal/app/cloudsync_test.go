@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image/png"
 	"io"
 	"net/http"
@@ -18,6 +19,52 @@ import (
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/webdav"
 )
+
+func TestCloudRemoteFailureOffersRecheckAction(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.openSettings(tabCloud)
+	a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
+	a.cloud.config.Spaces[a.state.Active] = "Notes"
+	a.cloud.busy = true
+	a.cloud.done = make(chan cloudOutcome, 1)
+	a.cloud.done <- cloudOutcome{err: fmt.Errorf("BIGFA-blog / note.md: %w", cloudsync.ErrRemoteChanged)}
+	tt.Frame()
+	if !tt.HasText("重新核对并同步") {
+		t.Fatal("remote version failure has no recovery button")
+	}
+	if !a.cloud.due.IsZero() {
+		t.Fatal("unrecoverable version check queued the same automatic retry")
+	}
+	release := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	defer close(release)
+	a.cloud.config.WebDAVURL = server.URL
+	if err := tt.Click("重新核对并同步"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.cloud.busy {
+		t.Fatal("recovery button did not start a run")
+	}
+	release <- struct{}{}
+	select {
+	case out := <-a.cloud.done:
+		a.cloud.done <- out
+	case <-time.After(3 * time.Second):
+		a.cancelCloudSync()
+		t.Fatal("recheck did not finish")
+	}
+	tt.Frame()
+	if !tt.HasText("修改账号或密钥") {
+		t.Fatal("authentication error did not offer credential repair")
+	}
+}
 
 // Load the saved settings before the first frame, as a real launch does.
 func newCloudScheduleTestApp(t *testing.T, configure func(*cloudsync.Config)) (*App, *ui.Tester) {
@@ -319,7 +366,7 @@ func TestSidebarCloudSyncIcons(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("云端同步设置…"); err != nil {
+	if err := tt.Click("云端同步设置"); err != nil {
 		t.Fatal(err, tt.Menu())
 	}
 	tt.Frame()
@@ -335,7 +382,7 @@ func TestSidebarCloudSyncProblemHints(t *testing.T) {
 	a.cloud.message = "同步失败：网络超时\n详细信息"
 	a.cloud.conflicts = []cloudConflict{{space: a.state.Active, name: "Personal", detail: cloudsync.Conflict{Path: "Welcome.md"}}}
 	settle(tt)
-	for _, label := range []string{"云端同步", "立即同步"} {
+	for _, label := range []string{"云端同步", "解决同步问题"} {
 		info, ok := tt.Access(label)
 		if !ok || !strings.Contains(info.Description, "同步失败：网络超时") || !strings.Contains(info.Description, "1 个冲突待处理") || strings.Contains(info.Description, "详细信息") {
 			t.Fatalf("%s tooltip=%q", label, info.Description)

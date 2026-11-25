@@ -22,8 +22,8 @@ func TestQAActivityPrecedesToolHistory(t *testing.T) {
 	}}
 	s.turns = []*qaTurn{turn}
 	s.cancel = func() {}
-	for _, label := range []string{"正在查找…", "思考中…"} {
-		turn.thinking = label == "思考中…"
+	for _, label := range []string{"正在查找", "思考中"} {
+		turn.thinking = label == "思考中"
 		tt.Frame()
 		status, hasStatus := tt.Find(label)
 		steps, hasSteps := tt.Find("查找过程")
@@ -34,7 +34,7 @@ func TestQAActivityPrecedesToolHistory(t *testing.T) {
 	turn.apply(agent.Event{Kind: agent.TextDelta, Text: "这份说明介绍了 Fastfetch。"})
 	tt.Frame()
 	qaAdvance(tt, 700*time.Millisecond)
-	if tt.HasText("思考中…") || tt.HasText("正在查找…") || !tt.HasText("这份说明介绍了 Fastfetch。") {
+	if tt.HasText("思考中") || tt.HasText("正在查找") || !tt.HasText("这份说明介绍了 Fastfetch。") {
 		t.Fatal("streamed answer did not replace activity")
 	}
 	a.finishQA(s, turn, nil, context.Canceled)

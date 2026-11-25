@@ -192,17 +192,17 @@ func imageName(src string) string {
 func (p ImageProblem) text() string {
 	switch p {
 	case ImageMissing:
-		return i18n.T("这个路径下没有文件。")
+		return i18n.T("这个路径下没有文件")
 	case ImageUnsupported:
-		return i18n.T("文件存在，但格式不受支持或图片已损坏。")
+		return i18n.T("文件存在，但格式不受支持或图片已损坏")
 	case ImageUnreadable:
-		return i18n.T("无法读取图片，请检查文件及访问权限。")
+		return i18n.T("无法读取图片，请检查文件及访问权限")
 	case ImageRemote:
-		return i18n.T("无法加载网络图片，请检查链接或网络。")
+		return i18n.T("无法加载网络图片，请检查链接或网络")
 	case ImageEmbed:
 		return i18n.T("嵌入的内容不存在或无法访问")
 	default:
-		return i18n.T("图片路径无效，请重新选择图片。")
+		return i18n.T("图片路径无效，请重新选择图片")
 	}
 }
 
@@ -306,7 +306,7 @@ func (e *Editor) layoutImage(r *row, o Options) float32 {
 	if !e.printing {
 		var actions []imageAction
 		if o.ReplaceImage != nil {
-			actions = append(actions, imageAction{key: "choose", label: i18n.T("重新选择图片…")})
+			actions = append(actions, imageAction{key: "choose", label: i18n.T("重新选择图片")})
 		}
 		if o.RevealImage != nil && f.resource.Local {
 			actions = append(actions, imageAction{key: "reveal", label: i18n.T("在文件夹中显示")})
@@ -435,7 +435,7 @@ func (e *Editor) paintImage(p *ui.Painter, bounds ui.Rect, row row, t *ui.Theme)
 	}
 
 	if !e.printing && e.imageCaptionID == row.leaf.Block.ID && row.leaf.Block.Text() == "" {
-		ph := ui.ShapeText(i18n.T("添加图片说明…"), ui.Font{Family: "system-ui", Size: 13}, 0)
+		ph := ui.ShapeText(i18n.T("添加图片说明"), ui.Font{Family: "system-ui", Size: 13}, 0)
 		pw, _ := ph.Size()
 		p.TextLayout(ph, bounds.X+row.rect.X+dx+(row.rect.W-pw)/2, bounds.Y+row.y+dy, e.page.Placeholder)
 	}
@@ -512,7 +512,7 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 		if f.resource.Bitmap == nil {
 			r := f.bounds
 			status := ui.Box(c.Key(key+":status")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
-				Role(ui.RoleImage).Label(i18n.T("无法显示图片：") + f.name + "。" + row.leaf.Block.Text() + "。" + f.resource.Problem.text()).Tooltip(src)
+				Role(ui.RoleImage).Label(i18n.T("无法显示图片：") + f.name + "；" + row.leaf.Block.Text() + "；" + f.resource.Problem.text()).Tooltip(src)
 			// A picture that failed to load can still be picked, replaced,
 			// revealed or deleted (ArcMD 14e92c1).
 			if status.Hovered() {
@@ -529,7 +529,7 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 			local := f.resource.Local
 			status.ContextMenu(func(m *ui.Menu) {
 				if !e.ReadOnly && o.ReplaceImage != nil {
-					menuAction(m, i18n.T("重新选择图片…"), func() { o.ReplaceImage(id, src) })
+					menuAction(m, i18n.T("重新选择图片"), func() { o.ReplaceImage(id, src) })
 				}
 				if o.RevealImage != nil && local {
 					menuAction(m, i18n.T("在文件夹中显示"), func() { o.RevealImage(src) })
@@ -616,16 +616,16 @@ func (e *Editor) imageControls(c *ui.Context, o Options) {
 		picture.ContextMenu(func(m *ui.Menu) {
 			menuAction(m, i18n.T("放大查看"), open)
 			if !e.ReadOnly {
-				menuAction(m, i18n.T("编辑图片说明…"), func() {
+				menuAction(m, i18n.T("编辑图片说明"), func() {
 					e.FocusBlock(id)
 					e.imageCaptionID, e.ready, e.RequestFocus = id, false, true
 				})
 			}
 			if o.ReplaceImage != nil {
-				menuAction(m, i18n.T("重新选择图片…"), func() { o.ReplaceImage(id, src) })
+				menuAction(m, i18n.T("重新选择图片"), func() { o.ReplaceImage(id, src) })
 			}
 			if o.CropImage != nil && f.resource.Local && len(f.resource.Frames) == 0 {
-				menuAction(m, i18n.T("裁剪图片…"), func() { e.openCropper(id, src, f.resource.Bitmap) })
+				menuAction(m, i18n.T("裁剪图片"), func() { e.openCropper(id, src, f.resource.Bitmap) })
 			}
 			if o.RevealImage != nil && f.resource.Local {
 				menuAction(m, i18n.T("在文件夹中显示"), func() { o.RevealImage(src) })

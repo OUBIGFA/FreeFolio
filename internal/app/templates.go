@@ -35,7 +35,7 @@ func (a *App) spaceTemplates(sp *space.Space) []templates.Template {
 	}
 	list, err := templates.List(sp.Root)
 	if err != nil {
-		a.notify("读取模板失败。%v", err)
+		a.notify("读取模板失败；%v", err)
 	}
 	return list
 }
@@ -62,18 +62,18 @@ func (a *App) newFromTemplate(dir string, t templates.Template) {
 	}
 	tmpl, err := readTemplate(sp, t)
 	if err != nil {
-		a.notify("模板「%s」无法读取。%v", t.Name, err)
+		a.notify("模板「%s」无法读取；%v", t.Name, err)
 		return
 	}
 	doc := templates.Instantiate(tmpl, today(), "")
 	if err := doc.Validate(); err != nil {
-		a.notify("模板「%s」无法使用。%v", t.Name, err)
+		a.notify("模板「%s」无法使用；%v", t.Name, err)
 		return
 	}
 	text := editor.ExportMarkdown(doc)
 	rel, err := vault.CreateFile(sp.Root, dir, untitled, ".md", text)
 	if err != nil {
-		a.notify("从模板新建文档失败。%v", err)
+		a.notify("从模板新建文档失败；%v", err)
 		return
 	}
 	if dir != "" {
@@ -111,7 +111,7 @@ func (a *App) saveAsTemplate() {
 			return
 		}
 	}
-	a.notify("存为模板失败。%v", err)
+	a.notify("存为模板失败；%v", err)
 }
 
 // openTemplatesFolder shows the active space's templates folder in the
@@ -123,7 +123,7 @@ func (a *App) openTemplatesFolder() {
 	}
 	dir := filepath.Join(sp.Root, filepath.FromSlash(templates.Dir))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		a.notify("无法创建模板文件夹。%v", err)
+		a.notify("无法创建模板文件夹；%v", err)
 		return
 	}
 	mygo.Shell.ShowItemInFolder(dir)
@@ -141,7 +141,7 @@ func (a *App) openDaily() {
 	rel := templates.PathFor(now)
 	full, err := vault.Resolve(sp.Root, rel)
 	if err != nil {
-		a.notify("打开今日笔记失败。%v", err)
+		a.notify("打开今日笔记失败；%v", err)
 		return
 	}
 	if _, err := os.Stat(full); errors.Is(err, fs.ErrNotExist) {
@@ -155,7 +155,7 @@ func (a *App) openDaily() {
 		var tmpl *model.Document
 		if t, ok := templates.Find(a.spaceTemplates(sp), templates.DailyTemplate); ok {
 			if tmpl, err = readTemplate(sp, t); err != nil {
-				a.notify("模板「%s」无法读取，今日笔记从空白开始。%v", t.Name, err)
+				a.notify("模板「%s」无法读取，今日笔记从空白开始；%v", t.Name, err)
 				tmpl = nil
 			}
 		}
@@ -166,11 +166,11 @@ func (a *App) openDaily() {
 			rel, err = vault.CreateFile(sp.Root, templates.Folder(), templates.DailyName(now), ".md", text)
 		}
 		if err != nil {
-			a.notify("新建今日笔记失败。%v", err)
+			a.notify("新建今日笔记失败；%v", err)
 			return
 		}
 	} else if err != nil {
-		a.notify("打开今日笔记失败。%v", err)
+		a.notify("打开今日笔记失败；%v", err)
 		return
 	}
 openNote:

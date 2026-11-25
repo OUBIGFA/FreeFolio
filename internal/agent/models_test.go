@@ -51,3 +51,21 @@ func TestModelCatalogDoesNotInventUnknownCapabilities(t *testing.T) {
 		t.Fatal("model identity lost")
 	}
 }
+
+func TestModelCatalogKeepsGeminiImageModels(t *testing.T) {
+	// models.dev now gives native image models their own type, alongside chat.
+	data := []byte(`{"google":{"models":{
+		"gemini-3-pro-image":{"id":"gemini-3-pro-image","type":"image","modalities":{"input":["text","image"],"output":["text","image"]}},
+		"gemini-chat":{"id":"gemini-chat","type":"chat","modalities":{"output":["text"]}},
+		"embedding":{"id":"embedding","type":"embedding","modalities":{"output":["embedding"]}}
+	}}}`)
+	models, err := ParseCatalog(data, "google")
+	if err != nil || len(models) != 2 {
+		t.Fatalf("image catalog entries lost: %+v, %v", models, err)
+	}
+	for _, m := range models {
+		if got := SupportsMedia(Gemini, "google", m.Capabilities, MediaImage); got != (m.ID == "gemini-3-pro-image") {
+			t.Fatalf("wrong image capability: %+v", m)
+		}
+	}
+}

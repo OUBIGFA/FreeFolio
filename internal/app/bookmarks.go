@@ -206,7 +206,7 @@ func (a *App) stepBookmark(dir int) {
 	marks := a.marksOf(d)
 	blocks := d.ed.Doc.Blocks
 	if len(marks) == 0 || len(blocks) == 0 {
-		a.notify("这篇文档还没有书签。按 %s 标记当前段落。", a.firstKey("bookmark"))
+		a.notify("这篇文档还没有书签；按 %s 标记当前段落", a.firstKey("bookmark"))
 		return
 	}
 	at := d.ed.CaretBlock()
@@ -275,7 +275,7 @@ func (a *App) openBookmark(b space.Bookmark) {
 		d.ed.RevealBlock(live.Block)
 		return
 	}
-	a.notify("书签「%s」的位置已失效：那段内容已被删除或合并。", live.Title())
+	a.notify("书签「%s」的位置已失效：那段内容已被删除或合并", live.Title())
 }
 
 // removeBookmark takes the bookmark away, wherever its document is.
@@ -369,7 +369,7 @@ func (a *App) bookmarkRow(c *ui.Context, row ui.Element, act action) bool {
 	p := &a.palette
 	b := *act.bookmark
 	row.ContextMenu(func(m *ui.Menu) {
-		if m.Item(i18n.T("重命名…")).Chosen() {
+		if m.Item(i18n.T("重命名")).Chosen() {
 			p.renaming, p.renameOn, p.newLabel, p.renameFocused = b, true, b.Label, false
 		}
 		if m.Item(i18n.T("移除书签")).Chosen() {

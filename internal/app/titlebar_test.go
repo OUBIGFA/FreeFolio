@@ -84,7 +84,7 @@ func TestWindowsTitleBarFullscreen(t *testing.T) {
 	if !ok || before.X+before.W > 1240-windowsTitleBar.Right {
 		t.Fatalf("toolbar overlaps caption buttons at 150%% scale: %+v", before)
 	}
-	if err := tt.Click("更多"); err != nil || !tt.HasText("设置…") {
+	if err := tt.Click("更多"); err != nil || !tt.HasText("设置") {
 		t.Fatalf("toolbar menu did not open: %v", err)
 	}
 	tt.CloseMenu()
@@ -390,7 +390,7 @@ func TestWordCountPlacementAndGoalPopover(t *testing.T) {
 				if wordRect.Y < 700 || wordRect.X < start || wordRect.X+wordRect.W > start+width {
 					t.Fatalf("width=%g left=%v lang=%s: word button %+v outside sidebar footer [%g..%g]", width, left, language, wordRect, start, start+width)
 				}
-				labels := []string{"设置", "立即同步", "云端同步", "打开文件…", "资料库"}
+				labels := []string{"设置", "立即同步", "云端同步", "打开文件", "资料库"}
 				last := start
 				var center float32
 				for i, label := range labels {
@@ -427,7 +427,7 @@ func TestWordCountPlacementAndGoalPopover(t *testing.T) {
 	if err := tt.Click("148 字"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+	if err := tt.ChooseMenuItem("字数目标", "自定义"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
@@ -458,7 +458,7 @@ func TestWordCountPlacementAndGoalPopover(t *testing.T) {
 	if err := tt.Click("4 字"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+	if err := tt.ChooseMenuItem("字数目标", "自定义"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)

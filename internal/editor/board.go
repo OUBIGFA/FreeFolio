@@ -43,7 +43,9 @@ const (
 
 type BoardOptions struct {
 	// ImageAnnotation keeps the image inspector's tools and base image protected.
-	ImageAnnotation   bool
+	ImageAnnotation bool
+	// DismissImage is only set while inspecting, never while annotating.
+	DismissImage      func()
 	Theme             *ui.Theme
 	Page              Page
 	ReadOnly, Compact bool
@@ -71,6 +73,8 @@ type BoardOptions struct {
 // hover, selection and IME preedit, so navigation cannot dirty user files.
 type Board struct {
 	annotationBase                             string
+	imageBlankClick                            bool
+	imagePress                                 whiteboard.Point
 	Scene                                      *whiteboard.Scene
 	History                                    whiteboard.History
 	Selected                                   map[string]bool

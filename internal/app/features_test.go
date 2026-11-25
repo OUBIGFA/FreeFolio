@@ -397,7 +397,7 @@ func TestPageIconAndCover(t *testing.T) {
 	a.pickFiles = func(done func([]string)) { done([]string{pic}) }
 	a.doc.ed.EditCover()
 	tt.Frame()
-	if err := tt.Click("使用图片…"); err != nil {
+	if err := tt.Click("使用图片"); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.ed.Doc.Cover != "assets/cover.png" {

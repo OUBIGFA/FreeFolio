@@ -168,7 +168,7 @@ func TestListMenu(t *testing.T) {
 	sp := a.state.ActiveSpace()
 	settle(tt)
 	tt.RightClickAt(1100, 480)
-	if !slices.Contains(tt.Menu(), "新建文件夹") || !slices.Contains(tt.Menu(), "更改空间图标…") {
+	if !slices.Contains(tt.Menu(), "新建文件夹") || !slices.Contains(tt.Menu(), "更改空间图标") {
 		t.Fatalf("menu %q", tt.Menu())
 	}
 	if err := tt.ChooseMenuItem("新建文件夹"); err != nil {

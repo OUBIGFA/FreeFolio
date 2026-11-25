@@ -233,7 +233,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if value := r.Header.Get("If-None-Match"); value != "" {
 		headers["if-none-match"] = value
 	}
-	for _, name := range []string{"if-match", "content-type"} {
+	for _, name := range []string{"if-match", "content-type", "cache-control"} {
 		if value := r.Header.Get(name); value != "" {
 			headers[name] = value
 		}

@@ -44,6 +44,9 @@ type Conflict struct {
 // Hooks lets the native app protect active edits and send user files to the
 // system recycle bin after the engine has saved a recovery copy.
 type Hooks struct {
+	// Recheck bypasses cached validators while keeping the common baseline,
+	// backups and all conditional writes intact.
+	Recheck     bool
 	Progress    func(Progress)
 	BeforeApply func(string) error
 	Trash       func(string) error
@@ -188,6 +191,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		return result, err
 	}
 	checked, total := 0, 0
+	currentPath := ""
 	report := func(phase, rel string) {
 		if h.Progress != nil {
 			h.Progress(Progress{phase, rel, checked, total})
@@ -256,6 +260,9 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 	// Retain already confirmed files even if a later request is canceled.
 	// Failed checks never advance their baseline; checkpoint failures stay visible.
 	defer func() {
+		if err != nil && currentPath != "" {
+			err = fmt.Errorf("%s: %w", currentPath, err)
+		}
 		if saveErr := checkpoint(); saveErr != nil {
 			// A failed checkpoint is a failure even when the network was canceled.
 			// Wrap the save error so the UI cannot classify it as a clean cancel.
@@ -267,6 +274,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		}
 	}()
 	for _, rel := range ordered {
+		currentPath = rel
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
@@ -320,7 +328,11 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 			rh = hashBytes(r)
 			return nil
 		}
-		if rexists && known && etag != "" && etag == old.RemoteETag {
+		if h.Recheck {
+			if err = load(false); err != nil {
+				return result, err
+			}
+		} else if rexists && known && etag != "" && etag == old.RemoteETag {
 			rh = old.Hash
 		} else if rexists || known {
 			if err = load(true); err != nil {
@@ -473,11 +485,13 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		case localChanged:
 			if rexists {
 				if !loaded {
-					expected := etag
+					expectedHash := rh
 					if err = load(false); err != nil {
 						return result, err
 					}
-					if !rexists || etag != expected {
+					// Listing and GET validators can differ for identical bytes.
+					// Compare content, then write against the fresh GET validator.
+					if !rexists || rh != expectedHash {
 						return result, errRemoteChanged
 					}
 				}
@@ -516,11 +530,11 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 			// A resolution can choose an unchanged remote version. Conditional
 			// validation has no body, so fetch it before writing locally.
 			if rexists && !loaded {
-				expectedTag, expectedHash := etag, rh
+				expectedHash := rh
 				if err = load(false); err != nil {
 					return result, err
 				}
-				if !rexists || etag != expectedTag || rh != expectedHash {
+				if !rexists || rh != expectedHash {
 					return result, errRemoteChanged
 				}
 			}

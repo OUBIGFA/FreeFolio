@@ -158,7 +158,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 				a.doc.ed.WordButtonFit(c, wordMaxW, 28)
 			}
 			a.sidebarCloudActions(c)
-			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件…"), i18n.T("打开文件…"), false).Size(28, 28).Clicked() {
+			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件"), i18n.T("打开文件"), false).Size(28, 28).Clicked() {
 				a.chooseExternalFiles()
 			}
 			if a.libraryFootButton(c).Size(28, 28).Clicked() {
@@ -245,9 +245,9 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 			}
 			tree.Children(func() {
 				if err != nil {
-					ui.Text(c, i18n.T("读取文件夹失败。")+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 10)
+					ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 10)
 				} else if a.treeLoading && len(nodes) == 0 && sp == a.state.ActiveSpace() {
-					ui.Text(c, i18n.T("正在读取空间文件夹…")).TextColor(t.TextMuted).FontSize(12).Padding(4, 10)
+					ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted).FontSize(12).Padding(4, 10)
 				}
 				// Cra's sections: 3 DIPs on top, the pinned rows (with the
 				// placeholder taking a drag while there are none), the line,
@@ -1025,7 +1025,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		pin = i18n.T("取消置顶")
 	}
 	if n.Dir {
-		if m.Item(i18n.T("重命名…")).Chosen() {
+		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
 		if m.Item(i18n.T("新建文档")).Chosen() {
@@ -1094,7 +1094,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 			a.toggleFavorite(sp, n.Path)
 		}
 		m.Separator()
-		if m.Item(i18n.T("重命名…")).Chosen() {
+		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
 		m.Separator()
@@ -1153,7 +1153,7 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	a.spaceEditMenu(m, sp)
 	m.Separator()
 	if sp.IsExternal() {
-		if m.Item(i18n.T("打开文件…")).Chosen() {
+		if m.Item(i18n.T("打开文件")).Chosen() {
 			a.chooseExternalFiles()
 		}
 		a.sortMenu(m, sp)
@@ -1177,7 +1177,7 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 		revealDir(sp.Root)
 	}
-	if m.Item(i18n.T("最近删除…")).Chosen() {
+	if m.Item(i18n.T("最近删除")).Chosen() {
 		a.openTrash()
 	}
 }
@@ -1186,13 +1186,13 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 // the header and the space switcher's context menus, and the folder new
 // attachments go in.
 func (a *App) spaceEditMenu(m *ui.Menu, sp *space.Space) {
-	if m.Item(i18n.T("更改空间图标…")).Chosen() {
+	if m.Item(i18n.T("更改空间图标")).Chosen() {
 		a.editSpaceProperty(sp, "icon")
 	}
-	if m.Item(i18n.T("重命名空间…")).Disabled(sp.IsExternal()).Chosen() {
+	if m.Item(i18n.T("重命名空间")).Disabled(sp.IsExternal()).Chosen() {
 		a.editSpaceProperty(sp, "name")
 	}
-	if m.Item(i18n.T("编辑主题颜色…")).Chosen() {
+	if m.Item(i18n.T("编辑主题颜色")).Chosen() {
 		a.editSpace(sp)
 	}
 	folder := attachmentFolder(sp)
@@ -1205,7 +1205,7 @@ func (a *App) spaceEditMenu(m *ui.Menu, sp *space.Space) {
 			a.setAttachmentsFolder(sp, "")
 		}
 		sub.Separator()
-		if sub.Item(i18n.T("选择文件夹…")).Chosen() {
+		if sub.Item(i18n.T("选择文件夹")).Chosen() {
 			a.chooseAttachmentsFolder(sp)
 		}
 	})
@@ -1369,7 +1369,7 @@ func (a *App) newDocRow(c *ui.Context) {
 		return 0.75 + 0.20*lit
 	}
 	if a.state.ActiveSpace().IsExternal() {
-		label := i18n.T("打开文件…")
+		label := i18n.T("打开文件")
 		row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(9).Gap(5).Radius(controlRadius).Center().
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(i18n.T("只添加选中的文件，保留原位置"))
 		alpha := slot(row)

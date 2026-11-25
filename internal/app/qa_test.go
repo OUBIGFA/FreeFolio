@@ -87,7 +87,7 @@ func TestQAPanelOpensAndAsksToSetUp(t *testing.T) {
 	if !a.qa.open {
 		t.Fatal("⌘J did not open the panel")
 	}
-	if !tt.HasText("向「Personal」提问") || !tt.HasText("设置模型…") || !tt.HasText("请先添加供应商") {
+	if !tt.HasText("向「Personal」提问") || !tt.HasText("设置模型") || !tt.HasText("请先添加供应商") {
 		t.Fatalf("panel: %q", tt.Texts())
 	}
 	if !tt.Focused("问题") {
@@ -100,7 +100,7 @@ func TestQAPanelOpensAndAsksToSetUp(t *testing.T) {
 	if !tt.HasText("请先添加供应商") || !tt.HasText("重试") {
 		t.Fatalf("unset key: %q", tt.Texts())
 	}
-	if err := tt.Click("设置模型…"); err != nil {
+	if err := tt.Click("设置模型"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

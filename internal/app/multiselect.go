@@ -445,7 +445,7 @@ func (a *App) placeEntriesWithUndo(group []string, dir string, index int, withUn
 		back := slices.IndexFunc(a.childrenOf(oldDir), func(n *vault.Node) bool { return n.Path == rel })
 		to, _, err := a.moveWithResources(sp, rel, sp, dir)
 		if err != nil {
-			a.notify("移动 %s 失败。%v", path.Base(rel), err)
+			a.notify("移动 %s 失败；%v", path.Base(rel), err)
 			continue
 		}
 		a.moved(sp, rel, to)
@@ -492,7 +492,7 @@ func (a *App) placeEntriesWithUndo(group []string, dir string, index int, withUn
 		}
 		a.offerUndo(i18n.T("已移到「")+folderName(sp, dir)+"」", countLabel(movedPaths), func() {
 			if a.state.ActiveSpace() != sp {
-				a.notify("已不在原空间，无法撤销移动。")
+				a.notify("已不在原空间，无法撤销移动")
 				return
 			}
 			for i := len(movedItems) - 1; i >= 0; i-- {
@@ -551,13 +551,13 @@ func (a *App) moveGroupAcross(fromID string, group []string, toID, dir string) [
 		oldDir := parentDir(rel)
 		to, copied, err := a.moveWithResources(src, rel, dst, dir)
 		if err != nil {
-			a.notify("移动 %s 到「%s」失败。%v", path.Base(rel), dst.Name, err)
+			a.notify("移动 %s 到「%s」失败；%v", path.Base(rel), dst.Name, err)
 			continue
 		}
 		if copied {
 			if p, err := resolveFile(src, rel); err == nil {
 				if err := a.trashItem(p); err != nil {
-					a.notify("已复制 %s 到「%s」，但未能将原件移到废纸篓。%v", path.Base(rel), dst.Name, err)
+					a.notify("已复制 %s 到「%s」，但未能将原件移到废纸篓；%v", path.Base(rel), dst.Name, err)
 				}
 			}
 		}
@@ -669,7 +669,7 @@ func (a *App) newFolderWithGroup(group []string) {
 
 	folder, err := vault.Mkdir(sp.Root, dir, i18n.T("新建文件夹"))
 	if err != nil {
-		a.notify("新建文件夹失败。%v", err)
+		a.notify("新建文件夹失败；%v", err)
 		return
 	}
 	a.refreshTree()
@@ -741,7 +741,7 @@ func (a *App) trashGroup(group []string) {
 			if ok {
 				a.bin.Forget(kept)
 			}
-			a.notify("将 %s 移到废纸篓失败。%v", path.Base(rel), err)
+			a.notify("将 %s 移到废纸篓失败；%v", path.Base(rel), err)
 			continue
 		}
 		if ok {
@@ -784,7 +784,7 @@ func (a *App) openPickedInSplit(sp *space.Space, docRels []string) {
 		if d == nil {
 			text, err := readFile(sp, rel)
 			if err != nil {
-				a.notify("打开 %s 失败。%v", vault.Title(rel), err)
+				a.notify("打开 %s 失败；%v", vault.Title(rel), err)
 				return
 			}
 			d = openDocument(sp, rel, text, false)

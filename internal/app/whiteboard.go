@@ -142,14 +142,14 @@ func (a *App) insertWhiteboard(parent *document) {
 	s := whiteboard.NewScene()
 	raw, err := whiteboard.ExportSVG(s, whiteboard.SVGOptions{EmbedScene: true})
 	if err != nil {
-		a.notify("新建白板失败。%v", err)
+		a.notify("新建白板失败；%v", err)
 		return
 	}
 	// Publish the image before its Markdown reference. Failure keeps the
 	// existing document intact and cannot insert a broken reference.
 	url, err := a.writeAssetFor(parent, path.Dir(parent.rel), "未命名白板.excalidraw.svg", []byte(raw))
 	if err != nil {
-		a.notify("新建白板失败。%v", err)
+		a.notify("新建白板失败；%v", err)
 		return
 	}
 	b := model.NewBlock("image", "白板")
@@ -163,7 +163,7 @@ func (a *App) openBoardEmbed(parent *document, url string) {
 		return
 	}
 	if parent.space.IsExternal() {
-		a.notify("请在普通空间中编辑内嵌白板。")
+		a.notify("请在普通空间中编辑内嵌白板")
 		return
 	}
 	decoded := unescapeImagePath(strings.Split(url, "#")[0])
@@ -172,12 +172,12 @@ func (a *App) openBoardEmbed(parent *document, url string) {
 		return
 	}
 	if _, err := vault.Resolve(parent.space.Root, rel); err != nil {
-		a.notify("白板路径无效。%v", err)
+		a.notify("白板路径无效；%v", err)
 		return
 	}
 	if resident := a.residentDocument(parent.space.ID, rel); resident != nil {
 		if resident.loadErr != nil {
-			a.notify("白板无法读取。%v", resident.loadErr)
+			a.notify("白板无法读取；%v", resident.loadErr)
 			return
 		}
 		parent.boardOverlay = resident
@@ -186,12 +186,12 @@ func (a *App) openBoardEmbed(parent *document, url string) {
 	}
 	text, err := readFile(parent.space, rel)
 	if err != nil {
-		a.notify("白板无法读取。%v", err)
+		a.notify("白板无法读取；%v", err)
 		return
 	}
 	d := openDocument(parent.space, rel, text, false)
 	if d.loadErr != nil {
-		a.notify("白板无法读取。%v", d.loadErr)
+		a.notify("白板无法读取；%v", d.loadErr)
 		return
 	}
 	parent.ed.UnmarkText()
@@ -204,7 +204,7 @@ func (a *App) closeBoardOverlay(parent *document) {
 		return
 	}
 	if err := d.save(); err != nil {
-		a.notify("保存白板失败。%v", err)
+		a.notify("保存白板失败；%v", err)
 		return
 	}
 	parent.boardOverlay = nil
@@ -341,7 +341,7 @@ func (d *document) startWhiteboardSave(post func(func())) {
 func (a *App) newWhiteboard(dir string) {
 	sp := a.state.ActiveSpace()
 	if sp == nil || sp.IsExternal() {
-		a.notify("请在普通空间中新建白板。")
+		a.notify("请在普通空间中新建白板")
 		return
 	}
 	if !a.flushForTask() {
@@ -350,12 +350,12 @@ func (a *App) newWhiteboard(dir string) {
 	s := whiteboard.NewScene()
 	text, err := s.Encode()
 	if err != nil {
-		a.notify("新建白板失败。%v", err)
+		a.notify("新建白板失败；%v", err)
 		return
 	}
 	rel, err := vault.CreateFile(sp.Root, dir, "未命名白板", ".excalidraw", text)
 	if err != nil {
-		a.notify("新建白板失败。%v", err)
+		a.notify("新建白板失败；%v", err)
 		return
 	}
 	a.refreshTree()
@@ -458,12 +458,12 @@ func (a *App) insertBoardFiles(d *document, paths []string) {
 		}
 		for i, f := range files {
 			if f.err != nil {
-				a.notify("插入图片失败。%v", f.err)
+				a.notify("插入图片失败；%v", f.err)
 				continue
 			}
 			before := d.board.Revision()
 			if err := d.board.InsertImage(f.data, whiteboard.Point{300 + float64(i)*25, 220 + float64(i)*25}); err != nil {
-				a.notify("插入图片失败。%v", err)
+				a.notify("插入图片失败；%v", err)
 			} else if d.board.Revision() != before {
 				a.boardChanged(d)
 			}
@@ -503,7 +503,7 @@ func (a *App) userBoardLibrary() []whiteboard.LibraryItem {
 		a.boardLibrary.err = err
 		a.boardLibrary.loaded = true
 		if err != nil {
-			a.notify("读取白板素材库失败。%v", err)
+			a.notify("读取白板素材库失败；%v", err)
 		}
 	}
 	if a.win != nil {
@@ -516,13 +516,13 @@ func (a *App) userBoardLibrary() []whiteboard.LibraryItem {
 func (a *App) saveBoardLibrary(items []whiteboard.LibraryItem) {
 	text, err := whiteboard.EncodeLibrary(items)
 	if err != nil {
-		a.notify("保存白板素材库失败。%v", err)
+		a.notify("保存白板素材库失败；%v", err)
 		return
 	}
 	full := filepath.Join(a.cfg.ConfigDir, "whiteboard-library.excalidrawlib")
 	done := func(err error) {
 		if err != nil {
-			a.notify("保存白板素材库失败。%v", err)
+			a.notify("保存白板素材库失败；%v", err)
 			return
 		}
 		a.boardLibrary = &boardLibraryState{items: items, loaded: true}
@@ -553,7 +553,7 @@ func (a *App) importBoardLibrary(done func([]whiteboard.LibraryItem, error)) {
 func (a *App) exportBoardLibrary(items []whiteboard.LibraryItem) {
 	text, err := whiteboard.EncodeLibrary(items)
 	if err != nil {
-		a.notify("导出素材库失败。%v", err)
+		a.notify("导出素材库失败；%v", err)
 		return
 	}
 	a.saveBoardExport("whiteboard-library.excalidrawlib", []byte(text))
@@ -568,7 +568,7 @@ func (a *App) saveBoardExport(name string, data []byte) {
 			err = fsutil.WriteFileAtomic(full, data, 0644)
 		}
 		if err != nil {
-			a.win.Update(func() { a.notify("导出白板失败。%v", err) })
+			a.win.Update(func() { a.notify("导出白板失败；%v", err) })
 		}
 	}()
 }
@@ -589,7 +589,7 @@ func (a *App) exportBoard(d *document, format string) {
 	}
 	done := func(data []byte, err error) {
 		if err != nil {
-			a.notify("导出白板失败。%v", err)
+			a.notify("导出白板失败；%v", err)
 			return
 		}
 		a.saveBoardExport(d.title()+"."+format, data)
@@ -604,23 +604,23 @@ func (a *App) exportBoard(d *document, format string) {
 func (a *App) exportBoardMarkdown(d *document) {
 	svg, err := editor.BoardSVG(d.board.Scene, editor.BoardOptions{})
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	url, err := a.writeAssetFor(d, path.Dir(d.rel), d.title()+".excalidraw.svg", []byte(svg))
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	root, name, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	content := "# " + d.title() + "\n\n![白板](" + url + ")\n"
 	rel, err := vault.CreateFile(root, path.Dir(name), d.title()+" Export", ".md", content)
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	a.refreshTree()

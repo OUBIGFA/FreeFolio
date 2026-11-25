@@ -26,7 +26,7 @@ func TestReplaceMissingImageAndUndo(t *testing.T) {
 	file, data := pngFile(t, "replacement.png")
 	a.pickFiles = func(done func([]string)) { done([]string{file}) }
 	original := a.doc.ed.Doc.Clone()
-	if err := tt.Click("重新选择图片…"); err != nil {
+	if err := tt.Click("重新选择图片"); err != nil {
 		t.Fatal(err)
 	}
 	block := a.doc.ed.Doc.Blocks[1]
@@ -56,7 +56,7 @@ func TestReplacementCancelInvalidAndStaleAreHarmless(t *testing.T) {
 			a, tt := failedImageApp(t)
 			var complete func([]string)
 			a.pickFiles = func(done func([]string)) { complete = done }
-			if err := tt.Click("重新选择图片…"); err != nil {
+			if err := tt.Click("重新选择图片"); err != nil {
 				t.Fatal(err)
 			}
 			file, _ := pngFile(t, "replacement.png")

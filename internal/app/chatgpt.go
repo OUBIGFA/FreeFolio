@@ -260,35 +260,35 @@ func (a *App) openChatGPTUsage() {
 		return
 	}
 	if err := a.chatgpt.openBrowser(chatgpt.UsageURL); err != nil {
-		a.notify("无法打开 ChatGPT 用量页面。")
+		a.notify("无法打开 ChatGPT 用量页面")
 	}
 }
 
 func chatGPTErrorText(err error) string {
 	if errors.Is(err, context.Canceled) {
-		return i18n.T("已取消 ChatGPT 登录。")
+		return i18n.T("已取消 ChatGPT 登录")
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return i18n.T("ChatGPT 操作超时，请重试。")
+		return i18n.T("ChatGPT 操作超时，请重试")
 	}
 	var e *chatgpt.Error
 	if !errors.As(err, &e) {
 		return errText(err)
 	}
 	messages := map[string]string{
-		"sign_in_required": "请先登录 ChatGPT。", "sharing_disabled": "已登录 ChatGPT，但尚未允许使用套餐。请在设置中授权。",
-		"browser_unavailable": "无法打开浏览器，请检查默认浏览器后重试。", "authorization_denied": "未完成 ChatGPT 授权。你可以重新登录。",
-		"account_mismatch": "此连接属于另一个 ChatGPT 账号。请登录原账号，或添加新的 ChatGPT 供应商。",
-		"invalid_identity": "无法验证 ChatGPT 身份，请重新登录。", "identity_unavailable": "ChatGPT 身份验证暂时不可用。连接已保留，请稍后重试。",
-		"encryption_unavailable": "无法访问系统凭据保护服务。请解锁系统密钥服务后重试；Linux 需要 secret-tool。",
-		"storage_unavailable":    "无法访问 ChatGPT 凭据文件。请检查配置目录权限。", "storage_invalid": "ChatGPT 凭据文件损坏或版本不受支持。原文件已保留。",
-		"revocation_unconfirmed": "已在本机断开连接，但未确认远端撤销。请到 ChatGPT 设置中断开此应用。",
-		"network_error":          "无法连接 ChatGPT，请检查网络后重试。", "refresh_not_ready": "ChatGPT 暂时不允许刷新登录，请稍后重试。",
-		"connection_changed": "ChatGPT 连接已更改，请重新登录。", "callback_unavailable": "无法启动本机登录回调，请稍后重试。",
-		"registration_incomplete": "ChatGPT 注册未完成，请重新登录。",
+		"sign_in_required": "请先登录 ChatGPT", "sharing_disabled": "已登录 ChatGPT，但尚未允许使用套餐；请在设置中授权",
+		"browser_unavailable": "无法打开浏览器，请检查默认浏览器后重试", "authorization_denied": "未完成 ChatGPT 授权；你可以重新登录",
+		"account_mismatch": "此连接属于另一个 ChatGPT 账号；请登录原账号，或添加新的 ChatGPT 供应商",
+		"invalid_identity": "无法验证 ChatGPT 身份，请重新登录", "identity_unavailable": "ChatGPT 身份验证暂时不可用；连接已保留，请稍后重试",
+		"encryption_unavailable": "无法访问系统凭据保护服务；请解锁系统密钥服务后重试；Linux 需要 secret-tool",
+		"storage_unavailable":    "无法访问 ChatGPT 凭据文件；请检查配置目录权限", "storage_invalid": "ChatGPT 凭据文件损坏或版本不受支持；原文件已保留",
+		"revocation_unconfirmed": "已在本机断开连接，但未确认远端撤销；请到 ChatGPT 设置中断开此应用",
+		"network_error":          "无法连接 ChatGPT，请检查网络后重试", "refresh_not_ready": "ChatGPT 暂时不允许刷新登录，请稍后重试",
+		"connection_changed": "ChatGPT 连接已更改，请重新登录", "callback_unavailable": "无法启动本机登录回调，请稍后重试",
+		"registration_incomplete": "ChatGPT 注册未完成，请重新登录",
 	}
 	if terminal := e.Code; terminal == "invalid_grant" || terminal == "invalid_refresh_token" || strings.HasPrefix(terminal, "refresh_token_") || terminal == "token_expired" {
-		return i18n.T("ChatGPT 登录已失效，请重新登录。")
+		return i18n.T("ChatGPT 登录已失效，请重新登录")
 	}
 	if text := messages[e.Code]; text != "" {
 		return i18n.T(text)

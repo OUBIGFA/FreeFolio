@@ -558,7 +558,7 @@ func (a *App) folderPreview(c *ui.Context) {
 		ui.Icon(c, iconSearch).FontSize(13).TextColor(p.col.muted)
 		ui.Box(c).Width(previewTextX - previewIconCenter - 7)
 		in := ui.TextInput(c.Key("preview-query"), &p.query).Grow(1).MinWidth(0).Height(24).Padding(0).
-			Placeholder(i18n.T("搜索 ")+path.Base(t.rel)+"…").Label(i18n.T("搜索文件夹")).TextColor(p.col.title).
+			Placeholder(i18n.T("搜索 ")+path.Base(t.rel)).Label(i18n.T("搜索文件夹")).TextColor(p.col.title).
 			Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13)
 		// A hover preview must leave keyboard focus on the file tree.
 		if in.Changed() {

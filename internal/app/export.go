@@ -155,14 +155,14 @@ func (a *App) exportHTML() {
 	if d.board != nil {
 		svg, err := editor.BoardSVG(d.board.Scene, editor.BoardOptions{})
 		if err != nil {
-			a.notify("导出失败。%v", err)
+			a.notify("导出失败；%v", err)
 			return
 		}
 		page = htmlPage(d.title(), svg)
 	}
 	root, nameOnDisk, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	dir := path.Dir(nameOnDisk)
@@ -177,7 +177,7 @@ func (a *App) exportHTML() {
 		rel := path.Join(dir, name+".html")
 		full, err := vault.Resolve(root, rel)
 		if err != nil {
-			a.notify("导出失败。%v", err)
+			a.notify("导出失败；%v", err)
 			return
 		}
 		err = fsutil.CreateFileAtomic(full, []byte(page), 0o644)
@@ -185,7 +185,7 @@ func (a *App) exportHTML() {
 			continue
 		}
 		if err != nil {
-			a.notify("导出失败。%v", err)
+			a.notify("导出失败；%v", err)
 			return
 		}
 		a.notify("已导出 %s", rel)

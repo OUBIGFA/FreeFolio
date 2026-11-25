@@ -402,7 +402,7 @@ func New(cfg Config) (*App, error) {
 		a.prefs = loadedPrefs
 	} else {
 		a.prefs, a.prefsBroken = &prefs.Prefs{Version: prefs.CurrentVersion}, true
-		a.notify("读取偏好设置失败，本次使用默认设置且不会覆盖原文件。%v", prefsErr)
+		a.notify("读取偏好设置失败，本次使用默认设置且不会覆盖原文件；%v", prefsErr)
 	}
 	a.systemLanguage = "zh-Hans"
 	a.applyLanguage()
@@ -436,7 +436,7 @@ func New(cfg Config) (*App, error) {
 		// the legacy system folder; it moves once, before anything reads it.
 		for _, sp := range st.Spaces {
 			if err := vault.MigrateSystemDir(sp.Root); err != nil {
-				a.notify("迁移空间 %s 的系统文件夹失败。%v", sp.Name, err)
+				a.notify("迁移空间 %s 的系统文件夹失败；%v", sp.Name, err)
 			}
 		}
 		a.reloadPlugins()
@@ -753,7 +753,7 @@ func (a *App) syncTray() {
 		}),
 	})
 	if err != nil {
-		a.notify("无法创建托盘图标。%v", err)
+		a.notify("无法创建托盘图标；%v", err)
 		return
 	}
 	// On Windows and Linux a click opens the window and a right click the
@@ -771,11 +771,11 @@ func (a *App) appMenu() *mygo.MenuItem {
 	}
 	return &mygo.MenuItem{Label: "FreeFolio", Submenu: []*mygo.MenuItem{
 		{Role: mygo.RoleAbout},
-		{Label: i18n.T("检查更新…"), Click: func(*mygo.MenuItem, *mygo.Window) {
+		{Label: i18n.T("检查更新"), Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.win.Update(a.checkForUpdates)
 		}},
 		mygo.Separator(),
-		{Label: i18n.T("设置…"), Click: func(*mygo.MenuItem, *mygo.Window) {
+		{Label: i18n.T("设置"), Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.win.Update(func() { a.openSettings(tabGeneral) })
 		}},
 		mygo.Separator(),
@@ -797,11 +797,11 @@ func (a *App) notify(format string, args ...any) {
 // savePrefs writes prefs.json, telling the user when it fails.
 func (a *App) savePrefs() {
 	if a.prefsBroken {
-		a.notify("偏好设置文件无法读取，修改不会保存。")
+		a.notify("偏好设置文件无法读取，修改不会保存")
 		return
 	}
 	if err := a.prefStore.Save(a.prefs); err != nil {
-		a.notify("保存偏好设置失败。%v", err)
+		a.notify("保存偏好设置失败；%v", err)
 	}
 }
 
@@ -812,7 +812,7 @@ func (a *App) saveState() {
 	}
 	a.captureSplits()
 	if err := a.store.Save(a.state); err != nil {
-		a.notify("保存空间设置失败。%v", err)
+		a.notify("保存空间设置失败；%v", err)
 	}
 }
 
@@ -839,9 +839,9 @@ func (a *App) flushCurrent() bool {
 	}
 	if err := a.doc.save(); err != nil {
 		if errors.Is(err, errConflict) || errors.Is(err, errMissing) {
-			a.notify("「%s」%v，请先在文档上方选择保留哪个版本。", a.doc.title(), err)
+			a.notify("「%s」%v，请先在文档上方选择保留哪个版本", a.doc.title(), err)
 		} else {
-			a.notify("保存 %s 失败。%v", a.doc.title(), err)
+			a.notify("保存 %s 失败；%v", a.doc.title(), err)
 		}
 		return false
 	}
@@ -1148,7 +1148,7 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 			a.saveState()
 			a.refreshTree()
 		} else {
-			a.notify("打开 %s 失败。%v", vault.Title(rel), err)
+			a.notify("打开 %s 失败；%v", vault.Title(rel), err)
 		}
 		return false
 	}
@@ -1318,7 +1318,7 @@ func (a *App) reload() {
 	rel, source := a.doc.rel, a.doc.source
 	text, err := readFile(a.doc.space, rel)
 	if err != nil {
-		a.notify("重新载入 %s 失败。%v", vault.Title(rel), err)
+		a.notify("重新载入 %s 失败；%v", vault.Title(rel), err)
 		return
 	}
 	a.replaceReferences(a.doc, openDocument(a.doc.space, rel, text, source))
@@ -1341,7 +1341,7 @@ func (a *App) newDoc(dir string) {
 		return
 	}
 	if sp.IsExternal() {
-		a.notify("请在普通空间中新建文档。")
+		a.notify("请在普通空间中新建文档")
 		return
 	}
 	// An empty title to type, its placeholder showing, and the starter
@@ -1353,7 +1353,7 @@ func (a *App) newDoc(dir string) {
 	content := editor.ExportMarkdown(doc)
 	rel, err := vault.CreateFile(sp.Root, dir, untitled, ".md", content)
 	if err != nil {
-		a.notify("新建文档失败。%v", err)
+		a.notify("新建文档失败；%v", err)
 		return
 	}
 	if dir != "" {
@@ -1465,7 +1465,7 @@ func (a *App) newFolder(dir string) {
 	}
 	rel, err := vault.Mkdir(sp.Root, dir, i18n.T("新建文件夹"))
 	if err != nil {
-		a.notify("新建文件夹失败。%v", err)
+		a.notify("新建文件夹失败；%v", err)
 		return
 	}
 	if dir != "" {
@@ -1521,7 +1521,7 @@ func (a *App) commitRename() {
 	sources := a.renameSources(sp, rel)
 	to, err := renameFile(sp, rel, name)
 	if err != nil {
-		a.notify("重命名 %s 失败。%v", path.Base(rel), err)
+		a.notify("重命名 %s 失败；%v", path.Base(rel), err)
 		return
 	}
 	if to != rel {
@@ -1543,7 +1543,7 @@ func (a *App) moveInto(rel, dir string) {
 	}
 	to, _, err := a.moveWithResources(sp, rel, sp, dir)
 	if err != nil {
-		a.notify("移动 %s 失败。%v", path.Base(rel), err)
+		a.notify("移动 %s 失败；%v", path.Base(rel), err)
 		return
 	}
 	if dir != "" {
@@ -1708,7 +1708,7 @@ func (a *App) newFolderWith(rel string) {
 	dir := parentDir(rel)
 	folder, err := vault.Mkdir(sp.Root, dir, i18n.T("新建文件夹"))
 	if err != nil {
-		a.notify("新建文件夹失败。%v", err)
+		a.notify("新建文件夹失败；%v", err)
 		return
 	}
 	a.refreshTree()
@@ -1748,7 +1748,7 @@ func (a *App) trash(rel string) {
 		if ok {
 			a.bin.Forget(kept)
 		}
-		a.notify("将 %s 移到废纸篓失败。%v", path.Base(rel), err)
+		a.notify("将 %s 移到废纸篓失败；%v", path.Base(rel), err)
 		return
 	}
 	for _, d := range a.residentDocuments() {
@@ -1782,7 +1782,7 @@ func (a *App) reloadPlugins() {
 	var err error
 	a.installed, a.brokenPlugins, err = a.plugins.Scan()
 	if err != nil {
-		a.notify("读取插件文件夹失败。%v", err)
+		a.notify("读取插件文件夹失败；%v", err)
 	}
 	a.syncFormatPlugins()
 }
@@ -1849,12 +1849,12 @@ func (a *App) exportMarkdown() {
 	a.doc.ed.UnmarkText()
 	root, name, err := fileLocation(a.doc.space, a.doc.rel)
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	rel, err := vault.CreateFile(root, path.Dir(name), a.doc.title()+" Export", ".md", a.doc.text())
 	if err != nil {
-		a.notify("导出失败。%v", err)
+		a.notify("导出失败；%v", err)
 		return
 	}
 	a.refreshTree()

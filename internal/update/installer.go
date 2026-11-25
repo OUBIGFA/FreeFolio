@@ -38,7 +38,7 @@ func NewClient(directory, current string) *Client {
 		api: "https://api.github.com/repos/OUBIGFA/FreeFolio",
 		http: &http.Client{Timeout: 30 * time.Minute, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if req.URL.Scheme != "https" || len(via) >= 10 {
-				return errors.New(i18n.T("更新下载地址无效。"))
+				return errors.New(i18n.T("更新下载地址无效"))
 			}
 			return nil
 		}},
@@ -72,7 +72,7 @@ type Installer struct {
 func (c *Client) Check(ctx context.Context) (*Installer, error) {
 	current, ok := stableVersion(c.current)
 	if !ok {
-		return nil, errors.New(i18n.T("当前版本号无效。"))
+		return nil, errors.New(i18n.T("当前版本号无效"))
 	}
 	var latest *Installer
 	var latestVersion versionNumber
@@ -118,11 +118,11 @@ func (c *Client) Check(ctx context.Context) (*Installer, error) {
 		return nil, nil
 	}
 	if latest.size <= 0 || latest.size > maxInstallerSize {
-		return nil, errors.New(i18n.T("更新安装包大小无效。"))
+		return nil, errors.New(i18n.T("更新安装包大小无效"))
 	}
 	digest, err := hex.DecodeString(latest.digest)
 	if err != nil || len(digest) != sha256.Size {
-		return nil, errors.New(i18n.T("更新安装包缺少有效的 SHA-256 校验值。"))
+		return nil, errors.New(i18n.T("更新安装包缺少有效的 SHA-256 校验值"))
 	}
 	return latest, nil
 }
@@ -178,7 +178,7 @@ func (c *Client) get(ctx context.Context, url, accept string) (*http.Response, e
 	}
 	if response.StatusCode != http.StatusOK {
 		response.Body.Close()
-		return nil, fmt.Errorf(i18n.T("更新服务返回 HTTP %d。"), response.StatusCode)
+		return nil, fmt.Errorf(i18n.T("更新服务返回 HTTP %d"), response.StatusCode)
 	}
 	return response, nil
 }
@@ -214,7 +214,7 @@ func (r *Installer) Download(ctx context.Context, progress func(done, total int6
 		err = ctx.Err()
 	}
 	if err == nil && (written != r.size || !strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), r.digest)) {
-		err = errors.New(i18n.T("更新安装包校验失败，请重新下载。"))
+		err = errors.New(i18n.T("更新安装包校验失败，请重新下载"))
 	}
 	if err == nil {
 		err = file.Sync()
@@ -255,7 +255,7 @@ func (r *Installer) VerifiedPath() (string, error) {
 		return "", err
 	}
 	if size != r.size || !strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), r.digest) {
-		return "", errors.New(i18n.T("更新安装包校验失败，请重新下载。"))
+		return "", errors.New(i18n.T("更新安装包校验失败，请重新下载"))
 	}
 	return r.path, nil
 }

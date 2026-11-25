@@ -101,7 +101,7 @@ func TestChatGPTUsageFailureHasActionableText(t *testing.T) {
 	if got := qaErrorText(err); got == "limit" || agent.Retryable(err) {
 		t.Fatal("usage failure uses generic retry")
 	}
-	if got := qaErrorText(&chatgpt.Error{Code: "sharing_disabled"}); got != "已登录 ChatGPT，但尚未允许使用套餐。请在设置中授权。" {
+	if got := qaErrorText(&chatgpt.Error{Code: "sharing_disabled"}); got != "已登录 ChatGPT，但尚未允许使用套餐；请在设置中授权" {
 		t.Fatalf("permission guidance: %s", got)
 	}
 }

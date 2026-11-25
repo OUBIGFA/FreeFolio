@@ -31,16 +31,16 @@ var (
 
 // qaExamples are questions the empty panel offers.
 var qaExamples = []string{
-	"这个空间里有哪些还没完成的任务？",
+	"这个空间里有哪些还没完成的任务",
 	"总结一下最近修改的几篇笔记",
-	"有没有前后矛盾的记录？",
+	"有没有前后矛盾的记录",
 }
 
 // fileQAExamples are the questions offered on the file browser's files.
 var fileQAExamples = []string{
 	"总结一下这篇文档",
-	"这篇文档里有哪些待办事项？",
-	"有没有前后矛盾的地方？",
+	"这篇文档里有哪些待办事项",
+	"有没有前后矛盾的地方",
 }
 
 // oneBotSpaceName names what OneBot reads: the open files in the file
@@ -280,9 +280,9 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			ui.Icon(c, iconAsk).FontSize(22).TextColor(t.Accent)
 		})
 		ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
-			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeFolio 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处。")
+			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeFolio 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处")
 			if a.files != nil {
-				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeFolio 会阅读已打开的文件来回答，并标出每句话的出处。")
+				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeFolio 会阅读已打开的文件来回答，并标出每句话的出处")
 			}
 			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
 			ui.Text(c, hint).
@@ -292,7 +292,7 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			ui.Column(c.Key("qa-unset-card")).Gap(10).Padding(12, 16).Radius(10).AlignItems(ui.Center).
 				Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.5)).Children(func() {
 				ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
-				if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型…")).Clicked() {
+				if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型")).Clicked() {
 					a.openSettings(tabAI)
 				}
 			})
@@ -320,7 +320,7 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 				}
 			}
 		})
-		ui.Text(c, i18n.T("提问时，读到的文档片段会发送给你设置的模型服务。")).FontSize(11).TextColor(t.TextMuted.Alpha(0.8)).
+		ui.Text(c, i18n.T("提问时，读到的文档片段会发送给你设置的模型服务")).FontSize(11).TextColor(t.TextMuted.Alpha(0.8)).
 			TextAlign(ui.Center).MaxWidth(290).Padding(4, 0, 0, 0)
 	})
 }
@@ -525,12 +525,12 @@ func (a *App) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *
 func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 	t := c.Theme()
 	if (turn.running || turn.revealing) && turn.displayAnswer() == "" && len(turn.steps) == 0 {
-		label := i18n.T("正在查找…")
+		label := i18n.T("正在查找")
 		switch {
 		case turn.retrying:
 			label = i18n.T("正在重试")
 		case turn.thinking:
-			label = i18n.T("思考中…")
+			label = i18n.T("思考中")
 		}
 		ui.Row(c.Key("working")).Gap(9).Padding(8, 11).Radius(11).AlignItems(ui.Center).
 			Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.32)).
@@ -565,7 +565,7 @@ func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 				if ui.Button(c.Key("retry"), i18n.T("重试")).Clicked() {
 					a.retryQA(spaceID, turn)
 				}
-				if a.qaReady() != nil && ui.Button(c.Key("setup"), i18n.T("设置模型…")).Clicked() {
+				if a.qaReady() != nil && ui.Button(c.Key("setup"), i18n.T("设置模型")).Clicked() {
 					a.openSettings(tabAI)
 				}
 			})
@@ -609,9 +609,9 @@ func (t *qaTurn) liveStepHeadline() string {
 		}
 	}
 	if t.thinking {
-		return i18n.T("思考中…")
+		return i18n.T("思考中")
 	}
-	return i18n.T("正在查找…")
+	return i18n.T("正在查找")
 }
 
 // consultedTitles returns up to 3 distinct document titles inspected in steps.

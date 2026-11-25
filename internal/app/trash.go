@@ -19,7 +19,7 @@ func (a *App) keepDeleted(spaceID, spaceName, root, rel string) (trashbin.Item, 
 	it, err := a.bin.Add(spaceID, spaceName, root, rel, time.Now())
 	if err != nil {
 		if trashbin.TooLarge(err) {
-			a.notify("「%s」太大，FreeFolio 不保留副本，可在系统废纸篓中找回。", path.Base(rel))
+			a.notify("「%s」太大，FreeFolio 不保留副本，可在系统废纸篓中找回", path.Base(rel))
 		}
 		return trashbin.Item{}, false
 	}
@@ -31,12 +31,12 @@ func (a *App) keepDeleted(spaceID, spaceName, root, rel string) (trashbin.Item, 
 func (a *App) restoreDeleted(it trashbin.Item) {
 	sp := a.state.Get(it.Space)
 	if sp == nil {
-		a.notify("「%s」所在的空间「%s」已从 FreeFolio 移除，无法恢复。", it.Name(), it.SpaceName)
+		a.notify("「%s」所在的空间「%s」已从 FreeFolio 移除，无法恢复", it.Name(), it.SpaceName)
 		return
 	}
 	rel, err := a.bin.Restore(it, sp.Root)
 	if err != nil {
-		a.notify("恢复「%s」失败。%v", it.Name(), err)
+		a.notify("恢复「%s」失败；%v", it.Name(), err)
 		return
 	}
 	a.library.items, a.library.err = a.bin.List(time.Now())

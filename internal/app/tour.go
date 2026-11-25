@@ -56,48 +56,48 @@ type tourStep struct {
 var tourSteps = []tourStep{
 	{id: "welcome", label: "新手教程", title: "欢迎来到 FreeFolio",
 		body: func(*App) string {
-			return i18n.T("用一分钟认识 FreeFolio：空间、主题配色、左右滑动、书签、置顶和收藏。看完就可以开始写作。")
+			return i18n.T("用一分钟认识 FreeFolio：空间、主题配色、左右滑动、书签、置顶和收藏；看完就可以开始写作")
 		},
 		keys: func(*App) []string { return []string{i18n.T("→ 下一步"), i18n.T("Esc 跳过")} }},
 	{id: "spaces", label: "空间", title: "用空间分开不同的事",
 		body: func(*App) string {
-			return i18n.T("每个空间是一个文件夹，有自己的文档、置顶和配色，比如「工作」和「生活」。点这里右侧的「+」新建空间，给它起名、选图标和存放位置。")
+			return i18n.T("每个空间是一个文件夹，有自己的文档、置顶和配色，比如「工作」和「生活」；点这里右侧的「+」新建空间，给它起名、选图标和存放位置")
 		},
-		keys: func(a *App) []string { return []string{a.tourKey("palette") + i18n.T(" 新建空间…")} }},
+		keys: func(a *App) []string { return []string{a.tourKey("palette") + i18n.T(" 新建空间")} }},
 	{id: "theme", label: "主题配色", title: "给每个空间一身颜色",
 		body: func(*App) string {
-			return i18n.T("这就是空间颜色：把指针移到空间名称上，点右侧的「•••」选择「编辑主题颜色…」打开它。空间图标和侧边栏中选中的项目会使用这种颜色。")
+			return i18n.T("这就是空间颜色：把指针移到空间名称上，点右侧的「•••」选择「编辑主题颜色」打开它；空间图标和侧边栏中选中的项目会使用这种颜色")
 		},
 		keys: func(a *App) []string {
-			return []string{i18n.T("••• › 编辑主题颜色…"), a.tourKey("palette") + i18n.T(" 编辑主题颜色…")}
+			return []string{i18n.T("••• › 编辑主题颜色"), a.tourKey("palette") + i18n.T(" 编辑主题颜色")}
 		}},
 	{id: "swipe", label: "左右滑动", title: "左右轻扫，切换空间",
 		body: func(*App) string {
-			return i18n.T("在侧边栏上双指左右轻扫，像翻页一样换到相邻的空间，强调色跟着切换。用键盘也可以。")
+			return i18n.T("在侧边栏上双指左右轻扫，像翻页一样换到相邻的空间，强调色跟着切换；用键盘也可以")
 		},
 		keys: func(a *App) []string {
 			return []string{a.tourKey("prev-space"), a.tourKey("next-space"), combo(ui.Cmd, spaceKeys[0]).Label() + " … " + combo(ui.Cmd, spaceKeys[8]).Label()}
 		}},
 	{id: "bookmarks", label: "书签", title: "用书签记住读到哪儿",
 		body: func(*App) string {
-			return i18n.T("指针移到任意一段上，点正文右侧页边的书签图标，这一段就有了书签。目录底部列出本文档的书签，点一下跳回去；书签列表里是所有文档的书签。")
+			return i18n.T("指针移到任意一段上，点正文右侧页边的书签图标，这一段就有了书签；目录底部列出本文档的书签，点一下跳回去；书签列表里是所有文档的书签")
 		},
 		keys: func(a *App) []string {
 			return []string{a.tourKey("bookmark") + i18n.T(" 添加书签"), a.tourKey("bookmarks") + i18n.T(" 书签列表"), a.tourKey("prev-bookmark") + " " + a.tourKey("next-bookmark") + i18n.T(" 跳转")}
 		}},
 	{id: "pins", label: "置顶", title: "把常用的文档置顶",
 		body: func(*App) string {
-			return i18n.T("右键文档或文件夹选择「置顶」，或者直接把它拖过分隔线。置顶的文档一直保持打开，再点回来时光标和滚动位置都还在。")
+			return i18n.T("右键文档或文件夹选择「置顶」，或者直接把它拖过分隔线；置顶的文档一直保持打开，再点回来时光标和滚动位置都还在")
 		},
 		keys: func(*App) []string { return []string{i18n.T("右键 › 置顶"), i18n.T("拖过分隔线")} }},
 	{id: "favorites", label: "收藏", title: "收藏，在每个空间都看得到",
 		body: func(*App) string {
-			return i18n.T("把文档拖到侧边栏顶部，或右键选择「添加到收藏」。收藏是全局的：无论在哪个空间，点一下磁贴就能打开它。")
+			return i18n.T("把文档拖到侧边栏顶部，或右键选择「添加到收藏」；收藏是全局的：无论在哪个空间，点一下磁贴就能打开它")
 		},
 		keys: func(*App) []string { return []string{i18n.T("右键 › 添加到收藏"), i18n.T("拖到顶部")} }},
 	{id: "done", label: "完成", title: "准备好了，开始写吧",
 		body: func(*App) string {
-			return i18n.T("所有功能都能在命令栏里找到。想再看一遍，在命令栏输入「新手教程」，或打开 设置 › 关于。")
+			return i18n.T("所有功能都能在命令栏里找到；想再看一遍，在命令栏输入「新手教程」，或打开 设置 › 关于")
 		},
 		keys: func(a *App) []string {
 			return []string{a.tourKey("palette") + i18n.T(" 命令栏"), a.tourKey("new-doc") + i18n.T(" 新建文档")}

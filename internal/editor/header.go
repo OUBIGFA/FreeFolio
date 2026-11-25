@@ -314,7 +314,7 @@ func (e *Editor) headerPopups(c *ui.Context, surface ui.Element) {
 						}
 					}
 				})
-				if h.pickCover != nil && e.headerButton(c, "cover-upload", iconImage, i18n.T("使用图片…"), false).Clicked() {
+				if h.pickCover != nil && e.headerButton(c, "cover-upload", iconImage, i18n.T("使用图片"), false).Clicked() {
 					h.coverOpen = false
 					e.header.pickCover(func(url string) {
 						if url != "" {

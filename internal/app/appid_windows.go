@@ -94,11 +94,11 @@ func (a *App) applyAppUserModelID() {
 		_, err = syncShortcutAppIDs(shortcutDirs(), exe)
 	}
 	if err != nil {
-		a.notify("无法更新 FreeFolio 快捷方式的任务栏标识。%v", err)
+		a.notify("无法更新 FreeFolio 快捷方式的任务栏标识；%v", err)
 	}
 	id, _ := syscall.UTF16PtrFromString(appUserModelID)
 	if hr, _, _ := procSetExplicitAppID.Call(uintptr(unsafe.Pointer(id))); failedHR(hr) {
-		a.notify("无法设置 FreeFolio 的任务栏标识。%v", hresult("SetCurrentProcessExplicitAppUserModelID", hr))
+		a.notify("无法设置 FreeFolio 的任务栏标识；%v", hresult("SetCurrentProcessExplicitAppUserModelID", hr))
 	}
 }
 

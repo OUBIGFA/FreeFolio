@@ -45,7 +45,7 @@ func (a *App) startPDF(printing bool) {
 	d.ed.UnmarkText()
 	root, rel, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("导出 PDF 失败。%v", err)
+		a.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	source := &document{space: &space.Space{Root: root}, rel: rel}
@@ -53,13 +53,13 @@ func (a *App) startPDF(printing bool) {
 	if printing {
 		dir = filepath.Join(os.TempDir(), i18n.T("FreeFolio 打印"))
 		if err := os.MkdirAll(dir, 0700); err != nil {
-			a.notify("准备打印失败。%v", err)
+			a.notify("准备打印失败；%v", err)
 			return
 		}
 	}
 	file, err := os.CreateTemp(dir, ".freefolio-export-*.pdf")
 	if err != nil {
-		a.notify("导出 PDF 失败。%v", err)
+		a.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	w := pdf.NewWriter(file, d.title())
@@ -114,7 +114,7 @@ func (a *App) pdfExportView(c *ui.Context) {
 			ui.Column(c).Width(300).Gap(12).Children(func() {
 				ui.Text(c, i18n.T("正在导出 PDF")).FontSize(18).FontWeight(600)
 				ui.Text(c, job.title).SingleLine().MinWidth(0).TextColor(c.Theme().TextMuted)
-				status := i18n.T("正在准备页面…")
+				status := i18n.T("正在准备页面")
 				if job.tops != nil {
 					status = fmt.Sprintf(i18n.T("已完成 %d / %d 页"), job.page, len(job.tops))
 				}
@@ -170,7 +170,7 @@ func (a *App) pdfExportView(c *ui.Context) {
 	if job.buildErr != nil {
 		err := job.buildErr
 		a.discardPDF(job)
-		a.notify("导出 PDF 失败。%v", err)
+		a.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	// Vector drawing stays on the UI thread for font/layout reads; zlib
@@ -184,7 +184,7 @@ func (a *App) pdfExportView(c *ui.Context) {
 		}
 		if err != nil {
 			a.discardPDF(job)
-			a.notify("导出 PDF 失败。%v", err)
+			a.notify("导出 PDF 失败；%v", err)
 			return
 		}
 		job.page++
@@ -225,7 +225,7 @@ func (a *App) finishPDF(job *pdfExport) {
 	}
 	if err != nil {
 		a.discardPDF(job)
-		a.notify("导出 PDF 失败。%v", err)
+		a.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	if job.printing {
@@ -237,9 +237,9 @@ func (a *App) finishPDF(job *pdfExport) {
 		}
 		if err != nil {
 			_ = os.Remove(job.file.Name())
-			a.notify("准备打印失败。%v", err)
+			a.notify("准备打印失败；%v", err)
 		} else {
-			a.notify("已在系统预览中打开，可从那里打印。")
+			a.notify("已在系统预览中打开，可从那里打印")
 		}
 		return
 	}
@@ -263,7 +263,7 @@ func (a *App) finishPDF(job *pdfExport) {
 	}
 	a.discardPDF(job)
 	if err != nil {
-		a.notify("导出 PDF 失败。%v", err)
+		a.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	a.notify("已导出 %s（%d 页）", rel, len(job.tops))

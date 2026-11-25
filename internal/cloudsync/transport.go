@@ -65,6 +65,14 @@ func remoteClient(followRedirects bool, timeout time.Duration) *http.Client {
 	return client
 }
 
+// HTTPError retains the status so the app can offer a relevant recovery action.
+type HTTPError struct {
+	Status  int
+	Message string
+}
+
+func (e *HTTPError) Error() string { return e.Message }
+
 func remoteError(action string, resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 	detail := strings.TrimSpace(string(body))
@@ -77,11 +85,11 @@ func remoteError(action string, resp *http.Response) error {
 	}
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("%s失败：账号、密码或密钥错误，或没有权限；HTTP %d %s", action, resp.StatusCode, short(detail))
+		return &HTTPError{resp.StatusCode, fmt.Sprintf("%s失败：账号、密码或密钥错误，或没有权限；HTTP %d %s", action, resp.StatusCode, short(detail))}
 	case http.StatusInsufficientStorage:
-		return fmt.Errorf("%s失败：远端空间不足；HTTP 507", action)
+		return &HTTPError{resp.StatusCode, fmt.Sprintf("%s失败：远端空间不足；HTTP 507", action)}
 	}
-	return fmt.Errorf("%s失败：HTTP %d %s", action, resp.StatusCode, short(detail))
+	return &HTTPError{resp.StatusCode, fmt.Sprintf("%s失败：HTTP %d %s", action, resp.StatusCode, short(detail))}
 }
 
 func short(detail string) string {

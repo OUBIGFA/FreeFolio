@@ -21,6 +21,62 @@ func pngPart() ContentPart {
 
 func noWait(context.Context, int) error { return nil }
 
+func TestGeminiImageNativeOptionsAndReferences(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/v1beta/models/gemini-3-pro-image:generateContent" || r.Header.Get("x-goog-api-key") != "test-key" {
+			t.Errorf("wrong Gemini request: %s", r.URL.Path)
+		}
+		body := decodeBody(t, r)
+		config := object(body["generationConfig"])
+		img := object(config["imageConfig"])
+		if img["imageSize"] != "2K" || img["aspectRatio"] != "16:9" {
+			t.Errorf("native options lost: %+v", config)
+		}
+		if got := texts(config["responseModalities"]); strings.Join(got, ",") != "TEXT,IMAGE" {
+			t.Errorf("image output was not requested: %v", got)
+		}
+		parts := array(object(array(body["contents"])[0])["parts"])
+		if len(parts) != 3 || object(object(parts[1])["inlineData"])["data"] != base64.StdEncoding.EncodeToString(pngBytes) || object(object(parts[2])["inlineData"])["mimeType"] != "image/png" {
+			t.Errorf("reference images lost: %+v", parts)
+		}
+		fmt.Fprintf(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"thought":true,"inlineData":{"data":%q,"mimeType":"image/png"}},{"text":"result"},{"inlineData":{"data":%q,"mimeType":"image/png"}}]}}]}`, base64.StdEncoding.EncodeToString(pngBytes), base64.StdEncoding.EncodeToString(pngBytes))
+	}))
+	defer srv.Close()
+	s := Settings{Protocol: Gemini, BaseURL: srv.URL + "/v1beta", Model: "models/gemini-3-pro-image", APIKey: "test-key"}
+	out, err := s.GenerateMedia(context.Background(), MediaRequest{Kind: MediaImage, Prompt: "combine", Images: []ContentPart{pngPart(), pngPart()}, Size: "2K", AspectRatio: "16:9", Count: 2}, nil)
+	if err != nil || calls != 2 || len(out.Assets) != 2 || out.Text != "result\nresult" {
+		t.Fatalf("native generation: %+v %v, calls %d", out, err, calls)
+	}
+}
+
+func TestGeminiImageReportsRefusal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"candidates":[{"finishReason":"IMAGE_SAFETY","content":{"parts":[{"text":"Cannot generate this image."}]}}]}`)
+	}))
+	defer srv.Close()
+	s := Settings{Protocol: Gemini, BaseURL: srv.URL + "/v1beta", Model: "gemini-3-pro-image"}
+	_, err := s.GenerateMedia(context.Background(), MediaRequest{Kind: MediaImage, Prompt: "test"}, nil)
+	if !errors.Is(err, ErrIncomplete) || !strings.Contains(err.Error(), "IMAGE_SAFETY") {
+		t.Fatalf("provider refusal was hidden: %v", err)
+	}
+}
+
+func TestGeminiImageRejectsUnsupportedControls(t *testing.T) {
+	s := Settings{Protocol: Gemini, BaseURL: "http://localhost:1/v1beta", Model: "gemini-3-pro-image"}
+	mask := pngPart()
+	for _, req := range []MediaRequest{
+		{Kind: MediaImage, Prompt: "test", Size: "1024x1024"},
+		{Kind: MediaImage, Prompt: "test", Mask: &mask},
+	} {
+		_, err := s.GenerateMedia(context.Background(), req, nil)
+		if err == nil || !strings.Contains(err.Error(), "Gemini") {
+			t.Fatalf("unsupported control was silently ignored: %v", err)
+		}
+	}
+}
+
 func decodeBody(t *testing.T, r *http.Request) map[string]any {
 	t.Helper()
 	var body map[string]any

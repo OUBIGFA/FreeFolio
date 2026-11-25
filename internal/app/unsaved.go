@@ -116,16 +116,16 @@ func (a *App) unsavedPromptView(c *ui.Context) {
 	}
 	docs := a.unsaved.docs
 	proceed := a.unsaved.proceed
-	title := fmt.Sprintf(i18n.T("保存对「%s」的修改吗？"), docs[0].title())
+	title := fmt.Sprintf(i18n.T("保存对「%s」的修改吗"), docs[0].title())
 	if len(docs) > 1 {
-		title = fmt.Sprintf(i18n.T("保存对「%s」等 %d 篇文档的修改吗？"), docs[0].title(), len(docs))
+		title = fmt.Sprintf(i18n.T("保存对「%s」等 %d 篇文档的修改吗"), docs[0].title(), len(docs))
 	}
 	t := c.Theme()
 	ui.Modal(c.Key("unsaved-prompt"), &a.unsaved.open, func() {
 		ui.Column(c.Key("unsaved-body")).Width(390).Gap(14).Children(func() {
 			ui.Column(c).Gap(6).Children(func() {
 				ui.Text(c, title).FontSize(16).FontWeight(600)
-				ui.Text(c, i18n.T("已关闭自动保存，如果不保存，未保存的修改将会丢失。")).FontSize(13).LineHeight(1.5).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("已关闭自动保存，如果不保存，未保存的修改将会丢失")).FontSize(13).LineHeight(1.5).TextColor(t.TextMuted)
 			})
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				if ui.Button(c.Key("discard"), i18n.T("不保存")).Clicked() {

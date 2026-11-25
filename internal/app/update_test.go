@@ -88,10 +88,10 @@ func TestUpdateBackgroundDownloadsAndRestarts(t *testing.T) {
 		t.Fatalf("checks %d, installs %d: a background check downloads the update", f.checks, f.release.installs)
 	}
 	tt.Advance(time.Second)
-	if !tt.HasText("更新已准备就绪！") || !tt.HasText("点击重新启动") {
+	if !tt.HasText("更新已准备就绪") || !tt.HasText("点击重新启动") {
 		t.Fatalf("the ready card shows above the spaces: %q", tt.Texts())
 	}
-	tt.Click("更新已准备就绪！")
+	tt.Click("更新已准备就绪")
 	tt.Frame()
 	if *relaunched != 1 {
 		t.Fatal("clicking the card restarts")
@@ -165,7 +165,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	f.err, f.release = nil, &fakeRelease{version: "0.2.0"}
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("FreeFolio 0.2.0 可以更新。") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
+	if !tt.HasText("FreeFolio 0.2.0 可以更新") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
 		t.Fatalf("found: %q", tt.Texts())
 	}
 	tt.Click("返回")
@@ -197,7 +197,7 @@ func TestUpdateCheckKeepsSettingsNavigationAvailable(t *testing.T) {
 			withUpdates(a, &test.service)
 			a.openSettings(tabUpdates)
 			tt.Frame()
-			if err := tt.Click("检查更新…"); err != nil {
+			if err := tt.Click("检查更新"); err != nil {
 				t.Fatal(err)
 			}
 			tt.Frame()
@@ -354,7 +354,7 @@ func TestUpdateNoInstallerDoesNotReportUpToDate(t *testing.T) {
 	tt.Frame()
 	a.checkForUpdates()
 	tt.Frame()
-	if !tt.HasText("暂未发布适用于此平台的安装包。") || tt.HasText("FreeFolio 已是最新版本") {
+	if !tt.HasText("暂未发布适用于此平台的安装包") || tt.HasText("FreeFolio 已是最新版本") {
 		t.Fatalf("empty release feed must stay distinct: %q", tt.Texts())
 	}
 }
@@ -441,7 +441,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	tt.SetTitleBar(ui.TitleBar{Height: 46, Left: 78})
 	tt.Frame()
 	tt.Advance(time.Second)
-	if !tt.HasText("FreeFolio 已更新！") || !tt.HasText("新功能") {
+	if !tt.HasText("FreeFolio 已更新") || !tt.HasText("新功能") {
 		t.Fatalf("the updated card: %q", tt.Texts())
 	}
 	if p, _ := store.Load(); p.PendingUpdate != "" {
@@ -454,7 +454,7 @@ func TestUpdatedCardAfterRestart(t *testing.T) {
 	}
 	tt.Click("关闭")
 	tt.Frame()
-	if tt.HasText("FreeFolio 已更新！") {
+	if tt.HasText("FreeFolio 已更新") {
 		t.Fatal("✕ puts the card away")
 	}
 
@@ -476,14 +476,14 @@ func TestUpdateReadyCardDismissDoesNotAct(t *testing.T) {
 	relaunch, _ := withUpdates(a, &fakeUpdates{release: &fakeRelease{version: "0.3.0"}})
 	a.updates.ready = "0.2.0"
 	tt.Frame()
-	if !tt.HasText("更新已准备就绪！") || !tt.HasText("点击重新启动") {
+	if !tt.HasText("更新已准备就绪") || !tt.HasText("点击重新启动") {
 		t.Fatal("expected ready banner to render")
 	}
 	if err := tt.Click("关闭"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if *relaunch != 0 || !a.updates.dismissed || tt.HasText("更新已准备就绪！") {
+	if *relaunch != 0 || !a.updates.dismissed || tt.HasText("更新已准备就绪") {
 		t.Fatalf("expected dismiss without relaunch: relaunch=%d dismissed=%v", *relaunch, a.updates.dismissed)
 	}
 

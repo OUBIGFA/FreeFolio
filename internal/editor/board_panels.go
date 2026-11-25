@@ -101,7 +101,7 @@ func (b *Board) mermaidPanel(c *ui.Context, o BoardOptions) {
 	if b.mermaidInput == "" {
 		b.mermaidInput = "flowchart LR\n  A[Client] --> B{Gateway}\n  B --> C[(Database)]"
 	}
-	ui.Text(c, i18n.T("将流程图或时序图转成可编辑图形。")).FontSize(13)
+	ui.Text(c, i18n.T("将流程图或时序图转成可编辑图形")).FontSize(13)
 	ui.TextArea(c.Key("board-mermaid-input"), &b.mermaidInput).Height(230).WidthPercent(100).Font("monospace").FontSize(13)
 	if ui.Button(c, i18n.T("插入图形")).Clicked() {
 		s, err := MermaidBoard(b.mermaidInput, whiteboard.Point{})

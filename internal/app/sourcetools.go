@@ -41,7 +41,7 @@ func formatTools(rel string) []sourceTool {
 			if err := check(text); err != nil {
 				return "", err
 			}
-			return fmt.Sprintf(i18n.T("%s 语法正确。"), f.Name), nil
+			return fmt.Sprintf(i18n.T("%s 语法正确"), f.Name), nil
 		}
 	}
 	switch f.Language {
@@ -52,7 +52,7 @@ func formatTools(rel string) []sourceTool {
 				if err != nil {
 					return "", err
 				}
-				return fmt.Sprintf(i18n.T("JSON Lines 语法正确，共 %d 条记录。"), n), nil
+				return fmt.Sprintf(i18n.T("JSON Lines 语法正确，共 %d 条记录"), n), nil
 			}}}
 		}
 		return []sourceTool{
@@ -73,12 +73,12 @@ func formatTools(rel string) []sourceTool {
 				return "", err
 			}
 			if len(rows) == 0 {
-				return i18n.T("文件中没有数据行。"), nil
+				return i18n.T("文件中没有数据行"), nil
 			}
 			if r := texttools.RaggedRecord(rows); r != nil {
-				return "", fmt.Errorf(i18n.T("第 %d 行有 %d 列，第一行有 %d 列。"), r.Line, len(r.Fields), len(rows[0].Fields))
+				return "", fmt.Errorf(i18n.T("第 %d 行有 %d 列，第一行有 %d 列"), r.Line, len(r.Fields), len(rows[0].Fields))
 			}
-			return fmt.Sprintf(i18n.T("共 %d 行，每行 %d 列。"), len(rows), len(rows[0].Fields)), nil
+			return fmt.Sprintf(i18n.T("共 %d 行，每行 %d 列"), len(rows), len(rows[0].Fields)), nil
 		}}}
 	}
 	return nil
@@ -96,7 +96,7 @@ var lineTools = []sourceTool{
 		if s != "" && !strings.HasSuffix(s, "\n") {
 			lines++
 		}
-		return fmt.Sprintf(i18n.T("共 %d 行，%d 个字符。"), lines, utf8.RuneCountInString(s)), nil
+		return fmt.Sprintf(i18n.T("共 %d 行，%d 个字符"), lines, utf8.RuneCountInString(s)), nil
 	}},
 }
 
@@ -125,7 +125,7 @@ func (a *App) runSourceTool(d *document, tool sourceTool) {
 	if tool.check != nil {
 		msg, err := tool.check(text)
 		if err != nil {
-			a.notify("发现问题。%s", toolError(err))
+			a.notify("发现问题；%s", toolError(err))
 			return
 		}
 		a.notify("%s", msg)
@@ -133,11 +133,11 @@ func (a *App) runSourceTool(d *document, tool sourceTool) {
 	}
 	out, err := tool.change(text)
 	if err != nil {
-		a.notify("无法完成此操作。%s", toolError(err))
+		a.notify("无法完成此操作；%s", toolError(err))
 		return
 	}
 	if out == text {
-		a.notify("没有需要修改的内容。")
+		a.notify("没有需要修改的内容")
 		return
 	}
 	d.ed.Engine.ReplaceDocument(sourceModel(d.rel, out))
@@ -153,10 +153,10 @@ func (a *App) saveTableCopy(d *document) {
 	text := sourceText(d.ed.Committed())
 	records, err := texttools.ParseDelimited(text, texttools.Separator(d.rel, text))
 	if err == nil && len(records) == 0 {
-		err = errors.New(i18n.T("文件中没有数据行。"))
+		err = errors.New(i18n.T("文件中没有数据行"))
 	}
 	if err != nil {
-		a.notify("存为 Markdown 表格失败。%s", toolError(err))
+		a.notify("存为 Markdown 表格失败；%s", toolError(err))
 		return
 	}
 	rows := make([][]string, len(records))
@@ -167,12 +167,12 @@ func (a *App) saveTableCopy(d *document) {
 	doc.Blocks = []*model.Block{model.DelimitedTable(rows)}
 	root, name, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("存为 Markdown 表格失败。%s", toolError(err))
+		a.notify("存为 Markdown 表格失败；%s", toolError(err))
 		return
 	}
 	rel, err := vault.CreateFile(root, path.Dir(name), d.title(), ".md", editor.ExportMarkdown(doc))
 	if err != nil {
-		a.notify("存为 Markdown 表格失败。%s", toolError(err))
+		a.notify("存为 Markdown 表格失败；%s", toolError(err))
 		return
 	}
 	if d.space.IsExternal() {

@@ -118,7 +118,7 @@ func (a *App) noteFilePlace(d *document) {
 		p.places[key] = place
 	}
 	if err := p.save(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		a.notify("无法记住文件的浏览位置。%v", err)
+		a.notify("无法记住文件的浏览位置；%v", err)
 	}
 }
 

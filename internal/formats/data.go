@@ -413,7 +413,7 @@ func convertSQLite(data []byte) (string, error) {
 		return "", err
 	}
 	var w mdWriter
-	w.raw("> " + i18n.T("只读预览：每张表最多显示 2000 行。"))
+	w.raw("> " + i18n.T("只读预览：每张表最多显示 2000 行"))
 	for _, t := range tables {
 		if w.full() {
 			break
@@ -489,7 +489,7 @@ func writeArchive(w *mdWriter, entries []archiveEntry) {
 		}
 		rows = append(rows, []string{e.name, humanSize(int(min(e.size, math.MaxInt32))), mod})
 	}
-	w.raw("> " + fmt.Sprintf(i18n.T("压缩包内有 %d 个文件、%d 个文件夹，解压后共 %s。"), files, dirs, humanSize(int(min(total, math.MaxInt32)))))
+	w.raw("> " + fmt.Sprintf(i18n.T("压缩包内有 %d 个文件、%d 个文件夹，解压后共 %s"), files, dirs, humanSize(int(min(total, math.MaxInt32)))))
 	if files > 0 {
 		w.table(rows)
 	}

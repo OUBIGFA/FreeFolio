@@ -87,7 +87,7 @@ func (d *document) shownPath() string {
 func (a *App) openVersions() {
 	d := a.doc
 	if d == nil || d.loadErr != nil || d.isPDF() {
-		a.notify("这篇文档还没有版本历史。")
+		a.notify("这篇文档还没有版本历史")
 		return
 	}
 	if a.autosaveEnabled() {
@@ -206,7 +206,7 @@ func (a *App) restoreVersion() {
 	a.doc.ed.Engine.ReplaceDocument(v.doc)
 	a.doc.ed.RequestFocus = true
 	v.open = false
-	a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销。", versionTime(at, time.Now()))
+	a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
 }
 
 func (a *App) createMilestone() {
@@ -319,7 +319,7 @@ func (a *App) versionsView(c *ui.Context) {
 					v.open = false
 				}
 				ui.Text(c, i18n.T("版本历史 · ")+v.for_.title()).FontSize(16).FontWeight(600).Grow(1).SingleLine().MinWidth(0)
-				if ui.Button(c.Key("version-milestone-new"), i18n.T("保存里程碑…")).Clicked() {
+				if ui.Button(c.Key("version-milestone-new"), i18n.T("保存里程碑")).Clicked() {
 					v.creating = !v.creating
 					v.createLabel = ""
 					v.createFocused = false
@@ -359,12 +359,12 @@ func (a *App) versionsView(c *ui.Context) {
 				ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
 					switch {
 					case v.loading:
-						ui.Text(c, i18n.T("正在读取历史版本…"))
+						ui.Text(c, i18n.T("正在读取历史版本"))
 					case v.err != nil:
-						ui.Text(c, i18n.T("读取版本历史失败。")+v.err.Error()).TextColor(t.Danger)
+						ui.Text(c, i18n.T("读取版本历史失败")+" "+v.err.Error()).TextColor(t.Danger)
 					default:
 						ui.Text(c, i18n.T("还没有历史版本")).FontSize(15)
-						ui.Text(c, i18n.T("编辑并保存后，FreeFolio 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .freefolio/history 里。")).
+						ui.Text(c, i18n.T("编辑并保存后，FreeFolio 会自动保留版本（每 10 分钟至多一个，最多 100 个），保存在空间文件夹的 .freefolio/history 里")).
 							FontSize(12).TextColor(t.TextMuted).MaxWidth(420).TextAlign(ui.Center)
 					}
 				})
@@ -406,7 +406,7 @@ func (a *App) versionsView(c *ui.Context) {
 								ui.Row(c.Key("version-rename-row:"+ver.File)).Padding(4, 6).Children(func() {
 									in := ui.TextInput(c.Key("version-rename:"+ver.File), &v.renameLabel).
 										Placeholder(i18n.T("里程碑名称（如：定稿 v1）")).
-										Label(i18n.T("命名里程碑…")).
+										Label(i18n.T("命名里程碑")).
 										Background(field(t)).Grow(1).MinWidth(0).Padding(4, 8)
 									if !v.renameFocused {
 										in.Focus()
@@ -430,7 +430,7 @@ func (a *App) versionsView(c *ui.Context) {
 								rowWrap.Background(hoverFill(t))
 							}
 							rowWrap.ContextMenu(func(m *ui.Menu) {
-								if m.Item(i18n.T("命名里程碑…")).Chosen() {
+								if m.Item(i18n.T("命名里程碑")).Chosen() {
 									v.renamingFile, v.renameLabel, v.renameFocused = ver.File, ver.Label, false
 								}
 							})
@@ -457,9 +457,9 @@ func (a *App) versionsView(c *ui.Context) {
 									a.selectVersion(i)
 								}
 								if on || rowWrap.Hovered() {
-									editBtn := ui.ButtonBase(c.Key("version-rename-btn:" + ver.File)).Padding(4).Radius(6).Cursor(ui.CursorPointer).Tooltip(i18n.T("命名里程碑…"))
+									editBtn := ui.ButtonBase(c.Key("version-rename-btn:" + ver.File)).Padding(4).Radius(6).Cursor(ui.CursorPointer).Tooltip(i18n.T("命名里程碑"))
 									if on {
-										editBtn.Label(i18n.T("命名里程碑…"))
+										editBtn.Label(i18n.T("命名里程碑"))
 									}
 									if editBtn.Hovered() {
 										editBtn.Background(hoverFill(t))
@@ -483,7 +483,7 @@ func (a *App) versionsView(c *ui.Context) {
 				ui.Box(c).Width(1).Background(t.Text.Alpha(0.08))
 				ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
 					if v.loading {
-						ui.Text(c, i18n.T("正在读取历史版本…"))
+						ui.Text(c, i18n.T("正在读取历史版本"))
 						return
 					}
 					ui.Row(c.Key("history-display")).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -514,12 +514,12 @@ func (a *App) versionsView(c *ui.Context) {
 					}
 					switch {
 					case v.err != nil:
-						ui.Text(c, i18n.T("无法读取这个版本。")+v.err.Error()).TextColor(t.Danger)
+						ui.Text(c, i18n.T("无法读取这个版本")+" "+v.err.Error()).TextColor(t.Danger)
 						return
 					case v.doc == nil:
 						return
 					case v.added == 0 && v.gone == 0:
-						ui.Text(c, i18n.T("与当前内容相同。")).FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, i18n.T("与当前内容相同")).FontSize(12).TextColor(t.TextMuted)
 					default:
 						ui.Text(c, fmt.Sprintf(i18n.T("与当前内容相比：恢复后增加 %d 行、删除 %d 行"), v.added, v.gone)).FontSize(12).TextColor(t.TextMuted)
 					}

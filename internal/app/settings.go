@@ -60,7 +60,7 @@ func (a *App) moreMenu(c *ui.Context) {
 			a.addSplitPane()
 		}
 		m.Separator()
-		if a.menuKey(m.Item(i18n.T("版本历史…")), "history").Disabled(noText).Chosen() {
+		if a.menuKey(m.Item(i18n.T("版本历史")), "history").Disabled(noText).Chosen() {
 			a.openVersions()
 		}
 		m.Submenu(i18n.T("导出"), func(sub *ui.Menu) {
@@ -74,7 +74,7 @@ func (a *App) moreMenu(c *ui.Context) {
 				a.exportHTML()
 			}
 		}).Disabled(noText)
-		if m.Item(i18n.T("打印…")).Disabled(noText).Chosen() {
+		if m.Item(i18n.T("打印")).Disabled(noText).Chosen() {
 			a.printDoc()
 		}
 		if m.Item(i18n.T("在文件管理器中显示文档")).Disabled(noDoc).Chosen() {
@@ -84,16 +84,16 @@ func (a *App) moreMenu(c *ui.Context) {
 		if m.Item(i18n.T("关闭文档")).Shortcut(ui.Cmd, ui.KeyW).Disabled(a.doc == nil).Chosen() {
 			a.closeShownDoc()
 		}
-		if m.Item(i18n.T("打开文件…")).Chosen() {
+		if m.Item(i18n.T("打开文件")).Chosen() {
 			a.chooseExternalFiles()
 		}
-		if m.Item(i18n.T("另存为…")).Disabled(noText).Chosen() {
+		if m.Item(i18n.T("另存为")).Disabled(noText).Chosen() {
 			a.chooseSaveAs()
 		}
 		if a.menuKey(m.Item(i18n.T("资料库")), "library").Chosen() {
 			a.toggleLibrary()
 		}
-		if a.menuKey(m.Item(i18n.T("设置…")), "settings").Chosen() {
+		if a.menuKey(m.Item(i18n.T("设置")), "settings").Chosen() {
 			a.openSettings(tabGeneral)
 		}
 	})
@@ -268,19 +268,19 @@ func folderRow(c *ui.Context, key, label, dir string) {
 func (a *App) settingsGeneral(c *ui.Context) {
 	defer a.settingsQuickNote(c)
 	t := c.Theme()
-	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹。"))
+	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹"))
 	settingsSection(c, i18n.T("位置"))
 	settingsGroup(c, "places", func() {
 		folderRow(c, "documents", i18n.T("新空间的默认位置"), a.cfg.DocumentsDir)
 		settingsSeparator(c)
 		folderRow(c, "config", i18n.T("配置文件夹（spaces.json、插件）"), a.cfg.ConfigDir)
 	})
-	ui.Text(c, i18n.T("颜色与图标按空间设置：在侧边栏的空间名称上右键，选择要修改的属性。")).
+	ui.Text(c, i18n.T("颜色与图标按空间设置：在侧边栏的空间名称上右键，选择要修改的属性")).
 		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
 	settingsSection(c, i18n.T("窗口"))
 	settingsGroup(c, "closing", func() {
 		tray := !a.prefs.KeepRunningOff
-		toggleRow(c, "close-to-tray", i18n.T("关闭窗口时最小化到托盘"), i18n.T("FreeFolio 继续在通知区域运行；点击托盘图标打开窗口，右键选择退出。"), &tray, nil)
+		toggleRow(c, "close-to-tray", i18n.T("关闭窗口时最小化到托盘"), i18n.T("FreeFolio 继续在通知区域运行；点击托盘图标打开窗口，右键选择退出"), &tray, nil)
 		if tray == a.prefs.KeepRunningOff {
 			a.prefs.KeepRunningOff = !tray
 			a.savePrefs()
@@ -291,7 +291,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 		if a.prefs.StartAtHome {
 			at = 1
 		}
-		settingRow(c, "start-at", i18n.T("打开 FreeFolio 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容。"), func() {
+		settingRow(c, "start-at", i18n.T("打开 FreeFolio 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容"), func() {
 			segmentedChoice(c.Key("choice"), &at, i18n.T("继续上次阅读"), i18n.T("空间主页")).Label(i18n.T("打开 FreeFolio 时"))
 			if home := at == 1; a.prefs.StartAtHome != home {
 				a.prefs.StartAtHome = home
@@ -302,35 +302,35 @@ func (a *App) settingsGeneral(c *ui.Context) {
 }
 
 func (a *App) settingsWriting(c *ui.Context) {
-	settingsHeading(c, i18n.T("写作"), i18n.T("编辑时的辅助行为，对所有文档生效。"))
+	settingsHeading(c, i18n.T("写作"), i18n.T("编辑时的辅助行为，对所有文档生效"))
 	settingsSection(c, i18n.T("编辑"))
 	settingsGroup(c, "writing", func() {
-		toggleRow(c, "typewriter", i18n.T("打字机滚动"), i18n.T("正在写的一行始终停在页面中间。"), &a.prefs.Typewriter, a.savePrefs)
+		toggleRow(c, "typewriter", i18n.T("打字机滚动"), i18n.T("正在写的一行始终停在页面中间"), &a.prefs.Typewriter, a.savePrefs)
 		settingsSeparator(c)
 		autosave := !a.prefs.NoAutosave
-		toggleRow(c, "autosave", i18n.T("自动保存"), fmt.Sprintf(i18n.T("编辑后自动写入文件；关闭后需按 %s 手动保存。"), a.keyLabel("save")), &autosave, nil)
+		toggleRow(c, "autosave", i18n.T("自动保存"), fmt.Sprintf(i18n.T("编辑后自动写入文件；关闭后需按 %s 手动保存"), a.keyLabel("save")), &autosave, nil)
 		if autosave == a.prefs.NoAutosave {
 			a.toggleAutosave()
 		}
 		settingsSeparator(c)
 		pair := !a.prefs.NoAutoPair
-		toggleRow(c, "auto-pair", i18n.T("括号与引号自动配对"), i18n.T("支持中文符号、包裹选区和成对删除。"), &pair, nil)
+		toggleRow(c, "auto-pair", i18n.T("括号与引号自动配对"), i18n.T("支持中文符号、包裹选区和成对删除"), &pair, nil)
 		if pair == a.prefs.NoAutoPair {
 			a.prefs.NoAutoPair = !pair
 			a.savePrefs()
 		}
 		settingsSeparator(c)
-		toggleRow(c, "auto-space", i18n.T("中英文之间自动加空格"), i18n.T("输入时在汉字与英文字母、数字之间加一个空格；代码与公式不受影响。"), &a.prefs.AutoSpace, a.savePrefs)
+		toggleRow(c, "auto-space", i18n.T("中英文之间自动加空格"), i18n.T("输入时在汉字与英文字母、数字之间加一个空格；代码与公式不受影响"), &a.prefs.AutoSpace, a.savePrefs)
 		settingsSeparator(c)
 		codeWrap := !a.prefs.CodeNoWrap
-		toggleRow(c, "code-wrap", i18n.T("代码块自动换行"), i18n.T("关闭后长代码行横向滚动，也可在单个代码块右上角单独切换。"), &codeWrap, nil)
+		toggleRow(c, "code-wrap", i18n.T("代码块自动换行"), i18n.T("关闭后长代码行横向滚动，也可在单个代码块右上角单独切换"), &codeWrap, nil)
 		if codeWrap == a.prefs.CodeNoWrap {
 			a.prefs.CodeNoWrap = !codeWrap
 			a.savePrefs()
 		}
 		settingsSeparator(c)
 		wideTables := !a.prefs.NoWideTables
-		toggleRow(c, "wide-tables", i18n.T("宽表格延展到页边"), i18n.T("内容较宽的表格自动加宽，超出正文栏；关闭后表格始终保持正文宽度。"), &wideTables, nil)
+		toggleRow(c, "wide-tables", i18n.T("宽表格延展到页边"), i18n.T("内容较宽的表格自动加宽，超出正文栏；关闭后表格始终保持正文宽度"), &wideTables, nil)
 		if wideTables == a.prefs.NoWideTables {
 			a.prefs.NoWideTables = !wideTables
 			a.savePrefs()
@@ -339,12 +339,12 @@ func (a *App) settingsWriting(c *ui.Context) {
 	settingsSection(c, i18n.T("阅读"))
 	settingsGroup(c, "reading", func() {
 		dim := !a.prefs.NoDim
-		toggleRow(c, "dim", i18n.T("专注模式淡化其他段落"), i18n.T("专注模式（")+a.keyLabel("focus")+i18n.T("）下只突出光标所在的段落。"), &dim, nil)
+		toggleRow(c, "dim", i18n.T("专注模式淡化其他段落"), i18n.T("专注模式（")+a.keyLabel("focus")+i18n.T("）下只突出光标所在的段落"), &dim, nil)
 		if dim == a.prefs.NoDim {
 			a.toggleDim()
 		}
 		settingsSeparator(c)
-		toggleRow(c, "draw-annotations", i18n.T("打开文档时画出手绘标注"), i18n.T("页面上的标注依次画出来；减弱动态效果时直接显示。"), &a.prefs.DrawAnnotations, a.savePrefs)
+		toggleRow(c, "draw-annotations", i18n.T("打开文档时画出手绘标注"), i18n.T("页面上的标注依次画出来；减弱动态效果时直接显示"), &a.prefs.DrawAnnotations, a.savePrefs)
 	})
 }
 
@@ -352,11 +352,11 @@ func (a *App) settingsWriting(c *ui.Context) {
 // in tabs outside the spaces.
 func (a *App) settingsFiles(c *ui.Context) {
 	f := &a.prefs.Files
-	settingsHeading(c, i18n.T("文件浏览"), i18n.T("单独打开的文件显示在文件浏览的标签页中，用完即关；只有「返回空间」会回到空间。"))
+	settingsHeading(c, i18n.T("文件浏览"), i18n.T("单独打开的文件显示在文件浏览的标签页中，用完即关；只有「返回空间」会回到空间"))
 	settingsSection(c, i18n.T("标签页"))
 	settingsGroup(c, "files-tabs", func() {
 		show := !f.HideTabClose
-		toggleRow(c, "tab-close", i18n.T("显示标签页关闭按钮"), i18n.T("隐藏后仍可用双击、鼠标中键或 ")+combo(ui.Cmd, ui.KeyW).Label()+i18n.T(" 关闭。"), &show, nil)
+		toggleRow(c, "tab-close", i18n.T("显示标签页关闭按钮"), i18n.T("隐藏后仍可用双击、鼠标中键或 ")+combo(ui.Cmd, ui.KeyW).Label()+i18n.T(" 关闭"), &show, nil)
 		if show == f.HideTabClose {
 			f.HideTabClose = !show
 			a.savePrefs()
@@ -383,17 +383,17 @@ func (a *App) settingsFiles(c *ui.Context) {
 	})
 	settingsSection(c, i18n.T("打开与关闭"))
 	settingsGroup(c, "files-window", func() {
-		toggleRow(c, "files-read-only", i18n.T("以只读方式打开文件"), i18n.T("防止查看时误改；可在页面右上角的锁按钮恢复编辑。"), &f.ReadOnly, a.savePrefs)
+		toggleRow(c, "files-read-only", i18n.T("以只读方式打开文件"), i18n.T("防止查看时误改；可在页面右上角的锁按钮恢复编辑"), &f.ReadOnly, a.savePrefs)
 		settingsSeparator(c)
 		remember := !f.NoRememberPlace
-		toggleRow(c, "files-remember-place", i18n.T("打开时回到上次浏览的位置"), i18n.T("再次打开同一个文件时，滚动到上次看到的地方；PDF 回到上次的页码。"), &remember, nil)
+		toggleRow(c, "files-remember-place", i18n.T("打开时回到上次浏览的位置"), i18n.T("再次打开同一个文件时，滚动到上次看到的地方；PDF 回到上次的页码"), &remember, nil)
 		if remember == f.NoRememberPlace {
 			f.NoRememberPlace = !remember
 			a.savePrefs()
 		}
 		settingsSeparator(c)
 		quit := !f.KeepOpen
-		toggleRow(c, "files-close-last", i18n.T("关闭最后一个标签页时关闭窗口"), i18n.T("关闭此项后保留空白的文件浏览页，可以继续打开文件。"), &quit, nil)
+		toggleRow(c, "files-close-last", i18n.T("关闭最后一个标签页时关闭窗口"), i18n.T("关闭此项后保留空白的文件浏览页，可以继续打开文件"), &quit, nil)
 		if quit == f.KeepOpen {
 			f.KeepOpen = !quit
 			a.savePrefs()
@@ -406,12 +406,12 @@ func (a *App) settingsFiles(c *ui.Context) {
 // the text column, the size and leading of body text, previewed in a
 // small window drawn as FreeFolio's own.
 func (a *App) settingsAppearance(c *ui.Context) {
-	settingsHeading(c, i18n.T("外观"), i18n.T("选择侧边栏的位置，调整所有文档共用的字体和版式。"))
+	settingsHeading(c, i18n.T("外观"), i18n.T("选择侧边栏的位置，调整所有文档共用的字体和版式"))
 	a.appearancePreview(c)
 	settingsSection(c, i18n.T("窗口"))
 	settingsGroup(c, "window", func() {
 		at := map[string]int{"": 0, "zh-Hans": 1, "en": 2}[a.prefs.Language]
-		settingRow(c, "language", i18n.T("界面语言"), i18n.T("菜单栏在重新启动后切换。"), func() {
+		settingRow(c, "language", i18n.T("界面语言"), i18n.T("菜单栏在重新启动后切换"), func() {
 			before := at
 			segmentedChoice(c.Key("choice"), &at, i18n.T("跟随系统"), "简体中文", "English").Label(i18n.T("界面语言"))
 			if at != before {
@@ -425,7 +425,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 		if a.prefs.SidebarLeft {
 			side = 0
 		}
-		settingRow(c, "sidebar-position", i18n.T("侧边栏位置"), i18n.T("空间、收藏和文档列表所在的一侧。"), func() {
+		settingRow(c, "sidebar-position", i18n.T("侧边栏位置"), i18n.T("空间、收藏和文档列表所在的一侧"), func() {
 			segmentedChoice(c.Key("choice"), &side, i18n.T("左侧"), i18n.T("右侧")).Label(i18n.T("侧边栏位置"))
 			if left := side == 0; a.prefs.SidebarLeft != left {
 				a.prefs.SidebarLeft = left
@@ -433,7 +433,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			}
 		})
 		settingsSeparator(c)
-		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), i18n.T("不使用空间的自定义主题色，统一显示为浅灰色。"), &a.prefs.GrayFolderIcons, a.savePrefs)
+		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), i18n.T("不使用空间的自定义主题色，统一显示为浅灰色"), &a.prefs.GrayFolderIcons, a.savePrefs)
 	})
 	settingsSection(c, i18n.T("文档"))
 	settingsGroup(c, "appearance", func() {
@@ -526,9 +526,9 @@ func (a *App) appearancePreview(c *ui.Context) {
 	title := i18n.T("留一点空白")
 	if a.sampleEditor == nil || a.sampleTitle != title {
 		a.sampleTitle = title
-		a.sampleEditor = editor.New("# " + title + "\n\n" + i18n.T("清晨打开窗，树影落在桌角。翻到新的一页，把今天想记住的事写下来。") +
+		a.sampleEditor = editor.New("# " + title + "\n\n" + i18n.T("清晨打开窗，树影落在桌角；翻到新的一页，把今天想记住的事写下来") +
 			"\n\n- " + i18n.T("读完一本书的最后一章") + "\n- " + i18n.T("整理散落在笔记里的灵感") +
-			"\n\n> " + i18n.T("不必急着写完，先把想说的话写下来。"))
+			"\n\n> " + i18n.T("不必急着写完，先把想说的话写下来"))
 		a.sampleEditor.SetReadOnly(true)
 	}
 	paper := documentTheme(a.paperDark)
@@ -659,29 +659,29 @@ func (a *App) settingsSpaces(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).AlignItems(ui.End).Gap(12).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			note := i18n.T("从 FreeFolio 移除空间只删除记录，不会删除文件夹。")
+			note := i18n.T("从 FreeFolio 移除空间只删除记录，不会删除文件夹")
 			if a.files != nil {
-				note = i18n.T("返回空间后才能新建、编辑或移除空间。")
+				note = i18n.T("返回空间后才能新建、编辑或移除空间")
 			}
 			settingsHeading(c, i18n.T("空间"), note)
 		})
-		if ui.Button(c.Key("settings-new-space"), i18n.T("新建空间…")).Disabled(a.files != nil).Clicked() {
+		if ui.Button(c.Key("settings-new-space"), i18n.T("新建空间")).Disabled(a.files != nil).Clicked() {
 			a.settingsOpen = false
 			a.newSpaceForm()
 		}
 	})
 	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(12).Children(func() {
 		ui.Row(c.Key("space-tools")).Gap(8).Children(func() {
-			if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记…")).Clicked() {
+			if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记")).Clicked() {
 				a.openImportGuide()
 			}
-			if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件…")).Clicked() {
+			if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件")).Clicked() {
 				a.scanUnusedAssets()
 			}
 		})
 		settingsGroup(c, "space-defaults", func() {
 			starter := !a.prefs.NoSpaceStarter
-			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换。"), &starter, nil)
+			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换"), &starter, nil)
 			if starter == a.prefs.NoSpaceStarter {
 				a.prefs.NoSpaceStarter = !starter
 				a.savePrefs()
@@ -724,13 +724,13 @@ func (a *App) settingsSpaces(c *ui.Context) {
 // settingsUpdates shows the current version, update status, release notes and
 // automatic download preference.
 func (a *App) settingsUpdates(c *ui.Context) {
-	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeFolio 新版本，自动更新可在后台下载并等待你确认重启。"))
+	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeFolio 新版本，自动更新可在后台下载并等待你确认重启"))
 	a.updateOverview(c)
 	a.updateReleaseNotes(c)
 	settingsSection(c, i18n.T("更新偏好"))
 	settingsGroup(c, "update-prefs", func() {
 		auto := !a.prefs.NoAutoUpdate
-		toggleRow(c, "auto-update", i18n.T("自动更新 FreeFolio"), i18n.T("在后台下载新版本，准备好后由你安装。关闭后只提示有新版本。"), &auto, nil)
+		toggleRow(c, "auto-update", i18n.T("自动更新 FreeFolio"), i18n.T("在后台下载新版本，准备好后由你安装；关闭后只提示有新版本"), &auto, nil)
 		if auto == a.prefs.NoAutoUpdate {
 			a.toggleAutoUpdate()
 		}
@@ -743,7 +743,7 @@ func (a *App) settingsAbout(c *ui.Context) {
 		ui.Image(c, brandLogo()).Size(48, 48).Shrink(0)
 		ui.Column(c).Gap(3).Children(func() {
 			ui.Text(c, "FreeFolio").FontSize(20).FontWeight(600)
-			ui.Text(c, i18n.T("版本 ")+Version+" · "+i18n.T("安静地写作，有序地整理。")).FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("版本 ")+Version+" · "+i18n.T("安静地写作，有序地整理")).FontSize(13).TextColor(t.TextMuted)
 		})
 	})
 	settingsGroup(c, "about-intro", func() {
@@ -752,12 +752,12 @@ func (a *App) settingsAbout(c *ui.Context) {
 				Label(i18n.T("GitHub 开源仓库")).Tooltip(i18n.T("在浏览器中打开 GitHub 开源仓库"))
 		})
 		settingsSeparator(c)
-		settingRow(c, "about-icons", i18n.T("图标"), i18n.T("Solar Icons，作者 480 Design，采用 CC BY 4.0 许可。"), func() {
+		settingRow(c, "about-icons", i18n.T("图标"), i18n.T("Solar Icons，作者 480 Design，采用 CC BY 4.0 许可"), func() {
 			ui.Link(c.Key("solar-icons"), i18n.T("打开"), "https://github.com/saoudi-h/solar-icons").FontSize(13).
 				Label(i18n.T("Solar Icons 项目")).Tooltip(i18n.T("在浏览器中打开 Solar Icons 项目"))
 		})
 		settingsSeparator(c)
-		settingRow(c, "about-tour", i18n.T("新手教程"), i18n.T("再看一遍空间、空间颜色、左右滑动、书签、置顶和收藏的介绍。"), func() {
+		settingRow(c, "about-tour", i18n.T("新手教程"), i18n.T("再看一遍空间、空间颜色、左右滑动、书签、置顶和收藏的介绍"), func() {
 			if ui.Button(c.Key("replay-tour"), i18n.T("重新观看")).Disabled(a.files != nil).Clicked() {
 				a.startTour()
 			}

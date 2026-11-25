@@ -30,7 +30,7 @@ import (
 
 // errFormatReadOnly guards converted files, which FreeFolio only reads.
 // Its text is translated where errors are shown (errText).
-var errFormatReadOnly = errors.New("此格式只读，FreeFolio 不会修改原文件。")
+var errFormatReadOnly = errors.New("此格式只读，FreeFolio 不会修改原文件")
 
 // sourceFile remembers how a source file stores its text, so that saving
 // writes it back the same way.
@@ -113,7 +113,7 @@ func sourceText(doc *model.Document) string {
 }
 
 // errSourceTooLarge refuses source files the editor would crawl through.
-var errSourceTooLarge = errors.New("文件太大，FreeFolio 最多编辑 4 MB 的文本文件。")
+var errSourceTooLarge = errors.New("文件太大，FreeFolio 最多编辑 4 MB 的文本文件")
 
 func openSourceDocument(sp *space.Space, rel, text string) *document {
 	d := &document{space: sp, rel: rel, historyOff: sp.IsExternal() && sp.Root == "", diskText: text}
@@ -204,13 +204,13 @@ func convertFile(sp *space.Space, rel string) (string, error) {
 func convertError(err error) error {
 	switch {
 	case errors.Is(err, formats.ErrEncrypted):
-		return errors.New(i18n.T("文件已加密。请先在创建它的程序中去掉密码。"))
+		return errors.New(i18n.T("文件已加密；请先在创建它的程序中去掉密码"))
 	case errors.Is(err, formats.ErrTooLarge):
-		return errors.New(i18n.T("文件太大，无法打开。"))
+		return errors.New(i18n.T("文件太大，无法打开"))
 	case errors.Is(err, formats.ErrUnsupported):
-		return errors.New(i18n.T("暂不支持此文件的格式版本。"))
+		return errors.New(i18n.T("暂不支持此文件的格式版本"))
 	}
-	return fmt.Errorf(i18n.T("无法读取此文件。%v"), err)
+	return fmt.Errorf(i18n.T("无法读取此文件；%v"), err)
 }
 
 // saveEditableCopy saves a converted document's Markdown beside its file
@@ -221,12 +221,12 @@ func (a *App) saveEditableCopy(d *document) {
 	}
 	root, name, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("存为 Markdown 副本失败。%v", err)
+		a.notify("存为 Markdown 副本失败；%v", err)
 		return
 	}
 	rel, err := vault.CreateFile(root, path.Dir(name), d.title(), ".md", editor.ExportMarkdown(d.ed.Committed()))
 	if err != nil {
-		a.notify("存为 Markdown 副本失败。%v", err)
+		a.notify("存为 Markdown 副本失败；%v", err)
 		return
 	}
 	if d.space.IsExternal() {
@@ -268,7 +268,7 @@ func (a *App) formatActions(cmd func(string, string, func())) {
 		cmd(i18n.T("存为可编辑的 Markdown 副本"), "", func() { a.saveEditableCopy(d) })
 		return
 	}
-	cmd(i18n.T("版本历史…"), a.keyLabel("history"), a.openVersions)
+	cmd(i18n.T("版本历史"), a.keyLabel("history"), a.openVersions)
 }
 
 // syncFormatPlugins hands the formats of the enabled wasm plugins to the

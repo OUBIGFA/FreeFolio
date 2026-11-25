@@ -67,7 +67,7 @@ func TestSidebarDoubleClickDoesNotRename(t *testing.T) {
 			if err := tt.RightClick(name); err != nil {
 				t.Fatal(err)
 			}
-			if err := tt.ChooseMenuItem("重命名…"); err != nil {
+			if err := tt.ChooseMenuItem("重命名"); err != nil {
 				t.Fatal(err)
 			}
 			if a.renaming == "" || !tt.Focused("名称") {
@@ -131,7 +131,7 @@ func TestSidebarPeekRenameAndModal(t *testing.T) {
 	}
 	tt.Move(450, 400)
 	tt.Advance(time.Second)
-	if err := tt.ChooseMenuItem("重命名…"); err != nil {
+	if err := tt.ChooseMenuItem("重命名"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Advance(time.Second)

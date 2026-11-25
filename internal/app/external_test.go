@@ -280,7 +280,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 						t.Errorf("crowded tabs did not align left after brand word count: word=%+v strip=%+v", word, strip)
 					}
 				}
-				open, ok := tt.Find("打开文件…")
+				open, ok := tt.Find("打开文件")
 				if !ok || open.X < strip.X+strip.W || open.X > strip.X+strip.W+12 {
 					t.Errorf("%d tabs: open button is not beside the strip's right edge: strip=%+v open=%+v", i+1, strip, open)
 				}
@@ -301,7 +301,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 				if last.X+last.W > strip.X+strip.W+1 || last.X+last.W <= strip.X {
 					t.Errorf("width=%d: active tab is not visible: tab=%+v strip=%+v", width, last, strip)
 				}
-				open, _ := tt.Find("打开文件…")
+				open, _ := tt.Find("打开文件")
 				actions, _ := tt.Find("Markdown 源码")
 				if strip.X < profile.bar.Left || open.X < strip.X+strip.W || open.X+open.W > actions.X-11 {
 					t.Errorf("width=%d: strip %+v overlaps controls: open=%+v actions=%+v", width, strip, open, actions)

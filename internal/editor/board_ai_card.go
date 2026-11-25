@@ -391,10 +391,10 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		ui.Column(c.Key("ai-inline-"+id)).Absolute().Left(x+r.X*z).Top(y+r.Y*z).Size(r.W, r.H).TransformOrigin(0, 0).Scale(z, z).Gap(6).Children(func() {
 			switch n.Role {
 			case whiteboard.AIPrompt:
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点…")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容")))
+				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容")))
 			case whiteboard.AINote:
 				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入引用的笔记名称…")).FontSize(12.5).Grow(1).MinWidth(0).Height(30).Disabled(disabled).Label(i18n.T("引用的笔记")))
+					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入引用的笔记名称")).FontSize(12.5).Grow(1).MinWidth(0).Height(30).Disabled(disabled).Label(i18n.T("引用的笔记")))
 					if n.Note != "" && o.OpenWiki != nil && boardButton(c, "inline-open-note-"+id, i18n.T("打开"), false).Height(30).Clicked() {
 						o.OpenWiki(n.Note, false)
 					}
@@ -418,7 +418,7 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 					ui.TextArea(c.Key("board-ai-inline-linked-"+id), &empty).Placeholder(note).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(true).Label(i18n.T("指令")).Description(note)
 					return
 				}
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入指令或提示词，或把文字节点连到左侧输入…")).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("指令")))
+				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入指令或提示词，或把文字节点连到左侧输入")).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("指令")))
 			}
 		})
 	}
@@ -484,13 +484,22 @@ func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whit
 		if v, ok := aiInlineSelect(c, key("ratio"), i18n.T("画幅比例"), p.AspectRatio, []string{"", "1:1", "16:9", "9:16", "4:3", "3:4"}, []string{i18n.T("比例"), "1:1", "16:9", "9:16", "4:3", "3:4"}, disabled); ok {
 			set(func(p *whiteboard.AIParams) { p.AspectRatio = v })
 		}
-		if v, ok := aiInlineSelect(c, key("size"), i18n.T("尺寸"), p.Size, []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("尺寸"), "1024²", "1536×1024", "1024×1536"}, disabled); ok {
-			set(func(p *whiteboard.AIParams) { p.Size = v })
+		values, labels, nativeSize := aiImageSizeChoices(o, n, true)
+		if v, ok := aiInlineSelect(c, key("size"), i18n.T("尺寸"), p.Size, values, labels, disabled); ok {
+			set(func(p *whiteboard.AIParams) {
+				p.Size = v
+				if nativeSize {
+					p.Quality = ""
+				}
+			})
 		}
 		count := strconv.Itoa(max(1, p.Count))
 		if v, ok := aiInlineSelect(c, key("count"), i18n.T("数量"), count, []string{"1", "2", "3", "4"}, []string{"×1", "×2", "×3", "×4"}, disabled); ok {
 			k, _ := strconv.Atoi(v)
 			set(func(p *whiteboard.AIParams) { p.Count = k })
+		}
+		if nativeSize {
+			return
 		}
 		if v, ok := aiInlineSelect(c, key("quality"), i18n.T("质量"), p.Quality, []string{"", "low", "medium", "high"}, translated("质量", "低", "中", "高"), disabled); ok {
 			set(func(p *whiteboard.AIParams) { p.Quality = v })

@@ -700,7 +700,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 		if a.qa.historyLoading {
 			ui.Column(c.Key("qa-history-loading")).Grow(1).Center().Gap(10).Padding(20).Children(func() {
 				ui.Spinner(c).Size(18, 18)
-				ui.Text(c, i18n.T("正在加载历史记录…")).FontSize(12.5).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("正在加载历史记录")).FontSize(12.5).TextColor(t.TextMuted)
 			})
 			return
 		}
@@ -726,7 +726,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 					ui.Icon(c, iconHistory).FontSize(18).TextColor(t.TextMuted)
 				})
 				ui.Text(c, i18n.T("还没有历史对话")).FontSize(14).FontWeight(600)
-				ui.Text(c, i18n.T("提问后对话会自动保存在这里，方便随时查看、继续或删除。")).
+				ui.Text(c, i18n.T("提问后对话会自动保存在这里，方便随时查看、继续或删除")).
 					FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(260)
 			})
 			return
@@ -742,7 +742,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 				ui.Icon(c, iconSearch).FontSize(13).TextColor(t.TextMuted).Shrink(0)
 				ui.TextInput(c.Key("qa-history-search"), &a.qa.historyQuery).Grow(1).MinWidth(0).
 					Border(0, t.Border).Background(ui.Color{}).Padding(0).
-					Label(i18n.T("搜索历史对话")).Placeholder(i18n.T("搜索历史对话…"))
+					Label(i18n.T("搜索历史对话")).Placeholder(i18n.T("搜索历史对话"))
 				if a.qa.historyQuery != "" {
 					clr := ui.Box(c.Key("qa-history-search-clear")).Size(20, 20).Radius(5).Center().Shrink(0).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("清除搜索"))

@@ -2,7 +2,9 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
@@ -18,6 +20,78 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
+
+func TestGeminiCatalogFeedsWhiteboardAndOneBotImages(t *testing.T) {
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1beta/models" {
+			fmt.Fprint(w, `{"models":[{"name":"models/gemini-3-pro-image","displayName":"Nano Banana Pro","supportedGenerationMethods":["generateContent"]}]}`)
+			return
+		}
+		requests++
+		if r.URL.Path != "/v1beta/models/gemini-3-pro-image:generateContent" {
+			t.Errorf("wrong route %s", r.URL.Path)
+		}
+		var body struct {
+			Config struct {
+				Image map[string]string `json:"imageConfig"`
+			} `json:"generationConfig"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Config.Image["imageSize"] != "2K" || body.Config.Image["aspectRatio"] != "1:1" {
+			t.Errorf("native image settings not sent: %+v %v", body, err)
+		}
+		fmt.Fprintf(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"inlineData":{"mimeType":"image/png","data":%q}}]}}]}`, base64.StdEncoding.EncodeToString(buf.Bytes()))
+	}))
+	defer srv.Close()
+	s := agent.Settings{Protocol: agent.Gemini, BaseURL: srv.URL + "/v1beta"}
+	models, err := s.DiscoverModels(context.Background())
+	if err != nil || len(models) != 1 {
+		t.Fatalf("discover: %v %v", models, err)
+	}
+	catalog, err := agent.ParseCatalog([]byte(`{"google":{"models":{"gemini-3-pro-image":{"type":"image","modalities":{"input":["text","image"],"output":["text","image"]}}}}}`), "google")
+	if err != nil || len(catalog) != 1 {
+		t.Fatalf("catalog: %v %v", catalog, err)
+	}
+	models[0] = agent.MergeModelInfo(models[0], catalog[0])
+	models[0].Enabled = true
+	a, tt := newTestApp(t)
+	a.prefs.AI.Connections = []prefs.AIConnection{{ID: "gemini", Name: "Gemini", Protocol: agent.Gemini, Vendor: "google", BaseURL: s.BaseURL, Models: models}}
+	a.prefs.AI.Active = "gemini"
+	a.newWhiteboard("")
+	tt.Frame()
+	d := a.doc
+	o := a.boardOptionsWith(nil, d)
+	choices := o.AI.Models(whiteboard.AIImage)
+	if len(choices) != 1 || strings.Join(choices[0].ImageSizes, ",") != "1K,2K,4K" {
+		t.Fatalf("image choices: %+v", choices)
+	}
+	id := d.board.AddAINode(whiteboard.AIImage, whiteboard.Point{0, 0}, o)
+	el := d.board.Scene.ElementByID(id)
+	n := whiteboard.AINodeOf(el)
+	n.Instruction = "a cat"
+	n.Params.Size, n.Params.AspectRatio = "2K", "1:1"
+	if err := whiteboard.SetAINode(el, n); err != nil {
+		t.Fatal(err)
+	}
+	d.board.RunAI([]string{id}, false, false, o)
+	out := whiteboard.AINodeOf(el).Output()
+	if out == nil || out.Kind != "image" {
+		t.Fatalf("board generation: %+v %v", out, d.board.LastError())
+	}
+	if data, err := o.AI.ReadFile(out.Path); err != nil || !bytes.Equal(data, buf.Bytes()) {
+		t.Fatalf("board attachment: %v", err)
+	}
+	tool := a.chatImageTool(d)
+	if tool == nil {
+		t.Fatal("Gemini image tool missing")
+	}
+	result, err := tool.Run(context.Background(), json.RawMessage(`{"prompt":"cat","size":"2K","aspect_ratio":"1:1"}`))
+	if err != nil || !strings.HasPrefix(result, "saved: ![](") || requests != 2 {
+		t.Fatalf("OneBot image: %s %v (%d requests)", result, err, requests)
+	}
+}
 
 func TestWhiteboardAINodesUseOneBotConnections(t *testing.T) {
 	var buf bytes.Buffer

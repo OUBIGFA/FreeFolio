@@ -166,7 +166,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 			address.Background(t.Text.Alpha(0.05))
 		}
 		address.Children(func() {
-			name := i18n.T("搜索或打开文档…")
+			name := i18n.T("搜索或打开文档")
 			if d != nil {
 				name = d.title()
 				if width >= 325 {

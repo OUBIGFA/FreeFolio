@@ -76,7 +76,7 @@ func (a *App) openInWindow(sp *space.Space, rel string) {
 	} else {
 		text, err := readFile(sp, rel)
 		if err != nil {
-			a.notify("无法打开 %s。%v", vault.Title(rel), err)
+			a.notify("无法打开 %s；%v", vault.Title(rel), err)
 			return
 		}
 		d = openDocument(sp, rel, text, false)
@@ -102,7 +102,7 @@ func (a *App) makeWindow(title string, view func(*ui.Context), close func() bool
 		TrafficLightPosition: &mygo.Point{X: 18, Y: 18},
 	}, view)
 	if err := win.SetIcon(windowIcon()); err != nil {
-		a.notify("无法设置窗口图标。%v", err)
+		a.notify("无法设置窗口图标；%v", err)
 	}
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !close() {
@@ -199,7 +199,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 			}
 		})
 		if d.loadErr != nil {
-			ui.Text(c, i18n.T("文档无法打开。")+d.loadErr.Error()).TextColor(t.Danger).Padding(24)
+			ui.Text(c, i18n.T("文档无法打开")+" "+d.loadErr.Error()).TextColor(t.Danger).Padding(24)
 			return
 		}
 		if d.isPDF() {

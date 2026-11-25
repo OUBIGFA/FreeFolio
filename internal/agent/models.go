@@ -417,7 +417,9 @@ func ParseCatalog(data []byte, vendor string) ([]ModelInfo, error) {
 		if err := json.Unmarshal(raw, &m); err != nil {
 			return nil, err
 		}
-		if typ := str(m["type"]); typ != "" && typ != "chat" {
+		// models.dev distinguishes native image models from chat models.
+		// Keep their declared modalities so OneBot can offer them for generation.
+		if typ := str(m["type"]); typ != "" && typ != "chat" && typ != "image" && typ != "video" {
 			continue
 		}
 		lim, modal := object(m["limit"]), object(m["modalities"])

@@ -34,12 +34,12 @@ func TestBrokenImageClickAndContextMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	menu := strings.Join(tt.Menu(), "|")
-	for _, want := range []string{"重新选择图片…", "在文件夹中显示", "删除"} {
+	for _, want := range []string{"重新选择图片", "在文件夹中显示", "删除"} {
 		if !strings.Contains(menu, want) {
 			t.Fatalf("placeholder menu %q lacks %q", menu, want)
 		}
 	}
-	if err := tt.ChooseMenuItem("重新选择图片…"); err != nil {
+	if err := tt.ChooseMenuItem("重新选择图片"); err != nil {
 		t.Fatal(err)
 	}
 	if chose != "photo.png" {

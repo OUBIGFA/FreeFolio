@@ -724,11 +724,11 @@ func PDFView(c *ui.Context, v *PDFViewer, opts PDFOptions) ui.Element {
 			card.Children(func() {
 				ui.Icon(c, iconFileDoc).FontSize(28).TextColor(t.TextMuted)
 				title := i18n.T("无法打开 PDF 文档")
-				detail := i18n.T("文件可能已损坏或格式不受支持。")
+				detail := i18n.T("文件可能已损坏或格式不受支持")
 				if v != nil && v.LoadErr != nil {
 					if strings.Contains(v.LoadErr.Error(), "password-protected") {
 						title = i18n.T("此 PDF 受密码保护")
-						detail = i18n.T("当前暂不支持带密码锁定的加密 PDF 预览，可在系统阅读器中打开。")
+						detail = i18n.T("当前暂不支持带密码锁定的加密 PDF 预览，可在系统阅读器中打开")
 					} else {
 						detail = v.LoadErr.Error()
 					}
@@ -1085,7 +1085,7 @@ func (v *PDFViewer) zoomPercentLabel() string {
 }
 
 func (v *PDFViewer) buildContextMenu(m *ui.Menu, opts PDFOptions) {
-	menuAction(m, i18n.T("查找…"), func() { v.OpenFind() })
+	menuAction(m, i18n.T("查找"), func() { v.OpenFind() })
 	if !opts.Compact {
 		label := i18n.T("展开缩略图与目录")
 		if v.SidebarOpen {
@@ -1282,7 +1282,7 @@ func (v *PDFViewer) findBarView(c *ui.Context, t *ui.Theme, pg Page, invalidate 
 	bar.Children(func() {
 		ui.Icon(c, iconSearchPDF).FontSize(14).TextColor(t.TextMuted)
 		in := ui.TextInput(c.Key("pdf-find-input"), &v.FindQuery).
-			Placeholder(i18n.T("在 PDF 中查找…")).Label(i18n.T("在 PDF 中查找")).
+			Placeholder(i18n.T("在 PDF 中查找")).Label(i18n.T("在 PDF 中查找")).
 			FontSize(13).Padding(4, 4).Grow(1).MinWidth(0)
 		if v.FindFocus {
 			in.Focus()

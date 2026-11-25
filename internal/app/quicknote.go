@@ -61,7 +61,7 @@ func (a *App) openQuickNote() {
 		sp = a.state.ActiveSpace()
 	}
 	if sp == nil || sp.IsExternal() {
-		a.notify("请先选择快速笔记的保存空间。")
+		a.notify("请先选择快速笔记的保存空间")
 		return
 	}
 	folder := strings.TrimSpace(a.prefs.QuickNoteFolder)
@@ -69,7 +69,7 @@ func (a *App) openQuickNote() {
 		folder = "Quick Notes"
 	}
 	if path.IsAbs(folder) || path.Clean(folder) != folder || strings.Contains(folder, "\\") || folder == ".." || strings.HasPrefix(folder, "../") {
-		a.quick.err = i18n.T("快速笔记文件夹必须位于所选空间内。")
+		a.quick.err = i18n.T("快速笔记文件夹必须位于所选空间内")
 		return
 	}
 	copySpace := *sp
@@ -116,7 +116,7 @@ func (a *App) openQuickNote() {
 func (a *App) settingsQuickNote(c *ui.Context) {
 	settingsSection(c, i18n.T("快速笔记"))
 	settingsGroup(c, "quick-note", func() {
-		toggleRow(c, "quick-enabled", i18n.T("启用全局快速笔记"), i18n.T("FreeFolio 运行时，可从其他应用呼出独立笔记窗口。"), &a.prefs.QuickNoteEnabled, func() { a.savePrefs(); a.configureQuickShortcut() })
+		toggleRow(c, "quick-enabled", i18n.T("启用全局快速笔记"), i18n.T("FreeFolio 运行时，可从其他应用呼出独立笔记窗口"), &a.prefs.QuickNoteEnabled, func() { a.savePrefs(); a.configureQuickShortcut() })
 		settingRow(c, "quick-key", i18n.T("全局快捷键"), "", func() {
 			placeholder := "Ctrl+Shift+Space"
 			if runtime.GOOS == "darwin" {

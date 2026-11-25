@@ -51,7 +51,7 @@ func TestVersionGraphemeDiffAndMilestones(t *testing.T) {
 	}
 
 	// Create a named milestone from the modal bar.
-	if err := tt.Click("保存里程碑…"); err != nil {
+	if err := tt.Click("保存里程碑"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -86,7 +86,7 @@ func TestVersionGraphemeDiffAndMilestones(t *testing.T) {
 	}
 
 	// Rename the selected milestone inline via the action button.
-	if err := tt.Click("命名里程碑…"); err != nil {
+	if err := tt.Click("命名里程碑"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

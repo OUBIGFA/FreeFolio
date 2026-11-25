@@ -793,7 +793,7 @@ func (e *Editor) wordButton(c *ui.Context, maxWidth, height float32) {
 				}
 			}
 			sub.Separator()
-			if sub.Item(i18n.T("自定义…")).Chosen() {
+			if sub.Item(i18n.T("自定义")).Chosen() {
 				e.goalEditing, e.goalText = true, ""
 				if goal > 0 {
 					e.goalText = fmt.Sprint(goal)

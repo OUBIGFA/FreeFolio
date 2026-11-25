@@ -431,7 +431,7 @@ func TestPaletteHasAttachmentCommands(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyK)
 	a.palette.query = "附件"
 	tt.Frame()
-	if !a.palette.open || !tt.HasText("选择附件目录…") || !tt.HasText("恢复默认附件目录") {
+	if !a.palette.open || !tt.HasText("选择附件目录") || !tt.HasText("恢复默认附件目录") {
 		t.Fatalf("command bar misses the attachment commands: %v", tt.Texts())
 	}
 }

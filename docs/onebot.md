@@ -25,6 +25,10 @@ OneBot 的连接也用于白板 AI 节点生成图片和视频。可以只为绘
 2. 填写服务地址和 API Key。OpenAI 官方使用 `https://api.openai.com/v1`；new-api、one-api 等中转填写其 `/v1` 地址。
 3. 点击「获取模型」，勾选绘画或视频模型，例如 `gpt-image-1`、`sora-2`。
 
+使用 Gemini 生图时，选择「Google Gemini」常用服务，填写 API Key 后获取并勾选账号可用的图像模型，例如 `gemini-3-pro-image`。白板的「图像生成」节点和 OneBot 的生图工具共用该连接。白板可设置画幅比例、1K/2K/4K 分辨率和生成数量，也可连接图片输入节点作为参考图。具体分辨率支持以所选模型为准。若能力目录暂时不可用，可点击「更新模型能力」重试，或在模型能力中将输出模态设为 `text, image`。
+
+Gemini 的能力信息复用 [models.dev](https://models.dev) 目录，包含其 `type: image` 记录。原生请求保留 `generateContent` 接口，对照 [Google Gen AI Go SDK v1.79.1](https://github.com/googleapis/go-genai/tree/c2b979819c3b57022841db6a1ac6057b38726268)（Apache-2.0）中的 `ImageConfig`、`responseModalities` 与 `inlineData` 标准字段，沿用现有 HTTP、密钥与附件保存实现。模型范围另核对 [Google 官方图像生成说明](https://ai.google.dev/gemini-api/docs/image-generation)（2026-11-25）；未引入 SDK 依赖或复制其源码。
+
 | 协议 | 图片 | 视频 |
 | --- | --- | --- |
 | OpenAI 兼容图像/视频 | `/images/generations`；有图片输入时用 `/images/edits`（多图与遮罩） | `/videos` 提交任务、轮询并下载 |

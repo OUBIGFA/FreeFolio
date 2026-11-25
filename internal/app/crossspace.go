@@ -124,14 +124,14 @@ func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 	}
 	to, copied, err := a.moveWithResources(src, rel, dst, dir)
 	if err != nil {
-		a.notify("移动 %s 到「%s」失败。%v", path.Base(rel), dst.Name, err)
+		a.notify("移动 %s 到「%s」失败；%v", path.Base(rel), dst.Name, err)
 		return ""
 	}
 	if copied {
 		// Another disk: the copy is there; the original goes to the trash.
 		if p, err := resolveFile(src, rel); err == nil {
 			if err := a.trashItem(p); err != nil {
-				a.notify("已复制 %s 到「%s」，但未能将原件移到废纸篓。%v", path.Base(rel), dst.Name, err)
+				a.notify("已复制 %s 到「%s」，但未能将原件移到废纸篓；%v", path.Base(rel), dst.Name, err)
 			}
 		}
 	}

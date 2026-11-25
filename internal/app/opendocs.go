@@ -154,7 +154,7 @@ func (a *App) closeOpen(sp *space.Space, rel string) {
 		if a.autosaveEnabled() {
 			if closed != nil && closed.dirty() {
 				if err := closed.save(); err != nil {
-					a.notify("保存 %s 失败。%v", closed.title(), err)
+					a.notify("保存 %s 失败；%v", closed.title(), err)
 					return
 				}
 			}

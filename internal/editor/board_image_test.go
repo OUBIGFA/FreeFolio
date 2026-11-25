@@ -8,8 +8,36 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"testing"
 )
+
+func TestImageViewerFitsBeforeFirstPaint(t *testing.T) {
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 1600, 1000))); err != nil {
+		t.Fatal(err)
+	}
+	a, err := NewImageAnnotation(data.Bytes(), nil, whiteboard.Point{1, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var painted []float64
+	tt := ui.NewTester(func(c *ui.Context) {
+		ImageAnnotationView(c, a, true, nil)
+		ui.Box(c.Key("paint-observer")).Absolute().Size(1, 1).Draw(func(_ *ui.Painter, _ ui.Rect) {
+			painted = append(painted, a.Board.Zoom)
+		})
+	}, 800, 600)
+	tt.Frame()
+	if len(painted) == 0 {
+		t.Fatal("viewer was not painted")
+	}
+	for _, zoom := range painted {
+		if math.Abs(zoom-.425) > .001 {
+			t.Fatalf("viewer flashed at %v before fitting to 0.425; frames %v", zoom, painted)
+		}
+	}
+}
 
 func TestImageAnnotationPreservesSizeAndRendersMarks(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 120, 80))
@@ -109,7 +137,7 @@ func TestAnnotationInputPreservesCropFlipAndReadonlyNavigation(t *testing.T) {
 	if a.Width != 2 || a.Height != 4 {
 		t.Fatalf("crop: %dx%d", a.Width, a.Height)
 	}
-	tt := ui.NewTester(func(c *ui.Context) { ImageAnnotationView(c, a, true) }, 800, 600)
+	tt := ui.NewTester(func(c *ui.Context) { ImageAnnotationView(c, a, true, nil) }, 800, 600)
 	tt.Frame()
 	tt.Frame()
 	before := a.Board.Zoom

@@ -23,7 +23,7 @@ func TestCurrent(t *testing.T) {
 
 func TestNoticeTexts(t *testing.T) {
 	r := Notice{Ready, "0.2.0"}
-	if r.Title() != "更新已准备就绪！" || r.Subtitle() != "点击重新启动" || r.Button() != "重新启动" {
+	if r.Title() != "更新已准备就绪" || r.Subtitle() != "点击重新启动" || r.Button() != "重新启动" {
 		t.Fatalf("ready texts: %q %q %q", r.Title(), r.Subtitle(), r.Button())
 	}
 	a := Notice{Available, "0.2.0"}

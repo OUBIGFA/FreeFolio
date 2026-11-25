@@ -123,7 +123,7 @@ func (a *App) focusView(c *ui.Context) {
 		card.Children(func() {
 			if a.doc == nil || a.doc.loadErr != nil || a.doc.source {
 				ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
-					ui.Text(c, i18n.T("专注模式下没有可编辑的文档。")).TextColor(c.Theme().TextMuted)
+					ui.Text(c, i18n.T("专注模式下没有可编辑的文档")).TextColor(c.Theme().TextMuted)
 					if ui.Button(c.Key("focus-leave"), i18n.T("退出专注模式")).Clicked() {
 						a.toggleFocus()
 					}

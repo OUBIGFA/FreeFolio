@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/base64"
+	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 	"image"
@@ -12,6 +13,45 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+func TestBoardImageViewingClosesOnlyOnBlankClick(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		editing, inside, drag bool
+		wantClose             bool
+	}{
+		{"blank", false, false, false, true},
+		{"image", false, true, false, false},
+		{"pan-from-blank", false, false, true, false},
+		{"annotation-blank", true, false, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, w, win, _ := boardImageFixture(t)
+			w.editing = tc.editing
+			w.image.Board.Tool = editor.ToolHand
+			tt := ui.NewTester(func(c *ui.Context) { a.boardImageView(c, w) }, 900, 650)
+			tt.Frame()
+			r, ok := tt.Find("手绘白板")
+			if !ok {
+				t.Fatal("viewer canvas missing")
+			}
+			x, y := r.X+16, r.Y+r.H/2
+			if tc.inside {
+				x = r.X + r.W/2
+			}
+			if tc.drag {
+				tt.Press(x, y)
+				tt.Move(x+40, y+20)
+				tt.Release(x+40, y+20)
+			} else {
+				tt.ClickAt(x, y)
+			}
+			if (win.closed > 0) != tc.wantClose {
+				t.Fatalf("close count %d, want close %v", win.closed, tc.wantClose)
+			}
+		})
+	}
+}
 
 func boardImageFixture(t *testing.T) (*App, *boardImageWindow, *fakeWindow, []byte) {
 	t.Helper()

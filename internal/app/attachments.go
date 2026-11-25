@@ -60,14 +60,14 @@ func (a *App) pickCover(done func(url string)) {
 			return
 		}
 		if !isImage(paths[0]) {
-			a.notify("封面只能是图片（%s）。", strings.Join(imageExtensions, "、"))
+			a.notify("封面只能是图片（%s）", strings.Join(imageExtensions, "、"))
 			return
 		}
 		var rel string
 		var err error
 		a.withDocument(d, func() { rel, _, err = a.copyAsset(path.Dir(d.rel), paths[0]) })
 		if err != nil {
-			a.notify("设置封面失败。%v", err)
+			a.notify("设置封面失败；%v", err)
 			return
 		}
 		done(rel)
@@ -115,13 +115,13 @@ func (a *App) insertImages(paths []string, at int) {
 		}
 		rel, _, err := a.copyAsset(path.Dir(d.rel), src)
 		if err != nil {
-			a.notify("插入 %s 失败。%v", filepath.Base(src), err)
+			a.notify("插入 %s 失败；%v", filepath.Base(src), err)
 			continue
 		}
 		blocks = append(blocks, imageBlock(filepath.Base(src), rel))
 	}
 	if len(skipped) > 0 {
-		a.notify("只能插入图片（%s）：%s 未插入。", strings.Join(imageExtensions, "、"), strings.Join(skipped, "、"))
+		a.notify("只能插入图片（%s）：%s 未插入", strings.Join(imageExtensions, "、"), strings.Join(skipped, "、"))
 	}
 	a.placeImages(blocks, at)
 }
@@ -138,7 +138,7 @@ func (a *App) pasteImage(png []byte) {
 	}
 	rel, err := a.writeAsset(path.Dir(d.rel), i18n.T("粘贴的图片.png"), png)
 	if err != nil {
-		a.notify("粘贴图片失败。%v", err)
+		a.notify("粘贴图片失败；%v", err)
 		return
 	}
 	a.placeImages([]*model.Block{imageBlock(i18n.T("粘贴的图片"), rel)}, -1)

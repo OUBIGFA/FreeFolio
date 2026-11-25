@@ -20,13 +20,13 @@ func TestRenameTagEverywhere(t *testing.T) {
 	a.openPalette()
 	a.palette.query = "#工作"
 	tt.Frame()
-	if err := tt.Click("重命名或合并标签 #工作…"); err != nil {
+	if err := tt.Click("重命名或合并标签 #工作"); err != nil {
 		t.Fatal(err, tt.Texts())
 	}
 	tt.Frame()
 	a.tagRename.to = "职场"
 	tt.Frame()
-	if !tt.HasText("已有标签 #职场（1 篇），将合并为一个。") {
+	if !tt.HasText("已有标签 #职场（1 篇），将合并为一个") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("重命名"); err != nil {

@@ -197,7 +197,7 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 			}
 			source := d.board.Scene.ElementByID(w.nodeID)
 			if d.ed.ReadOnly || source == nil || source.IsDeleted || source.Locked || d.board.AIRunning() || d.rel != target.rel || d.space.Root != target.space.Root {
-				w.err = i18n.T("白板状态已变化，标注副本已保留在附件中。") + rel
+				w.err = i18n.T("白板状态已变化，标注副本已保留在附件中") + " " + rel
 				a.redrawBoardImage(w)
 				return
 			}
@@ -206,9 +206,9 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 				w.err = err.Error()
 			} else {
 				w.savedRevision = revision
-				w.message = i18n.T("标注参考图已加入白板；原图保留。")
+				w.message = i18n.T("标注参考图已加入白板；原图保留")
 				if generate {
-					w.message = i18n.T("标注参考图已连接到新生图节点。填写指令后点击运行节点。")
+					w.message = i18n.T("标注参考图已连接到新生图节点；填写指令后点击运行节点")
 				}
 			}
 			w.confirmClose = false
@@ -255,21 +255,29 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 			ui.Text(c, w.message).TextColor(t.TextMuted).Padding(8, 12)
 		}
 		if w.loading {
-			ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, i18n.T("正在加载图片…")) })
+			ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, i18n.T("正在加载图片")) })
 			c.After(50 * time.Millisecond)
 			return
 		}
 		if w.saving {
-			ui.Text(c, i18n.T("正在保存标注图片…")).Padding(8, 12)
+			ui.Text(c, i18n.T("正在保存标注图片")).Padding(8, 12)
 			c.After(50 * time.Millisecond)
 		}
 		if w.image != nil {
-			editor.ImageAnnotationView(c, w.image, !w.editing || !canEdit || w.saving)
+			var dismiss func()
+			if !w.editing && !w.saving && w.win != nil {
+				dismiss = func() { w.win.Close() }
+			}
+			editor.ImageAnnotationView(c, w.image, !w.editing || !canEdit || w.saving, dismiss)
 		}
 		if w.image != nil && max(w.image.Width, w.image.Height) > 4096 {
-			ui.Text(c, i18n.T("标注副本最长边为 4096 像素，原图保持原分辨率。")).FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
+			ui.Text(c, i18n.T("标注副本最长边为 4096 像素，原图保持原分辨率")).FontSize(12).TextColor(t.TextMuted).Padding(4, 12)
 		}
-		ui.Text(c, i18n.T("滚轮缩放 · 拖动查看 · 标注后保存副本，原图不变")).FontSize(12).TextColor(t.TextMuted).Padding(6, 12)
+		hint := "滚轮缩放 · 拖动查看 · 点击空白处或按 Esc 关闭"
+		if w.editing {
+			hint = "滚轮缩放 · 拖动查看 · 标注后保存副本，原图不变"
+		}
+		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(t.TextMuted).Padding(6, 12)
 	})
 	if win, ok := w.win.(*mygo.Window); ok && hasAppWindowControls() {
 		windowButtons(c, win)
@@ -278,7 +286,7 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 		ui.Modal(c.Key("annotation-unsaved"), &w.confirmClose, func() {
 			ui.Column(c).Width(360).Gap(12).Children(func() {
 				ui.Text(c, i18n.T("标注尚未保存")).FontSize(17)
-				ui.Text(c, i18n.T("保存为参考图后关闭，或放弃这次标注。"))
+				ui.Text(c, i18n.T("保存为参考图后关闭，或放弃这次标注"))
 				ui.Row(c).Gap(8).Children(func() {
 					if ui.Button(c, i18n.T("继续编辑")).Clicked() {
 						w.confirmClose = false

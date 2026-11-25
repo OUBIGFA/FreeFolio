@@ -329,7 +329,7 @@ func TestRenameFavorite(t *testing.T) {
 	if err := tt.RightClick("Welcome"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("重命名…"); err != nil {
+	if err := tt.ChooseMenuItem("重命名"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Advance(time.Second)

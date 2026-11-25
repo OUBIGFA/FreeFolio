@@ -70,7 +70,7 @@ func TestMissingImageCardWrapsAndActionsWork(t *testing.T) {
 			if e.rows[1].rect.Y < f.bounds.Y+f.bounds.H+18 {
 				t.Fatal("card overlaps following text")
 			}
-			if err := tt.Click("重新选择图片…"); err != nil {
+			if err := tt.Click("重新选择图片"); err != nil {
 				t.Fatal(err)
 			}
 			if chosenID != e.Doc.Blocks[0].ID || chosenURL != src {

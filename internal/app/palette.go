@@ -253,8 +253,8 @@ func (a *App) actions() []action {
 		cmd(i18n.T("从分屏中分离"), "", a.separateSplit)
 	}
 	dir := a.currentDir()
-	cmd(i18n.T("打开文件…"), "", a.chooseExternalFiles)
-	cmd(i18n.T("在所有文档中查找和替换…"), a.keyLabel("replace-all"), a.openReplaceAll)
+	cmd(i18n.T("打开文件"), "", a.chooseExternalFiles)
+	cmd(i18n.T("在所有文档中查找和替换"), a.keyLabel("replace-all"), a.openReplaceAll)
 	if !active.IsExternal() {
 		cmd(i18n.T("新建文档"), a.keyLabel("new-doc"), func() { a.newDoc(dir) })
 		cmd(i18n.T("新建白板"), a.keyLabel("new-board"), func() { a.newWhiteboard(dir) })
@@ -265,13 +265,13 @@ func (a *App) actions() []action {
 		}
 		cmd(i18n.T("打开模板文件夹"), "", a.openTemplatesFolder)
 	}
-	cmd(i18n.T("新建空间…"), "", a.newSpaceForm)
+	cmd(i18n.T("新建空间"), "", a.newSpaceForm)
 	if active != nil {
-		cmd(i18n.T("编辑主题颜色…"), "", func() { a.editSpace(active) })
-		cmd(i18n.T("更改空间图标…"), "", func() { a.editSpaceProperty(active, "icon") })
+		cmd(i18n.T("编辑主题颜色"), "", func() { a.editSpace(active) })
+		cmd(i18n.T("更改空间图标"), "", func() { a.editSpaceProperty(active, "icon") })
 		if !active.IsExternal() {
-			cmd(i18n.T("重命名空间…"), "", func() { a.editSpaceProperty(active, "name") })
-			cmd(i18n.T("选择附件目录…"), "", func() { a.chooseAttachmentsFolder(active) })
+			cmd(i18n.T("重命名空间"), "", func() { a.editSpaceProperty(active, "name") })
+			cmd(i18n.T("选择附件目录"), "", func() { a.chooseAttachmentsFolder(active) })
 			cmd(i18n.T("恢复默认附件目录"), "", func() { a.setAttachmentsFolder(active, "") })
 		}
 	}
@@ -371,30 +371,30 @@ func (a *App) actions() []action {
 			danger(i18n.T("放弃未保存的修改"), "", a.discardCurrentEdits)
 		}
 	}
-	cmd(i18n.T("外观设置…"), "", func() { a.openSettings(tabAppearance) })
+	cmd(i18n.T("外观设置"), "", func() { a.openSettings(tabAppearance) })
 	ask := i18n.T("向当前空间提问")
 	if a.qa.open {
 		ask = i18n.T("关闭 OneBot")
 	}
 	cmd(ask, a.keyLabel("ask"), a.toggleQA)
 	cmd(i18n.T("OneBot：新对话"), "", func() { a.qa.open = true; a.clearQA() })
-	cmd(i18n.T("OneBot 设置…"), "", func() { a.openSettings(tabAI) })
+	cmd(i18n.T("OneBot 设置"), "", func() { a.openSettings(tabAI) })
 	cmd(i18n.T("OneBot：修改选区"), "", func() { a.beginOneBotEdit("selection") })
 	cmd(i18n.T("OneBot：修改当前章节"), "", func() { a.beginOneBotEdit("section") })
 	cmd(i18n.T("OneBot：修改整篇文档"), "", func() { a.beginOneBotEdit("document") })
-	cmd(i18n.T("书签…"), a.keyLabel("bookmarks"), a.openBookmarks)
+	cmd(i18n.T("书签"), a.keyLabel("bookmarks"), a.openBookmarks)
 	cmd(i18n.T("按标签浏览"), "#", func() { a.openPalette(); a.palette.query = "#" })
-	cmd(i18n.T("最近删除…"), "", a.openTrash)
+	cmd(i18n.T("最近删除"), "", a.openTrash)
 	if len(a.state.Spaces) > 1 {
 		cmd(i18n.T("下一个空间"), a.keyLabel("next-space"), func() { a.stepSpace(1) })
 		cmd(i18n.T("上一个空间"), a.keyLabel("prev-space"), func() { a.stepSpace(-1) })
 	}
-	cmd(i18n.T("插件…"), "", a.openPlugins)
-	cmd(i18n.T("设置…"), a.keyLabel("settings"), func() { a.openSettings(tabGeneral) })
+	cmd(i18n.T("插件"), "", a.openPlugins)
+	cmd(i18n.T("设置"), a.keyLabel("settings"), func() { a.openSettings(tabGeneral) })
 	cmd(i18n.T("键盘快捷键"), "", func() { a.openSettings(tabShortcuts) })
 	cmd(i18n.T("关于 FreeFolio"), "", func() { a.openSettings(tabAbout) })
 	cmd(i18n.T("新手教程"), "", a.startTour)
-	cmd(i18n.T("检查更新…"), "", a.checkForUpdates)
+	cmd(i18n.T("检查更新"), "", a.checkForUpdates)
 	if n := a.updateNotice(); n != nil && n.Kind == update.Ready {
 		cmd(i18n.T("重新启动以安装更新"), "", a.installUpdate)
 	}
@@ -457,9 +457,9 @@ func (a *App) actions() []action {
 				mode = i18n.T("返回富文本编辑")
 			}
 			cmd(mode, a.keyLabel("source"), a.toggleSource)
-			cmd(i18n.T("版本历史…"), a.keyLabel("history"), a.openVersions)
+			cmd(i18n.T("版本历史"), a.keyLabel("history"), a.openVersions)
 			cmd(i18n.T("导出 PDF"), a.keyLabel("export-pdf"), a.exportPDF)
-			cmd(i18n.T("打印…"), "", a.printDoc)
+			cmd(i18n.T("打印"), "", a.printDoc)
 		}
 		cmd(i18n.T("重命名文档"), "", func() { a.renameIn(sp, rel) })
 		if formatDoc && a.doc.loadErr == nil && !a.doc.boardLoading {
@@ -483,7 +483,7 @@ func (a *App) actions() []action {
 		for _, pc := range p.Manifest.Contributes.Commands {
 			name := p.Manifest.Name
 			out = append(out, action{kind: i18n.T("插件"), title: pc.Title, hint: name, run: func() {
-				a.notify("%s 需要插件运行时支持，该功能正在开发中。", name)
+				a.notify("%s 需要插件运行时支持，该功能正在开发中", name)
 			}})
 		}
 	}
@@ -756,7 +756,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 		}
 		cmd(lock, "", func() { ed.SetReadOnly(!ed.ReadOnly) })
 	}
-	cmd(i18n.T("阅读设置…"), "", func() { a.openSettings(tabAppearance) })
+	cmd(i18n.T("阅读设置"), "", func() { a.openSettings(tabAppearance) })
 	cmd(i18n.T("跳转脚注 / 返回正文"), "", func() { ed.FollowFootnote() })
 	cmd(i18n.T("查找"), a.keyLabel("find"), func() { ed.OpenFind(false) })
 	if ed.ReadOnly {
@@ -769,7 +769,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	if ed.Doc.Goal > 0 {
 		cmd(i18n.T("移除字数目标"), "", after(func() { ed.SetGoal(0) }))
 	}
-	cmd(i18n.T("插入双链…"), "[[", after(ed.StartWikiLink))
+	cmd(i18n.T("插入双链"), "[[", after(ed.StartWikiLink))
 	cmd(i18n.T("插入公式"), "", after(ed.InsertMath))
 	cmd(i18n.T("插入行内公式"), "", after(ed.InsertInlineMath))
 	cmd(i18n.T("插入流程图"), "", after(ed.InsertMermaidFlowchart))
@@ -810,7 +810,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 		cmd(i18n.T("转换为")+item.name, "", after(func() { ed.Prefix(item.prefix) }))
 	}
 	cmd(i18n.T("在下方新建段落"), a.keyLabel("newline"), after(func() { ed.Engine.Insert(model.NewBlock("paragraph", "")) }))
-	cmd(i18n.T("插入链接…"), "", ed.EditLink)
+	cmd(i18n.T("插入链接"), "", ed.EditLink)
 	cmd(i18n.T("下划线"), a.keyLabel("underline"), after(func() { ed.Wrap("_") }))
 	cmd(i18n.T("插入表格"), "", after(func() { ed.Engine.Insert(model.Table(3, 3)) }))
 	cmd(i18n.T("插入双栏"), "", after(func() { ed.Engine.Insert(model.Columns()) }))
@@ -831,17 +831,17 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("增加表格行"), "", after(func() { ed.Engine.ResizeTable(true, 1) }))
 	cmd(i18n.T("表格按当前列升序排序"), "", after(func() {
 		if !ed.SortCaretColumn(false) {
-			a.notify("光标不在可排序的表格里（需要表头以下至少两行，且没有合并单元格）。")
+			a.notify("光标不在可排序的表格里（需要表头以下至少两行，且没有合并单元格）")
 		}
 	}))
 	cmd(i18n.T("表格按当前列降序排序"), "", after(func() {
 		if !ed.SortCaretColumn(true) {
-			a.notify("光标不在可排序的表格里（需要表头以下至少两行，且没有合并单元格）。")
+			a.notify("光标不在可排序的表格里（需要表头以下至少两行，且没有合并单元格）")
 		}
 	}))
 	cmd(i18n.T("将剪贴板粘贴为表格"), "", after(func() {
 		if !ed.PasteAsTable() {
-			a.notify("剪贴板里没有可以转换为表格的文字（用制表符、逗号或分号分隔，至少两行两列）。")
+			a.notify("剪贴板里没有可以转换为表格的文字（用制表符、逗号或分号分隔，至少两行两列）")
 		}
 	}))
 	cmd(i18n.T("增加表格列"), "", after(func() { ed.Engine.ResizeTable(false, 1) }))
@@ -867,11 +867,11 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("删除内容块"), "", after(func() { ed.Engine.DeleteBlock(ed.Engine.LeafAt(ed.Caret).Owner) }))
 	cmd(i18n.T("增加缩进"), "", after(func() { ed.Engine.Indent(1) }))
 	cmd(i18n.T("减少缩进"), "", after(func() { ed.Engine.Indent(-1) }))
-	cmd(i18n.T("插入图片…"), "", a.pickImages)
+	cmd(i18n.T("插入图片"), "", a.pickImages)
 	if b := ed.Engine.LeafAt(ed.Caret).Block; b.Kind == "code" && !editor.IsDiagramLanguage(b.Language) {
 		cmd(i18n.T("代码块：切换自动换行"), "", after(func() { ed.ToggleCodeWrap(b.ID) }))
 	}
 	if b := ed.Engine.LeafAt(ed.Caret).Block; b.Kind == "image" {
-		cmd(i18n.T("裁剪图片…"), "", func() { ed.OpenCropper(b.ID) })
+		cmd(i18n.T("裁剪图片"), "", func() { ed.OpenCropper(b.ID) })
 	}
 }

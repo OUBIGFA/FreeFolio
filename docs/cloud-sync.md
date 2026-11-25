@@ -69,6 +69,17 @@ The settings page lists conflicts and offers **Keep local version** and
 bound to the remote version shown; a later remote change requires another sync.
 Conflict copies remain available for inspection and manual merging.
 
+If a remote version check fails, Settings → Cloud sync offers **Recheck and sync**.
+This reads remote content again without relying on cached validators, retains the
+common baseline, and exposes conflicting files for an explicit version choice.
+Choosing a conflict version also verifies current content before applying it.
+Different listing and download validators no longer block a write when the bytes
+are unchanged; the write still uses the fresh download validator. Failures include
+the affected relative file path. Authentication errors offer account/key settings,
+folder errors offer remote-folder settings, and network/storage errors explain the
+required corrective action. The sidebar issue button opens these recovery actions.
+Version and permission failures do not queue the same automatic retry.
+
 Before replacing or deleting a local file, FreeFolio writes a recovery copy under
 the application's `sync-state/backups` directory. **Open recovery backups** opens
 that directory. Local recovery copies are not automatically deleted. Local

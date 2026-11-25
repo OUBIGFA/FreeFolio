@@ -36,24 +36,24 @@ func (a *App) chatGPTAccountView(c *ui.Context) {
 	s := a.chatGPTSession()
 	ui.Column(c.Key("chatgpt-account")).Padding(14, 16).Gap(10).Children(func() {
 		ui.Text(c, i18n.T("使用 ChatGPT 套餐")).FontSize(14).FontWeight(500)
-		ui.Text(c, i18n.T("授权后，OneBot 中符合条件的请求使用你的 ChatGPT 套餐或点数。具体模型和额度由账号决定。")).FontSize(13).TextColor(t.TextMuted)
+		ui.Text(c, i18n.T("授权后，OneBot 中符合条件的请求使用你的 ChatGPT 套餐或点数；具体模型和额度由账号决定")).FontSize(13).TextColor(t.TextMuted)
 		if s.Email != "" {
 			ui.Text(c, s.Email).FontSize(13).Selectable()
 		}
 		status := i18n.T("尚未连接 ChatGPT")
 		switch {
 		case g.busyID == id:
-			status = i18n.T("正在处理 ChatGPT 连接…")
+			status = i18n.T("正在处理 ChatGPT 连接")
 		case g.loading[id]:
-			status = i18n.T("正在读取 ChatGPT 连接…")
+			status = i18n.T("正在读取 ChatGPT 连接")
 		case s.Pending:
-			status = i18n.T("正在等待验证 ChatGPT 身份。请重试获取模型。")
+			status = i18n.T("正在等待验证 ChatGPT 身份；请重试获取模型")
 		case s.Sharing:
 			status = i18n.T("正在使用 ChatGPT 套餐")
 		case s.Status == chatgpt.Connected:
 			status = i18n.T("已登录，尚未启用套餐使用")
 		case s.Status == chatgpt.ReauthRequired:
-			status = i18n.T("ChatGPT 登录已失效，请重新登录。")
+			status = i18n.T("ChatGPT 登录已失效，请重新登录")
 		}
 		ui.Text(c, status).FontSize(13).Role(ui.RoleStatus)
 		ui.Row(c.Key("actions")).Gap(8).Wrap().Children(func() {
@@ -113,7 +113,7 @@ func (a *App) chatGPTWelcomeView(c *ui.Context) {
 			ui.Column(c).Width(min(420, max(240, w-32))).Padding(24).Gap(16).Radius(14).Background(c.Theme().Surface).Children(func() {
 				ui.Box(c).Size(42, 42).Radius(9).Background(white).Center().Children(func() { ui.Icon(c, chatGPTMark).Size(30, 30) })
 				ui.Text(c, i18n.T("正在使用 ChatGPT 套餐")).FontSize(18).FontWeight(500)
-				ui.Text(c, i18n.T("OneBot 中符合条件的请求将使用你的 ChatGPT 套餐或点数。你可以随时在 ChatGPT 设置中查看用量和调整此应用的限额。")).FontSize(13)
+				ui.Text(c, i18n.T("OneBot 中符合条件的请求将使用你的 ChatGPT 套餐或点数；你可以随时在 ChatGPT 设置中查看用量和调整此应用的限额")).FontSize(13)
 				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 					if ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
 						a.openChatGPTUsage()

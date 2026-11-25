@@ -13,7 +13,7 @@ import (
 // settingsAI owns native provider configuration and persistent model choices.
 func (a *App) settingsAI(c *ui.Context) {
 	t := c.Theme()
-	settingsHeading(c, "OneBot", i18n.T("对话、写作与文档编辑。配置供应商并勾选需要使用的模型。"))
+	settingsHeading(c, "OneBot", i18n.T("对话、写作与文档编辑；配置供应商并勾选需要使用的模型"))
 	conn := a.prefs.AI.Current()
 
 	settingsSection(c, i18n.T("供应商"))
@@ -52,7 +52,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			settingsSeparator(c)
 			ui.Column(c.Key("provider-empty")).Padding(20, 16).Gap(4).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("请先添加供应商")).FontSize(13.5).FontWeight(500).TextColor(t.Text)
-				ui.Text(c, i18n.T("点击上方「添加供应商」或从「常用服务」快速创建。")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
+				ui.Text(c, i18n.T("点击上方「添加供应商」或从「常用服务」快速创建")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 			})
 			return
 		}
@@ -94,7 +94,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			}
 		})
 		if conn.Protocol == agent.Media {
-			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话。")).FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 8, 16)
+			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话")).FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 8, 16)
 		}
 		settingsSeparator(c)
 		formRow("address", "服务地址", func() {
@@ -167,7 +167,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			ui.Text(c, i18n.T("用所选模型发送一条简短消息，收到回复即停止")).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 			busy := a.keyTestsBusy()
 			if busy {
-				label = i18n.T("测试中…")
+				label = i18n.T("测试中")
 			}
 			if ui.Button(c.Key("run"), label).Disabled(busy).Shrink(0).Clicked() {
 				a.testAIKeys(keys...)
@@ -199,11 +199,11 @@ func (a *App) settingsAI(c *ui.Context) {
 				}
 			})
 			note := map[string]string{
-				agent.KeyRoundRobin: "按顺序轮流使用每个 Key，分摊请求。",
-				agent.KeyRandom:     "每次请求随机选用一个 Key。",
-				agent.KeyFailover:   "总是先用第一个 Key，失败时再依次换用后面的 Key。",
+				agent.KeyRoundRobin: "按顺序轮流使用每个 Key，分摊请求",
+				agent.KeyRandom:     "每次请求随机选用一个 Key",
+				agent.KeyFailover:   "总是先用第一个 Key，失败时再依次换用后面的 Key",
 			}[conn.KeyStrategy]
-			ui.Text(c, i18n.T(note)+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试。")).
+			ui.Text(c, i18n.T(note)+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试")).
 				FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 10, 16)
 		}
 		if a.qa.keyErr != nil {
@@ -221,7 +221,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			ui.TextInput(c.Key("search"), &a.qa.modelSearch).Grow(1).Placeholder(i18n.T("搜索模型")).Label(i18n.T("搜索模型"))
 			label := i18n.T("获取模型")
 			if a.qa.modelsBusy {
-				label = i18n.T("获取中…")
+				label = i18n.T("获取中")
 			}
 			if ui.Button(c.Key("fetch"), label).Disabled(a.qa.modelsBusy || a.modelListSettings().CheckService() != nil).Clicked() {
 				a.fetchModels()
@@ -258,12 +258,12 @@ func (a *App) settingsAI(c *ui.Context) {
 			}
 		}
 		if len(visible) == 0 {
-			msg := i18n.T("点击「获取模型」或在下方手动添加模型。")
+			msg := i18n.T("点击「获取模型」或在下方手动添加模型")
 			if conn.Protocol == agent.ChatGPT {
-				msg = i18n.T("登录后点击「获取模型」，显示此账号可用的模型。")
+				msg = i18n.T("登录后点击「获取模型」，显示此账号可用的模型")
 			}
 			if len(conn.Models) > 0 {
-				msg = i18n.T("没有匹配的模型。")
+				msg = i18n.T("没有匹配的模型")
 			}
 			ui.Text(c, msg).FontSize(12.5).TextColor(t.TextMuted).Padding(14, 16)
 		} else {
@@ -394,7 +394,7 @@ func (a *App) settingsAI(c *ui.Context) {
 	})
 
 	ready := a.qaReady() == nil
-	status := i18n.T("可以提问了。")
+	status := i18n.T("可以提问了")
 	dotCol, bgCol, textCol := t.Success, t.Success.Alpha(0.08), t.Text.Alpha(0.84)
 	if err := a.qaReady(); err != nil {
 		status = err.Error()
@@ -426,7 +426,7 @@ func (a *App) keyTestStatus(c *ui.Context, key string) {
 		return
 	}
 	t := c.Theme()
-	text, ink := i18n.T("测试中…"), t.TextMuted
+	text, ink := i18n.T("测试中"), t.TextMuted
 	switch {
 	case r.busy:
 	case r.err != nil:
@@ -539,7 +539,7 @@ func maskAPIKey(key string) string {
 func lastRunes(s string, n int) string { r := []rune(s); return string(r[max(0, len(r)-n):]) }
 func (a *App) modelsNote() string {
 	if a.qa.modelsBusy {
-		return i18n.T("正在获取模型列表…")
+		return i18n.T("正在获取模型列表")
 	}
 	if c := a.prefs.AI.Current(); c != nil {
 		enabled := 0

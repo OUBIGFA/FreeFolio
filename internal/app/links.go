@@ -150,7 +150,7 @@ func (a *App) newDocNamed(dir, name string) {
 			return
 		}
 	}
-	a.notify("新建「%s」失败。%v", name, err)
+	a.notify("新建「%s」失败；%v", name, err)
 }
 
 // wikiSuggest lists the documents whose names match what is typed of a
@@ -223,7 +223,7 @@ func (a *App) tagResults(q string) []action {
 	var out []action
 	if name != "" && a.tagCount(name) > 0 {
 		tag := name
-		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("重命名或合并标签 #") + tag + "…", run: func() { a.openTagRename(tag) }})
+		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("重命名或合并标签 #") + tag, run: func() { a.openTagRename(tag) }})
 	}
 	if name != "" {
 		for _, h := range a.liveIndex().Tagged(name, nil) {
@@ -353,7 +353,7 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 							a.activateDocument(d)
 							a.openTag(tag)
 						}
-						if m.Item(i18n.T("重命名或合并标签…")).Chosen() {
+						if m.Item(i18n.T("重命名或合并标签")).Chosen() {
 							a.openTagRename(tag)
 						}
 					})
@@ -369,7 +369,7 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 			ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(t.TextMuted)
 		})
 		if len(hits) == 0 {
-			ui.Text(c, i18n.T("还没有文档链接到这里。在其他文档中输入 [[ 即可链接到「")+d.title()+"」。").FontSize(13).TextColor(t.TextMuted.Alpha(0.8))
+			ui.Text(c, i18n.T("还没有文档链接到这里；在其他文档中输入 [[ 即可链接到「")+d.title()+"」").FontSize(13).TextColor(t.TextMuted.Alpha(0.8))
 			return
 		}
 		for _, h := range hits {
@@ -459,7 +459,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 			continue
 		}
 		if err := d.save(); err != nil {
-			a.notify("更新 %s 的双链失败。%v", file.rel, err)
+			a.notify("更新 %s 的双链失败；%v", file.rel, err)
 			continue
 		}
 		changed++
@@ -467,7 +467,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 
 	if changed > 0 {
 		a.refreshSearch()
-		a.notify("已更新 %d 篇文档中指向「%s」的链接。", changed, to)
+		a.notify("已更新 %d 篇文档中指向「%s」的链接", changed, to)
 	}
 }
 

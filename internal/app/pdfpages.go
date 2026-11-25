@@ -88,21 +88,21 @@ func pdfStampOf(full string) (string, os.FileMode, error) {
 	return fmt.Sprintf("pdf:%d:%d", info.ModTime().UnixNano(), info.Size()), info.Mode().Perm(), nil
 }
 
-var errPDFChanged = errors.New("PDF 已在别处修改，请重新打开后再试。")
+var errPDFChanged = errors.New("PDF 已在别处修改，请重新打开后再试")
 
 // pdfEditError says what went wrong in the interface's language.
 func pdfEditError(err error) string {
 	switch {
 	case errors.Is(err, pdfedit.ErrNoPages):
-		return i18n.T("请填写要处理的页码。")
+		return i18n.T("请填写要处理的页码")
 	case errors.Is(err, pdfedit.ErrAllPages):
-		return i18n.T("不能删除全部页面。")
+		return i18n.T("不能删除全部页面")
 	case errors.Is(err, pdfedit.ErrTooLarge):
-		return i18n.T("PDF 太大，无法编辑。")
+		return i18n.T("PDF 太大，无法编辑")
 	case errors.Is(err, errPDFChanged):
 		return i18n.T(errPDFChanged.Error())
 	}
-	return fmt.Sprintf(i18n.T("处理 PDF 失败。%v"), err)
+	return fmt.Sprintf(i18n.T("处理 PDF 失败；%v"), err)
 }
 
 // inPlace reports whether op changes the PDF itself.
@@ -124,18 +124,18 @@ func (a *App) runPDFPages() {
 		return
 	}
 	if (s.op == pdfOpEncrypt || s.op == pdfOpDecrypt) && len(s.password) == 0 {
-		s.err = i18n.T("请填写密码。")
+		s.err = i18n.T("请填写密码")
 		return
 	}
 	if s.op == pdfOpMerge && len(s.merge) == 0 {
-		s.err = i18n.T("请先选择要合并的 PDF。")
+		s.err = i18n.T("请先选择要合并的 PDF")
 		return
 	}
 	span := 1
 	if s.op == pdfOpSplit {
 		span, err = strconv.Atoi(strings.TrimSpace(s.span))
 		if err != nil || span < 1 {
-			s.err = i18n.T("每份页数须为正整数。")
+			s.err = i18n.T("每份页数须为正整数")
 			return
 		}
 	}
@@ -297,11 +297,11 @@ func (a *App) finishPDFPages(d *document, full, op string, res pdfPagesResult) {
 		before, after, perm := res.before, res.after, res.perm
 		a.offerUndo(i18n.T("已修改 PDF"), d.rel, func() {
 			if now, _, err := pdfStampOf(full); err != nil || now != after {
-				a.notify("PDF 在修改后又有变化，没有撤销。")
+				a.notify("PDF 在修改后又有变化，没有撤销")
 				return
 			}
 			if err := fsutil.WriteFileAtomic(full, before, perm); err != nil {
-				a.notify("撤销失败。%v", err)
+				a.notify("撤销失败；%v", err)
 				return
 			}
 			a.reopenPDF(cur)
@@ -316,7 +316,7 @@ func (a *App) finishPDFPages(d *document, full, op string, res pdfPagesResult) {
 			a.openIn(d.space, path.Join(path.Dir(d.rel), filepath.Base(res.created[0])))
 		}
 	}
-	a.notify("已生成 %d 个 PDF 文件。", len(res.created))
+	a.notify("已生成 %d 个 PDF 文件", len(res.created))
 }
 
 // reopenPDF reads d's file again into a new document in its place and
@@ -327,7 +327,7 @@ func (a *App) reopenPDF(d *document) *document {
 	}
 	text, err := readFile(d.space, d.rel)
 	if err != nil {
-		a.notify("重新载入 %s 失败。%v", d.title(), err)
+		a.notify("重新载入 %s 失败；%v", d.title(), err)
 		return d
 	}
 	fresh := openPDFDocument(d.space, d.rel, text)
@@ -384,9 +384,9 @@ func (a *App) pdfPagesView(c *ui.Context) {
 					}
 				})
 			}
-			note := i18n.T("另存为新文件，原文件保持不变。")
+			note := i18n.T("另存为新文件，原文件保持不变")
 			if pdfInPlace(s.op) {
-				note = i18n.T("直接修改原文件，完成后可撤销。")
+				note = i18n.T("直接修改原文件，完成后可撤销")
 			}
 			ui.Text(c, note).FontSize(12).TextColor(t.TextMuted)
 			switch s.op {
@@ -395,9 +395,9 @@ func (a *App) pdfPagesView(c *ui.Context) {
 			case pdfOpSplit:
 				ui.TextInput(c.Key("pdf-pages-span"), &s.span).Placeholder(i18n.T("每份页数")).Label(i18n.T("每份页数"))
 			case pdfOpMerge:
-				label := i18n.T("选择要合并的 PDF…")
+				label := i18n.T("选择要合并的 PDF")
 				if n := len(s.merge); n > 0 {
-					label = fmt.Sprintf(i18n.T("已选 %d 个 PDF，继续添加…"), n)
+					label = fmt.Sprintf(i18n.T("已选 %d 个 PDF，继续添加"), n)
 				}
 				if ui.Button(c.Key("pdf-merge-pick"), label).Clicked() {
 					a.chooseMergePDFs()
@@ -442,7 +442,7 @@ func (a *App) pdfPagesView(c *ui.Context) {
 				}
 				go_ := i18n.T("执行")
 				if s.busy {
-					go_ = i18n.T("正在处理…")
+					go_ = i18n.T("正在处理")
 				}
 				if ui.PrimaryButton(c.Key("pdf-pages-go"), go_).Disabled(s.busy).Clicked() {
 					a.runPDFPages()

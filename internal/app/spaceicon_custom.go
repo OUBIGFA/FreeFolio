@@ -90,8 +90,8 @@ type spaceIconError string
 func (e spaceIconError) Error() string { return i18n.T(string(e)) }
 
 const (
-	errSpaceIconTooLarge   spaceIconError = "图片超过 10 MB。"
-	errSpaceIconUnreadable spaceIconError = "无法读取这张图片。"
+	errSpaceIconTooLarge   spaceIconError = "图片超过 10 MB"
+	errSpaceIconUnreadable spaceIconError = "无法读取这张图片"
 )
 
 // customIcon is the picker's own tab: a short text of the user's, or a
@@ -121,11 +121,11 @@ func (a *App) customIcon(c *ui.Context, f *spaceForm) {
 			if bmp := a.spaceIconImage(f.image); bmp != nil {
 				ui.Image(c, bmp).Size(36, 36).Radius(8).Shrink(0)
 			}
-			if ui.Button(c.Key("custom-image"), i18n.T("选择图片…")).Height(30).Clicked() {
+			if ui.Button(c.Key("custom-image"), i18n.T("选择图片")).Height(30).Clicked() {
 				a.pickSpaceIcon(f.id)
 			}
 		})
-		ui.Text(c, i18n.T("PNG、JPG、GIF 等图片，会复制到配置文件夹。")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.4)
+		ui.Text(c, i18n.T("PNG、JPG、GIF 等图片，会复制到配置文件夹")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.4)
 	})
 }
 
@@ -149,7 +149,7 @@ func (a *App) pickSpaceIcon(id string) {
 		}
 		name, err := a.importSpaceIcon(paths[0])
 		if err != nil {
-			a.notify("设置空间图标失败。%v", err)
+			a.notify("设置空间图标失败；%v", err)
 			return
 		}
 		f := &a.spaceForm

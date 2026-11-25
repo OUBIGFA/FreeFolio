@@ -91,6 +91,6 @@ func (e *Editor) starter(c *ui.Context) {
 		if e.dropFiles != nil {
 			hint += i18n.T("，也可以把图片拖到这里")
 		}
-		ui.Text(c, hint+"。").FontSize(13).TextColor(e.page.Placeholder)
+		ui.Text(c, hint).FontSize(13).TextColor(e.page.Placeholder)
 	})
 }

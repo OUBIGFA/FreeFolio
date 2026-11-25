@@ -62,7 +62,7 @@ func (a *App) openLooseFile(full string) bool {
 		if !slices.Contains(f.order, name) {
 			delete(f.locations.ExternalFiles, name)
 		}
-		a.notify("无法打开文件。%v", err)
+		a.notify("无法打开文件；%v", err)
 		return false
 	}
 	if a.files == nil {
@@ -212,12 +212,12 @@ func (a *App) chooseSaveAs() {
 	if d == nil || d.loadErr != nil || d.isPDF() || win == nil {
 		return
 	}
-	options := mygo.SaveDialogOptions{Parent: win, Title: i18n.T("另存为…"), DefaultPath: d.fullPath(), Filters: []mygo.FileFilter{{Name: "Markdown", Extensions: []string{"md", "markdown", "mdx"}}, {Name: "Legacy", Extensions: []string{"arcmd"}}}}
+	options := mygo.SaveDialogOptions{Parent: win, Title: i18n.T("另存为"), DefaultPath: d.fullPath(), Filters: []mygo.FileFilter{{Name: "Markdown", Extensions: []string{"md", "markdown", "mdx"}}, {Name: "Legacy", Extensions: []string{"arcmd"}}}}
 	go func() {
 		dest, err := mygo.Dialog.Save(options)
 		win.Update(func() {
 			if err != nil {
-				a.notify("另存为失败。%v", err)
+				a.notify("另存为失败；%v", err)
 				return
 			}
 			if dest != "" && a.doc == d {
@@ -238,7 +238,7 @@ func (a *App) saveAs(dest string) bool {
 		dest += ".md"
 	}
 	if !vault.IsText(dest) {
-		a.notify("请选择 Markdown 或兼容文档格式。")
+		a.notify("请选择 Markdown 或兼容文档格式")
 		return false
 	}
 	d.waitAsyncSave()
@@ -251,7 +251,7 @@ func (a *App) saveAs(dest string) bool {
 		if other != d && dstInfo != nil {
 			info, _ := os.Stat(other.fullPath())
 			if info != nil && os.SameFile(info, dstInfo) {
-				a.notify("文件已打开，请先关闭目标文件。")
+				a.notify("文件已打开，请先关闭目标文件")
 				return false
 			}
 		}
@@ -278,7 +278,7 @@ func (a *App) saveAs(dest string) bool {
 		}
 	}
 	if err != nil {
-		a.notify("另存为失败。%v", err)
+		a.notify("另存为失败；%v", err)
 		return false
 	}
 	// Restore the original's on-disk model before navigation flushes editors.
@@ -459,7 +459,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 					}
 				})
 			})
-			open = iconButton(c, "open", iconPlus, i18n.T("打开文件…"), i18n.T("打开文件…")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Shrink(0)
+			open = iconButton(c, "open", iconPlus, i18n.T("打开文件"), i18n.T("打开文件")+" ("+combo(ui.Cmd, ui.KeyO).Label()+")", false).Shrink(0)
 			if open.Clicked() {
 				a.chooseExternalFiles()
 			}
@@ -628,7 +628,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 		d := a.doc
 		noDoc := d == nil || d.loadErr != nil
 		noText := noDoc || d.isPDF()
-		if m.Item(i18n.T("另存为…")).Disabled(noText).Chosen() {
+		if m.Item(i18n.T("另存为")).Disabled(noText).Chosen() {
 			a.chooseSaveAs()
 		}
 		if m.Item(i18n.T("Markdown 源码")).Checked(d != nil && d.source).Disabled(noText).Chosen() {
@@ -649,7 +649,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 			a.revealIn(f.locations, d.rel)
 		}
 		m.Separator()
-		if m.Item(i18n.T("文件浏览设置…")).Chosen() {
+		if m.Item(i18n.T("文件浏览设置")).Chosen() {
 			a.openSettings(tabFiles)
 		}
 	})
@@ -665,8 +665,8 @@ func (a *App) fileEmpty(c *ui.Context) {
 	area.Children(func() {
 		ui.Image(c, brandLogo()).Size(44, 44)
 		ui.Text(c, i18n.T("没有打开的文件")).FontSize(17).FontWeight(600)
-		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑。")).FontSize(13).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件…")).Margin(6, 0, 0, 0).Clicked() {
+		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑")).FontSize(13).TextColor(t.TextMuted)
+		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Margin(6, 0, 0, 0).Clicked() {
 			a.chooseExternalFiles()
 		}
 	})

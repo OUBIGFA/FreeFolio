@@ -121,7 +121,7 @@ func (a *App) openFontPicker(forUI bool) {
 	if a.doc != nil && a.doc.ed != nil {
 		a.fonts.sample = editor.FromDocument(a.doc.ed.Committed())
 	} else {
-		a.fonts.sample = editor.New("# 字体预览\n\n春风与笔记 · Abc 123\n\n选择字体，预览正文的字形与行距。")
+		a.fonts.sample = editor.New("# 字体预览\n\n春风与笔记 · Abc 123\n\n选择字体，预览正文的字形与行距")
 	}
 	a.fonts.sample.ReadOnly = true
 	a.loadFonts()
@@ -384,13 +384,13 @@ func (a *App) fontPickerView(c *ui.Context) {
 				return
 			}
 			if f.loading {
-				ui.Text(c, i18n.T("正在读取字体…")).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("正在读取字体")).TextColor(t.TextMuted)
 			}
 			if f.err != "" {
 				ui.Text(c, f.err).TextColor(t.Danger).FontSize(13)
 			}
 			if f.busy != "" {
-				text := i18n.T("正在处理字体…")
+				text := i18n.T("正在处理字体")
 				if f.progress != nil && f.total > 0 {
 					text = fmt.Sprintf(i18n.T("正在下载字体：%d%%"), f.progress.Load()*100/f.total)
 				}

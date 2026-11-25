@@ -48,7 +48,7 @@ var insertions = []insertion{
 	{name: "三级标题", kind: "heading", level: 3, search: "h3 heading sanjibiaoti sjbt", icon: iconHeading3, grid: true, tint: "blue", md: "### 空格"},
 	{name: "四级标题", kind: "heading", level: 4, search: "h4 heading sijibiaoti sjbt", icon: iconHeading4, grid: true, tint: "blue", md: "#### 空格"},
 	{name: "五级标题", kind: "heading", level: 5, search: "h5 heading wujibiaoti wjbt", icon: iconHeading5, grid: true, tint: "blue", md: "##### 空格"},
-	{name: "有序列表", kind: "numbered", search: "ordered numbered list youxuliebiao yxlb", icon: iconOrdered, grid: true, tint: "indigo", md: "1. 空格"},
+	{name: "有序列表", kind: "numbered", search: "ordered numbered list youxuliebiao yxlb", icon: iconOrdered, grid: true, tint: "indigo", md: "1; 空格"},
 	{name: "无序列表", kind: "bullet", search: "bullet unordered list wuxuliebiao wxlb", icon: iconList, grid: true, tint: "indigo", md: "- 空格"},
 	{name: "任务", kind: "task", search: "todo task renwu rw", icon: iconTodo, group: 1, grid: true, tint: "indigo", md: "[] 空格"},
 	{name: "代码块", kind: "code", search: "code daimakuai dmk", icon: iconCodeBlock, grid: true, tint: "green", md: "``` 空格"},
@@ -736,7 +736,7 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 				// rather than styling it. Presets run at once; the custom
 				// item opens OneBot for an instruction of the user's own.
 				drop("float:onebot", i18n.T("OneBot 修改选区"), iconSparkles, func(m *ui.Menu) {
-					if m.Item(i18n.T("自定义修改…")).Chosen() {
+					if m.Item(i18n.T("自定义修改")).Chosen() {
 						o.EditWithAI("")
 					}
 					if o.AddToAI != nil && m.Item(i18n.T("添加到 OneBot")).Chosen() {
@@ -849,12 +849,12 @@ func (e *Editor) ClearFormat() {
 // instruction keeps the edit inside the selection and its Markdown, so the
 // result replaces exactly what was selected after review.
 var selectionAIPresets = []struct{ label, instruction string }{
-	{"润色", "润色选中内容：让表达更清晰流畅，保持原意、语言和 Markdown 格式。"},
-	{"修正错别字和语法", "修正选中内容中的错别字、标点和语法错误，不改变原意、语气和 Markdown 格式。"},
-	{"精简", "精简选中内容：删去冗余表达，保留全部要点和 Markdown 格式。"},
-	{"扩写", "扩写选中内容：补充细节和解释，保持原有观点、语气和 Markdown 格式。"},
-	{"翻译为中文", "将选中内容翻译为简体中文，保留 Markdown 格式。"},
-	{"翻译为英文", "将选中内容翻译为英文，保留 Markdown 格式。"},
+	{"润色", "润色选中内容：让表达更清晰流畅，保持原意、语言和 Markdown 格式"},
+	{"修正错别字和语法", "修正选中内容中的错别字、标点和语法错误，不改变原意、语气和 Markdown 格式"},
+	{"精简", "精简选中内容：删去冗余表达，保留全部要点和 Markdown 格式"},
+	{"扩写", "扩写选中内容：补充细节和解释，保持原有观点、语气和 Markdown 格式"},
+	{"翻译为中文", "将选中内容翻译为简体中文，保留 Markdown 格式"},
+	{"翻译为英文", "将选中内容翻译为英文，保留 Markdown 格式"},
 }
 
 // colorNames name the text colors and highlights for people.

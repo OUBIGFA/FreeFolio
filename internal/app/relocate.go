@@ -33,7 +33,7 @@ type movingDocument struct {
 // remain untouched until the caller trashes them after this function succeeds.
 func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, dir string) (to string, copied bool, err error) {
 	if dst.IsExternal() {
-		return "", false, errors.New(i18n.T("外部空间只记录文件，不能作为移动目标。"))
+		return "", false, errors.New(i18n.T("外部空间只记录文件，不能作为移动目标"))
 	}
 	if !a.flushForTask() {
 		return "", false, errors.New(i18n.T("请先保存文档并解决文件冲突"))
@@ -216,7 +216,7 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 	}
 	if src.Root != "" {
 		if cleanupErr := history.Forget(src.Root, rel); cleanupErr != nil {
-			a.notify("文档和历史已移动；原位置的历史副本未能清理。%v", cleanupErr)
+			a.notify("文档和历史已移动；原位置的历史副本未能清理；%v", cleanupErr)
 		}
 	}
 	a.invalidateResolvedImages()

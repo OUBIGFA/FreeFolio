@@ -33,6 +33,9 @@ func boardToolKind(t BoardTool) whiteboard.ElementKind {
 	}
 }
 func (b *Board) input(ev ui.InputEvent, o BoardOptions) bool {
+	if o.ImageAnnotation && b.imageViewerInput(ev, o) {
+		return true
+	}
 	if b.editing != nil {
 		if ev.Kind == ui.InputKeyDown {
 			return b.textKey(ev, o)

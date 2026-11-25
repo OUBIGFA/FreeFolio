@@ -408,7 +408,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 		body := ui.Scroll(c.Key("body")).Grow(1).MinHeight(0).Gap(1)
 		body.Children(func() {
 			if err := a.library.errs[s.ID]; err != nil {
-				ui.Text(c, i18n.T("读取文件夹失败。")+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 8)
+				ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 8)
 				return
 			}
 			nodes := a.library.trees[s.ID]
@@ -421,7 +421,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 			a.cardGrip(c, s, slices.Index(a.state.Spaces, s))
 			ui.Spacer(c)
 			iconButton(c, "menu", iconEllipsis, s.Name+i18n.T(" 的菜单"), i18n.T("更多"), false).Size(28, 28).Menu(func(m *ui.Menu) {
-				if m.Item(i18n.T("编辑空间…")).Chosen() {
+				if m.Item(i18n.T("编辑空间")).Chosen() {
 					a.closeLibrary()
 					a.editSpace(s)
 				}
@@ -518,7 +518,7 @@ func (a *App) cardRow(c *ui.Context, key, label string, depth int) ui.Element {
 // libraryPlugins is the Plugins page, empty until the market opens.
 func (a *App) libraryPlugins(c *ui.Context) {
 	ui.Box(c).Height(46).Shrink(0)
-	libraryEmpty(c, iconPlugins, i18n.T("插件市场即将开放"), i18n.T("扩展能力将以插件提供，敬请期待。"))
+	libraryEmpty(c, iconPlugins, i18n.T("插件市场即将开放"), i18n.T("扩展能力将以插件提供，敬请期待"))
 }
 
 // libraryEmpty is a page with nothing on it: a glyph, a title and a line
@@ -551,15 +551,15 @@ func (a *App) libraryTrash(c *ui.Context) {
 		AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
 		ui.TextInput(c.Key("trash-query"), &l.query).Grow(1).MinWidth(0).Height(24).Padding(0).
-			Placeholder(i18n.T("搜索最近删除…")).Label(i18n.T("搜索最近删除")).TextColor(t.Text).
+			Placeholder(i18n.T("搜索最近删除")).Label(i18n.T("搜索最近删除")).TextColor(t.Text).
 			Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).AutoFocus()
 	})
 	switch {
 	case l.err != nil:
-		ui.Text(c, i18n.T("读取失败。")+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(16, 12, 0, 12)
+		ui.Text(c, i18n.T("读取失败")+" "+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(16, 12, 0, 12)
 		return
 	case len(l.items) == 0:
-		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeFolio 删除的文档和文件夹会在这里保留 30 天，可以放回原处。"))
+		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeFolio 删除的文档和文件夹会在这里保留 30 天，可以放回原处"))
 		return
 	}
 	words := strings.Fields(strings.ToLower(l.query))

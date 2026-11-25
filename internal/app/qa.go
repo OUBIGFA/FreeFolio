@@ -231,13 +231,13 @@ func (a *App) qaReady() error {
 	settings := a.qaSettings()
 	if settings.Protocol == agent.ChatGPT {
 		if a.chatgpt.busyID == settings.ConnectionID {
-			return errors.New(i18n.T("正在处理 ChatGPT 连接…"))
+			return errors.New(i18n.T("正在处理 ChatGPT 连接"))
 		}
 		if !a.chatGPTSession().Sharing && !a.chatGPTSession().Pending {
 			if a.chatGPTSession().Status == chatgpt.Connected {
-				return errors.New(i18n.T("已登录 ChatGPT，但尚未允许使用套餐。请在设置中授权。"))
+				return errors.New(i18n.T("已登录 ChatGPT，但尚未允许使用套餐；请在设置中授权"))
 			}
-			return errors.New(i18n.T("请先登录 ChatGPT。"))
+			return errors.New(i18n.T("请先登录 ChatGPT"))
 		}
 	}
 	switch err := settings.Check(); {
@@ -532,7 +532,7 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 	s.source = settings.Signature()
 	text := question
 	if text == "" && len(parts) > 0 {
-		text = "请结合附件内容回答。"
+		text = "请结合附件内容回答"
 	}
 	if len(quotes) > 0 {
 		text = oneBotQuotePrompt(quotes) + "\n" + text
@@ -822,7 +822,7 @@ func (a *App) continueQA(spaceID string, turn *qaTurn) {
 	if s == nil || s.running() || len(s.turns) == 0 || s.turns[len(s.turns)-1] != turn {
 		return
 	}
-	a.askWithAttachments(spaceID, i18n.T("请从上次中断处继续，不要重复已输出的内容。"), nil, nil, nil, nil)
+	a.askWithAttachments(spaceID, i18n.T("请从上次中断处继续，不要重复已输出的内容"), nil, nil, nil, nil)
 }
 
 func (a *App) beginEditQATurn(turn *qaTurn) {
@@ -1458,16 +1458,16 @@ func qaErrorText(err error) string {
 	switch {
 	case errors.As(err, &api):
 		if api.Protocol == agent.ChatGPT || strings.HasPrefix(api.Code, "subscription_sharing_") || strings.HasPrefix(api.Code, "chatpass_") {
-			text := i18n.T("ChatGPT 套餐请求未获准，请检查账号权限或稍后重试。")
+			text := i18n.T("ChatGPT 套餐请求未获准，请检查账号权限或稍后重试")
 			switch api.Code {
 			case "subscription_sharing_usage_limit_exceeded":
-				text = i18n.T("已达到 ChatGPT 套餐或此应用的用量限制。请打开「管理用量」查看。")
+				text = i18n.T("已达到 ChatGPT 套餐或此应用的用量限制；请打开「管理用量」查看")
 			case "subscription_sharing_user_not_eligible":
-				text = i18n.T("此 ChatGPT 账号或工作区暂不支持套餐使用。请检查账号资格。")
+				text = i18n.T("此 ChatGPT 账号或工作区暂不支持套餐使用；请检查账号资格")
 			case "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable":
-				text = i18n.T("ChatGPT 用量服务暂时不可用。连接已保留，请稍后重试。")
+				text = i18n.T("ChatGPT 用量服务暂时不可用；连接已保留，请稍后重试")
 			case "subscription_sharing_unsupported_capability":
-				text = i18n.T("ChatGPT 套餐暂不支持此次请求的模型、附件或工具。")
+				text = i18n.T("ChatGPT 套餐暂不支持此次请求的模型、附件或工具")
 			}
 			if api.RequestID != "" {
 				text += "\n" + i18n.T("请求编号：") + api.RequestID

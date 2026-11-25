@@ -117,8 +117,46 @@ func (a *ImageAnnotation) PNG() ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func ImageAnnotationView(c *ui.Context, a *ImageAnnotation, readOnly bool) {
-	BoardView(c, a.Board, BoardOptions{Theme: c.Theme(), ReadOnly: readOnly, ImageAnnotation: true})
+func ImageAnnotationView(c *ui.Context, a *ImageAnnotation, readOnly bool, dismiss func()) {
+	BoardView(c, a.Board, BoardOptions{Theme: c.Theme(), ReadOnly: readOnly, ImageAnnotation: true, DismissImage: dismiss})
+}
+
+// imageViewerInput distinguishes a blank click from a pan, including a drag
+// that returns to its starting position. Annotation sessions never dismiss here.
+func (b *Board) imageViewerInput(ev ui.InputEvent, o BoardOptions) bool {
+	if o.DismissImage == nil {
+		b.imageBlankClick = false
+		return false
+	}
+	base := b.Scene.ElementByID(b.annotationBase)
+	if base == nil {
+		return false
+	}
+	blank := !whiteboard.ElementBounds(base).Contains(b.scenePoint(ev.X, ev.Y))
+	switch ev.Kind {
+	case ui.InputPointerDown:
+		b.imagePress = whiteboard.Point{float64(ev.X), float64(ev.Y)}
+		b.imageBlankClick = ev.Button == 0 && blank
+	case ui.InputPointerMove:
+		if whiteboard.Distance(b.imagePress, whiteboard.Point{float64(ev.X), float64(ev.Y)}) > 4 {
+			b.imageBlankClick = false
+		}
+	case ui.InputPointerUp:
+		close := b.imageBlankClick && blank && ev.Button == 0 && !ev.Canceled &&
+			whiteboard.Distance(b.imagePress, whiteboard.Point{float64(ev.X), float64(ev.Y)}) <= 4
+		b.imageBlankClick = false
+		if close {
+			b.mode = ""
+			o.DismissImage()
+			return true
+		}
+	case ui.InputKeyDown:
+		if ev.Key == ui.KeyEscape {
+			o.DismissImage()
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Board) annotationToolbar(c *ui.Context, o BoardOptions) {
@@ -233,7 +271,7 @@ func (b *Board) AddAnnotatedReference(sourceID, rel string, width, height int, g
 			gen := b.newAINode(whiteboard.AIImage, whiteboard.Point{input.X + input.W + 100 + 180, input.Y + 220}, o)
 			generatorID = gen.ID
 			gn := whiteboard.AINodeOf(gen)
-			gn.Instruction = i18n.T("按照参考图中的标注修改图片，保留未标注的部分，并移除标注本身。")
+			gn.Instruction = i18n.T("按照参考图中的标注修改图片，保留未标注的部分，并移除标注本身")
 			_ = whiteboard.SetAINode(gen, gn)
 			b.err = b.connectAI(input, gen, true)
 		}

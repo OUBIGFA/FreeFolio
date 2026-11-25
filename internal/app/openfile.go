@@ -18,7 +18,7 @@ func (a *App) openSystemFile(file string) bool {
 		full, err = filepath.EvalSymlinks(full)
 	}
 	if err != nil {
-		a.notify("无法打开文件。%v", err)
+		a.notify("无法打开文件；%v", err)
 		return false
 	}
 	info, err := os.Stat(full)

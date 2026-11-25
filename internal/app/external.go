@@ -116,7 +116,7 @@ func writeFile(sp *space.Space, rel, text string) error {
 
 // errPDFReadOnly guards PDFs, which FreeFolio only reads. Its text is
 // translated where errors are shown (errText).
-var errPDFReadOnly = errors.New("PDF 文件只读，FreeFolio 不会修改它。")
+var errPDFReadOnly = errors.New("PDF 文件只读，FreeFolio 不会修改它")
 
 func renameFile(sp *space.Space, rel, name string) (string, error) {
 	root, disk, err := fileLocation(sp, rel)
@@ -152,7 +152,7 @@ func (a *App) chooseExternalFiles() {
 	}
 	win := a.win
 	go func() {
-		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件…"), Multiple: true,
+		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("打开文件"), Multiple: true,
 			Filters: openFilters()})
 		if err != nil {
 			return

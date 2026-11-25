@@ -24,7 +24,7 @@ func (a *App) oneBotHeaderMenu(c *ui.Context) {
 	busy := sess != nil && sess.running()
 	alreadyCleared := !hasTurns || sess.turns[len(sess.turns)-1].contextBreakAfter
 	iconButton(c, "onebot-menu", iconEllipsis, i18n.T("OneBot 菜单"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
-		if m.Item(i18n.T("OneBot 设置…")).Chosen() {
+		if m.Item(i18n.T("OneBot 设置")).Chosen() {
 			a.openSettings(tabAI)
 		}
 		if m.Item(i18n.T("编辑记录")).Chosen() {
@@ -150,7 +150,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 				})
 			}
 			svc := c.Services()
-			in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Multiline(true).Height(58).Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息、拖入文件或图片，或描述要修改的内容…")).OnPaste(func(text string) bool {
+			in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Multiline(true).Height(58).Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息、拖入文件或图片，或描述要修改的内容")).OnPaste(func(text string) bool {
 				data := svc.ReadClipboardData(transfer.FileList, transfer.PNG)
 				if files, err := data.Files(); err == nil && len(files) > 0 {
 					a.addOneBotFiles(files)
@@ -201,7 +201,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 							a.beginOneBotEdit("document")
 						}
 					}
-					if m.Item(i18n.T("更多编辑选项…")).Chosen() {
+					if m.Item(i18n.T("更多编辑选项")).Chosen() {
 						a.qa.editOptionsOpen = true
 					}
 				})
@@ -341,7 +341,7 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 			}
 		}
 		m.Separator()
-		if m.Item(i18n.T("管理供应商…")).Chosen() {
+		if m.Item(i18n.T("管理供应商")).Chosen() {
 			a.openSettings(tabAI)
 		}
 	}).Height(26).Padding(2, 8).Radius(6).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型")).Tooltip(label)
@@ -384,9 +384,9 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 			ui.Text(c, i18n.T("已停止，未应用的内容保留为草稿")).FontSize(13).TextColor(t.TextMuted)
 		}
 		if task.Running || task.Applying {
-			label := i18n.T("正在生成修改…")
+			label := i18n.T("正在生成修改")
 			if task.Applying {
-				label = i18n.T("正在应用并保存…")
+				label = i18n.T("正在应用并保存")
 			}
 			ui.Text(c, label).FontSize(13).TextColor(t.TextMuted).Role(ui.RoleStatus)
 			if task.Running && task.Selected >= 0 && task.Selected < len(task.Candidates) {

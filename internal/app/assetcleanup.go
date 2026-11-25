@@ -195,7 +195,7 @@ func (a *App) recycleUnusedAssets() {
 			if e != nil {
 				s.err = e.Error()
 			}
-			s.message = fmt.Sprintf(i18n.T("已将 %d 个附件移到回收站，并保留恢复副本。"), count)
+			s.message = fmt.Sprintf(i18n.T("已将 %d 个附件移到回收站，并保留恢复副本"), count)
 			a.invalidateResolvedImages()
 		}
 	})
@@ -210,9 +210,9 @@ func (a *App) cleanupView(c *ui.Context) {
 	ui.Modal(c.Key("asset-cleanup"), &s.open, func() {
 		ui.Column(c).Width(min(720, w-40)).MaxHeight(h - 60).Gap(10).Children(func() {
 			ui.Text(c, i18n.T("清理未使用附件")).FontSize(18).FontWeight(600)
-			ui.Text(c, i18n.T("已核查正文、白板、历史版本、回收站和本机文件；移除前会再次检查引用。")).FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("已核查正文、白板、历史版本、回收站和本机文件；移除前会再次检查引用")).FontSize(13).TextColor(t.TextMuted)
 			if s.busy {
-				ui.Text(c, i18n.T("正在检查附件…"))
+				ui.Text(c, i18n.T("正在检查附件"))
 				c.After(100 * time.Millisecond)
 			}
 			if s.err != "" {

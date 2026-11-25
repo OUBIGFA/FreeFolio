@@ -722,12 +722,12 @@ func (a *App) placeEntry(rel, dir string, index int) {
 	back := slices.IndexFunc(a.childrenOf(from), func(n *vault.Node) bool { return n.Path == rel })
 	to, _, err := a.moveWithResources(sp, rel, sp, dir)
 	if err != nil {
-		a.notify("移动 %s 失败。%v", path.Base(rel), err)
+		a.notify("移动 %s 失败；%v", path.Base(rel), err)
 		return
 	}
 	defer a.offerUndo(i18n.T("已移到「")+folderName(sp, dir)+"」", path.Base(to), func() {
 		if a.state.ActiveSpace() != sp {
-			a.notify("「%s」已不在当前空间，无法撤销移动。", path.Base(to))
+			a.notify("「%s」已不在当前空间，无法撤销移动", path.Base(to))
 			return
 		}
 		a.placeEntry(to, from, max(0, back))

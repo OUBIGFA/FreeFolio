@@ -76,7 +76,7 @@ func (a *App) runNoteImport() {
 	}
 	sp := a.state.Get(s.spaceID)
 	if sp == nil || sp.IsExternal() {
-		s.err = i18n.T("请选择导入目标空间。")
+		s.err = i18n.T("请选择导入目标空间")
 		return
 	}
 	src := strings.TrimSpace(s.source)
@@ -114,9 +114,9 @@ func (a *App) importGuideView(c *ui.Context) {
 	ui.Modal(c.Key("note-import"), &s.open, func() {
 		ui.Column(c).Width(min(760, w-40)).MaxHeight(h - 60).Gap(10).Children(func() {
 			ui.Text(c, i18n.T("导入已有笔记")).FontSize(18).FontWeight(600)
-			ui.Text(c, i18n.T("复制 Markdown 笔记库、思源工作空间或导出 ZIP。原文件保持不变；转换结果写入导入报告。")).FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("复制 Markdown 笔记库、思源工作空间或导出 ZIP；原文件保持不变；转换结果写入导入报告")).FontSize(13).TextColor(t.TextMuted)
 			if s.discovering {
-				ui.Text(c, i18n.T("正在查找已有笔记库…"))
+				ui.Text(c, i18n.T("正在查找已有笔记库"))
 				c.After(100 * time.Millisecond)
 			}
 			ui.Scroll(c.Key("found-libraries")).MaxHeight(min(160, h/4)).Children(func() {
@@ -130,10 +130,10 @@ func (a *App) importGuideView(c *ui.Context) {
 			})
 			ui.TextInput(c.Key("import-source"), &s.source).Label(i18n.T("笔记来源路径")).Placeholder(i18n.T("选择笔记文件夹或导出 ZIP")).Disabled(s.busy)
 			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c.Key("import-folder"), i18n.T("选择文件夹…")).Disabled(s.busy).Clicked() {
+				if ui.Button(c.Key("import-folder"), i18n.T("选择文件夹")).Disabled(s.busy).Clicked() {
 					a.chooseImportSource(true)
 				}
-				if ui.Button(c.Key("import-file"), i18n.T("选择文件或 ZIP…")).Disabled(s.busy).Clicked() {
+				if ui.Button(c.Key("import-file"), i18n.T("选择文件或 ZIP")).Disabled(s.busy).Clicked() {
 					a.chooseImportSource(false)
 				}
 			})
@@ -163,12 +163,12 @@ func (a *App) importGuideView(c *ui.Context) {
 				ui.Text(c, s.err).TextColor(t.Danger)
 			}
 			if s.busy {
-				ui.Text(c, i18n.T("正在复制和转换笔记…"))
+				ui.Text(c, i18n.T("正在复制和转换笔记"))
 				c.After(100 * time.Millisecond)
 			}
 			if s.result != nil {
 				r := s.result
-				ui.Text(c, fmt.Sprintf(i18n.T("已导入 %d 篇文档、%d 个附件，%d 项需要查看报告。"), r.Documents, r.Attachments, len(r.Issues)))
+				ui.Text(c, fmt.Sprintf(i18n.T("已导入 %d 篇文档、%d 个附件，%d 项需要查看报告"), r.Documents, r.Attachments, len(r.Issues)))
 				ui.Scroll(c.Key("import-report")).MaxHeight(max(80, h-500)).Children(func() {
 					for i, issue := range r.Issues {
 						ui.Text(c.Key(i), issue.File+" · "+issue.Detail).FontSize(13)

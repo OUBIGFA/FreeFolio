@@ -167,7 +167,7 @@ func (a *App) addSplitPane() {
 		return
 	}
 	if len(a.split.panes) >= splitLimit {
-		a.notify("最多同时打开四个分屏。")
+		a.notify("最多同时打开四个分屏")
 		return
 	}
 	a.syncSplit()
@@ -212,7 +212,7 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 	}
 	text, err := readFile(sp, rel)
 	if err != nil {
-		a.notify("打开 %s 失败。%v", vault.Title(rel), err)
+		a.notify("打开 %s 失败；%v", vault.Title(rel), err)
 		return
 	}
 	if !a.flushForTask() || !a.beginSplit() {
@@ -220,7 +220,7 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 	}
 	s := a.split
 	if len(s.panes) >= splitLimit {
-		a.notify("最多同时打开四个分屏。")
+		a.notify("最多同时打开四个分屏")
 		return
 	}
 	d := a.residentDocument(sp.ID, rel)

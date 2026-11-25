@@ -17,7 +17,9 @@ const (
 )
 
 var (
-	errRemoteChanged     = errors.New("远端文件已变化，请重新同步")
+	// ErrRemoteChanged requires a fresh content check before retrying a write.
+	ErrRemoteChanged     = errors.New("远端版本校验失败，请重新核对云端文件")
+	errRemoteChanged     = ErrRemoteChanged
 	errRemoteMissing     = errors.New("远端文件不存在")
 	errRemoteNotModified = errors.New("remote content not modified")
 )
@@ -58,6 +60,8 @@ func remoteRequest(s remoteStore, method, key string, data []byte, conditions ma
 
 func readRemote(s remoteStore, key, validator string) ([]byte, string, error) {
 	conditions := map[string]string{}
+	// A fresh GET must validate with the origin, not reuse a proxy's stale body.
+	conditions["Cache-Control"] = "no-cache"
 	if validator != "" {
 		conditions["If-None-Match"] = validator
 	}
@@ -100,7 +104,7 @@ func writeRemote(s remoteStore, key string, data []byte, etag string, exists boo
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusPreconditionFailed || resp.StatusCode == http.StatusConflict {
+	if resp.StatusCode == http.StatusPreconditionFailed {
 		return "", errRemoteChanged
 	}
 	if resp.StatusCode/100 != 2 {

@@ -133,7 +133,7 @@ func TestWordGoalFromTheCount(t *testing.T) {
 	if !strings.Contains(menu, "约 1 分钟读完") || !strings.Contains(menu, "距离目标还差 991 字") {
 		t.Fatal(menu)
 	}
-	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+	if err := tt.ChooseMenuItem("字数目标", "自定义"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -165,7 +165,7 @@ func TestWordGoalPopoverFlipsAboveBottomAnchor(t *testing.T) {
 	if err := tt.Click("6 字"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("字数目标", "自定义…"); err != nil {
+	if err := tt.ChooseMenuItem("字数目标", "自定义"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

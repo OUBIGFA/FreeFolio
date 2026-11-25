@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -54,6 +55,9 @@ type cloudState struct {
 	conflicts       []cloudConflict
 	resolve         map[string]map[string]cloudsync.Resolution
 	progress        *atomic.Pointer[cloudProgress]
+	lastError       error
+	recheck         bool
+	recoveryFocus   string
 }
 
 func (a *App) loadCloudSync() {
@@ -115,9 +119,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 	s.cancel = cancel
 	s.busy = true
 	s.failed = false
-	s.message = i18n.T("正在同步…")
+	s.message = i18n.T("正在同步")
 	if probe {
-		s.message = i18n.T("正在测试连接…")
+		s.message = i18n.T("正在测试连接")
 	}
 	s.done = make(chan cloudOutcome, 1)
 	s.guards = make(chan cloudGuard)
@@ -126,6 +130,8 @@ func (a *App) startCloudSync(probe, manual bool) {
 	progress := s.progress
 	resolutions := s.resolve
 	s.resolve = nil
+	recheck := s.recheck
+	s.recheck = false
 	stateDir := filepath.Join(a.cfg.ConfigDir, "sync-state")
 	bin := trashbin.Bin{Dir: a.bin.Dir}
 	trash := a.trashFile
@@ -149,7 +155,8 @@ func (a *App) startCloudSync(probe, manual bool) {
 		}
 		for _, sp := range spaces {
 			hooks := cloudsync.Hooks{
-				Merge: editor.MergeFiles,
+				Recheck: recheck || len(resolutions[sp.ID]) > 0,
+				Merge:   editor.MergeFiles,
 				// Keep the latest progress without making the worker wait for a frame.
 				Progress: func(p cloudsync.Progress) { progress.Store(&cloudProgress{sp.Name, p}) },
 				Resolve:  resolutions[sp.ID],
@@ -257,6 +264,7 @@ func (a *App) cloudTick(c *ui.Context) {
 			}
 			g.reply <- err
 		case out := <-s.done:
+			s.lastError = out.err
 			if !out.probe {
 				s.conflicts = out.conflicts
 			}
@@ -279,7 +287,11 @@ func (a *App) cloudTick(c *ui.Context) {
 				if errors.Is(out.err, context.DeadlineExceeded) || errors.As(out.err, &networkError) && networkError.Timeout() {
 					s.message = fmt.Sprintf(i18n.T("同步超时，请检查网络后重试：%v"), out.err)
 				}
-				if s.config.Automatic && s.retries < s.config.RetryLimit {
+				// Version conflicts and rejected credentials need a user decision,
+				// not another scheduled attempt with the same cached state.
+				var httpError *cloudsync.HTTPError
+				needsAction := errors.Is(out.err, cloudsync.ErrRemoteChanged) || errors.As(out.err, &httpError) && (httpError.Status < 500 && httpError.Status != http.StatusTooManyRequests || httpError.Status == http.StatusInsufficientStorage)
+				if !needsAction && s.config.Automatic && s.retries < s.config.RetryLimit {
 					s.retries++
 					s.due = now.Add(time.Duration(s.retries) * time.Minute)
 				}
@@ -360,6 +372,50 @@ func (a *App) cancelCloudSync() {
 	}
 }
 
+// cloudRecoveryActions offers a different operation when a plain retry cannot
+// help. A recheck keeps the baseline and exposes conflicts for explicit choice.
+func (a *App) cloudRecoveryActions(c *ui.Context) {
+	s := &a.cloud
+	remoteChanged := errors.Is(s.lastError, cloudsync.ErrRemoteChanged)
+	hint := "检查服务地址、账号和同步目录，修改后测试连接，再重试同步"
+	label, target := "检查连接设置", "connection"
+	var status *cloudsync.HTTPError
+	if remoteChanged {
+		hint = "重新读取云端文件并核对内容，发现冲突后保留两份文件，再选择要采用的版本"
+	} else if errors.As(s.lastError, &status) {
+		switch status.Status {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			hint = "请修改账号、密码或密钥，并确认该账号有同步目录的读写权限"
+			label = "修改账号或密钥"
+		case http.StatusConflict, http.StatusNotFound:
+			hint = "请检查远端目录是否存在，路径中是否有同名文件，以及账号是否允许创建目录"
+			label, target = "检查远端目录", "spaces"
+		case http.StatusInsufficientStorage:
+			hint = "请在云服务中释放空间，或更换有剩余空间的服务地址，再重试同步"
+		}
+	} else {
+		var networkError net.Error
+		if errors.Is(s.lastError, context.DeadlineExceeded) || errors.As(s.lastError, &networkError) {
+			hint = "请检查网络、代理和服务地址，先测试连接，再重试同步"
+		}
+	}
+	ui.Column(c.Key("cloud-recovery")).Padding(0, 16, 12, 16).Gap(8).Children(func() {
+		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(c.Theme().TextMuted)
+		ui.Row(c).Gap(8).Wrap().Children(func() {
+			if remoteChanged && ui.PrimaryButton(c.Key("recheck"), i18n.T("重新核对并同步")).Disabled(s.broken || !s.config.Enabled).Clicked() {
+				if a.saveCloudSync() {
+					s.recheck = true
+					s.resolve = nil
+					a.startCloudSync(false, true)
+				}
+			}
+			if ui.Button(c.Key("settings"), i18n.T(label)).Clicked() {
+				s.recoveryFocus = target
+			}
+		})
+	})
+}
+
 func (a *App) settingsCloudSync(c *ui.Context) {
 	t := c.Theme()
 	s := &a.cloud
@@ -405,6 +461,9 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 			ui.Row(c.Key("status-bar")).Padding(10, 16).Background(bg).Children(func() {
 				ui.Text(c.Key("status"), s.message).FontSize(12).TextColor(col).LineHeight(1.45).Grow(1)
 			})
+			if s.failed && !s.busy {
+				a.cloudRecoveryActions(c)
+			}
 		}
 	})
 
@@ -416,10 +475,10 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 				if i > 0 {
 					settingsSeparator(c)
 				}
-				note := i18n.T("本地与云端均有修改，已保留冲突副本。")
+				note := i18n.T("本地与云端均有修改，已保留冲突副本")
 				remoteLabel := i18n.T("采用云端版本")
 				if !conflict.detail.RemoteExists {
-					note = i18n.T("云端已删除该文件，本地仍有修改。")
+					note = i18n.T("云端已删除该文件，本地仍有修改")
 					remoteLabel = i18n.T("采用云端删除")
 				}
 				settingRow(c, fmt.Sprintf("conflict:%d", i), conflict.name+" / "+conflict.detail.Path, note, func() {
@@ -443,11 +502,16 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 	// Connection settings.
 	settingsSection(c, i18n.T("连接"))
 	settingsGroup(c, "cloud-connection", func() {
+		anchor := ui.Box(c.Key("connection-recovery-anchor")).Height(1)
+		if s.recoveryFocus == "connection" {
+			anchor.ScrollIntoView()
+			s.recoveryFocus = ""
+		}
 		provider := 0
 		if cfg.Provider == "s3" {
 			provider = 1
 		}
-		settingRow(c, "provider-row", i18n.T("同步服务"), i18n.T("选择 WebDAV 或兼容 S3 的对象存储。"), func() {
+		settingRow(c, "provider-row", i18n.T("同步服务"), i18n.T("选择 WebDAV 或兼容 S3 的对象存储"), func() {
 			if segmentedChoice(c.Key("provider"), &provider, "WebDAV", "S3").Label(i18n.T("同步服务")).Disabled(locked).Changed() {
 				cfg.Provider = []string{"webdav", "s3"}[provider]
 			}
@@ -468,7 +532,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 				cloudFieldSpec{"secret", "Secret Key", "", &cfg.S3SecretKey, true},
 			)
 			settingsSeparator(c)
-			settingRow(c, "path-style", i18n.T("使用路径风格地址"), i18n.T("MinIO、R2 等兼容服务通常需要开启。"), func() {
+			settingRow(c, "path-style", i18n.T("使用路径风格地址"), i18n.T("MinIO、R2 等兼容服务通常需要开启"), func() {
 				ui.Switch(c.Key("control"), &cfg.S3PathStyle).Label(i18n.T("使用路径风格地址")).Disabled(locked)
 			})
 		} else {
@@ -484,6 +548,11 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 	// Spaces to sync.
 	settingsSection(c, i18n.T("同步空间"))
 	settingsGroup(c, "cloud-spaces", func() {
+		anchor := ui.Box(c.Key("spaces-recovery-anchor")).Height(1)
+		if s.recoveryFocus == "spaces" {
+			anchor.ScrollIntoView()
+			s.recoveryFocus = ""
+		}
 		shown := 0
 		for _, sp := range a.state.Spaces {
 			if sp.IsExternal() {
@@ -534,7 +603,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 	// Automatic schedule.
 	settingsSection(c, i18n.T("自动同步"))
 	settingsGroup(c, "cloud-schedule", func() {
-		settingRow(c, "auto", i18n.T("自动同步"), i18n.T("开启时不会立即同步；之后保存文档或到达计划时间时同步。"), func() {
+		settingRow(c, "auto", i18n.T("自动同步"), i18n.T("开启时不会立即同步；之后保存文档或到达计划时间时同步"), func() {
 			ui.Switch(c.Key("control"), &cfg.Automatic).Label(i18n.T("自动同步")).Disabled(locked)
 		})
 		if cfg.Automatic {
@@ -550,7 +619,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 			})
 			settingsSeparator(c)
 			if cfg.Schedule == "daily" {
-				settingRow(c, "daily", i18n.T("每天同步时间"), i18n.T("24 小时制，例如 21:00。"), func() {
+				settingRow(c, "daily", i18n.T("每天同步时间"), i18n.T("24 小时制，例如 21:00"), func() {
 					ui.TextInput(c.Key("input"), &cfg.DailyTime).Width(112).Placeholder("21:00").
 						Label(i18n.T("每天同步时间")).Disabled(locked)
 				})
@@ -562,7 +631,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 			settingsSeparator(c)
 			cloudNumberRow(c, "retry", i18n.T("失败重试次数"), "", &cfg.RetryLimit, 0, 10, locked)
 			settingsSeparator(c)
-			settingRow(c, "startup", i18n.T("启动后同步一次"), i18n.T("仅在应用启动时执行；运行期间开启自动同步不会补跑。"), func() {
+			settingRow(c, "startup", i18n.T("启动后同步一次"), i18n.T("仅在应用启动时执行；运行期间开启自动同步不会补跑"), func() {
 				ui.Switch(c.Key("control"), &cfg.SyncOnStart).Label(i18n.T("启动后同步一次")).Disabled(locked)
 			})
 		}
@@ -571,9 +640,9 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 	// Backups & encryption.
 	settingsSection(c, i18n.T("备份与加密"))
 	settingsGroup(c, "cloud-safety", func() {
-		cloudNumberRow(c, "retention", i18n.T("每个文件保留的远端备份数"), i18n.T("远端覆盖或删除前保留的历史副本数量。"), &cfg.KeepSnapshots, 1, 100, locked)
+		cloudNumberRow(c, "retention", i18n.T("每个文件保留的远端备份数"), i18n.T("远端覆盖或删除前保留的历史副本数量"), &cfg.KeepSnapshots, 1, 100, locked)
 		settingsSeparator(c)
-		settingRow(c, "backups-row", i18n.T("本地恢复备份"), i18n.T("同步替换或删除本地文件前的恢复副本。"), func() {
+		settingRow(c, "backups-row", i18n.T("本地恢复备份"), i18n.T("同步替换或删除本地文件前的恢复副本"), func() {
 			if ui.Button(c.Key("backups"), i18n.T("打开恢复备份")).Clicked() {
 				mygo.Shell.OpenPath(filepath.Join(a.cfg.ConfigDir, "sync-state", "backups"))
 			}
@@ -664,7 +733,9 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		syncIcon = iconX
 		syncDisabled = false
 	} else if p := a.cloudProblem(); p != "" {
+		syncLabel = i18n.T("解决同步问题")
 		syncTip = syncLabel + " · " + p
+		syncDisabled = false
 	} else if syncDisabled {
 		syncTip = i18n.T("立即同步（未启用云端同步）")
 	} else if !s.last.IsZero() {
@@ -677,6 +748,8 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	if syncBtn.Clicked() {
 		if s.busy {
 			a.cancelCloudSync()
+		} else if s.failed || len(s.conflicts) > 0 {
+			a.openSettings(tabCloud)
 		} else {
 			a.startCloudSync(false, true)
 		}
@@ -755,7 +828,7 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 			}
 		}
 		m.Separator()
-		if m.Item(i18n.T("云端同步设置…")).Chosen() {
+		if m.Item(i18n.T("云端同步设置")).Chosen() {
 			a.openSettings(tabCloud)
 		}
 	})

@@ -584,9 +584,9 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		return
 	}
 	if d.boardLoading {
-		loading := i18n.T("正在加载白板…")
+		loading := i18n.T("正在加载白板")
 		if d.converted {
-			loading = i18n.T("正在读取文件…")
+			loading = i18n.T("正在读取文件")
 		}
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, loading).FontSize(14) })
 		return
@@ -948,19 +948,19 @@ func (a *App) emptyState(c *ui.Context) {
 		}
 		switch {
 		case a.treeErr != nil:
-			ui.Text(c, i18n.T("读取空间文件夹失败。")+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
+			ui.Text(c, i18n.T("读取空间文件夹失败")+" "+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
 		case a.treeLoading && len(a.docs) == 0:
-			ui.Text(c, i18n.T("正在读取空间文件夹…")).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted)
 		case sp.IsExternal() && len(a.docs) == 0:
-			ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置。")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
+			ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
 		case len(a.docs) == 0:
-			ui.Text(c, i18n.T("此空间暂无文档。")).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted)
 		default:
-			ui.Text(c, i18n.T("选择一篇文档，或按 ⌘K 搜索。")).TextColor(t.TextMuted)
+			ui.Text(c, i18n.T("选择一篇文档，或按 ⌘K 搜索")).TextColor(t.TextMuted)
 		}
 		ui.Row(c).Gap(8).Children(func() {
 			if sp.IsExternal() {
-				if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件…")).Clicked() {
+				if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Clicked() {
 					a.chooseExternalFiles()
 				}
 			} else {

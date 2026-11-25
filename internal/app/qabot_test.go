@@ -186,7 +186,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	stopped := false
 	s.cancel = func() { stopped = true }
 	tt.Frame()
-	if !turn.loader.initialized || !tt.HasText("正在查找…") || !tt.HasText("停止") {
+	if !turn.loader.initialized || !tt.HasText("正在查找") || !tt.HasText("停止") {
 		t.Fatal("waiting loader missing")
 	}
 	if turn.loader.style != loaderTailChase {
@@ -203,7 +203,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	// Thinking phase shifts to Mirage.
 	turn.apply(agent.Event{Kind: agent.ReasoningDelta, Text: "reasoning"})
 	tt.Frame()
-	if !tt.HasText("思考中…") || turn.loader.style != loaderMirage {
+	if !tt.HasText("思考中") || turn.loader.style != loaderMirage {
 		t.Fatalf("reasoning status/loader unexpected: style=%v", turn.loader.style)
 	}
 
@@ -211,7 +211,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	turn.apply(agent.Event{Kind: agent.TextDelta, Text: "正在整理结果"})
 	tt.Frame()
 	qaAdvance(tt, 700*time.Millisecond)
-	if tt.HasText("思考中…") || !tt.HasText("正在整理结果") {
+	if tt.HasText("思考中") || !tt.HasText("正在整理结果") {
 		t.Fatal("streaming did not replace status")
 	}
 
@@ -228,7 +228,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	}
 	a.finishQA(s, turn, nil, context.Canceled)
 	tt.Frame()
-	if tt.HasText("正在查找…") || !tt.HasText("已停止") {
+	if tt.HasText("正在查找") || !tt.HasText("已停止") {
 		t.Fatal("stopped turn retained its loader")
 	}
 }

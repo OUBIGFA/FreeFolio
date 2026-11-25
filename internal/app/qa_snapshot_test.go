@@ -184,7 +184,7 @@ func TestQASnapshot(t *testing.T) {
 			case "loader", "loader-dark", "loader-narrow", "thinking":
 				s := a.qaSession(sp)
 				s.cancel = func() {}
-				s.turns = append(s.turns, &qaTurn{question: "这个空间里有哪些还没完成的任务？", running: true, thinking: name == "thinking"})
+				s.turns = append(s.turns, &qaTurn{question: "这个空间里有哪些还没完成的任务", running: true, thinking: name == "thinking"})
 			case "settings":
 				a.openSettings(tabAI)
 			case "settings-empty":

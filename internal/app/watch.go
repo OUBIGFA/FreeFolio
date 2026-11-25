@@ -298,7 +298,7 @@ func (a *App) closeMissing() {
 	a.replaceReferences(d, nil)
 	a.state.Forget(d.space.ID, d.rel)
 	a.saveState()
-	a.notify("「%s」已被移动或删除。", d.title())
+	a.notify("「%s」已被移动或删除", d.title())
 }
 
 // useDisk drops the edits of a document in conflict for its file.
@@ -324,7 +324,7 @@ func (a *App) keepMine() {
 		return
 	}
 	if err := d.write(true); err != nil {
-		a.notify("保存 %s 失败。%v", d.title(), err)
+		a.notify("保存 %s 失败；%v", d.title(), err)
 		return
 	}
 	a.refreshTree()
@@ -341,10 +341,10 @@ func (a *App) conflictBarFor(c *ui.Context, d *document) {
 		return
 	}
 	t := c.Theme()
-	msg := "「" + d.title() + i18n.T("」已在其他地方修改，这里还有未保存的修改。")
+	msg := "「" + d.title() + i18n.T("」已在其他地方修改，这里还有未保存的修改")
 	mine, theirs := i18n.T("保留我的修改"), i18n.T("使用磁盘上的版本")
 	if d.missing {
-		msg = "「" + d.title() + i18n.T("」的文件已被移动或删除，这里还有未保存的修改。")
+		msg = "「" + d.title() + i18n.T("」的文件已被移动或删除，这里还有未保存的修改")
 		mine, theirs = i18n.T("重新保存到原位置"), i18n.T("放弃修改并关闭")
 	}
 	ui.Row(c.Key("conflict")).Padding(10, 16).Gap(10).AlignItems(ui.Center).

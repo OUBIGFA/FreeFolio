@@ -14,6 +14,122 @@ import (
 	"testing"
 )
 
+func TestChangedValidatorWithSameContentDoesNotBlockUpload(t *testing.T) {
+	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true}, files: map[string][]byte{}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Some gateways report a different validator for listing and GET.
+		if r.Method == http.MethodPut && r.Header.Get("If-Match") == `"get-version"` {
+			dav.mu.Lock()
+			r.Header.Set("If-Match", `"`+hashBytes(dav.files[strings.TrimRight(r.URL.Path, "/")])+`"`)
+			dav.mu.Unlock()
+		}
+		rec := httptest.NewRecorder()
+		dav.ServeHTTP(rec, r)
+		if r.Method == http.MethodGet && rec.Code == http.StatusOK {
+			rec.Header().Set("ETag", `"get-version"`)
+		}
+		for k, v := range rec.Header() {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(rec.Code)
+		_, _ = w.Write(rec.Body.Bytes())
+	}))
+	defer server.Close()
+	c := DefaultConfig()
+	c.Enabled = true
+	c.WebDAVURL, c.WebDAVUser, c.WebDAVPassword = server.URL+"/dav", "me", "secret"
+	sp := Space{ID: "a", Root: t.TempDir(), Remote: "Notes"}
+	state, file := t.TempDir(), filepath.Join(sp.Root, "note.md")
+	if err := os.WriteFile(file, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Sync(context.Background(), c, sp, state, Hooks{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("edited"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Sync(context.Background(), c, sp, state, Hooks{})
+	if err != nil || r.Uploaded != 1 {
+		t.Fatalf("same-content validator blocked sync: %+v %v", r, err)
+	}
+	dav.mu.Lock()
+	defer dav.mu.Unlock()
+	if string(dav.files["/dav/FreeFolio/Notes/note.md"]) != "edited" {
+		t.Fatal("edit not uploaded")
+	}
+}
+
+func TestRecheckFindsConflictBehindStaleListingAndResolvesSafely(t *testing.T) {
+	dav := &fakeDAV{t: t, dirs: map[string]bool{"": true, "/dav": true}, files: map[string][]byte{}}
+	stale := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := httptest.NewRecorder()
+		dav.ServeHTTP(rec, r)
+		body := rec.Body.String()
+		if stale && r.Method == "PROPFIND" {
+			body = strings.ReplaceAll(body, hashBytes([]byte("remote edit")), hashBytes([]byte("original")))
+		}
+		for k, v := range rec.Header() {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(rec.Code)
+		_, _ = io.WriteString(w, body)
+	}))
+	defer server.Close()
+	c := DefaultConfig()
+	c.Enabled = true
+	c.WebDAVURL, c.WebDAVUser, c.WebDAVPassword = server.URL+"/dav", "me", "secret"
+	sp := Space{ID: "a", Root: t.TempDir(), Remote: "Notes"}
+	state, file := t.TempDir(), filepath.Join(sp.Root, "note.md")
+	if err := os.WriteFile(file, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Sync(context.Background(), c, sp, state, Hooks{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("local edit"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dav.mu.Lock()
+	dav.files["/dav/FreeFolio/Notes/note.md"] = []byte("remote edit")
+	dav.mu.Unlock()
+	stale = true
+	_, err := Sync(context.Background(), c, sp, state, Hooks{})
+	if !errors.Is(err, ErrRemoteChanged) || !strings.Contains(err.Error(), "note.md") {
+		t.Fatalf("missing actionable file error: %v", err)
+	}
+	r, err := Sync(context.Background(), c, sp, state, Hooks{Recheck: true})
+	if err != nil || len(r.Details) != 1 || r.Uploaded != 0 || r.Deleted != 0 {
+		t.Fatalf("recheck: %+v %v", r, err)
+	}
+	if data, _ := os.ReadFile(file); string(data) != "local edit" {
+		t.Fatal("recheck overwrote the local edit")
+	}
+	conflict := filepath.Join(sp.Root, "note (同步冲突 "+hashBytes([]byte("remote edit"))[:12]+").md")
+	if data, _ := os.ReadFile(conflict); string(data) != "remote edit" {
+		t.Fatal("remote conflict copy missing")
+	}
+	r, err = Sync(context.Background(), c, sp, state, Hooks{Recheck: true, Resolve: map[string]Resolution{"note.md": {UseLocal: true, RemoteHash: r.Details[0].RemoteHash}}})
+	if err != nil || r.Uploaded != 1 {
+		t.Fatalf("resolution: %+v %v", r, err)
+	}
+	dav.mu.Lock()
+	defer dav.mu.Unlock()
+	if string(dav.files["/dav/FreeFolio/Notes/note.md"]) != "local edit" {
+		t.Fatal("explicit resolution did not apply")
+	}
+	foundBackup := false
+	for key, data := range dav.files {
+		if strings.Contains(key, ".freefolio-history/") && string(data) == "remote edit" {
+			foundBackup = true
+		}
+	}
+	if !foundBackup {
+		t.Fatal("resolution did not preserve the previous remote version")
+	}
+}
+
 // Count real HTTP content responses, so a zero-change result cannot hide a
 // complete download of every unchanged file. Both transports use this path.
 func TestUnchangedSyncAvoidsContentDownloads(t *testing.T) {

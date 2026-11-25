@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中…", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
+	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
 	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记"}
 	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note"}
 )
@@ -99,7 +99,7 @@ func (b *Board) aiStatus(e *whiteboard.Element, n *whiteboard.AINode) (string, b
 			return i18n.T("失败：") + r.err.Error(), true
 		case "running":
 			if r.progress != "" {
-				return i18n.T("生成中…") + " " + r.progress, false
+				return i18n.T("生成中") + " " + r.progress, false
 			}
 		}
 		if name := aiStatusNames[r.status]; name != "" {
@@ -307,7 +307,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		items = append(items, aiBarItem{"tpl-" + t.key, t.label, "模板", "sparkles", "text", func() { b.insertAITemplate(t.key, o) }})
 	}
 	if o.AI.ImportCanvas != nil {
-		items = append(items, aiBarItem{"canvas-import", "导入 JSON Canvas…", "交换", "duplicate", "text", func() {
+		items = append(items, aiBarItem{"canvas-import", "导入 JSON Canvas", "交换", "duplicate", "text", func() {
 			o.AI.ImportCanvas(func(data []byte, err error) {
 				if err == nil {
 					err = b.ImportCanvas(data, o)
@@ -317,7 +317,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		}})
 	}
 	if o.Export != nil {
-		items = append(items, aiBarItem{"canvas-export", "导出 JSON Canvas…", "交换", "duplicate", "text", func() { o.Export("canvas") }})
+		items = append(items, aiBarItem{"canvas-export", "导出 JSON Canvas", "交换", "duplicate", "text", func() { o.Export("canvas") }})
 	}
 	ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(236).MaxHeight(max(120, b.lastRect.H-132)).Padding(12).Gap(4).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Margin(0, 0, 4, 0).Children(func() {
@@ -454,10 +454,10 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		aiPropDivider(c, o)
 		switch n.Role {
 		case whiteboard.AIImageInput:
-			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入。")).FontSize(12).TextColor(o.Theme.TextMuted)
+			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIPrompt:
 			aiPropSection(c, o, "文字内容")
-			area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本…")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
+			area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
 			if s.focusInstruction {
 				area.Focus()
 				s.focusInstruction = false
@@ -492,7 +492,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			}
 		default:
 			aiPropSection(c, o, "指令")
-			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词…")
+			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
 			linked := b.aiPromptSource(n)
 			if linked != "" {
 				// The linked slot feeds the instruction, so the field is
@@ -513,7 +513,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			inputs := b.Scene.AIInputs(id)
 			aiPropSection(c, o, fmt.Sprintf(i18n.T("输入（%d）"), len(inputs)))
 			if len(inputs) == 0 && n.Role != whiteboard.AINote {
-				ui.Text(c, i18n.T("从其他节点的输出拖线到左侧输入，或从输入拖线到便签、图片、画框。")).FontSize(12).TextColor(o.Theme.TextMuted)
+				ui.Text(c, i18n.T("从其他节点的输出拖线到左侧输入，或从输入拖线到便签、图片、画框")).FontSize(12).TextColor(o.Theme.TextMuted)
 			}
 			for i, in := range inputs {
 				sl, _ := whiteboard.AISlotByName(n, in.Slot)
@@ -539,15 +539,17 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 	}
 	ui.Text(c, i18n.T("模型")).FontSize(12).TextColor(o.Theme.TextMuted)
 	if len(models) == 0 {
-		ui.Text(c, i18n.T("没有可用模型。请在「设置 → OneBot」添加供应商并勾选支持此类输出的模型。")).FontSize(12.5).TextColor(o.Theme.Danger)
+		ui.Text(c, i18n.T("没有可用模型；请在「设置 → OneBot」添加供应商并勾选支持此类输出的模型")).FontSize(12.5).TextColor(o.Theme.Danger)
 		return
 	}
 	labels := make([]string, len(models))
 	current := ""
+	nativeSize := false
 	for i, m := range models {
 		labels[i] = m.label()
 		if m.Connection == n.Connection && m.Model == n.Model {
 			current = labels[i]
+			nativeSize = len(m.ImageSizes) > 0
 		}
 	}
 	if current == "" && n.Model != "" {
@@ -559,13 +561,36 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 		for i, l := range labels {
 			if l == current {
 				m := models[i]
-				b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Connection, n.Model = m.Connection, m.Model })
+				b.updateAINode(o, id, func(n *whiteboard.AINode) {
+					n.Connection, n.Model = m.Connection, m.Model
+					// Pixel sizes and native resolutions are different controls.
+					// Switching families uses the new provider's defaults.
+					if nativeSize != (len(m.ImageSizes) > 0) {
+						n.Params.Size, n.Params.Quality = "", ""
+					}
+				})
 				if o.AI.Remember != nil {
 					o.AI.Remember(n.Role, m)
 				}
 			}
 		}
 	}
+}
+
+// aiImageSizeChoices shares provider-specific resolutions between the card
+// and its settings panel; stored values remain the provider's API values.
+func aiImageSizeChoices(o BoardOptions, n *whiteboard.AINode, compact bool) ([]string, []string, bool) {
+	if o.AI != nil && o.AI.Models != nil {
+		for _, m := range o.AI.Models(whiteboard.AIImage) {
+			if m.Connection == n.Connection && m.Model == n.Model && len(m.ImageSizes) > 0 {
+				return append([]string{""}, m.ImageSizes...), append([]string{i18n.T("服务默认")}, m.ImageSizes...), true
+			}
+		}
+	}
+	if compact {
+		return []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("尺寸"), "1024²", "1536×1024", "1024×1536"}, false
+	}
+	return []string{"", "auto", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1024x1792"}, translated("服务默认", "自动", "1024×1024 方形", "1536×1024 横向", "1024×1536 纵向", "1792×1024 宽屏", "1024×1792 竖屏"), false
 }
 
 func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
@@ -582,12 +607,18 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 			set(func(p *whiteboard.AIParams) { p.Write = v })
 		}
 	case whiteboard.AIImage:
+		values, labels, nativeSize := aiImageSizeChoices(o, n, false)
 		aiPropDivider(c, o)
 		aiPropSection(c, o, "生成参数")
 		ui.Row(c.Key("img-row-1")).Gap(8).Children(func() {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				if v := aiChoice(c, o, "size", "尺寸", p.Size, []string{"", "auto", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1024x1792"}, translated("服务默认", "自动", "1024×1024 方形", "1536×1024 横向", "1024×1536 纵向", "1792×1024 宽屏", "1024×1792 竖屏")); v != p.Size {
-					set(func(p *whiteboard.AIParams) { p.Size = v })
+				if v := aiChoice(c, o, "size", "尺寸", p.Size, values, labels); v != p.Size {
+					set(func(p *whiteboard.AIParams) {
+						p.Size = v
+						if nativeSize {
+							p.Quality = ""
+						}
+					})
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -605,6 +636,9 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				if nativeSize {
+					return
+				}
 				if v := aiChoice(c, o, "quality", "质量", p.Quality, []string{"", "low", "medium", "high", "standard", "hd"}, translated("服务默认", "低", "中", "高", "标准", "高清")); v != p.Quality {
 					set(func(p *whiteboard.AIParams) { p.Quality = v })
 				}

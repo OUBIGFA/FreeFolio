@@ -70,7 +70,7 @@ func Current(ready, found string, dismissed bool) *Notice {
 // Title is the banner's title, also the toast's text.
 func (n Notice) Title() string {
 	if n.Kind == Ready {
-		return i18n.T("更新已准备就绪！")
+		return i18n.T("更新已准备就绪")
 	}
 	return i18n.T("FreeFolio 有新版本")
 }

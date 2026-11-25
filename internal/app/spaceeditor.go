@@ -40,7 +40,7 @@ func (a *App) themeCard(c *ui.Context, f *spaceForm, anchor ui.Element) {
 			a.tourMark("theme-card", card)
 			card.Children(func() {
 				ui.Text(c, i18n.T("空间颜色")).FontSize(13).FontWeight(600)
-				ui.Text(c, i18n.T("用于空间图标和侧边栏中选中的项目。")).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("用于空间图标和侧边栏中选中的项目")).FontSize(12).TextColor(t.TextMuted)
 				color := ui.Hex(space.ThemeOf(&space.Space{Theme: &f.theme}).Colors[0])
 				if ui.ColorPicker(c.Key("picker"), &color).Label(i18n.T("空间颜色")).Changed() {
 					f.theme.Colors = []string{hexOf(color)}

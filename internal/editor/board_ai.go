@@ -57,6 +57,8 @@ type BoardAI struct {
 // BoardAIModel is a model of a connection.
 type BoardAIModel struct {
 	Connection, ConnectionName, Model, Name string
+	// ImageSizes overrides pixel dimensions with the provider's native options.
+	ImageSizes []string
 }
 
 func (m BoardAIModel) label() string {
@@ -167,13 +169,13 @@ var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节�
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
-	{"总结", "用简洁的要点总结输入内容，保留关键事实。"},
-	{"扩写", "在不改变原意的前提下扩写输入内容，补充细节和例子。"},
-	{"润色", "润色输入内容，使表达清楚、通顺，保持原意和语气。"},
-	{"翻译为英文", "把输入内容翻译成自然、准确的英文。"},
-	{"翻译为中文", "把输入内容翻译成自然、准确的简体中文。"},
-	{"结构化改写", "把输入内容改写为有标题和条目的结构化文本。"},
-	{"生成绘图提示词", "根据输入内容写一段用于图像生成的英文提示词：主体、构图、风格、光线、色彩，只输出提示词。"},
+	{"总结", "用简洁的要点总结输入内容，保留关键事实"},
+	{"扩写", "在不改变原意的前提下扩写输入内容，补充细节和例子"},
+	{"润色", "润色输入内容，使表达清楚、通顺，保持原意和语气"},
+	{"翻译为英文", "把输入内容翻译成自然、准确的英文"},
+	{"翻译为中文", "把输入内容翻译成自然、准确的简体中文"},
+	{"结构化改写", "把输入内容改写为有标题和条目的结构化文本"},
+	{"生成绘图提示词", "根据输入内容写一段用于图像生成的英文提示词：主体、构图、风格、光线、色彩，只输出提示词"},
 }
 
 func (b *Board) aiState() *boardAIState {
@@ -373,15 +375,15 @@ var aiTemplates = []struct {
 	{"brainstorm", "头脑风暴", []struct {
 		role        whiteboard.AIRole
 		text, instr string
-	}{{"", "主题：", ""}, {whiteboard.AIText, "", "围绕主题提出 10 个方向不同的想法，每条一句，附一句理由。"}}},
+	}{{"", "主题：", ""}, {whiteboard.AIText, "", "围绕主题提出 10 个方向不同的想法，每条一句，附一句理由"}}},
 	{"storyboard", "分镜拆解", []struct {
 		role        whiteboard.AIRole
 		text, instr string
-	}{{"", "故事梗概：", ""}, {whiteboard.AIText, "", "把故事拆成 4 个镜头。每个镜头写一段英文画面描述，包括景别、主体、动作、光线，只输出第 1 个镜头。"}, {whiteboard.AIImage, "", "Cinematic storyboard frame, consistent characters."}}},
+	}{{"", "故事梗概：", ""}, {whiteboard.AIText, "", "把故事拆成 4 个镜头；每个镜头写一段英文画面描述，包括景别、主体、动作、光线，只输出第 1 个镜头"}, {whiteboard.AIImage, "", "Cinematic storyboard frame, consistent characters."}}},
 	{"redesign", "设计改稿", []struct {
 		role        whiteboard.AIRole
 		text, instr string
-	}{{"frame", "", ""}, {whiteboard.AIImage, "", "按画框中的红圈、箭头和便签修改图片，保留其余部分，并去掉标注本身。"}}},
+	}{{"frame", "", ""}, {whiteboard.AIImage, "", "按画框中的红圈、箭头和便签修改图片，保留其余部分，并去掉标注本身"}}},
 	{"prompt-image", "提示词增强生图", []struct {
 		role        whiteboard.AIRole
 		text, instr string
@@ -452,13 +454,13 @@ func (b *Board) RunAI(ids []string, upstream, force bool, o BoardOptions) {
 		return
 	}
 	if b.AIRunning() {
-		b.err = errors.New(i18n.T("AI 节点正在运行，请等待完成或先停止。"))
+		b.err = errors.New(i18n.T("AI 节点正在运行，请等待完成或先停止"))
 		return
 	}
 	b.flushAIEdit()
 	order, deps, err := b.Scene.AIPlan(ids, upstream)
 	if err != nil {
-		b.err = errors.New(i18n.T("AI 节点之间存在循环连线，无法确定运行顺序。"))
+		b.err = errors.New(i18n.T("AI 节点之间存在循环连线，无法确定运行顺序"))
 		return
 	}
 	if len(order) == 0 {
@@ -751,7 +753,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			return nil, errors.New(i18n.T("请先为节点选择模型"))
 		}
 		var sb strings.Builder
-		sb.WriteString(cmpOr(strings.TrimSpace(instruction), i18n.T("根据输入内容完成任务。")))
+		sb.WriteString(cmpOr(strings.TrimSpace(instruction), i18n.T("根据输入内容完成任务")))
 		for i, t := range texts {
 			fmt.Fprintf(&sb, "\n\n### %s %d", i18n.T("输入"), i+1)
 			if labels[i] != "" {
@@ -781,7 +783,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		parts = append(parts, t)
 	}
 	if annotated {
-		parts = append(parts, i18n.T("参考图中的红圈、箭头和文字是修改标注：按标注修改对应区域，保留其余内容，结果中不要出现标注。"))
+		parts = append(parts, i18n.T("参考图中的红圈、箭头和文字是修改标注：按标注修改对应区域，保留其余内容，结果中不要出现标注"))
 	}
 	job.Prompt = strings.Join(parts, "\n")
 	if strings.TrimSpace(job.Prompt) == "" && len(images) == 0 {

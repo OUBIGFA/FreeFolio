@@ -61,7 +61,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 	form.Children(func() {
 		ui.Column(c).AlignItems(ui.Center).Gap(4).Margin(0, 0, 16, 0).Children(func() {
 			ui.Text(c, i18n.T("新建空间")).FontSize(17).FontWeight(600).TextColor(t.Text)
-			ui.Text(c, i18n.T("空间用于整理文档和文件夹。")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
+			ui.Text(c, i18n.T("空间用于整理文档和文件夹")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 		})
 
 		tile(ui.Row(c.Key("space-form-header")), false).Padding(0, 6).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -102,7 +102,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			ui.Spacer(c)
 			pill := ui.Row(c.Key("draft-folder")).Height(fieldH - 12).MinWidth(0).Shrink(1).PaddingX(12).Gap(6).Radius(8).
 				AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
-				Label(i18n.T("选择文件夹…")).Tooltip(root).Background(hoverFill(t))
+				Label(i18n.T("选择文件夹")).Tooltip(root).Background(hoverFill(t))
 			if pill.Hovered() {
 				pill.Background(hoverFill(t).Mix(t.Text, 0.08))
 			}
@@ -179,6 +179,6 @@ func (a *App) draftState(c *ui.Context) {
 	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 		a.spaceGlyph(c, f.icon, f.symbol, f.image, name, 40, t.Accent)
 		ui.Text(c, name).FontSize(20).Bold()
-		ui.Text(c, i18n.T("命名空间、挑选颜色，按 Enter 创建。")).TextColor(t.TextMuted)
+		ui.Text(c, i18n.T("命名空间、挑选颜色，按 Enter 创建")).TextColor(t.TextMuted)
 	})
 }
