@@ -124,6 +124,16 @@ func (e *Editor) moreMenu(c *ui.Context, leaf document.Leaf) {
 			if sub.Item(i18n.T("键盘按键")).Checked(style.Kbd).Chosen() {
 				e.Wrap("<kbd>")
 			}
+			sub.Separator()
+			menuAction(sub, i18n.T("清除格式"), e.ClearFormat)
+		})
+		m.Submenu(i18n.T("编辑"), func(sub *ui.Menu) {
+			if sub.Item(i18n.T("查找")).Shortcut(e.binding("find").Mods, e.binding("find").Key).Chosen() {
+				e.OpenFind(false)
+			}
+			if sub.Item(i18n.T("查找和替换")).Shortcut(e.binding("replace").Mods, e.binding("replace").Key).Chosen() {
+				e.OpenFind(true)
+			}
 		})
 		m.Submenu(i18n.T("手绘标注"), func(sub *ui.Menu) {
 			for _, name := range document.Annotations {

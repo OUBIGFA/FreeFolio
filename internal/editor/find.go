@@ -1,19 +1,22 @@
 package editor
 
 // Find and replace: ⌘F opens a box at the page's top right that finds text
-// case-insensitively in every block, folded ones included; ⇧⌘H opens it
-// with replace. Enter steps to the next match, ⇧Enter to the one before.
+// in every block, folded ones included; ⇧⌘H opens it with replace. Enter
+// steps to the next match, ⇧Enter to the one before. The box's toggles
+// (⌥C, ⌥W, ⌥R) match case, whole words only and regular expressions,
+// whose replacement may use $1 and ${name}.
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,6 +24,8 @@ import (
 type finder struct {
 	open, replace bool
 	query, with   string
+	// opts are the box's toggles: case, whole words, regular expression.
+	opts textfind.Options
 	// matches are in document order, as UTF-16 ranges of the plain text;
 	// current indexes them.
 	matches []ui.TextInputRange
@@ -30,7 +35,7 @@ type finder struct {
 	queryKey string
 	revision uint64
 	doc      *document.Document
-	matcher  textMatcher
+	matcher  *textfind.Matcher
 	// focus asks the query field for the keyboard.
 	focus bool
 	// pulsePending and pulseAt briefly accent the active match after stepping.
@@ -40,54 +45,33 @@ type finder struct {
 
 // findIn finds query in text case-insensitively, without overlaps; the
 // ranges are UTF-16 offsets into text.
-func findIn(text, query string) [][2]int { m := newTextMatcher(query); return m.find(text) }
-
-// KMP folds one rune at a time and keeps only a pattern-sized ring of UTF-16
-// starts. Repeated-prefix queries stay linear and do not allocate per text rune.
-type textMatcher struct {
-	pattern         []rune
-	failure, starts []int
+func findIn(text, query string) [][2]int {
+	return findWith(textfind.New(query, textfind.Options{}), text)
 }
 
-func newTextMatcher(query string) textMatcher {
-	q := []rune(strings.Map(unicode.ToLower, query))
-	m := textMatcher{q, make([]int, len(q)), make([]int, len(q))}
-	for i, j := 1, 0; i < len(q); i++ {
-		for j > 0 && q[i] != q[j] {
-			j = m.failure[j-1]
-		}
-		if q[i] == q[j] {
-			j++
-		}
-		m.failure[i] = j
-	}
-	return m
-}
-func (m *textMatcher) find(text string) [][2]int {
-	q := m.pattern
-	if len(q) == 0 || len(text) < len(q) {
-		return nil
-	}
+// findWith finds m's matches in text, as UTF-16 ranges of text.
+func findWith(m *textfind.Matcher, text string) [][2]int {
 	var out [][2]int
-	units, index, matched := 0, 0, 0
-	for _, r := range text {
-		m.starts[index%len(q)] = units
-		units += runeUnits(r)
-		r = unicode.ToLower(r)
-		for matched > 0 && r != q[matched] {
-			matched = m.failure[matched-1]
-		}
-		if r == q[matched] {
-			matched++
-		}
-		if matched == len(q) {
-			out = append(out, [2]int{m.starts[(index-len(q)+1)%len(q)], units})
-			matched = 0 // the existing find contract excludes overlapping matches
-		}
-		index++
-	}
+	units, at := 0, 0
+	m.Each(text, func(start, end int) {
+		units += document.Len(text[at:start])
+		from := units
+		units += document.Len(text[start:end])
+		at = end
+		out = append(out, [2]int{from, units})
+	})
 	return out
 }
+
+// signature is what the matches depend on besides the document: the query
+// and how it matches.
+func (f *finder) signature() string {
+	return fmt.Sprint(f.query, "\x00", f.opts.CaseSensitive, f.opts.WholeWord, f.opts.Regex)
+}
+
+// invalid reports whether the query matches nothing for being an invalid
+// regular expression.
+func (f *finder) invalid() bool { return f.matcher != nil && f.matcher.Err() != nil }
 
 // OpenFind opens the find box, with replace when replace is set. A
 // selection within one line seeds the query, as a browser's find bar does.
@@ -99,6 +83,9 @@ func (e *Editor) OpenFind(replace bool) {
 	r := e.Selection().Range
 	if r.Start != r.End {
 		if text, _ := e.TextForRange(r); !strings.ContainsAny(text, "\n ") {
+			if e.find.opts.Regex {
+				text = regexp.QuoteMeta(text)
+			}
 			e.find.query = text
 		}
 	}
@@ -110,9 +97,13 @@ func (e *Editor) OpenFind(replace bool) {
 // the command bar does when it opens a document at text it found there.
 // The box takes the keyboard, so Enter steps on through the matches and
 // Escape returns to the page.
-func (e *Editor) FindText(query string) {
+func (e *Editor) FindText(query string) { e.FindTextWith(query, textfind.Options{}) }
+
+// FindTextWith is FindText matching as o says, as the find and replace
+// across documents opens a document at what it found there.
+func (e *Editor) FindTextWith(query string, o textfind.Options) {
 	f := &e.find
-	f.query, f.open, f.replace, f.focus = query, true, false, true
+	f.query, f.opts, f.open, f.replace, f.focus = query, o, true, false, true
 	f.key, f.current = "", 0
 	e.refreshMatches()
 	e.showMatch()
@@ -139,13 +130,14 @@ func (e *Editor) closeFind() {
 // refreshMatches finds the query again when it or the document changed.
 func (e *Editor) refreshMatches() {
 	f := &e.find
-	key := fmt.Sprint(e.Revision(), "\x00", f.query)
+	sig := f.signature()
+	key := fmt.Sprint(e.Revision(), "\x00", sig)
 	if key == f.key {
 		return
 	}
-	sameQuery := f.queryKey == f.query
+	sameQuery := f.queryKey == sig && f.matcher != nil
 	if !sameQuery {
-		f.matcher = newTextMatcher(f.query)
+		f.matcher = textfind.New(f.query, f.opts)
 	}
 	if change, ok := e.TextChangeSince(f.revision); ok && sameQuery && f.doc == e.Doc && f.key != "" {
 		first := sort.Search(len(f.matches), func(i int) bool { return f.matches[i].Start >= change.Start })
@@ -156,7 +148,7 @@ func (e *Editor) refreshMatches() {
 			f.matches[i].End += delta
 		}
 		var updated []ui.TextInputRange
-		for _, m := range f.matcher.find(change.After) {
+		for _, m := range findWith(f.matcher, change.After) {
 			updated = append(updated, ui.TextInputRange{Start: change.Start + m[0], End: change.Start + m[1]})
 		}
 		f.matches = slices.Replace(f.matches, first, last, updated...)
@@ -164,13 +156,13 @@ func (e *Editor) refreshMatches() {
 		f.matches = f.matches[:0]
 		if f.query != "" {
 			for _, leaf := range e.Doc.Leaves() {
-				for _, m := range f.matcher.find(leaf.Block.Text()) {
+				for _, m := range findWith(f.matcher, leaf.Block.Text()) {
 					f.matches = append(f.matches, ui.TextInputRange{Start: leaf.Start + m[0], End: leaf.Start + m[1]})
 				}
 			}
 		}
 	}
-	f.key, f.queryKey, f.revision, f.doc = key, f.query, e.Revision(), e.Doc
+	f.key, f.queryKey, f.revision, f.doc = key, sig, e.Revision(), e.Doc
 	f.current = max(0, min(f.current, len(f.matches)-1))
 }
 
@@ -201,15 +193,28 @@ func (e *Editor) showMatch() {
 	f.pulseAt = time.Time{}
 }
 
+// replacement is what replaces the match m: the replace field's text,
+// its groups filled in for a regular expression.
+func (e *Editor) replacement(m ui.TextInputRange) string {
+	f := &e.find
+	if !f.opts.Regex || f.matcher == nil {
+		return f.with
+	}
+	leaf := e.Engine.LeafAt(m.Start)
+	text := leaf.Block.Text()
+	return f.matcher.Expand(text, document.ByteOffset(text, m.Start-leaf.Start), f.with)
+}
+
 // replaceCurrent replaces the current match and moves on to the next.
 func (e *Editor) replaceCurrent() {
 	f := &e.find
-	if f.current >= len(f.matches) {
+	if e.ReadOnly || f.current >= len(f.matches) {
 		return
 	}
 	m := f.matches[f.current]
+	with := e.replacement(m)
 	e.UnmarkText()
-	e.Engine.Replace(m.Start, m.End, f.with)
+	e.Engine.ReplaceLiteral(m.Start, m.End, with)
 	e.sync()
 	e.refreshMatches()
 	if len(f.matches) > 0 {
@@ -220,14 +225,18 @@ func (e *Editor) replaceCurrent() {
 // replaceAll replaces every match as one step of the undo history.
 func (e *Editor) replaceAll() {
 	f := &e.find
-	if len(f.matches) == 0 {
+	if e.ReadOnly || len(f.matches) == 0 {
 		return
 	}
 	e.UnmarkText()
 	matches := append([]ui.TextInputRange(nil), f.matches...)
+	with := make([]string, len(matches))
+	for i, m := range matches {
+		with[i] = e.replacement(m)
+	}
 	e.Engine.Edit(func() {
 		for i := len(matches) - 1; i >= 0; i-- {
-			e.Engine.Replace(matches[i].Start, matches[i].End, f.with)
+			e.Engine.ReplaceLiteral(matches[i].Start, matches[i].End, with[i])
 		}
 	})
 	e.sync()
@@ -257,6 +266,27 @@ func (e *Editor) findShortcuts(c *ui.Context) {
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyG) {
 		e.stepMatch(-1)
 	}
+	for _, t := range findToggles(&e.find.opts) {
+		if c.Shortcut(t.combo.Mods, t.combo.Key) {
+			*t.on = !*t.on
+		}
+	}
+}
+
+// findToggle is one of the find box's matching options.
+type findToggle struct {
+	key, label, glyph string
+	combo             Combo
+	on                *bool
+}
+
+// findToggles are the find box's options, in the box's order.
+func findToggles(o *textfind.Options) []findToggle {
+	return []findToggle{
+		{"find-case", "区分大小写", "Aa", Combo{ui.Alt, ui.KeyC}, &o.CaseSensitive},
+		{"find-word", "全词匹配", "ab", Combo{ui.Alt, ui.KeyW}, &o.WholeWord},
+		{"find-regex", "使用正则表达式", ".*", Combo{ui.Alt, ui.KeyR}, &o.Regex},
+	}
 }
 
 // findBox is the find (and replace) box at the page's top right.
@@ -284,7 +314,20 @@ func (e *Editor) findBox(c *ui.Context) {
 		return in
 	}
 	// Not e.popover: its fields must take the keyboard.
-	box := ui.Column(c.Key("find-box")).Absolute().Right(16).Top(12).Width(404).Padding(8).Gap(8).
+	toggle := func(tg findToggle) {
+		tip := i18n.T(tg.label) + " (" + tg.combo.Label() + ")"
+		b := ui.ToggleBase(c.Key(tg.key), tg.on).Size(24, 24).Radius(4).Center().Label(i18n.T(tg.label)).Tooltip(tip).KeepFocus().Cursor(ui.CursorPointer)
+		color := pg.CodeText
+		switch {
+		case *tg.on:
+			b.Background(pg.TurnActive)
+			color = pg.Marker
+		case b.Hovered():
+			b.Background(pg.Hover)
+		}
+		b.Children(func() { ui.Text(c, tg.glyph).FontSize(12).FontWeight(600).TextColor(color).NoWrap() })
+	}
+	box := ui.Column(c.Key("find-box")).Absolute().Right(16).Top(12).Width(min(500, max(300, e.width-32))).Padding(8).Gap(8).
 		Background(pg.Popover).Border(1, t.Border).Radius(8).Shadow(0, 4, 16, 0, t.Text.Alpha(.12)).
 		Transition(ui.ElementTransition{
 			Duration: 120 * time.Millisecond,
@@ -315,14 +358,20 @@ func (e *Editor) findBox(c *ui.Context) {
 			if query.Submitted() {
 				e.stepMatch(1)
 			}
-			count := i18n.T("无结果")
+			for _, tg := range findToggles(&f.opts) {
+				toggle(tg)
+			}
+			count, countColor := i18n.T("无结果"), pg.Caption
 			if len(f.matches) > 0 {
 				count = fmt.Sprintf("%d/%d", f.current+1, len(f.matches))
+			}
+			if f.invalid() {
+				count, countColor = i18n.T("表达式无效"), t.Danger
 			}
 			if f.query == "" {
 				count = ""
 			}
-			ui.Text(c, count).FontSize(12).TextColor(pg.Caption).NoWrap().MinWidth(44)
+			ui.Text(c, count).FontSize(12).TextColor(countColor).NoWrap().MinWidth(44)
 			if button("find-prev", i18n.T("上一个 (⇧Enter)"), iconArrowUp, false).Clicked() {
 				e.stepMatch(-1)
 			}
@@ -341,7 +390,11 @@ func (e *Editor) findBox(c *ui.Context) {
 				Duration: 120 * time.Millisecond,
 				Enter:    &ui.Motion{Opacity: 0, Y: -3},
 			}).Children(func() {
-			with := field("find-with", i18n.T("替换为"), &f.with, false)
+			placeholder := i18n.T("替换为")
+			if f.opts.Regex {
+				placeholder = i18n.T("替换为（可用 $1 引用分组）")
+			}
+			with := field("find-with", placeholder, &f.with, false).Label(i18n.T("替换为"))
 			if with.Submitted() {
 				e.replaceCurrent()
 			}

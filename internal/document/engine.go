@@ -869,6 +869,24 @@ func (e *Engine) SetLink(url string) {
 	e.applyFormat(func(s *Style) { s.Link = url })
 }
 
+// ClearFormat takes the selection's character formatting away (marks,
+// colors, size, script and hand-drawn marks), keeping its links, as a word
+// processor's Clear Formatting does; at a collapsed caret it clears what
+// is typed next.
+func (e *Engine) ClearFormat() {
+	if e.ReadOnly {
+		return
+	}
+	reset := func(s *Style) { *s = Style{NoMath: s.NoMath, Link: s.Link} }
+	if e.Anchor == e.Caret {
+		style := e.CurrentStyle()
+		reset(&style)
+		e.Typing, e.Explicit = style, true
+		return
+	}
+	e.applyFormat(reset)
+}
+
 func (e *Engine) applyFormat(change func(*Style)) {
 	if e.ReadOnly {
 		return

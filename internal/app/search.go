@@ -11,6 +11,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/pdfdoc"
 	"github.com/OUBIGFA/FreeFolio/internal/search"
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
@@ -219,6 +220,32 @@ func (a *App) openAnywhere(id, rel string) bool {
 // that text.
 func (a *App) openAtText(id, rel, query string) {
 	a.openAtTextTerm(id, rel, query, "")
+}
+
+// openAtTextWith opens the document at what query matches with o, its find
+// box showing the matches with those options.
+func (a *App) openAtTextWith(id, rel, query string, o textfind.Options) {
+	if o == (textfind.Options{}) {
+		a.openAtText(id, rel, query)
+		return
+	}
+	if !a.openAnywhere(id, rel) || a.doc.loadErr != nil {
+		return
+	}
+	if a.doc.board != nil {
+		m := textfind.New(query, o)
+		for _, e := range a.doc.board.Scene.Elements {
+			if m.Count(e.OriginalText+"\n"+e.Text+"\n"+e.Name+"\n"+e.Link) > 0 {
+				a.doc.board.RevealElement(e.ID)
+				break
+			}
+		}
+		return
+	}
+	if a.doc.source {
+		a.doc.toggleMode()
+	}
+	a.doc.ed.FindTextWith(query, o)
 }
 
 func (a *App) openAtTextTerm(id, rel, query, term string) {

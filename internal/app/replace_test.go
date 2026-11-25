@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
@@ -64,6 +65,47 @@ func TestReplaceAcrossDocumentsAndUndo(t *testing.T) {
 	b, _ = vault.Read(root(a), "Journal/B.md")
 	if !strings.Contains(b, "**旧名字**") || !strings.Contains(a.doc.ed.Text(), "旧名字出现一次") {
 		t.Fatal("undo puts both back")
+	}
+}
+
+func TestReplaceAcrossDocumentsWithOptions(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	for name, md := range map[string]string{"A.md": "# A\n\nGo go gopher", "B.md": "# B\n\nv1.2 and v3.4"} {
+		if err := vault.Write(root(a), name, md); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.refreshTree()
+	a.refreshSearch()
+	tt.Frame()
+	a.openReplaceAll()
+	a.replace.find, a.replace.with = "go", "Rust"
+	a.replace.opts = textfind.Options{CaseSensitive: true, WholeWord: true}
+	tt.Frame()
+	if !tt.HasText("1 篇文档，共 1 处") {
+		t.Fatal(tt.Texts())
+	}
+	a.replaceEverywhere()
+	if s, _ := vault.Read(root(a), "A.md"); !strings.Contains(s, "Go Rust gopher") {
+		t.Fatal(s)
+	}
+	a.openReplaceAll()
+	a.replace.find, a.replace.with = `v(\d+)\.(\d+)`, "v$1-$2"
+	a.replace.opts = textfind.Options{Regex: true}
+	tt.Frame()
+	if !tt.HasText("1 篇文档，共 2 处") {
+		t.Fatal(tt.Texts())
+	}
+	a.replaceEverywhere()
+	if s, _ := vault.Read(root(a), "B.md"); !strings.Contains(s, "v1-2 and v3-4") {
+		t.Fatal(s)
+	}
+	a.openReplaceAll()
+	a.replace.find = `v(`
+	tt.Frame()
+	if !strings.Contains(strings.Join(tt.Texts(), "\n"), "正则表达式无效：") {
+		t.Fatal(tt.Texts())
 	}
 }
 

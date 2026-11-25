@@ -688,7 +688,8 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 	}
 	last, _, _ := e.BoundsForRange(ui.TextInputRange{Start: sel.End, End: sel.End})
 	bounds := surface.Bounds()
-	width, height := float32(390), float32(42)
+	// The marks and menus, then the separator and "more" menu (61).
+	width, height := float32(390+61), float32(42)
 	ai := o.EditWithAI != nil && !e.ReadOnly
 	if ai {
 		width += 52
@@ -787,6 +788,8 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 			mark("float:`", iconCode, i18n.T("行内代码 (⌘E)\nMarkdown：`代码`"), "`", style.Code)
 			sep()
 			e.annotateSplit(c)
+			sep()
+			drop("float:more", i18n.T("更多操作"), iconFormat, func(m *ui.Menu) { e.selectionMoreItems(m, style) })
 		})
 		if e.annotatePanel {
 			// Below the bar, or above it when the window ends first.
@@ -799,6 +802,47 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 			e.annotationPanel(c, px, py)
 		}
 	})
+}
+
+// selectionMoreItems are the selection bar's other actions on the
+// selection, as an office suite's floating bar offers them: copy, find
+// and replace it, script, and taking the formatting away.
+func (e *Editor) selectionMoreItems(m *ui.Menu, style document.Style) {
+	if e.services != (ui.Services{}) {
+		menuAction(m, i18n.T("复制"), func() { e.copySelection(e.services.WriteClipboard) })
+	}
+	if m.Item(i18n.T("查找选中文字")).Shortcut(e.binding("find").Mods, e.binding("find").Key).Chosen() {
+		e.OpenFind(false)
+	}
+	if m.Item(i18n.T("替换选中文字")).Shortcut(e.binding("replace").Mods, e.binding("replace").Key).Chosen() {
+		e.OpenFind(true)
+	}
+	m.Separator()
+	if m.Item(i18n.T("上标")).Checked(style.Script == "sup").Chosen() {
+		e.SetScript("sup")
+	}
+	if m.Item(i18n.T("下标")).Checked(style.Script == "sub").Chosen() {
+		e.SetScript("sub")
+	}
+	if m.Item(i18n.T("键盘按键")).Checked(style.Kbd).Chosen() {
+		e.Wrap("<kbd>")
+	}
+	m.Separator()
+	if m.Item(i18n.T("清除格式")).Chosen() {
+		e.ClearFormat()
+	}
+}
+
+// ClearFormat takes the selection's character formatting away, keeping
+// its text and links.
+func (e *Editor) ClearFormat() {
+	if e.ReadOnly {
+		return
+	}
+	e.UnmarkText()
+	e.Engine.ClearFormat()
+	e.sync()
+	e.RequestFocus = true
 }
 
 // selectionAIPresets are the selection bar's one-click OneBot edits. Each

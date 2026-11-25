@@ -14,6 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/wiki"
 )
@@ -211,6 +212,32 @@ func (ix *Index) Search(query string, live *Live, limit int) []Hit {
 	if live != nil && !seenLive {
 		look(live.Space, live.Path, live.Text)
 	}
+	slices.SortStableFunc(hits, func(a, b Hit) int { return b.Count - a.Count })
+	return hits[:min(len(hits), limit)]
+}
+
+// SearchMatcher finds what m matches, as the find box with its options
+// does, in every document: documents with more matches first, at most
+// limit of them. Each hit's Term is the text of its first match.
+func (ix *Index) SearchMatcher(m *textfind.Matcher, live *Live, limit int) []Hit {
+	if m == nil || m.Err() != nil || limit <= 0 {
+		return nil
+	}
+	var hits []Hit
+	ix.each(live, func(space, path, text string) {
+		count, first, last := 0, 0, 0
+		m.Each(text, func(a, z int) {
+			if count == 0 {
+				first, last = a, z
+			}
+			count++
+		})
+		if count == 0 {
+			return
+		}
+		snippet, match := snip(text, utf8.RuneCountInString(text[:first]), utf8.RuneCountInString(text[first:last]))
+		hits = append(hits, Hit{Space: space, Path: path, Count: count, Snippet: snippet, Match: match, Term: text[first:last]})
+	})
 	slices.SortStableFunc(hits, func(a, b Hit) int { return b.Count - a.Count })
 	return hits[:min(len(hits), limit)]
 }

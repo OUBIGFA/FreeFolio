@@ -1,8 +1,8 @@
 package app
 
 // Find and replace across documents (⇧⌘R, the command bar): the text is
-// found as the find box finds it, ignoring case, in the active space or
-// every space, each document listed with how many times and where; 全部替换
+// found as the find box finds it, with the same options (case, whole
+// words, regular expressions), in the active space or every space, each document listed with how many times and where; 全部替换
 // changes every native document, an open one through its editor as one
 // step of its history, the others on disk past the conflict check, and a
 // toast offers to put them back. Markdown documents are listed but kept
@@ -11,13 +11,14 @@ package app
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/search"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/textfind"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
@@ -28,6 +29,42 @@ type replaceState struct {
 	find, with string
 	// everywhere searches every space, not only the active one.
 	everywhere bool
+	// opts match case, whole words or a regular expression.
+	opts textfind.Options
+	// matcher is for matcherKey; hits were found for hitsKey in hitsIndex,
+	// so the window does not search every document on every frame.
+	matcher    *textfind.Matcher
+	matcherKey string
+	hits       []search.Hit
+	hitsKey    string
+	hitsIndex  *search.Index
+}
+
+// query is what is to be found: trimmed unless a regular expression,
+// whose spaces mean something.
+func (r *replaceState) query() string {
+	if r.opts.Regex {
+		return r.find
+	}
+	return strings.TrimSpace(r.find)
+}
+
+// worth reports whether the query is long enough to search for: any valid
+// expression, or text search.Worth takes.
+func (r *replaceState) worth() bool {
+	if r.opts.Regex {
+		return r.find != "" && r.findMatcher().Err() == nil
+	}
+	return search.Worth(r.find)
+}
+
+// findMatcher is the matcher of the query and options, made once for them.
+func (r *replaceState) findMatcher() *textfind.Matcher {
+	key := fmt.Sprint(r.query(), "\x00", r.opts)
+	if r.matcher == nil || r.matcherKey != key {
+		r.matcher, r.matcherKey = textfind.New(r.query(), r.opts), key
+	}
+	return r.matcher
 }
 
 // replaceLimit is how many documents the window lists and changes at most.
@@ -40,6 +77,9 @@ func (a *App) openReplaceAll() {
 	if d := a.doc; d != nil && d.loadErr == nil {
 		if sel := d.ed.Selection().Range; sel.Start != sel.End {
 			if text, _ := d.ed.TextForRange(sel); !strings.ContainsAny(text, "\n ") && utf8.RuneCountInString(text) <= 80 {
+				if a.replace.opts.Regex {
+					text = regexp.QuoteMeta(text)
+				}
 				a.replace.find = text
 			}
 		}
@@ -49,52 +89,34 @@ func (a *App) openReplaceAll() {
 // replaceHits are the documents holding what is to be found, in scope.
 func (a *App) replaceHits() []search.Hit {
 	r := &a.replace
-	if !search.Worth(r.find) {
+	if !r.worth() {
 		return nil
 	}
 	active := a.state.ActiveSpace()
+	scope := ""
+	if !r.everywhere && active != nil {
+		scope = active.ID
+	}
+	ix := a.liveIndex()
+	m := r.findMatcher()
+	key := r.matcherKey + "\x00" + scope + fmt.Sprint(r.everywhere)
+	if ix == r.hitsIndex && key == r.hitsKey {
+		return r.hits
+	}
 	var out []search.Hit
-	for _, h := range a.liveIndex().Search(r.find, nil, replaceLimit) {
+	for _, h := range ix.SearchMatcher(m, nil, replaceLimit) {
 		if r.everywhere || active != nil && h.Space == active.ID {
 			out = append(out, h)
 		}
 	}
+	r.hits, r.hitsKey, r.hitsIndex = out, key, ix
 	return out
 }
 
 // replaceFold replaces every match of find in s, ignoring case as the
 // find box does, and says how many there were.
 func replaceFold(s, find, with string) (string, int) {
-	q := []rune(strings.Map(unicode.ToLower, find))
-	if len(q) == 0 {
-		return s, 0
-	}
-	runes := []rune(s)
-	var out strings.Builder
-	n := 0
-	for i := 0; i < len(runes); {
-		if i+len(q) <= len(runes) {
-			ok := true
-			for j, r := range q {
-				if unicode.ToLower(runes[i+j]) != r {
-					ok = false
-					break
-				}
-			}
-			if ok {
-				out.WriteString(with)
-				i += len(q)
-				n++
-				continue
-			}
-		}
-		out.WriteRune(runes[i])
-		i++
-	}
-	if n == 0 {
-		return s, 0
-	}
-	return out.String(), n
+	return textfind.New(find, textfind.Options{}).Replace(s, with)
 }
 
 // replacedFile is a document changed on disk, with its text before and
@@ -107,12 +129,13 @@ type replacedFile struct {
 // replaceEverywhere replaces in every native document of the hits, and
 // offers to undo it.
 func (a *App) replaceEverywhere() {
-	r := a.replace
-	find := strings.TrimSpace(r.find)
+	r := &a.replace
+	find := r.query()
 	hits := a.replaceHits()
 	if find == "" || len(hits) == 0 {
 		return
 	}
+	matcher, with := r.findMatcher(), r.with
 	resident := map[place]*document{}
 	for _, d := range a.residentDocuments() {
 		if d.loadErr == nil {
@@ -129,7 +152,7 @@ func (a *App) replaceEverywhere() {
 		}
 		n := 0
 		change := func(s string) string {
-			out, k := replaceFold(s, find, r.with)
+			out, k := matcher.Replace(s, with)
 			n += k
 			return out
 		}
@@ -179,7 +202,7 @@ func (a *App) replaceEverywhere() {
 		return
 	}
 	a.replace.open = false
-	a.offerUndo(fmt.Sprintf(i18n.T("已在 %d 篇文档中替换 %d 处%s"), docs, count, note), "「"+find+"」→「"+r.with+"」", func() {
+	a.offerUndo(fmt.Sprintf(i18n.T("已在 %d 篇文档中替换 %d 处%s"), docs, count, note), "「"+find+"」→「"+with+"」", func() {
 		a.undoReplace(files, edited)
 	})
 }
@@ -231,11 +254,24 @@ func (a *App) replaceView(c *ui.Context) {
 			ui.Text(c, i18n.T("在所有文档中查找和替换")).FontSize(16).FontWeight(600)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("查找")).Width(36).TextColor(t.TextMuted)
-				ui.TextInput(c.Key("replace-find"), &r.find).Grow(1).AutoFocus().Placeholder(i18n.T("要查找的文字（不区分大小写）")).Label(i18n.T("查找"))
+				placeholder := i18n.T("要查找的文字")
+				if r.opts.Regex {
+					placeholder = i18n.T("正则表达式")
+				}
+				ui.TextInput(c.Key("replace-find"), &r.find).Grow(1).AutoFocus().Placeholder(placeholder).Label(i18n.T("查找"))
 			})
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("替换")).Width(36).TextColor(t.TextMuted)
-				ui.TextInput(c.Key("replace-with"), &r.with).Grow(1).Placeholder(i18n.T("替换为（留空即删除）")).Label(i18n.T("替换为"))
+				placeholder := i18n.T("替换为（留空即删除）")
+				if r.opts.Regex {
+					placeholder = i18n.T("替换为（可用 $1 引用分组，留空即删除）")
+				}
+				ui.TextInput(c.Key("replace-with"), &r.with).Grow(1).Placeholder(placeholder).Label(i18n.T("替换为"))
+			})
+			ui.Row(c.Key("replace-options")).Gap(16).AlignItems(ui.Center).PaddingStart(46).Children(func() {
+				ui.Checkbox(c.Key("replace-case"), &r.opts.CaseSensitive, i18n.T("区分大小写"))
+				ui.Checkbox(c.Key("replace-word"), &r.opts.WholeWord, i18n.T("全词匹配"))
+				ui.Checkbox(c.Key("replace-regex"), &r.opts.Regex, i18n.T("使用正则表达式"))
 			})
 			scope := 0
 			if r.everywhere {
@@ -254,10 +290,12 @@ func (a *App) replaceView(c *ui.Context) {
 			ui.Scroll(c.Key("replace-hits")).Grow(1).MinHeight(0).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
 					switch {
-					case !search.Worth(r.find):
+					case r.opts.Regex && r.find != "" && r.findMatcher().Err() != nil:
+						ui.Text(c, i18n.T("正则表达式无效：")+r.findMatcher().Err().Error()).FontSize(13).TextColor(t.Danger).Padding(16, 4)
+					case !r.worth():
 						ui.Text(c, i18n.T("输入至少两个字符（或一个汉字）开始查找。")).FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
 					case len(hits) == 0:
-						ui.Text(c, i18n.T("没有找到「")+strings.TrimSpace(r.find)+"」。").FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
+						ui.Text(c, i18n.T("没有找到「")+r.query()+"」。").FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
 					}
 					for _, hit := range hits {
 						a.replaceRow(c, hit)
@@ -310,7 +348,7 @@ func (a *App) replaceRow(c *ui.Context, hit search.Hit) {
 	})
 	if row.Clicked() {
 		a.replace.open = false
-		a.openAtText(hit.Space, hit.Path, a.replace.find)
+		a.openAtTextWith(hit.Space, hit.Path, a.replace.query(), a.replace.opts)
 	}
 }
 
