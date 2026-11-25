@@ -46,8 +46,14 @@ type bookmarkState struct {
 	// reveal is the block RevealBlock asked for, scrolled to once laid out;
 	// quiet skips moving focus/flashing when syncing reading mode scroll;
 	// flash the block lit up since flashAt.
-	reveal  string
-	quiet   bool
+	reveal string
+	quiet  bool
+	// revealFrac is how far into the revealed block a quiet reveal
+	// scrolls, a share of its height; 0 keeps the block just below the top.
+	revealFrac float32
+	// waits counts the frames a quiet reveal waited for the page's
+	// scroll range to reach it.
+	waits   int
 	flash   string
 	flashAt time.Time
 	// renaming is the outline entry whose label is being typed.
@@ -165,6 +171,46 @@ func (e *Editor) ScrollToBlock(id string) {
 	}
 	e.bookmarks.reveal = id
 	e.bookmarks.quiet = true
+	e.bookmarks.revealFrac = 0
+	e.bookmarks.waits = 0
+}
+
+// ReadingPlace is where reading stands more finely than ReadingBlock: the
+// top-level block at the top of the view and how far into it the view's
+// top is, a share of its height. A file of one long block, as a source
+// file is, keeps its place so. It is 0, 0 at the top of the page.
+func (e *Editor) ReadingPlace() (int, float32) {
+	i := e.ReadingBlock()
+	if e.Scroll.Y <= 0 || i >= len(e.Doc.Blocks) {
+		return 0, 0
+	}
+	span, ok := e.blockSpan(e.Doc.Blocks[i].ID)
+	if !ok || span.H <= 0 {
+		return i, 0
+	}
+	top := span.Y + 4
+	return i, min(max((e.Scroll.Y-top)/span.H, 0), 0.999)
+}
+
+// ScrollToReadingPlace brings the view back to a place ReadingPlace gave,
+// once laid out; a block the document no longer has leaves the view at
+// the top.
+func (e *Editor) ScrollToReadingPlace(i int, frac float32) {
+	if i < 0 || i >= len(e.Doc.Blocks) || i == 0 && frac <= 0 {
+		return
+	}
+	b := e.Doc.Blocks[i]
+	if frac > 0 && b.Kind == "code" {
+		// Read to inside a code block, it was open: a folded one would be
+		// too short to scroll into.
+		if e.codeOpen == nil {
+			e.codeOpen = map[string]bool{}
+		}
+		e.codeOpen[b.ID] = true
+		e.ready = false
+	}
+	e.ScrollToBlock(b.ID)
+	e.bookmarks.revealFrac = min(max(frac, 0), 0.999)
 }
 
 // ActiveOrTopBlockID returns the top-level block owning the caret when it is
@@ -214,13 +260,32 @@ func (e *Editor) revealPending(c *ui.Context) {
 	if b.reveal == "" {
 		return
 	}
-	id, quiet := b.reveal, b.quiet
-	b.reveal, b.quiet = "", false
+	if _, ok := e.handleIDs[b.reveal]; !ok && len(e.handles) == 0 {
+		// A page not laid out yet, as one just opened, has no blocks to
+		// find: the reveal waits for the frame that lays it out.
+		c.After(0)
+		return
+	}
+	id, quiet, frac := b.reveal, b.quiet, b.revealFrac
+	b.reveal, b.quiet, b.revealFrac = "", false, 0
 	if hi, ok := e.handleIDs[id]; ok {
 		h := *e.indexedHandle(hi)
 		if quiet {
+			y := max(0, h.top-48)
+			if span, ok := e.blockSpan(id); ok && frac > 0 {
+				y = max(0, h.top+frac*span.H)
+			}
+			if y > e.Scroll.MaxY+1 && b.waits < 4 {
+				// The scroll box of a page just opened does not reach this far
+				// yet and would pull the view back: try again next frame.
+				b.reveal, b.quiet, b.revealFrac = id, quiet, frac
+				b.waits++
+				c.After(0)
+				return
+			}
+			b.waits = 0
 			e.scrollGlide = scrollGlideState{}
-			e.Scroll.Y = max(0, h.top-48)
+			e.Scroll.Y = y
 			c.After(0)
 			return
 		}

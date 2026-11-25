@@ -30,7 +30,9 @@ import (
 // and all other preferences migrate unchanged.
 // Version 13 adds NoWideTables; zero keeps wide tables extending past the
 // text column, so version 12 migrates unchanged.
-const CurrentVersion = 13
+// Version 14 adds Files.NoRememberPlace; zero keeps reopening a loose file
+// where it was read to, so version 13 migrates unchanged.
+const CurrentVersion = 14
 
 // Prefs are the preferences.
 type Prefs struct {
@@ -127,6 +129,9 @@ type Files struct {
 	TabAfterCurrent bool `json:"tabAfterCurrent,omitempty"`
 	// ReadOnly opens files locked against editing until unlocked.
 	ReadOnly bool `json:"readOnly,omitempty"`
+	// NoRememberPlace opens a file at its top rather than where it was
+	// read to the last time.
+	NoRememberPlace bool `json:"noRememberPlace,omitempty"`
 }
 
 // Store reads and writes prefs.json.

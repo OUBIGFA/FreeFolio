@@ -382,6 +382,13 @@ func (a *App) settingsFiles(c *ui.Context) {
 	settingsGroup(c, "files-window", func() {
 		toggleRow(c, "files-read-only", i18n.T("以只读方式打开文件"), i18n.T("防止查看时误改；可在页面右上角的锁按钮恢复编辑。"), &f.ReadOnly, a.savePrefs)
 		settingsSeparator(c)
+		remember := !f.NoRememberPlace
+		toggleRow(c, "files-remember-place", i18n.T("打开时回到上次浏览的位置"), i18n.T("再次打开同一个文件时，滚动到上次看到的地方；PDF 回到上次的页码。"), &remember, nil)
+		if remember == f.NoRememberPlace {
+			f.NoRememberPlace = !remember
+			a.savePrefs()
+		}
+		settingsSeparator(c)
 		quit := !f.KeepOpen
 		toggleRow(c, "files-close-last", i18n.T("关闭最后一个标签页时关闭窗口"), i18n.T("关闭此项后保留空白的文件浏览页，可以继续打开文件。"), &quit, nil)
 		if quit == f.KeepOpen {

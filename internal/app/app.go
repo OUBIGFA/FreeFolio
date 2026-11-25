@@ -278,6 +278,9 @@ type App struct {
 	revealFile func(path string)
 	// notices are messages for the user, shown as toasts by the next frame.
 	notices []string
+	// places are where loose files were read to (fileplaces.go), read
+	// the first time they are needed.
+	places *filePlaces
 	// undos are toasts that offer to undo a file operation (undo.go).
 	undos []ui.Toast
 	// replace is the find and replace across documents (replace.go).
@@ -690,6 +693,7 @@ func (a *App) Run() error {
 				}
 			}
 			a.finishSpaceEdit()
+			a.noteFilePlace(a.doc)
 			if a.captureSplits() || a.noteReading() {
 				a.saveState()
 			}

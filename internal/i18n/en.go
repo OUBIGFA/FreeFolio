@@ -1914,5 +1914,8 @@ var en = map[string]string{
 	"第 %d 行有 %d 列，第一行有 %d 列。":   "Line %d has %d columns; the first line has %d.",
 	"第 %d 行第 %d 列：%v":           "Line %d, column %d: %v",
 	"第 %d 行：%v":                 "Line %d: %v",
-	"统计行数和字符数":                  "Count Lines and Characters",
+	"打开时回到上次浏览的位置":              "Reopen Files Where You Left Off",
+	"再次打开同一个文件时，滚动到上次看到的地方；PDF 回到上次的页码。": "Opening a file again scrolls to where you stopped reading; a PDF opens at its last page.",
+	"无法记住文件的浏览位置。%v":                     "Could not remember where the file was read to. %v",
+	"统计行数和字符数":                           "Count Lines and Characters",
 }

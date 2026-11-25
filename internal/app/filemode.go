@@ -80,10 +80,12 @@ func (a *App) openLooseFile(full string) bool {
 	f.closing = false
 	if shown != "" {
 		f.readOnly[shown] = a.doc.ed.ReadOnly
+		a.noteFilePlace(a.doc)
 	}
 	old := a.doc
 	a.doc = openDocument(f.locations, name, text, false)
 	a.retireClosedDocuments(old)
+	a.restoreFilePlace(a.doc)
 	readOnly, seen := f.readOnly[name]
 	if !seen {
 		readOnly = a.prefs.Files.ReadOnly
@@ -127,6 +129,7 @@ func (a *App) leaveFileMode() bool {
 	if !a.flushCurrent() {
 		return false
 	}
+	a.noteFilePlace(a.doc)
 	old := a.doc
 	a.doc, a.split = a.files.previous, a.files.split
 	a.files = nil
@@ -161,6 +164,9 @@ func (a *App) closeFileTab(rel string) {
 	shown := a.fileTabShown() == rel
 	if shown && !a.flushCurrent() {
 		return
+	}
+	if shown {
+		a.noteFilePlace(a.doc)
 	}
 	delete(f.locations.ExternalFiles, rel)
 	delete(f.readOnly, rel)
