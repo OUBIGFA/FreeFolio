@@ -829,7 +829,9 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					HandleTextInput(e).Role(ui.RoleTextField).Label(i18n.T("文档")).FocusRing(false)
 				accessTextValue(surface.Access, e.accessText)
 				if e.RequestFocus {
-					surface.Focus()
+					// The editor reveals the caret explicitly. Returning focus from
+					// a table control must not scroll to an older offscreen caret.
+					surface.Focus(ui.FocusOptions{PreventScroll: true})
 					e.lastInput = c.Now()
 					e.RequestFocus = false
 				}

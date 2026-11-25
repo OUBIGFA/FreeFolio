@@ -2,6 +2,7 @@ package editor
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -297,5 +298,108 @@ func TestTableWidthControlsRespectReadingAndPageSettings(t *testing.T) {
 	hoverTableWidth(t, e, tt)
 	if _, ok := tt.Find("恢复自适应宽度"); ok {
 		t.Fatal("read-only table offers a width mutation")
+	}
+}
+
+func TestTableWidthDragKeepsScrolledViewport(t *testing.T) {
+	for _, side := range []int{-1, 1} {
+		for _, caretInTable := range []bool{false, true} {
+			e, tt := newWideTester(strings.Repeat("Before the table.\n\n", 60)+wideTableMD()+strings.Repeat("\n\nAfter the table.", 60), 1600, Options{})
+			d := firstTable(t, e)
+			if caretInTable {
+				table := e.blockByID(d.id)
+				leaf, _ := e.LeafByID(table.Children[1].Children[0].ID)
+				e.SetSelection(leaf.Start, leaf.Start)
+			}
+			focus(e, tt)
+			e.Scroll.Y = d.rect.Y - 150
+			tt.Frame()
+			before := e.Scroll.Y
+			selection := e.Selection().Range
+			x, y := e.scrollBounds.X+d.rect.X, e.scrollBounds.Y+d.rect.Y-e.Scroll.Y+25
+			if side > 0 {
+				x += d.rect.W
+			}
+			tt.Move(x, y)
+			tt.Frame()
+			check := func(stage string) {
+				t.Helper()
+				if abs32(e.Scroll.Y-before) > 1 {
+					t.Fatalf("side=%d caretInTable=%v %s moved scroll %v -> %v", side, caretInTable, stage, before, e.Scroll.Y)
+				}
+				if e.Selection().Range != selection {
+					t.Fatalf("%s moved the text selection", stage)
+				}
+			}
+			tt.Press(x, y)
+			check("press")
+			for _, dx := range []float32{40, 80, 100} {
+				tt.Move(x-float32(side)*dx, y)
+				tt.Frame()
+				tt.Advance(20 * time.Millisecond)
+				check("preview")
+			}
+			tt.Release(x-float32(side)*100, y)
+			tt.Frame()
+			check("release")
+			tt.Advance(time.Second)
+			check("settled release")
+			if len(e.blockByID(d.id).Widths) == 0 {
+				t.Fatal("drag failed to save the new width")
+			}
+			if !tt.Focused("文档") {
+				t.Fatal("drag did not return focus to the editor")
+			}
+			// Restore from a focused edge too, so KeepFocus does not mask
+			// the editor's focus-return behavior in this path.
+			d = firstTable(t, e)
+			x = e.scrollBounds.X + d.rect.X
+			if side > 0 {
+				x += d.rect.W
+			}
+			tt.ClickAt(x, y)
+			tt.Frame()
+			if err := tt.Click("恢复自适应宽度"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			tt.Advance(time.Second)
+			check("restore button")
+			if len(e.blockByID(d.id).Widths) != 0 {
+				t.Fatal("restore button did not reset the table")
+			}
+			// Actual typing still requests caret visibility, even when the
+			// caret intentionally stayed above the table during resizing.
+			tt.Type("x")
+			tt.Advance(time.Second)
+			if !caretInTable && e.Scroll.Y >= before-1000 {
+				t.Fatal("typing no longer reveals the offscreen caret")
+			}
+		}
+	}
+}
+
+func TestTableWidthDragKeepsViewportInsideTallTable(t *testing.T) {
+	table := "| A | B | C | D |\n| --- | --- | --- | --- |\n" + strings.Repeat("| Long table cell text for wrapping | Long table cell text for wrapping | Long table cell text for wrapping | Long table cell text for wrapping |\n", 60)
+	e, tt := newWideTester(strings.Repeat("Before.\n\n", 40)+table+strings.Repeat("\n\nAfter.", 40), 1600, Options{})
+	d := firstTable(t, e)
+	focus(e, tt)
+	e.Scroll.Y = d.rect.Y + 600
+	tt.Frame()
+	before := e.Scroll.Y
+	x, y := e.scrollBounds.X+d.rect.X+d.rect.W, e.scrollBounds.Y+200
+	tt.Move(x, y)
+	tt.Frame()
+	tt.Press(x, y)
+	tt.Move(x-100, y)
+	tt.Frame()
+	if abs32(e.Scroll.Y-before) > 1 {
+		t.Fatalf("preview in a tall table moved scroll %v -> %v", before, e.Scroll.Y)
+	}
+	tt.Release(x-100, y)
+	tt.Frame()
+	tt.Advance(time.Second)
+	if abs32(e.Scroll.Y-before) > 1 || len(e.blockByID(d.id).Widths) == 0 {
+		t.Fatalf("resizing a tall table lost the reading position: %v -> %v", before, e.Scroll.Y)
 	}
 }
