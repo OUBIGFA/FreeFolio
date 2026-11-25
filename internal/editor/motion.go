@@ -159,7 +159,7 @@ func (e *Editor) updateMotion(now time.Time, o Options) {
 	winTop, winBottom := e.motionWindow()
 	hs, he := e.visibleHandleRange(winTop, winBottom)
 	fs, fe := e.visibleFoldRange(winTop, winBottom)
-	resizing := o.Resizing || e.resizePending
+	resizing := o.Resizing || e.resizePending || e.tableWidthDrag.id != ""
 	if e.printing || e.reduceMotion || !m.ready || m.doc != e.Doc || m.width != e.width || m.column != e.column || resizing || m.resizing {
 		e.unfoldPending = false
 		m.reset(e.Doc, e.width, e.column, now)

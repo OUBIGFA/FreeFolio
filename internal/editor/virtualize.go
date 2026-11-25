@@ -469,6 +469,13 @@ func floorTableWidths(widths []float32, w, floor float32) float32 {
 // the reader sized keep the total width they were sized at, so resizing a
 // widened table does not shrink it back into the prose column.
 func (e *Editor) tableSpan(b *document.Block, pageW, bodyW float32) (x, w float32) {
+	if b == nil {
+		return e.padding, bodyW
+	}
+	return e.tableSpanWidths(b, pageW, bodyW, e.tableColumnWidths(b))
+}
+
+func (e *Editor) tableSpanWidths(b *document.Block, pageW, bodyW float32, widths []float32) (x, w float32) {
 	if b == nil || b.Kind != "table" || b.Indent > 0 || e.printing || e.mapTablePreview || e.noWideTables || len(b.Children) == 0 || len(b.Children[0].Children) == 0 {
 		return e.padding, bodyW
 	}
@@ -478,14 +485,14 @@ func (e *Editor) tableSpan(b *document.Block, pageW, bodyW float32) (x, w float3
 	}
 	cw := e.cachedTableNaturalWidths(b, 14)
 	wantW := max(bodyW, float32(cw.cols)*tableColumnMin(14))
-	if len(b.Widths) == cw.cols {
+	if len(widths) == cw.cols {
 		sum := float32(0)
-		for _, v := range b.Widths {
+		for _, v := range widths {
 			sum += max(0, v)
 		}
 		wantW = max(wantW, sum)
 		if sum > 0 {
-			for i, v := range b.Widths {
+			for i, v := range widths {
 				if v > 0 && cw.mathNeed[i] > 0 {
 					wantW = max(wantW, cw.mathNeed[i]*sum/v)
 				}
@@ -517,16 +524,17 @@ func (e *Editor) layoutTable(b *document.Block, x, y, w float32, canDefer bool, 
 	// Columns the reader sized keep their shares; otherwise each column
 	// gets room by its content's natural width, never below its formulas.
 	var widths []float32
-	if len(b.Widths) == cols {
+	sized := e.tableColumnWidths(b)
+	if len(sized) == cols {
 		widths = make([]float32, cols)
 		sum := float32(0)
-		for _, v := range b.Widths {
+		for _, v := range sized {
 			sum += v
 		}
 		if sum <= 0 {
 			sum = float32(cols)
 		}
-		for i, v := range b.Widths {
+		for i, v := range sized {
 			if v <= 0 {
 				v = 1
 			}

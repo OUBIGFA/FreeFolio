@@ -26,6 +26,8 @@ func (e *Editor) SetReadOnly(on bool) {
 	e.dragID = ""
 	e.dragging = false
 	e.resizing = nil
+	e.tableWidthDrag = tableWidthDrag{}
+	e.tableWidthFocus = ""
 	e.imageResize = imageResize{}
 	e.imageCaptionID = ""
 	e.closeHeader()

@@ -41,6 +41,61 @@ const writingSample = `# 留一点空白
 
 ` + "```go\nfunc write() string {\n    return \"Keep it simple.\"\n}\n```\n"
 
+func TestSnapshotTableWidth(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render table width controls")
+	a, tt := newTestApp(t)
+	md := "# 表格宽度\n\n拖动两侧边线调整宽度，或点击表格旁的按钮恢复自适应。\n\n| 项目 | 当前状态 | 接下来的工作 | 验证方式 |\n| --- | --- | --- | --- |\n"
+	md += strings.Repeat("| 桌面编辑器 | 表格可以手动调整，也可以恢复自适应宽度 | 内容较宽时，表格延展至页边，为每列留出阅读空间 | 检查左右拖动、吸附恢复、撤销和保存后重新打开 |\n", 4)
+	doc := editor.ImportMarkdown(md)
+	encoded, err := doc.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Write(root(a), "Table.arcmd", encoded); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshTree()
+	a.open("Table.arcmd")
+	tt.SetSize(1800, 960)
+	ed := a.doc.ed
+	table := ed.Doc.Blocks[2]
+	ed.SetWidths(table.ID, []float32{100, 220, 280, 220})
+	leaf, _ := ed.LeafByID(table.Children[0].Children[0].ID)
+	ed.SetSelection(leaf.Start, leaf.Start)
+	ed.RequestFocus = true
+	tt.Frame()
+	tt.Advance(time.Second)
+	button, ok := tt.Find("恢复自适应宽度")
+	if !ok {
+		t.Fatal("restore button is missing in the app")
+	}
+	tt.Move(button.X+12, button.Y+12)
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "table-width-manual.png"), tt)
+	if err := tt.Click("恢复自适应宽度"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	handle, ok := tt.Find("调整表格右边线")
+	if !ok {
+		t.Fatal("outer edge is missing in the app")
+	}
+	x, y := handle.X+handle.W/2, handle.Y+25
+	tt.Press(x, y)
+	tt.Move(x-70, y)
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "table-width-drag.png"), tt)
+	tt.Move(x-3, y)
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "table-width-snap.png"), tt)
+	tt.Release(x-3, y)
+	tt.Frame()
+	if len(ed.Doc.Blocks[2].Widths) != 0 {
+		t.Fatalf("app edge drag did not restore adaptive width: %v", ed.Doc.Blocks[2].Widths)
+	}
+}
+
 func TestSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the writing surface")
 	for _, name := range []string{"writing", "writing-dark-system", "writing-narrow", "writing-editing", "writing-source", "writing-empty", "rich-blocks", "rich-lists", "writing-wide", "writing-selection", "rich-table-hover", "callouts", "block-menu", "table-select", "text-colors", "annotations", "annotations@dark", "annotations-page", "annotations-mark", "writing-readonly", "find", "fold", "table-merge", "outline-closed", "outline-float", "outline-rail", "outline-float@dark", "outline@dark",

@@ -105,6 +105,8 @@ type Editor struct {
 	dragID                                         string
 	dropIndex                                      int
 	resizing                                       *columnHandle
+	tableWidthDrag                                 tableWidthDrag
+	tableWidthFocus                                string
 	resizeX                                        float32
 	menuOpen                                       bool
 	menuID                                         string
@@ -898,6 +900,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				if !e.ReadOnly {
 					e.starter(c)
 					e.headerControls(c)
+					e.tableWidthControls(c)
 				}
 				e.propertiesView(c)
 				e.imageControls(c, o)

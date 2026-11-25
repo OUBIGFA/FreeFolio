@@ -22,6 +22,12 @@ type windowResize struct {
 }
 
 func (e *Editor) layoutForView(c *ui.Context, o Options) {
+	// A new viewport invalidates an edge drag's starting geometry. Cancel
+	// its preview before layout, without persisting a stale width on release.
+	if e.tableWidthDrag.id != "" && (e.width != o.Width || e.noWideTables || e.ReadOnly) {
+		e.tableWidthDrag.cancelled = true
+		e.ready = false
+	}
 	e.resizeBatch = e.windowResize.pending && e.resizePending && !o.Resizing
 	e.resizeRemaining = 0
 	if e.resizeBatch {
