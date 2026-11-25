@@ -4,13 +4,10 @@
 
 # FreeFolio
 
-**A local-first desktop multi-function workbench derived from ArcMD.**
+**A local-first desktop multi-function workbench.**
 
 [简体中文](README.md) · English
 
-<a href="mygo.json"><img src="https://img.shields.io/badge/base-ArcMD%20v0.2.1-F21158" alt="Based on ArcMD v0.2.1"></a>
-<a href="https://github.com/egoist/mygo"><img src="https://img.shields.io/badge/built%20with-Go%20%2B%20MyGo-00ADD8?logo=go&amp;logoColor=white" alt="Built natively with Go and MyGo"></a>
-<a href=".github/workflows/repository-check.yml"><img src="https://img.shields.io/badge/CI-Repository%20Check-2088ff?logo=githubactions&amp;logoColor=white" alt="Read-only repository check workflow"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-C912D6" alt="MIT License"></a>
 
 </div>
@@ -46,6 +43,7 @@ FreeFolio opens common office files and reference files in one window. You do no
 
 ### Key features
 
+- **Whiteboard AI image generation and creation.** Select **AI** on the **Whiteboard** toolbar to add text, image, and video nodes. Enter a prompt to generate images, or connect sticky notes, images, or frames to edit images and create videos. Browse past results and select **Place on Whiteboard** to add them to your board.
 - **Write and format notes.** Add note properties, images, tables, task lists, math formulas, and diagrams to your notes. Use full-width pages or focus mode, and export notes as PDF or HTML pages.
 - **Browse files anywhere.** Select **Open File…** to open a file from any folder on your computer. FreeFolio shows each file in a separate tab and does not scan the whole folder. Save changes to the original file or select **Save as…**, then select **Return to workspace**.
 - **Organize spaces and find content fast.** Use separate spaces for work and personal files, or drag a folder onto **+** to add a space. Search across notes and PDFs, and use favorites, pins, bookmarks, **Outline**, and the document map to move quickly.
@@ -74,9 +72,17 @@ Open FreeFolio.
 
 ## Options
 
-- **Use OneBot for help.** Add your AI service or sign in with your ChatGPT account in **Settings → OneBot**. Ask OneBot questions about notes and PDFs in the current space and check the cited sources. You can also drop files or images to request text edits, and review changes before you apply them.
+- **Use OneBot and AI image generation.** Add your AI service (including image or video services) or sign in with your ChatGPT account in **Settings → OneBot**. Ask OneBot questions about notes and PDFs in the current space with cited sources, or generate and edit images and videos directly on the whiteboard.
 - **Sync notes across computers.** Connect a supported cloud storage service in **Settings → Cloud Sync**. Select only the spaces you want to sync, and turn on content encryption if needed. Cloud sync stays off by default.
 - **Customize appearance and writing.** Change the theme, font, line spacing, page width, sidebar position, typewriter scrolling, and focus mode in **Settings → Appearance** and **Settings → Writing**.
+
+### Quick tips
+
+- **Drag a folder to create a space.** Drag any folder from your computer directly onto **+** in the bottom space bar to create a new space right away.
+- **Select whiteboard items to generate images.** Select sticky notes, images, or frames on the **Whiteboard**, then click **AI Image**, **AI Text**, or **AI Video** above the selection to create and connect a node automatically.
+- **Turn read-only office files into notes.** While viewing a Word, Excel, or PowerPoint file, select **Save as an Editable Markdown Copy** to annotate and edit without changing the original file.
+- **Open a file without adding a space.** Select **Open File…** to view or edit any file in a separate tab, then select **Return to workspace** when you are done.
+- **Drop files into OneBot for edits.** Drag a file or image into OneBot to request text edits, and preview the changes before applying them.
 
 ## Notes
 
