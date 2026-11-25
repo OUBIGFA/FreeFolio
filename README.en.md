@@ -18,12 +18,14 @@
 
 [![FreeFolio main workspace with the note editor on the left, OneBot assistant in the center, and space sidebar on the right](assets/FreeFolio-home.png)](assets/FreeFolio-home.png)
 
+[![Whiteboard AI nodes: a text node feeds an image generation node, whose result becomes the reference image for the next node](assets/FreeFolio-whiteboard.png)](assets/FreeFolio-whiteboard.png)
+
 <p align="center">
   <a href="assets/FreeFolio-filemode.png"><img src="assets/FreeFolio-filemode.png" width="48%" alt="File browsing mode with a document tab and floating outline on the right"></a>
   <a href="assets/FreeFolio-settings.png"><img src="assets/FreeFolio-settings.png" width="48%" alt="Settings page showing the live appearance preview, language, and sidebar position options"></a>
 </p>
 
-[Workspace](assets/FreeFolio-home.png) · [File browsing](assets/FreeFolio-filemode.png) · [Settings](assets/FreeFolio-settings.png)
+[Workspace](assets/FreeFolio-home.png) · [Whiteboard](assets/FreeFolio-whiteboard.png) · [File browsing](assets/FreeFolio-filemode.png) · [Settings](assets/FreeFolio-settings.png)
 
 ## About FreeFolio
 

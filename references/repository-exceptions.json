@@ -25,6 +25,14 @@
       "sha256": "ba7ebe41eabe00b346c26469ca3a2a31a637a8fb0f6102de1ba19d0921b071e1"
     },
     {
+      "path": "assets/FreeFolio-whiteboard.png",
+      "reason": "README preview of FreeFolio whiteboard AI nodes linking a text node to image generation nodes",
+      "source": "Maintainer-supplied screenshot of FreeFolio native UI (OUBIGFA/FreeFolio)",
+      "license": "MIT",
+      "bytes": 482903,
+      "sha256": "93f67327b61a2ad11b4e37e66cfdf4b64ce54d12b2248dbf7602ae862d99a435"
+    },
+    {
       "path": "assets/FreeFolio-settings.png",
       "reason": "README preview of the FreeFolio appearance settings",
       "source": "FreeFolio native UI with original sample content (OUBIGFA/FreeFolio)",

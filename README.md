@@ -18,12 +18,14 @@
 
 [![FreeFolio 主工作区：左侧为笔记与属性表格编辑区，中间为 OneBot 助手，右侧为空间文件列表](assets/FreeFolio-home.png)](assets/FreeFolio-home.png)
 
+[![白板 AI 节点：文字节点连接图像生成节点，生成结果继续作为下一节点的参考图](assets/FreeFolio-whiteboard.png)](assets/FreeFolio-whiteboard.png)
+
 <p align="center">
   <a href="assets/FreeFolio-filemode.png"><img src="assets/FreeFolio-filemode.png" width="48%" alt="文件浏览模式：以独立标签页打开文档，并在右侧显示目录大纲"></a>
   <a href="assets/FreeFolio-settings.png"><img src="assets/FreeFolio-settings.png" width="48%" alt="设置页中的外观实时预览、界面语言与侧边栏位置选项"></a>
 </p>
 
-[主工作区原图](assets/FreeFolio-home.png) · [文件浏览原图](assets/FreeFolio-filemode.png) · [设置页原图](assets/FreeFolio-settings.png)
+[主工作区原图](assets/FreeFolio-home.png) · [白板原图](assets/FreeFolio-whiteboard.png) · [文件浏览原图](assets/FreeFolio-filemode.png) · [设置页原图](assets/FreeFolio-settings.png)
 
 ## 项目说明
 
