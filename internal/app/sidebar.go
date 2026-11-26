@@ -17,14 +17,17 @@ import (
 // space, which it may leave for another (crossspace.go), and its path.
 type dragged struct{ space, rel string }
 
-// The list's rows as Cra measures Arc 1.171's: 40 DIPs tall and 1 apart,
-// the fill 2 in from top and bottom with 10 DIP corners, starting after a
-// nested row's indent of 16; the icon 10 into the fill.
+// The tree and its drag cards use the same icon and label columns.
 const (
-	rowHeight = 40
-	rowIndent = 16
-	rowGap    = 1
-	rowInset  = 8 // the rows' margin from the sidebar's edges
+	rowHeight      = 40
+	rowIndent      = 16
+	rowGap         = 1
+	rowInset       = 8 // the rows' margin from the sidebar's edges
+	rowLeading     = 10
+	rowChevronSize = 14
+	rowIconSize    = 16
+	rowGlyphGap    = 6
+	rowIconStart   = rowLeading + rowChevronSize + rowGlyphGap
 )
 
 // The toggle depicts the same edge that it opens or closes.
@@ -635,7 +638,7 @@ func (a *App) folderBody(c *ui.Context, sp *space.Space, n *vault.Node, depth in
 			enter = nil
 		}
 		ui.Text(c.Key(key), i18n.T("空文件夹")).FontSize(12).TextColor(c.Theme().TextMuted).
-			PaddingStart(float32(10 + depth*rowIndent + 27)).Height(rowEmptyHeight).
+			PaddingStart(float32(depth*rowIndent + rowIconStart + rowIconSize + rowGlyphGap)).Height(rowEmptyHeight).
 			Transition(ui.ElementTransition{Animation: &listAnim, Position: true, Enter: enter, Exit: &ui.Motion{}})
 		return
 	}
@@ -732,14 +735,14 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		return
 	}
 
-	gap := float32(10)
+	leading := inset + rowIconStart
 	if n.Dir {
-		gap = 6
+		leading = inset + rowLeading
 	}
-	row.Height(rowHeight).PaddingStart(float32(10 + depth*rowIndent)).PaddingEnd(8).
-		Gap(gap).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Label(n.Title())
+	row.Height(rowHeight).PaddingStart(leading).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).
+		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTreeItem).Level(depth + 1).Selected(highlighted).Label(n.Title())
 	if n.Dir {
-		row.Role(ui.RoleTreeItem).Expanded(open).Selected(highlighted)
+		row.Expanded(open)
 		if live && !renaming {
 			// The context sees arrow keys claimed by a parent focus group before
 			// raw input. Register them on the active folder row.
@@ -748,8 +751,6 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			}
 
 		}
-	} else {
-		row.Role(ui.RoleTreeItem).Selected(highlighted)
 	}
 	if sp.IsExternal() {
 		row.Tooltip(sp.ExternalFiles[n.Path])
@@ -915,8 +916,6 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		}
 		if into {
 			p.Stroke(fr, t.Text.Alpha(0.3), 10, 1.5)
-		} else if chosen && !lifted {
-			p.Fill(ui.Rect{X: fr.X + 1, Y: fr.Y + 7, W: 3, H: max(0, fr.H-14)}, t.Accent, 1.5)
 		}
 	})
 	closed := false
@@ -928,9 +927,9 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				if open {
 					chevron, folder = iconChevronDown, iconFolderOpen
 				}
-				ui.Icon(c, chevron).FontSize(14).TextColor(t.Text)
-				ui.Icon(c, folder).FontSize(17).TextColor(a.sidebarFolderIconColor(t))
-			} else if icon := ui.Icon(c, iconFileSimple).FontSize(16).TextColor(t.TextMuted); dim {
+				ui.Icon(c, chevron).FontSize(rowChevronSize).Shrink(0).TextColor(t.Text)
+				ui.Icon(c, folder).FontSize(rowIconSize).Shrink(0).TextColor(a.sidebarFolderIconColor(t))
+			} else if icon := ui.Icon(c, iconFileSimple).FontSize(rowIconSize).Shrink(0).TextColor(t.TextMuted); dim {
 				icon.Opacity(closedIconAlpha)
 			}
 			if renaming {

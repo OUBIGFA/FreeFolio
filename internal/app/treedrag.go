@@ -806,12 +806,8 @@ func (a *App) dragOverlayView(c *ui.Context) {
 func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder, dir, openFolder, holdsOpen, dim bool, rel, title string, count int, label bool) {
 	t := c.Theme()
 	look := dragCardColors(t, a.look)
-	gap := float32(10)
-	if dir {
-		gap = 11
-	}
 	card := ui.Row(c.Key("drag-card")).Absolute().Left(x).Top(y).Size(max(48, w), rowHeight).
-		PaddingStart(10).PaddingEnd(8).Gap(gap).AlignItems(ui.Center).IgnoreInput(true).Background(ui.Transparent)
+		PaddingStart(rowIconStart).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).IgnoreInput(true).Background(ui.Transparent)
 	if intoFolder {
 		card.Opacity(0.68)
 	}
@@ -849,7 +845,7 @@ func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder,
 				look.Accent = neutralFolderHex
 			}
 			folderGlyph(c, look, openFolder, holdsOpen)
-		} else if icon := docIcon(c, title, 16); dim {
+		} else if icon := docIcon(c, title, rowIconSize); dim {
 			icon.Opacity(closedIconAlpha)
 		}
 		ink := t.Text

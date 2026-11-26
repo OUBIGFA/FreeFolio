@@ -43,6 +43,61 @@ func TestSpaceHeaderHoverRequiresPins(t *testing.T) {
 	}
 }
 
+func TestSidebarHierarchyAlignsFilesAndFolders(t *testing.T) {
+	app, tester := newTestApp(t)
+	spaceID := addSpace(t, app, "工作笔记", map[string]string{
+		"📝 总览.md":               "",
+		"📁 项目/📝 本周计划.md":        "",
+		"📁 项目/📁 参考资料/📝 访谈记录.md": "",
+	})
+	app.switchSpace(spaceID)
+	space := app.state.ActiveSpace()
+	space.SetExpanded("📁 项目", true)
+	space.SetExpanded("📁 项目/📁 参考资料", true)
+	app.open("📁 项目/📝 本周计划.md")
+	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
+	settle(tester)
+	labelX := func(name string) float32 {
+		t.Helper()
+		bounds, found := tester.Find(name)
+		if !found || bounds.W <= 0 || bounds.H <= 0 {
+			t.Fatalf("missing visible tree label %q: %v", name, bounds)
+		}
+		return bounds.X
+	}
+	parent, child, grandchild := labelX("项目"), labelX("本周计划"), labelX("访谈记录")
+	if rootFile, subfolder := labelX("总览"), labelX("参考资料"); rootFile != parent || subfolder != child {
+		t.Errorf("siblings use different name columns: root file/folder %.0f/%.0f, nested file/folder %.0f/%.0f", rootFile, parent, child, subfolder)
+	}
+	if child-parent < 12 || grandchild-child != child-parent {
+		t.Errorf("inconsistent indentation: parent %.0f, child %.0f, grandchild %.0f", parent, child, grandchild)
+	}
+	for name, level := range map[string]int{"📁 项目": 1, "📝 本周计划": 2, "📁 参考资料": 2, "📝 访谈记录": 3} {
+		if item, found := tester.AccessByRole(ui.RoleTreeItem, name); !found || item.Level != level {
+			t.Errorf("%q has accessible level %d, want %d", name, item.Level, level)
+		}
+	}
+	if os.Getenv("FREEFOLIO_SNAPSHOT") != "" {
+		savePNG(t, filepath.Join(snapshotDir(t, "sidebar hierarchy"), "sidebar-hierarchy.png"), tester)
+	}
+}
+
+func TestSidebarCurrentDocumentHasNoAccentRail(t *testing.T) {
+	app, tester := newTestApp(t)
+	app.open("Journal/Ideas.md")
+	settle(tester)
+	item, found := tester.AccessByRole(ui.RoleTreeItem, "Ideas")
+	if !found || !item.Selected {
+		t.Fatal("the open document must remain selected")
+	}
+	start := int(item.Bounds.X) + rowIndent
+	center := int(item.Bounds.Y + item.Bounds.H/2)
+	frame := tester.Image()
+	if frame.RGBAAt(start+2, center) != frame.RGBAAt(start+7, center) {
+		t.Fatal("an accent rail interrupts the selected row fill")
+	}
+}
+
 func TestSidebarDoubleClickDoesNotRename(t *testing.T) {
 	for _, name := range []string{"Journal", "Ideas"} {
 		t.Run(name, func(t *testing.T) {

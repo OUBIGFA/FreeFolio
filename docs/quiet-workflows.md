@@ -4,6 +4,8 @@
 
 ## 工作区
 
+侧边栏中，同一级的文件和文件夹名称对齐。每进入一层文件夹，子项向内缩进 16 个逻辑像素。当前文档保留选中底色，不加侧边竖线。
+
 在工作区，当前文档和文件标签使用空间的强调色。关闭文档后，空间主页提供新建、搜索和本次会话最近打开的三篇本空间文档。命令栏保留所有匹配结果，可用方向键选择、Enter 打开。窗口窄于 720 个逻辑像素时，设置页将分类移到顶部菜单，给选项留出整行。工作区层级参考 [Linear 的界面改版](https://linear.app/now/how-we-redesigned-the-linear-ui)，设置分组参考 [Windows 设置设计指南](https://learn.microsoft.com/en-us/windows/apps/design/app-settings/guidelines-for-app-settings)。
 
 ## 字体
