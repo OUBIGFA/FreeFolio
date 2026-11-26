@@ -103,6 +103,36 @@ func TestOneBotWelcomeCenteredAboveDockedDraft(t *testing.T) {
 	checkWelcome(draft.Y)
 }
 
+func TestOneBotPresetRowsStayUnfilled(t *testing.T) {
+	app, tester := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply("收到")}})
+	app.toggleQA()
+	settle(tester)
+	for _, question := range qaExamples {
+		row, found := tester.Find(question)
+		if !found || row.W < 16 || row.H < 16 {
+			t.Fatalf("missing preset %q: %v", question, row)
+		}
+		sampleX, sampleY := int(row.X)+4, int(row.Y+row.H/2)
+		for _, hovered := range []bool{false, true} {
+			if hovered {
+				tester.Move(row.X+row.W/2, row.Y+row.H/2)
+				tester.Frame()
+			}
+			frame := tester.Image()
+			if frame.RGBAAt(sampleX, sampleY) != frame.RGBAAt(int(row.X)-2, sampleY) {
+				t.Errorf("preset %q has a filled background, hovered=%v", question, hovered)
+			}
+		}
+	}
+	if err := tester.Click(qaExamples[0]); err != nil {
+		t.Fatal(err)
+	}
+	turns := app.qaSession(app.state.ActiveSpace().ID).turns
+	if len(turns) != 1 || turns[0].question != qaExamples[0] {
+		t.Fatal("clicking a preset did not send that question")
+	}
+}
+
 func TestNarrowSettingsUseFullWidthForContent(t *testing.T) {
 	app, tester := newTestApp(t)
 	tester.SetSize(640, 420)

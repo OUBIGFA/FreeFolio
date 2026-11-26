@@ -308,13 +308,15 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			}
 			for i, ex := range examples {
 				ex := i18n.T(ex)
-				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(7, 10).Radius(controlRadius).Center().Background(t.Text.Alpha(0.035)).
+				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(7, 10).Radius(controlRadius).Gap(8).Center().
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
-				if row.Hovered() {
-					row.Background(hoverFill(t))
+				ink := t.Text
+				if row.Hovered() || row.Focused() {
+					ink = t.Accent
 				}
 				row.Children(func() {
-					ui.Text(c, ex).FontSize(12.5).LineHeight(1.4).TextAlign(ui.Center).Shrink(1).MinWidth(0)
+					ui.Icon(c, iconArrowUpRight).FontSize(13).TextColor(t.Accent).Shrink(0)
+					ui.Text(c, ex).FontSize(12.5).LineHeight(1.4).TextColor(ink).TextAlign(ui.Center).Shrink(1).MinWidth(0)
 				})
 				if row.Clicked() {
 					a.qa.input = ex
