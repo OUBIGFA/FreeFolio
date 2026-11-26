@@ -103,6 +103,7 @@ type qaState struct {
 	manualName      string
 	modelSearch     string
 	capabilityModel string
+	clearModelsFor  string
 	modelsEpoch     uint64
 	modelsCancel    context.CancelFunc
 	catalogErr      error

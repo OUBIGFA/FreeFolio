@@ -46,13 +46,26 @@ func (a *App) testAIKeys(keys ...string) {
 		s := base
 		s.APIKey, s.APIKeys, s.Parameters = key, nil, agent.Parameters{}
 		var provider agent.Provider
-		if s.Check() == nil {
+		if s.Protocol != agent.Media && s.Check() == nil {
 			provider = s.NewProvider()
 			if q.provider != nil {
 				provider = q.provider(s)
 			}
 		}
 		run := func() (time.Duration, error) {
+			if s.Protocol == agent.Media {
+				start := time.Now()
+				if !agent.SupportsMedia(s.Protocol, s.Vendor, s.Capabilities, agent.MediaImage) {
+					ctx, cancel := context.WithTimeout(context.Background(), keyTestTimeout)
+					defer cancel()
+					_, err := s.DiscoverModels(ctx)
+					return time.Since(start), err
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				_, err := s.GenerateMedia(ctx, agent.MediaRequest{Kind: agent.MediaImage, Prompt: "A blue circle on a white background", Count: 1}, nil)
+				return time.Since(start), err
+			}
 			if err := s.Check(); err != nil {
 				return 0, err
 			}

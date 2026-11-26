@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -83,6 +86,36 @@ func TestOneBotTestsOneKey(t *testing.T) {
 	c.Model = "other"
 	if _, ok := a.keyTestOf("bad"); ok {
 		t.Fatal("a result must not outlive a change of model")
+	}
+}
+
+func TestOneBotMediaKeyUsesOnlyImageEndpoint(t *testing.T) {
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Header.Get("Authorization"))
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/images/generations" {
+			http.Error(w, "only images", http.StatusForbidden)
+			return
+		}
+		if calls[len(calls)-1] != "Bearer good" {
+			http.Error(w, "invalid key", http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, `{"data":[{"b64_json":"iVBORw0KGgo="}]}`)
+	}))
+	defer srv.Close()
+	a, tt, _ := keyTestApp(t)
+	conn := a.prefs.AI.Current()
+	conn.BaseURL, conn.Protocol = srv.URL+"/v1", agent.Media
+	tt.Frame()
+	if err := tt.Click("测试全部 Key 生图（可能计费）"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	good, ok := a.keyTestOf("good")
+	bad, tested := a.keyTestOf("bad")
+	if strings.Join(calls, ",") != "Bearer good,Bearer bad" || !ok || good.err != nil || !tested || bad.err == nil {
+		t.Fatalf("calls=%q good=%+v bad=%+v", calls, good, bad)
 	}
 }
 

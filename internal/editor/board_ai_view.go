@@ -13,8 +13,8 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
@@ -259,6 +259,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-text", "文本生成", "文本", "text", "text", add(whiteboard.AIText, "")},
 		{"ai-concat", "提示词拼接", "文本", "group", "text", add(whiteboard.AIConcat, "")},
 		{"ai-image", "生成图像", "图像", "image", "image", add(whiteboard.AIImage, "")},
+		{"ai-cutout", "本地抠图", "图像", "image", "image", add(whiteboard.AICutout, "")},
 		{"ai-edit", "编辑图像", "图像", "sparkles", "image", add(whiteboard.AIImage, "编辑图像")},
 		{"ai-video", "文生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "")},
 		{"ai-i2v", "图生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "图生视频")},
@@ -408,11 +409,13 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
 			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
 			b.aiModelField(c, o, id, n)
 		}
 		aiPropDivider(c, o)
 		switch n.Role {
+		case whiteboard.AICutout:
+			ui.Text(c, i18n.T("请连接一张输入图片，模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIImageInput:
 			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIPrompt:
@@ -505,12 +508,10 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 	}
 	labels := make([]string, len(models))
 	current := ""
-	nativeSize := false
 	for i, m := range models {
 		labels[i] = m.label()
 		if m.Connection == n.Connection && m.Model == n.Model {
 			current = labels[i]
-			nativeSize = len(m.ImageSizes) > 0
 		}
 	}
 	if current == "" && n.Model != "" {
@@ -522,17 +523,7 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 		for i, l := range labels {
 			if l == current {
 				m := models[i]
-				b.updateAINode(o, id, func(n *whiteboard.AINode) {
-					n.Connection, n.Model = m.Connection, m.Model
-					// Pixel sizes and native resolutions are different controls.
-					// Switching families uses the new provider's defaults.
-					if nativeSize != (len(m.ImageSizes) > 0) {
-						n.Params.Size, n.Params.Quality = "", ""
-					}
-				})
-				if o.AI.Remember != nil {
-					o.AI.Remember(n.Role, m)
-				}
+				b.chooseAIModel(o, id, n, m)
 			}
 		}
 	}
@@ -735,6 +726,19 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 	})
 }
 
+func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, model BoardAIModel) {
+	_, _, wasNative := aiImageSizeChoices(o, n, false)
+	b.updateAINode(o, id, func(node *whiteboard.AINode) {
+		node.Connection, node.Model = model.Connection, model.Model
+		if node.Role == whiteboard.AIImage && wasNative != (len(model.ImageSizes) > 0) {
+			node.Params.Size, node.Params.Quality = model.defaultImageSize(), ""
+		}
+	})
+	if o.AI.Remember != nil {
+		o.AI.Remember(n.Role, model)
+	}
+}
+
 func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
 	var models []BoardAIModel
 	if o.AI != nil && o.AI.Models != nil {
@@ -766,10 +770,7 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 		for i, l := range labels {
 			if l == current {
 				m := models[i]
-				b.updateAINode(o, id, func(node *whiteboard.AINode) { node.Connection, node.Model = m.Connection, m.Model })
-				if o.AI.Remember != nil {
-					o.AI.Remember(n.Role, m)
-				}
+				b.chooseAIModel(o, id, n, m)
 			}
 		}
 	}

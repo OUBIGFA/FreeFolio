@@ -20,6 +20,7 @@ const (
 	tabSpaces     = "spaces"
 	tabShortcuts  = "shortcuts"
 	tabAI         = "ai"
+	tabResources  = "resources"
 	tabWriting    = "writing"
 	tabFiles      = "files"
 	tabUpdates    = "updates"
@@ -108,6 +109,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabFiles, i18n.T("文件浏览"), "files"},
 		{tabSpaces, i18n.T("空间"), "layers"},
 		{tabAI, i18n.T("OneBot"), "ask"},
+		{tabResources, i18n.T("可选资源"), "folder"},
 		{tabCloud, i18n.T("云端同步"), "cloud"},
 		{tabShortcuts, i18n.T("快捷键"), "keyboard"},
 		{tabUpdates, i18n.T("更新"), "refresh"},
@@ -221,6 +223,8 @@ func (a *App) settingsView(c *ui.Context) {
 								a.settingsCloudSync(c)
 							case tabAI:
 								a.settingsAI(c)
+							case tabResources:
+								a.settingsResources(c)
 							case tabAbout:
 								a.settingsAbout(c)
 							default:

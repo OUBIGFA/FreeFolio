@@ -217,7 +217,10 @@ func sameHostRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return errors.New("too many redirects")
 	}
-	if req.URL.Host != via[0].URL.Host {
+	if req.URL.User != nil || (req.URL.Scheme != "https" && !(req.URL.Scheme == "http" && via[0].URL.Scheme == "http" && IsLocal(via[0].URL.String()) && IsLocal(req.URL.String()))) {
+		return errors.New("the service returned an unsafe redirect")
+	}
+	if req.URL.Host != via[0].URL.Host || req.URL.Scheme != via[0].URL.Scheme {
 		req.Header.Del("Authorization")
 		req.Header.Del("x-goog-api-key")
 	}
@@ -289,14 +292,14 @@ func asset(data, mime string) (MediaAsset, error) {
 // addresses need no credentials; the service's own host gets them.
 func (s Settings) download(ctx context.Context, address string) (MediaAsset, error) {
 	u, err := url.Parse(address)
-	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(u.Scheme == "http" && IsLocal(address))) {
+	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(u.Scheme == "http" && IsLocal(address) && IsLocal(s.base()))) {
 		return MediaAsset{}, errors.New("the service returned an unsafe media address")
 	}
 	hr, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
 		return MediaAsset{}, err
 	}
-	if base, err := url.Parse(s.base()); err == nil && base.Host == u.Host {
+	if base, err := url.Parse(s.base()); err == nil && base.Host == u.Host && base.Scheme == u.Scheme {
 		s.authorize(hr.Header)
 	}
 	client := *s.httpClient()
@@ -306,6 +309,10 @@ func (s Settings) download(ctx context.Context, address string) (MediaAsset, err
 	if err != nil {
 		if ctx.Err() != nil {
 			return MediaAsset{}, ctx.Err()
+		}
+		var requestErr *url.Error
+		if errors.As(err, &requestErr) {
+			err = requestErr.Err
 		}
 		return MediaAsset{}, fmt.Errorf("cannot download the generated media: %w", err)
 	}
@@ -355,72 +362,10 @@ func extraInto(body map[string]any, extra map[string]any) {
 // openAIImages uses /images/generations, or /images/edits when the request
 // has source images (several as image[], a mask as mask), per OpenAI's API.
 func (s Settings) openAIImages(ctx context.Context, req MediaRequest) (MediaResult, error) {
-	gptImage := strings.HasPrefix(s.Model, "gpt-image") || strings.Contains(s.Model, "/gpt-image")
-	var res map[string]any
-	var err error
-	if len(req.Images) == 0 {
-		body := map[string]any{"model": s.Model, "prompt": req.Prompt, "n": req.Count}
-		if req.Size != "" {
-			body["size"] = req.Size
-		}
-		if req.Quality != "" {
-			body["quality"] = req.Quality
-		}
-		// gpt-image models always answer in base64 and refuse the field;
-		// older models and most gateways default to short-lived addresses.
-		if !gptImage {
-			body["response_format"] = "b64_json"
-		}
-		extraInto(body, req.Extra)
-		res, err = s.postJSON(ctx, s.base()+"/images/generations", body)
-	} else {
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		fields := map[string]string{"model": s.Model, "prompt": req.Prompt, "n": strconv.Itoa(req.Count)}
-		if req.Size != "" {
-			fields["size"] = req.Size
-		}
-		if req.Quality != "" {
-			fields["quality"] = req.Quality
-		}
-		if !gptImage {
-			fields["response_format"] = "b64_json"
-		}
-		for k, v := range req.Extra {
-			if _, taken := fields[k]; !taken {
-				fields[k] = fmt.Sprint(v)
-			}
-		}
-		for _, k := range slices.Sorted(func(yield func(string) bool) {
-			for k := range fields {
-				if !yield(k) {
-					return
-				}
-			}
-		}) {
-			_ = w.WriteField(k, fields[k])
-		}
-		field := "image"
-		if len(req.Images) > 1 {
-			field = "image[]"
-		}
-		for i, part := range req.Images {
-			if err := writeFilePart(w, field, fmt.Sprintf("image-%d", i+1), part); err != nil {
-				return MediaResult{}, err
-			}
-		}
-		if req.Mask != nil {
-			if err := writeFilePart(w, "mask", "mask", *req.Mask); err != nil {
-				return MediaResult{}, err
-			}
-		}
-		if err := w.Close(); err != nil {
-			return MediaResult{}, err
-		}
-		var hr *http.Response
-		hr, err = s.send(ctx, http.MethodPost, s.base()+"/images/edits", w.FormDataContentType(), buf.Bytes())
-		if err == nil {
-			res, err = readMediaJSON(hr)
+	res, err := s.requestImages(ctx, req, "")
+	if _, explicit := req.Extra["response_format"]; err != nil && !explicit && ctx.Err() == nil {
+		if format := requiredImageFormat(err); format != "" {
+			res, err = s.requestImages(ctx, req, format)
 		}
 	}
 	if err != nil {
@@ -439,7 +384,11 @@ func (s Settings) openAIImages(ctx context.Context, req MediaRequest) (MediaResu
 			continue
 		}
 		if err != nil {
-			return out, err
+			return out, fmt.Errorf("cannot read the generated image: %v", err)
+		}
+		a.MIME = http.DetectContentType(a.Data)
+		if !strings.HasPrefix(a.MIME, "image/") {
+			return out, errors.New("the service returned a file that is not an image")
 		}
 		a.RevisedPrompt = str(item["revised_prompt"])
 		out.Assets = append(out.Assets, a)
@@ -448,6 +397,94 @@ func (s Settings) openAIImages(ctx context.Context, req MediaRequest) (MediaResu
 		return out, errors.New("the service returned no image")
 	}
 	return out, nil
+}
+
+func requiredImageFormat(err error) string {
+	var refusal *APIError
+	if !errors.As(err, &refusal) || (refusal.Status != http.StatusBadRequest && refusal.Status != http.StatusUnprocessableEntity) {
+		return ""
+	}
+	message := strings.ToLower(refusal.Message)
+	if !strings.Contains(message, "response_format") && refusal.Param != "response_format" {
+		return ""
+	}
+	for _, hint := range []string{"仅支持", "只支持", "仅允许", "only support", "only allow", "must be", "must use"} {
+		if _, values, ok := strings.Cut(message, hint); ok {
+			url, b64 := strings.Contains(values, "url"), strings.Contains(values, "b64_json")
+			if url && !b64 {
+				return "url"
+			}
+			if b64 && !url {
+				return "b64_json"
+			}
+		}
+	}
+	return ""
+}
+
+func (s Settings) requestImages(ctx context.Context, req MediaRequest, format string) (map[string]any, error) {
+	if len(req.Images) == 0 {
+		body := map[string]any{"model": s.Model, "prompt": req.Prompt, "n": req.Count}
+		if req.Size != "" {
+			body["size"] = req.Size
+		}
+		if req.Quality != "" {
+			body["quality"] = req.Quality
+		}
+		if format != "" {
+			body["response_format"] = format
+		}
+		extraInto(body, req.Extra)
+		return s.postJSON(ctx, s.base()+"/images/generations", body)
+	}
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	fields := map[string]string{"model": s.Model, "prompt": req.Prompt, "n": strconv.Itoa(req.Count)}
+	if req.Size != "" {
+		fields["size"] = req.Size
+	}
+	if req.Quality != "" {
+		fields["quality"] = req.Quality
+	}
+	if format != "" {
+		fields["response_format"] = format
+	}
+	for k, v := range req.Extra {
+		if _, taken := fields[k]; !taken {
+			fields[k] = fmt.Sprint(v)
+		}
+	}
+	for _, k := range slices.Sorted(func(yield func(string) bool) {
+		for k := range fields {
+			if !yield(k) {
+				return
+			}
+		}
+	}) {
+		_ = w.WriteField(k, fields[k])
+	}
+	field := "image"
+	if len(req.Images) > 1 {
+		field = "image[]"
+	}
+	for i, part := range req.Images {
+		if err := writeFilePart(w, field, fmt.Sprintf("image-%d", i+1), part); err != nil {
+			return nil, err
+		}
+	}
+	if req.Mask != nil {
+		if err := writeFilePart(w, "mask", "mask", *req.Mask); err != nil {
+			return nil, err
+		}
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	hr, err := s.send(ctx, http.MethodPost, s.base()+"/images/edits", w.FormDataContentType(), buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	return readMediaJSON(hr)
 }
 
 var extensions = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}

@@ -218,6 +218,7 @@ func (a *App) selectAIConnection(id string) {
 	a.qa.manualName = ""
 	a.qa.modelSearch = ""
 	a.qa.capabilityModel = ""
+	a.qa.clearModelsFor = ""
 	a.qa.modelsFor = ""
 	a.qa.modelsErr = nil
 	a.qa.catalogErr = nil
@@ -458,5 +459,22 @@ func (a *App) addManualAIModel() {
 	c.Models = append(c.Models, agent.ModelInfo{ID: id, Name: id, Enabled: true, Source: "user"})
 	c.Model = id
 	a.qa.manualName = ""
+	a.savePrefs()
+}
+
+func (a *App) clearProviderModels() {
+	conn := a.prefs.AI.Current()
+	if conn == nil || a.qa.clearModelsFor != conn.ID {
+		return
+	}
+	a.cancelModelFetch()
+	conn.Models, conn.Model = nil, ""
+	a.qa.models, a.qa.modelsErr, a.qa.catalogErr = nil, nil, nil
+	a.qa.modelsFor, a.qa.modelSearch, a.qa.capabilityModel, a.qa.clearModelsFor = "", "", "", ""
+	for role, model := range a.prefs.AI.Whiteboard {
+		if model.Connection == conn.ID {
+			delete(a.prefs.AI.Whiteboard, role)
+		}
+	}
 	a.savePrefs()
 }

@@ -45,7 +45,7 @@ type aiCardLayout struct {
 
 func aiRunnableRole(role whiteboard.AIRole) bool {
 	switch role {
-	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote:
+	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout:
 		return true
 	}
 	return false
@@ -56,6 +56,8 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	switch role {
 	case whiteboard.AINote:
 		return 30
+	case whiteboard.AICutout:
+		return 32
 	case whiteboard.AIConcat:
 		return 68
 	case whiteboard.AIPrompt, whiteboard.AIImageInput:
@@ -270,19 +272,24 @@ func aiSplinePath(c [4]whiteboard.Point) *ui.Path {
 
 // paintAILink uses dim0's plain cubic body and filled arrowhead. Node links
 // remain separate from drawing arrows and retain their typed slot semantics.
-func (b *Board) paintAILink(p *ui.Painter, c [4]whiteboard.Point, color ui.Color, width float32, dark bool) {
-	path := aiSplinePath(c)
-	p.StrokePath(path, width, color)
-	direction := whiteboard.Sub(c[3], c[2])
-	if length := whiteboard.Distance(c[3], c[2]); length > 0 {
-		direction = whiteboard.ScalePoint(direction, 1/length)
-		head := whiteboard.DimArrowhead("arrow-filled", c[3], direction, float64(width), "", 1)
-		p.FillPath(nativeBoardPath(head.Ops), color)
-	}
+func (b *Board) paintAILink(p *ui.Painter, c [4]whiteboard.Point, color ui.Color, width, zoom float32) {
+	p.Transform(ui.Scaling(1/zoom, 1/zoom), 0, 0, func() {
+		scaled := c
+		for index := range c {
+			scaled[index] = whiteboard.ScalePoint(c[index], float64(zoom))
+		}
+		p.StrokePath(aiSplinePath(scaled), width*zoom, color)
+		direction := whiteboard.Sub(c[3], c[2])
+		if length := whiteboard.Distance(c[3], c[2]); length > 0 {
+			direction = whiteboard.ScalePoint(direction, 1/length)
+			head := whiteboard.DimArrowhead("arrow-filled", c[3], direction, float64(width), "", 1)
+			p.FillPath(nativeBoardPath(head.Ops, zoom), color)
+		}
+	})
 }
 
 // paintAILinks draws the stored links, under the cards and over the rest.
-func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box) {
+func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box, zoom float32) {
 	s := b.aiState()
 	clear(s.linkedOut)
 	cardBg := aiNodePalette("text", dark).cardBg
@@ -292,7 +299,7 @@ func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box) 
 			continue
 		}
 		color := aiTypeColor(l.typ, dark)
-		b.paintAILink(p, l.curve, color.Alpha(0.85), 2.2, dark)
+		b.paintAILink(p, l.curve, color.Alpha(0.85), 2.2, zoom)
 		// LiteGraph's circular link centre with a cutout halo, kept legible at every zoom.
 		mid := aiSplineAt(l.curve, .5)
 		radius := float32(4.5 / b.Zoom)
@@ -333,7 +340,7 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 				a = b.aiSourcePoint(t)
 			}
 		}
-		b.paintAILink(p, aiSpline(a, z), aiTypeColor(d.typ, dark), 2.4, dark)
+		b.paintAILink(p, aiSpline(a, z), aiTypeColor(d.typ, dark), 2.4, float32(b.Zoom))
 		return
 	}
 	var shown *aiLink
@@ -354,7 +361,7 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 		return
 	}
 	color := aiTypeColor(shown.typ, dark)
-	b.paintAILink(p, shown.curve, color, 3.2, dark)
+	b.paintAILink(p, shown.curve, color, 3.2, float32(b.Zoom))
 }
 
 // aiLinkControls gives the small centre marker a screen-sized hit target.
@@ -639,7 +646,7 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}

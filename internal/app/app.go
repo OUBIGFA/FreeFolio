@@ -209,8 +209,9 @@ type App struct {
 
 	palette palette
 	// qa is the panel of questions about the space (qa.go).
-	qa      qaState
-	chatgpt chatGPTState
+	qa        qaState
+	resources resourceState
+	chatgpt   chatGPTState
 	// pager is the strip of spaces the sidebar pages along (spaceswitch.go),
 	// and pageTrees the folders of the spaces it shows beside the active
 	// one; now and reduceMotion are this frame's clock and the system's

@@ -12,6 +12,7 @@ import re
 
 
 KNOWN_LICENSES = {
+    "github.com/getcharzp/onnxruntime_purego": "MIT",
     "github.com/coreos/go-oidc/v3": "Apache-2.0",
     "github.com/go-jose/go-jose/v4": "Apache-2.0",
     "github.com/ebitengine/purego": "Apache-2.0",

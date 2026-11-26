@@ -13,6 +13,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/localresource"
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
@@ -31,6 +32,12 @@ const boardAISystem = "You are OneBot working inside the user's FreeFolio whiteb
 // boardAIModels lists the enabled models able to run a node of the role.
 func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 	var out []editor.BoardAIModel
+	if role == whiteboard.AICutout {
+		for _, model := range localresource.Models {
+			out = append(out, editor.BoardAIModel{Connection: "local", Model: model.ID, Name: model.Name})
+		}
+		return out
+	}
 	for _, c := range a.prefs.AI.Connections {
 		for _, m := range c.Models {
 			if !m.Enabled {
@@ -132,6 +139,13 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 	}
 	ai := &editor.BoardAI{Models: a.boardAIModels, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
 	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
+	ai.SaveImage = func(rel string) {
+		a.saveBoardImageAs(a.win, rel, read, func(err error) {
+			if err != nil {
+				a.notify("另存为失败；%v", err)
+			}
+		})
+	}
 	ai.Prepare = func() (*editor.BoardAIRunner, error) { return a.boardAIRunner(d) }
 	ai.OpenFile = func(rel string) {
 		if f, err := full(rel); err == nil {
@@ -164,10 +178,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 // boardAIRunner captures the settings and credentials of every connection
 // on the main thread; the runner's calls then run off it.
 func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
-	keyring, err := a.readAIKeys()
-	if err != nil {
-		return nil, err
-	}
+	keyring, keyErr := a.readAIKeys()
 	settings := map[string]agent.Settings{}
 	for i := range a.prefs.AI.Connections {
 		c := &a.prefs.AI.Connections[i]
@@ -176,6 +187,9 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 	}
 	find := func(n whiteboard.AINode) (agent.Settings, error) {
+		if keyErr != nil {
+			return agent.Settings{}, keyErr
+		}
 		s, ok := settings[n.Connection+"\x00"+n.Model]
 		if !ok {
 			return s, errors.New(i18n.T("节点的模型已不在 OneBot 设置中，请重新选择"))
@@ -219,7 +233,33 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 		return added[len(added)-1].Text, nil
 	}
+	resourceDir := a.resourceDirectory()
 	r.Media = func(ctx context.Context, job editor.BoardAIJob, progress func(string)) ([]editor.BoardAIMedia, error) {
+		if job.Node.Role == whiteboard.AICutout {
+			model, ok := localresource.Model(job.Node.Model)
+			engine, supported := localresource.Runtime()
+			if !supported {
+				return nil, errors.New(i18n.T("此平台暂不支持本地抠图"))
+			}
+			if !ok || !localresource.Present(resourceDir, model) || !localresource.Present(resourceDir, engine) {
+				return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型和运行库"))
+			}
+			if len(job.Images) != 1 {
+				return nil, errors.New(i18n.T("请连接一张输入图片"))
+			}
+			data, err := localresource.Cutout(ctx, resourceDir, model.ID, job.Images[0].Data)
+			if err != nil {
+				return nil, err
+			}
+			if err = ctx.Err(); err != nil {
+				return nil, err
+			}
+			url, err := a.writeAssetFor(d, path.Dir(rel), "cutout.png", data)
+			if err != nil {
+				return nil, err
+			}
+			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
+		}
 		s, err := find(job.Node)
 		if err != nil {
 			return nil, err

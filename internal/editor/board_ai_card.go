@@ -322,6 +322,8 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		switch n.Role {
 		case whiteboard.AIImage:
 			hint = i18n.T("运行后显示图像")
+		case whiteboard.AICutout:
+			hint = i18n.T("请连接一张输入图片")
 		case whiteboard.AIVideo:
 			hint = i18n.T("运行后显示视频")
 		case whiteboard.AINote:
@@ -466,6 +468,8 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 				})
 			case whiteboard.AIConcat:
 				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
+			case whiteboard.AICutout:
+				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
 			default:
 				src := b.aiPromptSource(n)
 				if src != "" {

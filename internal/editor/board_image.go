@@ -278,11 +278,25 @@ func (b *Board) OpenAIImage(id string, edit bool, o BoardOptions) {
 }
 
 func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bool) {
-	if o.AI == nil || o.AI.OpenImage == nil {
+	if o.AI == nil {
 		return
 	}
 	e := b.Scene.ElementByID(id)
 	st := boardChromeFor(o.Theme)
+	if rel := b.DisplayedAIImage(id); rel != "" && o.AI.SaveImage != nil {
+		var button ui.Element
+		if flat {
+			button = boardFlatButton(c, "save-image-as", i18n.T("另存为"), false, st).Height(26)
+		} else {
+			button = ui.Button(c.Key("save-image-as"), i18n.T("另存为")).Height(28)
+		}
+		if button.Label(i18n.T("图片另存为")).Tooltip(i18n.T("另存当前历史图片")).Clicked() {
+			o.AI.SaveImage(rel)
+		}
+	}
+	if o.AI.OpenImage == nil {
+		return
+	}
 	annotateDisabled := b.ReadOnly || e == nil || e.Locked || b.AIRunning()
 	if flat {
 		if boardFlatButton(c, "view-node-image", i18n.T("查看图片"), false, st).Height(26).Clicked() {
@@ -299,4 +313,17 @@ func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bo
 	if ui.Button(c.Key("annotate-node-image"), i18n.T("标注图片")).Height(28).Disabled(annotateDisabled).Clicked() {
 		b.OpenAIImage(id, true, o)
 	}
+}
+
+func (b *Board) DisplayedAIImage(id string) string {
+	e := b.Scene.ElementByID(id)
+	n := b.aiNode(e)
+	if n == nil || (n.Role != whiteboard.AIImage && n.Role != whiteboard.AICutout) || len(n.Outputs) == 0 {
+		return ""
+	}
+	output := n.Outputs[b.aiHistoryCurrent(e, n)]
+	if output.Kind != "image" {
+		return ""
+	}
+	return output.Path
 }

@@ -224,3 +224,31 @@ func TestOneBotGeneratesPicturesBesideTheOpenDocument(t *testing.T) {
 		t.Fatalf("picture %s: %v", url, err)
 	}
 }
+func TestSaveBoardImageCopyKeepsOriginalEncoding(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte("RIFF-original-WebP")
+	dest := filepath.Join(dir, "copy.webp")
+	reads := 0
+	read := func(rel string) ([]byte, error) {
+		reads++
+		if rel != "assets/a%20b.webp" {
+			t.Fatalf("wrong source %q", rel)
+		}
+		return data, nil
+	}
+	if err := saveBoardImageCopy("assets/a%20b.webp", read, func(name string) (string, error) {
+		if name != "a b.webp" {
+			t.Fatalf("wrong name %q", name)
+		}
+		return "", nil
+	}); err != nil || reads != 0 {
+		t.Fatal("cancelling changed a file")
+	}
+	if err := saveBoardImageCopy("assets/a%20b.webp", read, func(string) (string, error) { return dest, nil }); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("saved a preview rather than original bytes: %v", err)
+	}
+}

@@ -266,3 +266,13 @@ func TestJSONCanvasRoundTrip(t *testing.T) {
 		t.Fatal("unknown node type accepted")
 	}
 }
+func TestCutoutGraphTakesOneImageAndProducesImage(t *testing.T) {
+	node := AINodeOf(NewAINode(AICutout, 0, 0))
+	if node == nil || node.Kind() != "image" || AIOutputType(node.Role) != AITypeImage {
+		t.Fatal("cutout is not an image node")
+	}
+	slots := AISlots(node)
+	if len(slots) != 1 || slots[0].Name != "image" || slots[0].Type != AITypeImage {
+		t.Fatalf("unexpected cutout inputs: %+v", slots)
+	}
+}

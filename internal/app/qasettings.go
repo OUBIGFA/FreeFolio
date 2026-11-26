@@ -118,6 +118,7 @@ func (a *App) settingsAI(c *ui.Context) {
 				a.saveAIKey()
 			}
 		})
+		testImage := conn.Protocol == agent.Media && agent.SupportsMedia(conn.Protocol, conn.Vendor, a.qaSettings().Capabilities, agent.MediaImage)
 		// Saved keys show masked; each can be shown in full again, copied or
 		// removed. The settings keep them in memory only while open.
 		for i, key := range a.qa.keys {
@@ -130,7 +131,11 @@ func (a *App) settingsAI(c *ui.Context) {
 				}
 				ui.Text(c, text).FontSize(13).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 				a.keyTestStatus(c, key)
-				if quietOneBotAction(c, "test", i18n.T("测试")).Label(fmt.Sprintf(i18n.T("测试 Key %d"), i+1)).Shrink(0).Clicked() {
+				test, label := i18n.T("测试"), fmt.Sprintf(i18n.T("测试 Key %d"), i+1)
+				if testImage {
+					test, label = i18n.T("测试生图（可能计费）"), fmt.Sprintf(i18n.T("测试 Key %d 生图（可能计费）"), i+1)
+				}
+				if quietOneBotAction(c, "test", test).Label(label).Shrink(0).Clicked() {
 					a.testAIKeys(key)
 				}
 				eye, tip := iconEye, i18n.T("显示 API Key")
@@ -160,11 +165,20 @@ func (a *App) settingsAI(c *ui.Context) {
 			if len(keys) > 1 {
 				label = i18n.T("测试全部 Key")
 			}
+			note := i18n.T("用所选模型发送一条简短消息，收到回复即停止")
+			if testImage {
+				label, note = i18n.T("测试生图（可能计费）"), i18n.T("每个测试的 Key 生成一张图片，不保存测试图片")
+				if len(keys) > 1 {
+					label = i18n.T("测试全部 Key 生图（可能计费）")
+				}
+			} else if conn.Protocol == agent.Media {
+				note = i18n.T("仅读取模型列表，不生成视频")
+			}
 			if len(keys) == 0 {
 				keys = []string{""}
 				a.keyTestStatus(c, "")
 			}
-			ui.Text(c, i18n.T("用所选模型发送一条简短消息，收到回复即停止")).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+			ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(0)
 			busy := a.keyTestsBusy()
 			if busy {
 				label = i18n.T("测试中")
@@ -247,6 +261,16 @@ func (a *App) settingsAI(c *ui.Context) {
 			}
 			if ui.Button(c.Key("capabilities"), i18n.T("更新模型能力")).Disabled(a.qa.modelsBusy || conn.Protocol == agent.ChatGPT || conn.Vendor == "" || conn.Vendor == "custom").Clicked() {
 				a.fetchModelCapabilities()
+			}
+			if a.qa.clearModelsFor == conn.ID {
+				if ui.Button(c.Key("confirm-clear"), i18n.T("确认清空模型")).Clicked() {
+					a.clearProviderModels()
+				}
+				if ui.Button(c.Key("cancel-clear"), i18n.T("取消")).Clicked() {
+					a.qa.clearModelsFor = ""
+				}
+			} else if ui.Button(c.Key("clear-models"), i18n.T("清空模型")).Disabled(len(conn.Models) == 0).Tooltip(i18n.T("移除此供应商的所有模型，保留供应商和 Key")).Clicked() {
+				a.qa.clearModelsFor = conn.ID
 			}
 		})
 		settingsSeparator(c)

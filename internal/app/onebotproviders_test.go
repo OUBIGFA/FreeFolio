@@ -109,6 +109,34 @@ func TestOneBotModelListSelectionAndManualAdd(t *testing.T) {
 	}
 }
 
+func TestOneBotClearProviderModelsIgnoresSearchAndPreservesKeys(t *testing.T) {
+	a, tt := newTestApp(t)
+	setupOneBot(a, "saved-key")
+	a.prefs.AI.Connections = append(a.prefs.AI.Connections, prefs.AIConnection{ID: "other", Models: []agent.ModelInfo{{ID: "keep"}}})
+	conn := a.prefs.AI.Current()
+	conn.Models = append(conn.Models, agent.ModelInfo{ID: "hidden", Source: "user"})
+	a.openSettings(tabAI)
+	a.qa.modelSearch = "test-model"
+	tt.Frame()
+	tt.Scroll(680, 550, 0, 400)
+	tt.Frame()
+	if err := tt.Click("清空模型"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(conn.Models) == 0 {
+		t.Fatal("cleared before confirmation")
+	}
+	if err := tt.Click("确认清空模型"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	saved, err := a.prefStore.Load()
+	if err != nil || len(saved.AI.Current().Models) != 0 || saved.AI.Current().Model != "" || len(saved.AI.Find("other").Models) != 1 || a.qaSettings().APIKey != "saved-key" {
+		t.Fatalf("cleared wrong provider data: %+v %v", saved.AI, err)
+	}
+}
+
 func TestOneBotSecretFailureDoesNotDiscardInputOrSavedKey(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "saved")

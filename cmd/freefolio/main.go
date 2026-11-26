@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/OUBIGFA/FreeFolio/internal/app"
+	"github.com/OUBIGFA/FreeFolio/internal/localresource"
 	"github.com/OUBIGFA/FreeFolio/internal/sysproxy"
 	// The catalogs of mygo.json's i18n name the languages the installer and
 	// the file properties are in; imported, they also give MyGo's own
@@ -20,6 +21,15 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "cutout-worker" {
+		if len(os.Args) != 5 {
+			log.Fatal("invalid cutout arguments")
+		}
+		if err := localresource.Worker(os.Args[2], os.Args[3], os.Args[4], os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	// Every HTTP client built on the default transport follows the proxy
 	// environment, else the system proxy (ArcMD 14e92c1).
 	sysproxy.Install()

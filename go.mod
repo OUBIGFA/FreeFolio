@@ -17,6 +17,7 @@ require (
 	github.com/ebitengine/purego v0.11.3
 	github.com/egoist/mygo v0.10.0
 	github.com/gabriel-vasile/mimetype v1.4.16
+	github.com/getcharzp/onnxruntime_purego v1.28.0
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-text/typesetting v0.3.5
 	github.com/pdfcpu/pdfcpu v0.16.4

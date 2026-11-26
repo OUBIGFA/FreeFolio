@@ -111,7 +111,11 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 			if boardFlatButton(c, "next", "›", false, st).Width(24).Height(26).PaddingX(0).Label(i18n.T("下张图片")).Disabled(current == len(n.Outputs)-1).Clicked() {
 				b.aiSelectImage(o, e, n, current+1)
 			}
-			if boardFlatButton(c, "compare", i18n.T("对比"), h.compare, st).Height(26).PaddingX(8).Label(i18n.T("对比图片")).Disabled(len(n.Outputs) < 2).Clicked() {
+			text, label := i18n.T("对比"), i18n.T("对比图片")
+			if h.compare {
+				text, label = i18n.T("退出"), i18n.T("退出对比")
+			}
+			if boardFlatButton(c, "compare", text, h.compare, st).Height(26).PaddingX(8).Label(label).Disabled(len(n.Outputs) < 2).Clicked() {
 				h.compare = !h.compare
 				if h.compare {
 					h.b, h.a = current, max(0, current-1)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo"
@@ -20,6 +21,7 @@ import (
 )
 
 type boardImageWindow struct {
+	exportPath                                     string
 	sourceKey                                      string
 	win                                            windowHandle
 	doc                                            *document
@@ -61,7 +63,10 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 		if out == nil || out.Kind != "image" {
 			return
 		}
-		rel = out.Path
+		rel = d.board.DisplayedAIImage(id)
+		if rel == "" {
+			rel = out.Path
+		}
 	}
 	key, _ := json.Marshal([]any{rel, dataURL, crop, flip})
 	for _, w := range a.boardImages {
@@ -74,6 +79,9 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 		}
 	}
 	w := &boardImageWindow{doc: d, nodeID: id, sourceKey: string(key), editing: edit, loading: true}
+	if n.Role == whiteboard.AIImage || n.Role == whiteboard.AICutout {
+		w.exportPath = rel
+	}
 	a.boardImages = append(a.boardImages, w)
 	w.win = a.makeWindow(i18n.T("图片查看与标注"), func(c *ui.Context) { a.boardImageView(c, w) }, func() bool { return a.closeBoardImage(w) })
 	watchBoardImageOutsidePress(w.win, func() { a.dismissBoardImageOutside(w) })
@@ -118,6 +126,28 @@ func (a *App) redrawBoardImage(w *boardImageWindow) {
 	if win, ok := w.win.(*mygo.Window); ok {
 		win.Update(func() {})
 	}
+}
+
+func saveBoardImageCopy(rel string, read func(string) ([]byte, error), choose func(string) (string, error)) error {
+	dest, err := choose(path.Base(unescapeImagePath(rel)))
+	if err != nil || dest == "" {
+		return err
+	}
+	data, err := read(rel)
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFileAtomic(dest, data, 0644)
+}
+
+func (a *App) saveBoardImageAs(parent *mygo.Window, rel string, read func(string) ([]byte, error), done func(error)) {
+	title := i18n.T("图片另存为")
+	a.backgroundResult(func() func() {
+		err := saveBoardImageCopy(rel, read, func(name string) (string, error) {
+			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: title, DefaultPath: name})
+		})
+		return func() { done(err) }
+	})
 }
 
 func (a *App) dismissBoardImageOutside(w *boardImageWindow) {
@@ -277,6 +307,17 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 			})
 			ui.Row(c.Key("board-image-actions")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 				if !w.editing {
+					if w.exportPath != "" && ui.Button(c.Key("save-image-as"), i18n.T("另存为")).Label(i18n.T("图片另存为")).Disabled(w.saving || w.loading).Clicked() {
+						w.saving, w.err = true, ""
+						parent, _ := w.win.(*mygo.Window)
+						a.saveBoardImageAs(parent, w.exportPath, a.boardAI(w.doc).ReadFile, func(err error) {
+							w.saving = false
+							if err != nil {
+								w.err = fmt.Sprintf(i18n.T("另存为失败；%v"), err)
+							}
+							a.redrawBoardImage(w)
+						})
+					}
 					if ui.PrimaryButton(c.Key("start-image-annotation"), i18n.T("标注图片")).Disabled(!canEdit || w.loading || w.image == nil).Clicked() {
 						w.editing = true
 						w.image.Board.Tool = editor.ToolFreedraw

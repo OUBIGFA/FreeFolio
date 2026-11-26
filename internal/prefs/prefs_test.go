@@ -99,6 +99,17 @@ func TestSidebarMigration(t *testing.T) {
 	}
 }
 
+func TestOptionalResourceDirectoryMigratesWithoutChangingOtherChoices(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":17,"sidebarLeft":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Load()
+	if err != nil || loaded.Version != CurrentVersion || loaded.ResourceDir != "" || !loaded.SidebarLeft {
+		t.Fatalf("migration: %+v %v", loaded, err)
+	}
+}
+
 func TestFilesPrefsMigrateAndRoundTrip(t *testing.T) {
 	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
 	if err := os.WriteFile(store.Path, []byte(`{"version":2,"sidebarLeft":true}`), 0600); err != nil {

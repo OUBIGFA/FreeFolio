@@ -27,6 +27,7 @@ const (
 	AIPrompt AIRole = "prompt"
 	// AIImageInput supplies an imported picture without generating a new one.
 	AIImageInput AIRole = "image-input"
+	AICutout     AIRole = "cutout"
 	// AIText writes text from its inputs: summaries, rewrites, prompts.
 	AIText AIRole = "text"
 	// AIImage generates a picture, or edits one when it has picture inputs.
@@ -40,7 +41,7 @@ const (
 )
 
 // AIRoles are the supported roles stored in a scene.
-var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote}
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote, AICutout}
 
 // MaxAIOutputs bounds non-image history; image references remain available
 // for selection and comparison across runs.
@@ -107,7 +108,7 @@ func (n *AINode) Output() *AIOutput {
 // Kind is the data a node supplies downstream.
 func (n *AINode) Kind() string {
 	switch n.Role {
-	case AIImage, AIImageInput:
+	case AIImage, AIImageInput, AICutout:
 		return "image"
 	case AIVideo:
 		return "video"
@@ -204,6 +205,8 @@ func AINodeSize(role AIRole) (float64, float64) {
 		return 300, 220
 	case AIImageInput:
 		return 300, 300
+	case AICutout:
+		return 340, 350
 	case AIImage:
 		return 380, 520
 	case AIVideo:

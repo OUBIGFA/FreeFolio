@@ -86,6 +86,85 @@ func decodeBody(t *testing.T, r *http.Request) map[string]any {
 	return body
 }
 
+func TestImageOnlyGatewayFormat(t *testing.T) {
+	for _, edit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("edit-%t", edit), func(t *testing.T) {
+			cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "" {
+					t.Error("key sent to asset host")
+				}
+				w.Write(pngBytes)
+			}))
+			defer cdn.Close()
+			var formats []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer test" {
+					t.Error("incorrect method or credentials")
+				}
+				var format string
+				switch {
+				case edit && r.URL.Path == "/v1/images/edits":
+					if err := r.ParseMultipartForm(1 << 20); err != nil {
+						t.Error(err)
+						return
+					}
+					if len(r.MultipartForm.File["image"]) != 1 || r.FormValue("size") != "1024x1024" {
+						t.Error("missing edit input")
+					}
+					format = r.FormValue("response_format")
+				case !edit && r.URL.Path == "/v1/images/generations":
+					body := decodeBody(t, r)
+					if body["size"] != "1024x1024" || body["model"] != "gpt-image-custom" {
+						t.Error("lost generation settings")
+					}
+					format, _ = body["response_format"].(string)
+				default:
+					http.Error(w, "站点用户 API 仅开放图片接口", http.StatusForbidden)
+					return
+				}
+				formats = append(formats, format)
+				if format != "url" {
+					http.Error(w, `{"error":{"message":"站点用户 API 目前仅支持 response_format=url"}}`, http.StatusBadRequest)
+					return
+				}
+				fmt.Fprintf(w, `{"data":[{"url":%q}]}`, cdn.URL+"/picture.png")
+			}))
+			defer srv.Close()
+			settings := Settings{Protocol: Media, Model: "gpt-image-custom", APIKey: "test", BaseURL: srv.URL + "/v1"}
+			req := MediaRequest{Kind: MediaImage, Prompt: "cat", Size: "1024x1024"}
+			if edit {
+				req.Images = []ContentPart{pngPart()}
+			}
+			out, err := settings.GenerateMedia(context.Background(), req, nil)
+			if err != nil || len(out.Assets) != 1 || string(out.Assets[0].Data) != string(pngBytes) || strings.Join(formats, "|") != "|url" {
+				t.Fatalf("formats=%q assets=%v err=%v", formats, out.Assets, err)
+			}
+			formats = nil
+			req.Extra = map[string]any{"response_format": "url"}
+			if _, err = settings.GenerateMedia(context.Background(), req, nil); err != nil || strings.Join(formats, "|") != "url" {
+				t.Fatalf("explicit format: %q %v", formats, err)
+			}
+		})
+	}
+}
+
+func TestImageFormatRefusalDoesNotReplayOtherRequests(t *testing.T) {
+	for _, status := range []int{400, 403, 429, 500} {
+		calls := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			http.Error(w, `{"error":{"message":"站点用户 API 仅开放图片接口，请使用 /v1/images/generations 或 /v1/images/edits"}}`, status)
+		}))
+		settings := Settings{Protocol: Media, Model: "alias", BaseURL: srv.URL}
+		_, err := settings.GenerateMedia(context.Background(), MediaRequest{Kind: MediaImage, Prompt: "cat"}, nil)
+		srv.Close()
+		var refusal *APIError
+		if !errors.As(err, &refusal) || refusal.Status != status || calls != 1 {
+			t.Fatalf("status=%d calls=%d err=%v", status, calls, err)
+		}
+	}
+}
+
 func TestOpenAIImagesGenerateAndDownload(t *testing.T) {
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +174,7 @@ func TestOpenAIImagesGenerateAndDownload(t *testing.T) {
 				t.Fatalf("missing key: %v", r.Header)
 			}
 			body := decodeBody(t, r)
-			if body["model"] != "dall-e-3" || body["prompt"] != "cat" || body["n"] != float64(2) || body["size"] != "1024x1024" || body["response_format"] != "b64_json" || body["style"] != "vivid" {
+			if body["model"] != "dall-e-3" || body["prompt"] != "cat" || body["n"] != float64(2) || body["size"] != "1024x1024" || body["response_format"] != nil || body["style"] != "vivid" {
 				t.Fatalf("body %+v", body)
 			}
 			fmt.Fprintf(w, `{"data":[{"b64_json":%q,"revised_prompt":"a cat"},{"url":%q}]}`, base64.StdEncoding.EncodeToString(pngBytes), srv.URL+"/file.png")

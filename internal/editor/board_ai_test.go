@@ -376,14 +376,9 @@ func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
 	for _, compact := range []bool{false, true} {
 		t.Run(fmt.Sprint(compact), func(t *testing.T) {
 			b := NewBoard(nil)
-			o := BoardOptions{AI: &BoardAI{Models: func(whiteboard.AIRole) []BoardAIModel {
-				return []BoardAIModel{{Connection: "google", Model: "gemini-3-pro-image", ImageSizes: []string{"1K", "2K", "4K"}}}
-			}}}
+			model := BoardAIModel{Connection: "google", Model: "gemini-3-pro-image", ImageSizes: []string{"1K", "2K", "4K"}}
+			o := BoardOptions{AI: &BoardAI{Models: func(whiteboard.AIRole) []BoardAIModel { return []BoardAIModel{model} }, Default: func(whiteboard.AIRole) BoardAIModel { return model }}}
 			id := b.AddAINode(whiteboard.AIImage, whiteboard.Point{}, o)
-			el := b.Scene.ElementByID(id)
-			n := whiteboard.AINodeOf(el)
-			n.Connection, n.Model = "google", "gemini-3-pro-image"
-			_ = whiteboard.SetAINode(el, n)
 			tt := ui.NewTester(func(c *ui.Context) {
 				o.Theme = c.Theme()
 				n := whiteboard.AINodeOf(b.Scene.ElementByID(id))
@@ -399,11 +394,7 @@ func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
 			if tt.HasText("质量") {
 				t.Fatal("Gemini exposes unsupported OpenAI quality settings")
 			}
-			choice := "服务默认"
-			if compact {
-				choice = "尺寸"
-			}
-			if err := tt.Click(choice); err != nil {
+			if err := tt.Click("1K"); err != nil {
 				t.Fatal(err)
 			}
 			if err := tt.Click("2K"); err != nil {
@@ -413,10 +404,27 @@ func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
 			if got := whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size; got != "2K" {
 				t.Fatalf("resolution selection=%s", got)
 			}
-			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size != "" {
+			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size != "1K" {
 				t.Fatal("resolution edit is not undoable")
 			}
 		})
+	}
+}
+
+func TestNewImageNodeUsesSquareProviderResolution(t *testing.T) {
+	for _, sizes := range [][]string{nil, {"1K", "2K", "4K"}} {
+		model := BoardAIModel{Connection: "test", Model: "image", ImageSizes: sizes}
+		o := BoardOptions{AI: &BoardAI{Default: func(whiteboard.AIRole) BoardAIModel { return model }}}
+		board := NewBoard(whiteboard.NewScene())
+		id := board.AddAINode(whiteboard.AIImage, whiteboard.Point{}, o)
+		params := whiteboard.AINodeOf(board.Scene.ElementByID(id)).Params
+		want := "1024x1024"
+		if len(sizes) > 0 {
+			want = "1K"
+		}
+		if params.AspectRatio != "1:1" || params.Size != want {
+			t.Fatalf("new image params: %+v, want square %s", params, want)
+		}
 	}
 }
 

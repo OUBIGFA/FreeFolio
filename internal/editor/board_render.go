@@ -21,6 +21,7 @@ type boardPath struct {
 }
 type boardPathCache struct {
 	version, nonce int64
+	scale          float32
 	paths          []boardPath
 }
 type boardTextCache struct {
@@ -73,42 +74,49 @@ func boardColor(s string, dark bool) ui.Color {
 	clamp := func(x float64) uint8 { return uint8(math.Round(math.Max(0, math.Min(1, x)) * 255)) }
 	return ui.RGB(clamp(r), clamp(g), clamp(b))
 }
-func nativeBoardPath(ops []rough.Op) *ui.Path {
+func nativeBoardPath(ops []rough.Op, scale float32) *ui.Path {
 	p := new(ui.Path).Cap(ui.RoundCap).Join(ui.RoundJoin)
 	for _, o := range ops {
-		d := o.Data
+		at := func(index int) float32 { return float32(o.Data[index]) * scale }
 		switch o.Op {
 		case "move":
-			p.MoveTo(float32(d[0]), float32(d[1]))
+			p.MoveTo(at(0), at(1))
 		case "lineTo":
-			p.LineTo(float32(d[0]), float32(d[1]))
+			p.LineTo(at(0), at(1))
 		case "bcurveTo":
-			p.CubeTo(float32(d[0]), float32(d[1]), float32(d[2]), float32(d[3]), float32(d[4]), float32(d[5]))
+			p.CubeTo(at(0), at(1), at(2), at(3), at(4), at(5))
 		case "quadTo":
-			p.QuadTo(float32(d[0]), float32(d[1]), float32(d[2]), float32(d[3]))
+			p.QuadTo(at(0), at(1), at(2), at(3))
 		case "close":
 			p.Close()
 		}
 	}
 	return p
 }
-func (b *Board) elementPaths(e *whiteboard.Element) []boardPath {
+func (b *Board) elementPaths(e *whiteboard.Element, scale float32) []boardPath {
 	version, nonce := e.ShapeRevision()
 	c, ok := b.paths[e.ID]
-	if ok && c.version == version && c.nonce == nonce {
+	if ok && c.version == version && c.nonce == nonce && c.scale == scale {
 		return c.paths
 	}
-	c = boardPathCache{version: version, nonce: nonce}
-	for _, p := range whiteboard.ElementPrimitives(e) {
-		np := nativeBoardPath(p.Ops)
+	if !ok || c.version != version || c.nonce != nonce {
+		c = boardPathCache{version: version, nonce: nonce}
+		for _, primitive := range whiteboard.ElementPrimitives(e) {
+			c.paths = append(c.paths, boardPath{style: primitive})
+		}
+	}
+	c.scale = scale
+	for index := range c.paths {
+		p := c.paths[index].style
+		np := nativeBoardPath(p.Ops, scale)
 		if len(p.Dash) > 0 {
 			ds := make([]float32, len(p.Dash))
 			for i, d := range p.Dash {
-				ds[i] = float32(d)
+				ds[i] = float32(d) * scale
 			}
 			np.Dash(0, ds...)
 		}
-		c.paths = append(c.paths, boardPath{np, p})
+		c.paths[index].path = np
 	}
 	b.paths[e.ID] = c
 	return c.paths
@@ -260,7 +268,7 @@ func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool, zo
 		}
 	}
 	paint(false)
-	b.paintAILinks(p, dark, viewport)
+	b.paintAILinks(p, dark, viewport, zoom)
 	paint(true)
 }
 
@@ -276,6 +284,9 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 	for _, e := range b.Scene.Elements {
 		signature = (signature ^ uint64(e.VersionNonce) ^ uint64(e.Version)) * 1099511628211
 		if !e.IsDeleted && viewport.Intersects(b.elementBounds(e)) {
+			if h := b.ai.history[e.ID]; h != nil && (h.compare || h.view >= 0 && (e.Locked || b.ReadOnly)) {
+				return false
+			}
 			visible++
 		}
 	}
@@ -310,13 +321,17 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		}
 	}
 	c := &b.viewCache
-	bucket := math.Pow(2, math.Ceil(math.Log2(b.Zoom)*4)/4)
+	bucket := math.Pow(2, math.Ceil(math.Log2(b.Zoom)*4)/4) * float64(p.Scale())
 	coverage := whiteboard.Box{X: -b.PanX / b.Zoom, Y: -b.PanY / b.Zoom, W: float64(r.W) / b.Zoom, H: float64(r.H) / b.Zoom}
 	inside := c.world.Contains(whiteboard.Point{coverage.X, coverage.Y}) && c.world.Contains(whiteboard.Point{coverage.X + coverage.W, coverage.Y + coverage.H})
 	if c.layer == nil || c.signature != signature || c.dark != dark || c.zoom != bucket || !inside {
 		margin := float64(240)
 		world := coverage.Expand(margin / b.Zoom)
 		w, h := int(math.Ceil(world.W*bucket)), int(math.Ceil(world.H*bucket))
+		if int64(w)*int64(h) > 16<<20 {
+			b.viewCache = boardViewCache{}
+			return false
+		}
 		c.layer = ui.NewCanvas(w, h)
 		c.world = world
 		c.zoom = bucket
@@ -340,14 +355,18 @@ func (b *Board) paintElement(p *ui.Painter, e *whiteboard.Element, dark bool, zo
 				b.paintAINode(p, e, n, dark, zoom)
 				return
 			}
-			for _, path := range b.elementPaths(e) {
-				s := path.style
-				if s.Fill != "" && s.Fill != "transparent" {
-					p.FillPath(path.path, boardColor(s.Fill, dark).Alpha(float32(s.Opacity)))
-				}
-				if s.Stroke != "" && s.Stroke != "transparent" && s.Stroke != "none" {
-					p.StrokePath(path.path, float32(s.Width), boardColor(s.Stroke, dark).Alpha(float32(s.Opacity)))
-				}
+			if paths := b.elementPaths(e, zoom); len(paths) > 0 {
+				p.Transform(ui.Scaling(1/zoom, 1/zoom), 0, 0, func() {
+					for _, path := range paths {
+						s := path.style
+						if s.Fill != "" && s.Fill != "transparent" {
+							p.FillPath(path.path, boardColor(s.Fill, dark).Alpha(float32(s.Opacity)))
+						}
+						if s.Stroke != "" && s.Stroke != "transparent" && s.Stroke != "none" {
+							p.StrokePath(path.path, float32(s.Width)*zoom, boardColor(s.Stroke, dark).Alpha(float32(s.Opacity)))
+						}
+					}
+				})
 			}
 			switch e.Kind {
 			case whiteboard.KindText:

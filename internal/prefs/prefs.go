@@ -38,10 +38,11 @@ import (
 // new blank spaces by default, so version 15 migrates unchanged.
 // Version 17 adds independent font families, font lists and quick-note choices.
 // Empty values preserve the previous font category and leave global capture off.
-const CurrentVersion = 17
+const CurrentVersion = 18
 
 // Prefs are the preferences.
 type Prefs struct {
+	ResourceDir          string   `json:"resourceDir,omitempty"`
 	BodyFont             string   `json:"bodyFont,omitempty"`
 	InterfaceFont        string   `json:"interfaceFont,omitempty"`
 	FavoriteFonts        []string `json:"favoriteFonts,omitempty"`

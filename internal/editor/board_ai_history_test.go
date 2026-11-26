@@ -52,6 +52,9 @@ func TestBoardAIHistorySelectionFeedsDownstreamAndCompareStaysLocal(t *testing.T
 		t.Fatal(err)
 	}
 	tt.Frame()
+	if !tt.HasText("退出") {
+		t.Fatal("comparison does not show an exit action")
+	}
 	if err := tt.Click("对比图片 A"); err != nil {
 		t.Fatal(err)
 	}
@@ -161,6 +164,53 @@ func TestBoardAIFreshImageBatchFeedsOnlyDisplayedResult(t *testing.T) {
 	b.RunAI([]string{target}, true, false, o)
 	if len(f.jobs) != 2 || len(f.jobs[1].Images) != 1 {
 		t.Fatalf("downstream received whole batch instead of displayed image: %+v", f.jobs)
+	}
+}
+
+func TestBoardSaveAsUsesBrowsedImageWithoutChangingOutput(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	var saved string
+	o.AI.SaveImage = func(rel string) { saved = rel }
+	b := NewBoard(whiteboard.NewScene())
+	id := b.AddAINode(whiteboard.AIImage, whiteboard.Point{360, 330}, o)
+	b.updateAINode(o, id, func(n *whiteboard.AINode) {
+		n.AddOutputs([]whiteboard.AIOutput{{Kind: "image", Path: "a.png"}, {Kind: "image", Path: "b.webp"}})
+	})
+	e := b.Scene.ElementByID(id)
+	b.ReadOnly, o.ReadOnly = true, true
+	n := b.aiNode(e)
+	current := n.Current
+	b.aiSelectImage(o, e, n, 1)
+	tester := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 900)
+	tester.Frame()
+	if err := tester.Click("图片另存为"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if saved != "b.webp" || b.aiNode(e).Current != current {
+		t.Fatalf("saved %q, selection %d", saved, b.aiNode(e).Current)
+	}
+}
+
+func TestCutoutNodeRunsWithOnePictureAndNoPrompt(t *testing.T) {
+	f := &fakeAI{}
+	options := f.options(t)
+	board := NewBoard(whiteboard.NewScene())
+	source := board.AddAINode(whiteboard.AIImage, whiteboard.Point{300, 250}, options)
+	target := board.AddAINode(whiteboard.AICutout, whiteboard.Point{850, 250}, options)
+	const rel = "assets/source.png"
+	f.files[rel] = testPNG(t)
+	board.updateAINode(options, source, func(n *whiteboard.AINode) {
+		n.AddOutputs([]whiteboard.AIOutput{{Kind: "image", Path: rel, MIME: "image/png"}})
+	})
+	if err := board.connectAI(board.Scene.ElementByID(source), board.Scene.ElementByID(target), true); err != nil {
+		t.Fatal(err)
+	}
+	board.RunAI([]string{target}, false, true, options)
+	result := board.aiNode(board.Scene.ElementByID(target))
+	if len(f.jobs) != 1 || len(f.jobs[0].Images) != 1 || f.jobs[0].Prompt != "" || !bytes.Equal(f.jobs[0].Images[0].Data, f.files[rel]) || result.Output() == nil || result.Output().Kind != "image" {
+		t.Fatalf("cutout run: %+v %+v", result, f.jobs)
 	}
 }
 

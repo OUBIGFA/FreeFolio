@@ -1,6 +1,6 @@
 {
-  "goModSha256": "c122e1808837e746fd753494f61bb7a98c9627ffbe63d583454d6f3faa6df622",
-  "goSumSha256": "69dfbbe86809428aaa5becb0a51527cd9746ce2a4e03636e690bf1534b302b7b",
+  "goModSha256": "c62648612167403112e3af7ee30ab65df8d4d4e75af3de446138188d88c00722",
+  "goSumSha256": "0b7e9dbde89d9c52a07e1041d396d37f012c650c315cadfa9bf58bfc0c8774c6",
   "modules": [
     {
       "module": "github.com/clipperhouse/uax29/v2",
@@ -49,6 +49,16 @@
       "sourceUrl": "https://github.com/gabriel-vasile/mimetype",
       "archiveHash": "h1:5izNFuvA37st1dDRAcA7TtmngBmRgiIPDmTtiEvjx1E=",
       "goModHash": "h1:3oFFwxX8kTklZwzIl2aQEDZT0lKY8xH92ST88bAwba4=",
+      "spdxLicenseId": "MIT",
+      "consumer": "FreeFolio Go build (go.mod)"
+    },
+    {
+      "module": "github.com/getcharzp/onnxruntime_purego",
+      "version": "v1.28.0",
+      "relation": "direct",
+      "sourceUrl": "https://github.com/getcharzp/onnxruntime_purego",
+      "archiveHash": "h1:WyIcupaLtnwB0rJNHAwGV2pRCSTynhaXrAe16dUtIp8=",
+      "goModHash": "h1:JxWrTrdNfR1D0HBxOQixFeC1vkLoz8HPxfBwJ2gF/rw=",
       "spdxLicenseId": "MIT",
       "consumer": "FreeFolio Go build (go.mod)"
     },

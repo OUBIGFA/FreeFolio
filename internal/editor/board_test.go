@@ -224,6 +224,13 @@ func TestBoardDenseCacheTracksTextAndBackground(t *testing.T) {
 	if layer == b.viewCache.layer {
 		t.Fatal("background-dependent content cache stale")
 	}
+	width, _ := b.viewCache.layer.Bitmap().Size()
+	tt.SetScale(2)
+	tt.Frame()
+	retina, _ := b.viewCache.layer.Bitmap().Size()
+	if retina < width*2-1 {
+		t.Fatalf("2x display reused low-resolution scene: %d -> %d pixels", width, retina)
+	}
 }
 
 // Ported from ArcMD 2fb223e: the pen keeps drawing stroke after stroke

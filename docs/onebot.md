@@ -59,6 +59,17 @@ ChatGPT 连接支持官方允许的流式对话、推理、图片和文件输入
 
 ChatGPT 凭据单独加密保存在配置目录的 `credentials/chatgpt-connections`，不会写入 API Key 文件、偏好或笔记。Windows 使用系统 DPAPI；macOS 使用 Keychain；Linux 需要可用且已解锁的 Secret Service 和 `secret-tool`。系统凭据服务不可用时会报错，不改用明文。技术边界与验证范围见 [ChatGPT 接入说明](onebot-chatgpt.md)。
 
+## 只开放图片接口的供应商
+
+在「设置 → OneBot」将接口协议设为「OpenAI 兼容图像/视频」，服务地址填供应商给出的 API 根地址（例如 `https://example.com/v1`），不要再加 `/responses` 或图片接口路径。若站点不开放模型列表，在「手动添加模型」输入站点提供的模型 ID。
+
+- 没有参考图时使用 `/images/generations`；有参考图时使用 `/images/edits`。图片专用站点对 Responses 返回 403 不代表 Key 已失效，不会自动切换协议或账号绕过限制。
+- 默认让服务决定返回格式；支持 URL 和 Base64。仅在服务明确以参数错误要求一种格式时，才用该格式再请求一次。要从第一次请求就指定 URL，在白板节点「全部设置 → 附加参数（JSON，可选）」中填 `{"response_format":"url"}`。
+- 点击「测试生图（可能计费）」会用当前模型生成一张测试图，不保存结果。测试全部 Key 会分别请求；仅输出视频的模型只测试模型列表，不生成视频。
+- 「清空选择」只取消勾选；「清空模型」确认后会删除该供应商的全部本地模型记录，包括搜索框未显示的记录。供应商、Key、其他供应商和已有笔记不变。
+
+协议依据：[OpenAI Images API](https://developers.openai.com/api/reference/resources/images/methods/generate)；社区适配参考：[LiteLLM Images](https://github.com/BerriAI/litellm/tree/main/litellm/llms/openai/image_generation)。本地测试使用受控服务，不使用真实 Key。
+
 ## 修改内容
 
 - 在编辑器选择文字，通过右键菜单「用 OneBot 修改」输入要求。原选区会保留，切换焦点不会改变应用位置。

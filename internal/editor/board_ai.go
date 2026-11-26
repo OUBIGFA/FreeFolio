@@ -33,6 +33,7 @@ import (
 type BoardAI struct {
 	// OpenImage opens an isolated viewer or annotation window for a node image.
 	OpenImage func(nodeID string, edit bool)
+	SaveImage func(rel string)
 	// Models are the models that can run a node of the role.
 	Models func(role whiteboard.AIRole) []BoardAIModel
 	// Default is the model a new node of the role starts with.
@@ -70,6 +71,13 @@ func (m BoardAIModel) label() string {
 		return name
 	}
 	return m.ConnectionName + " · " + name
+}
+
+func (m BoardAIModel) defaultImageSize() string {
+	if len(m.ImageSizes) == 0 {
+		return "1024x1024"
+	}
+	return m.ImageSizes[0]
 }
 
 // BoardAIRunner runs a node's model calls. Its functions run off the main
@@ -167,7 +175,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -260,9 +268,13 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	w, h := whiteboard.AINodeSize(role)
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
-	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIVideo) {
-		m := o.AI.Default(role)
-		n.Connection, n.Model = m.Connection, m.Model
+	var model BoardAIModel
+	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIVideo || role == whiteboard.AICutout) {
+		model = o.AI.Default(role)
+		n.Connection, n.Model = model.Connection, model.Model
+	}
+	if role == whiteboard.AIImage {
+		n.Params.AspectRatio, n.Params.Size = "1:1", model.defaultImageSize()
 	}
 	if role == whiteboard.AIImage || role == whiteboard.AIVideo {
 		n.Params.Count = 1
@@ -739,6 +751,13 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask}
 	job.Node.Instruction = instruction
 	switch n.Role {
+	case whiteboard.AICutout:
+		if n.Model == "" {
+			return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型"))
+		}
+		if len(images) != 1 {
+			return nil, errors.New(i18n.T("请连接一张输入图片"))
+		}
 	case whiteboard.AIPrompt:
 		res.text = n.Instruction
 		return res, nil
