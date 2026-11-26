@@ -4,14 +4,16 @@
 
 在白板的 AI 节点菜单添加「本地抠图」，选择已下载的模型，将一张图片接到「输入图片」，再点「运行」。结果是保留原尺寸和原透明度的 PNG 附件，不覆盖原图。可以另存或接到下游图像节点。模型推理在本机独立进程内执行，可以停止。
 
-| 可选模型 | 权重下载 | 建议用途 |
-| --- | ---: | --- |
-| [BiRefNet Lite](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/tree/de15b22ba131738a16dff04aab8bdf8dc32e3ac1) | 109.2 MiB | 希望减少下载量和内存占用时先试用 |
-| [BiRefNet General](https://huggingface.co/onnx-community/BiRefNet-ONNX/tree/534d3c82d3bb8b2f0867db6dfbc3a525b8e42f67) | 467.0 MiB | 可以接受更高内存占用时，用同一张图片比较轮廓细节 |
+| 可选模型 | 权重下载 | 推理输入 | 建议用途 |
+| --- | ---: | ---: | --- |
+| [BEN2](https://huggingface.co/onnx-community/BEN2-ONNX/tree/c552aa82688edce09f0ac9d2e31ad53d9d629010) | 209.0 MiB | 1024×1024 | 通用物体与人像发丝均衡，Confidence Guided Matting 两阶段精修边缘，推荐优先试用 |
+| [BiRefNet HR Matting](https://huggingface.co/PinkPixel/birefnet-hr-matting-onnx/tree/792518b9d4dfe9793891712677de25e554f948c6) | 449.5 MiB | 2048×2048 | 2K 高清精细 Matting 权重，发丝、毛发与半透明边缘细节更强，占用更多时间与内存 |
 
-两者均采用 MIT 许可、FP16 权重和 1024×1024 推理输入。它们是通用前景分离模型，不是基于点击的任意对象选择器。模型输出经 sigmoid 转为透明度，缩回原尺寸，再乘以原图透明度。单张输入最多 64 MiB、32 兆像素。
+两者均采用 MIT 许可与 FP16 权重。它们是通用前景分离与精细 Alpha 抠图模型，不是基于点击或文字描述的任意对象选择器。
 
-**依据与限制。** 参照 [BiRefNet 原项目](https://github.com/ZhengPeng7/BiRefNet)、[rembg 的轻量版适配](https://github.com/danielgatis/rembg/blob/v2.0.88/rembg/sessions/birefnet_general_lite.py) 和上表两份精确版本的 ONNX 模型卡。U²-NetP 权重约 4.4 MiB，较小但不是较新的通用方案；[BRIA RMBG 2.0](https://huggingface.co/briaai/RMBG-2.0) 的权重使用条件不同，不作为 MIT 模型分发。没有用统一真实图片集验证哪一款效果最佳。
+**处理管线。** 输入图片先经 Catmull-Rom 缩放到模型输入分辨率并按 ImageNet 均值方差归一化；模型输出根据权重类型转为 `[0, 1]` 透明度（`BiRefNet HR Matting` 为已激活的 Alpha 概率，`BEN2` 自动区分 logits 与概率，避免重复 sigmoid 导致灰底）并双线性缩回原尺寸；随后在半透明过渡区域执行前景色去色溢（估算邻近纯前景像素颜色替换背景残留色边），最后乘以原图透明度输出 PNG。单张输入最多 64 MiB、32 兆像素。
+
+**依据与限制。** 参照 [BEN2 原项目](https://github.com/PramaLLC/BEN2)、[BiRefNet 原项目](https://github.com/ZhengPeng7/BiRefNet) 与上表两份精确修订的 ONNX 模型卡。[BRIA RMBG 2.0](https://huggingface.co/briaai/RMBG-2.0) 与 [BRIA RMBG 3.0](https://huggingface.co/briaai/RMBG-3.0) 为非商业许可（且 RMBG 3.0 依赖 PyTorch/CUDA 与受限访问仓库），不作为纯 Go 本地 MIT 可选资源分发。
 
 **运行库。** 两款模型共用 [Microsoft ONNX Runtime 1.28.0](https://pypi.org/project/onnxruntime/1.28.0/#files) 官方 CPU 包。Windows x64 下载 13.1 MiB；Linux x64（glibc 2.27+）和 macOS 14+ Apple Silicon 各约 18.3 MiB。保留完整的官方包和其中的 LICENSE、ThirdPartyNotices；仅加载核对后的本平台运行库，不安装 Python 包。其他平台不提供该下载。
 

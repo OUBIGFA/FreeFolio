@@ -138,6 +138,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		return readBoardBytes(f, 256<<20)
 	}
 	ai := &editor.BoardAI{Models: a.boardAIModels, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
+	ai.ReplaceImage = func(nodeID string) { a.pickBoardNodeImage(d, nodeID) }
 	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
 	ai.SaveImage = func(rel string) {
 		a.saveBoardImageAs(a.win, rel, read, func(err error) {

@@ -55,11 +55,12 @@ type aiSlotSpec struct {
 // aiSlotSpecs are the input slots of each role, in drawing order. Labels
 // are interface text, translated where they are shown.
 var aiSlotSpecs = map[AIRole][]aiSlotSpec{
-	AICutout: {{"image", "输入图片", AITypeImage, false, false}},
-	AIText:   {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
-	AIImage:  {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
-	AIVideo:  {{"prompt", "提示词", AITypeString, false, true}, {"image", "首帧", AITypeImage, false, false}},
-	AIConcat: {{"text", "文本", AITypeString, true, false}},
+	AICutout:  {{"image", "输入图片", AITypeImage, false, false}},
+	AICompare: {{"a", "图片 A", AITypeImage, false, false}, {"b", "图片 B", AITypeImage, false, false}},
+	AIText:    {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
+	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
+	AIVideo:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "首帧", AITypeImage, false, false}},
+	AIConcat:  {{"text", "文本", AITypeString, true, false}},
 }
 
 // AIOutputType is the type of a role's output, or "" for a node whose
@@ -68,7 +69,7 @@ func AIOutputType(role AIRole) string {
 	switch role {
 	case AIImage, AIImageInput, AICutout:
 		return AITypeImage
-	case AIVideo:
+	case AIVideo, AICompare:
 		return ""
 	}
 	return AITypeString

@@ -255,6 +255,8 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 		value = "[[" + n.Note + "]]"
 	case whiteboard.AIConcat:
 		value = n.Params.Template
+	case whiteboard.AICompare:
+		return
 	}
 	color := pal.secondary
 	if src := b.aiPromptSource(n); src != "" {
@@ -272,6 +274,10 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 // paintAIPreview draws the node's result, its streamed text while it runs,
 // or what it will show.
 func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors, zoom float32) {
+	if n.Role == whiteboard.AICompare {
+		b.paintAIComparePreview(p, e, n, r, pal, zoom)
+		return
+	}
 	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
 		b.paintAIImageHistory(p, e, n, r, pal)
 		return
@@ -432,6 +438,10 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 			})
 		}
 		b.aiHistoryControls(c, o, e, n, l, x, y, z)
+		if n.Role == whiteboard.AICompare {
+			b.aiCompareControls(c, o, e, n, l, x, y, z, disabled)
+			continue
+		}
 		r := l.widgets
 		if r.W < 120 || r.H < 24 {
 			continue

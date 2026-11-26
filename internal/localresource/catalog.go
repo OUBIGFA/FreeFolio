@@ -16,12 +16,31 @@ import (
 type Resource struct {
 	ID, Name, File, URL, SHA string
 	Size                     int64
+	Side                     int
+	ProbOutput               bool
 	member                   string
 }
 
 var Models = []Resource{
-	{ID: "birefnet-lite", Name: "BiRefNet Lite", File: "birefnet-lite-fp16.onnx", URL: "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model_fp16.onnx", SHA: "d39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402", Size: 114538221},
-	{ID: "birefnet-general", Name: "BiRefNet General", File: "birefnet-general-fp16.onnx", URL: "https://huggingface.co/onnx-community/BiRefNet-ONNX/resolve/534d3c82d3bb8b2f0867db6dfbc3a525b8e42f67/onnx/model_fp16.onnx", SHA: "3654c741eb80bd926ada8fed1713b506ccf8d30eb1f6487e87eb9f234f33df09", Size: 489666272},
+	{
+		ID:   "ben2",
+		Name: "BEN2",
+		File: "ben2-fp16.onnx",
+		URL:  "https://huggingface.co/onnx-community/BEN2-ONNX/resolve/c552aa82688edce09f0ac9d2e31ad53d9d629010/onnx/model_fp16.onnx",
+		SHA:  "dfdc25f421f32a0d1268e0f2ff2153d340e8f1d52d3dd16f5dc33c1ce85cedf1",
+		Size: 219121675,
+		Side: 1024,
+	},
+	{
+		ID:         "birefnet-hr-matting",
+		Name:       "BiRefNet HR Matting",
+		File:       "birefnet-hr-matting-fp16.onnx",
+		URL:        "https://huggingface.co/PinkPixel/birefnet-hr-matting-onnx/resolve/792518b9d4dfe9793891712677de25e554f948c6/model_fp16.onnx",
+		SHA:        "c0216070c15542b7197bcf13eb3ea07af0fc5595c591037b7c9766c3cc6470f0",
+		Size:       471320622,
+		Side:       2048,
+		ProbOutput: true,
+	},
 }
 
 func Model(id string) (Resource, bool) {

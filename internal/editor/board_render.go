@@ -162,6 +162,13 @@ func (b *Board) prepareImages(o BoardOptions) {
 		if e.FileID != "" && b.mediaVisible(e) {
 			b.imageWanted[e.FileID] = true
 		}
+		if n := b.aiNode(e); n != nil && n.Role == whiteboard.AICompare && b.mediaVisible(e) {
+			for _, slot := range []string{"a", "b"} {
+				if from := b.Scene.AILinkSource(n, slot); from != nil && from.FileID != "" {
+					b.imageWanted[from.FileID] = true
+				}
+			}
+		}
 	}
 	for id := range b.images {
 		if !b.imageWanted[id] {
@@ -285,6 +292,9 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		signature = (signature ^ uint64(e.VersionNonce) ^ uint64(e.Version)) * 1099511628211
 		if !e.IsDeleted && viewport.Intersects(b.elementBounds(e)) {
 			if h := b.ai.history[e.ID]; h != nil && (h.compare || h.view >= 0 && (e.Locked || b.ReadOnly)) {
+				return false
+			}
+			if n := b.aiNode(e); n != nil && n.Role == whiteboard.AICompare {
 				return false
 			}
 			visible++

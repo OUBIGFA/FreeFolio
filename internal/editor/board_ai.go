@@ -33,7 +33,9 @@ import (
 type BoardAI struct {
 	// OpenImage opens an isolated viewer or annotation window for a node image.
 	OpenImage func(nodeID string, edit bool)
-	SaveImage func(rel string)
+	// ReplaceImage picks a new picture for an editable image-input node.
+	ReplaceImage func(nodeID string)
+	SaveImage    func(rel string)
 	// Models are the models that can run a node of the role.
 	Models func(role whiteboard.AIRole) []BoardAIModel
 	// Default is the model a new node of the role starts with.
@@ -140,6 +142,8 @@ type boardAIState struct {
 	mediaPending  map[string]bool
 	mediaWanted   map[string]bool
 	history       map[string]*aiImageHistory
+	compares      map[string]*aiCompareState
+	compareDiffs  map[string]*aiCompareDiffCache
 	videos        map[string]*ui.VideoPlayer
 	texts         map[string]boardAICardText
 	// edit is the node the properties panel edits; before is the scene
@@ -175,7 +179,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AICompare: "图片对比"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -614,6 +618,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	if n == nil {
 		return nil, errors.New(i18n.T("节点已不存在"))
 	}
+	if n.Role == whiteboard.AICompare {
+		return &boardAIResult{}, nil
+	}
 	if n.Role == whiteboard.AIImageInput {
 		// A source validates its existing asset during an upstream run;
 		// generation nodes read the same file directly through AIInputs.
@@ -857,7 +864,7 @@ func (b *Board) applyAIResult(id string, res *boardAIResult, err error, o BoardO
 		r.status, r.err = "error", err
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = err.Error() })
 		return
-	case b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImageInput:
+	case b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImageInput || b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AICompare:
 		r.status, r.err = "done", nil
 		if n := b.aiNode(b.Scene.ElementByID(id)); n.Error != "" {
 			b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = "" })

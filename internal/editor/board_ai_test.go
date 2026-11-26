@@ -843,3 +843,57 @@ func TestBoardAIParametersStayAbovePreview(t *testing.T) {
 		}
 	}
 }
+
+func TestBoardAIImageInputReplacePreservesLinksAndSupportsUndo(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	first := testPNG(t)
+	if err := b.InsertImage(first, whiteboard.Point{240, 270}); err != nil {
+		t.Fatal(err)
+	}
+	pic := b.Scene.ElementByID(b.SelectedIDs()[0])
+	pic.Crop = &whiteboard.ImageCrop{X: 0, Y: 0, Width: 2, Height: 2, NaturalWidth: 4, NaturalHeight: 4}
+	pic.Scale = [2]float64{-1, 1}
+	b.convertImagesToNodes(o)
+	targetID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{760, 320}, o)
+	if err := b.connectAI(pic, b.Scene.ElementByID(targetID), true); err != nil {
+		t.Fatal(err)
+	}
+	second := testColoredPNG(t, 6, 4, color.NRGBA{R: 20, G: 180, B: 90, A: 255})
+	oldFileID := pic.FileID
+	picID := pic.ID
+	if err := b.ReplaceAIImageInput(picID, second); err != nil {
+		t.Fatal(err)
+	}
+	cur := b.Scene.ElementByID(picID)
+	if cur.FileID == oldFileID || cur.Crop != nil || cur.Scale != (whiteboard.Point{1, 1}) {
+		t.Fatalf("replace did not update asset or reset transform: %+v", cur)
+	}
+	if whiteboard.AINodeOf(b.Scene.ElementByID(targetID)).LinkAt("image.0") != picID {
+		t.Fatal("replace broke downstream link")
+	}
+	if !b.Undo() {
+		t.Fatal("replace undo returned false")
+	}
+	cur = b.Scene.ElementByID(picID)
+	if cur.FileID != oldFileID || cur.Crop == nil || cur.Scale[0] != -1 {
+		t.Fatalf("replace could not be undone: %+v", cur)
+	}
+	if !b.Redo() {
+		t.Fatal("replace redo returned false")
+	}
+	cur = b.Scene.ElementByID(picID)
+	if cur.FileID == oldFileID {
+		t.Fatal("replace could not be redone")
+	}
+	cur.Locked = true
+	if err := b.ReplaceAIImageInput(picID, first); err == nil {
+		t.Fatal("locked image input allowed replacement")
+	}
+	cur.Locked = false
+	b.ReadOnly = true
+	if err := b.ReplaceAIImageInput(picID, first); err == nil {
+		t.Fatal("read-only board allowed replacement")
+	}
+}

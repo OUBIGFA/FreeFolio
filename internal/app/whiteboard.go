@@ -436,6 +436,52 @@ func (a *App) pickBoardImages(d *document) {
 		}
 	}()
 }
+
+func (a *App) pickBoardNodeImage(d *document, nodeID string) {
+	if d == nil || d.board == nil || d.ed.ReadOnly {
+		return
+	}
+	apply := func(paths []string) {
+		if len(paths) == 0 {
+			return
+		}
+		path := paths[0]
+		work := func() ([]byte, error) { return readBoardBytes(path, 32<<20) }
+		done := func(data []byte, err error) {
+			if d.closed.Load() {
+				return
+			}
+			if err != nil {
+				a.notify("更换图片失败；%v", err)
+				return
+			}
+			before := d.board.Revision()
+			if err := d.board.ReplaceAIImageInput(nodeID, data); err != nil {
+				a.notify("更换图片失败；%v", err)
+			} else if d.board.Revision() != before {
+				a.boardChanged(d)
+			}
+		}
+		if a.win != nil {
+			go func() { data, err := work(); a.win.Update(func() { done(data, err) }) }()
+		} else {
+			done(work())
+		}
+	}
+	if a.pickFiles != nil {
+		a.pickFiles(apply)
+		return
+	}
+	if a.win == nil {
+		return
+	}
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: i18n.T("更换图片"), Multiple: false, Filters: []mygo.FileFilter{{Name: i18n.T("图片"), Extensions: imageExtensions}}})
+		if err == nil {
+			a.win.Update(func() { apply(paths) })
+		}
+	}()
+}
 func (a *App) insertBoardFiles(d *document, paths []string) {
 	if d == nil || d.board == nil || d.ed.ReadOnly {
 		return

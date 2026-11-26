@@ -13,12 +13,18 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AICompare: "对比"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
 func (b *Board) aiStatus(e *whiteboard.Element, n *whiteboard.AINode) (string, bool) {
+	if n.Role == whiteboard.AICompare {
+		if b.aiCompareInputAt(n, "a").ok && b.aiCompareInputAt(n, "b").ok {
+			return i18n.T("对比中"), false
+		}
+		return i18n.T("待连接图片"), false
+	}
 	if n.Role == whiteboard.AIImageInput && n.Error == "" {
 		if b.imageErrors[e.FileID] != nil {
 			return i18n.T("图片无法读取"), true
@@ -129,6 +135,22 @@ func (b *Board) aiPrepareMedia(o BoardOptions) {
 	for rel := range s.mediaErr {
 		if !needed[rel] {
 			delete(s.mediaErr, rel)
+		}
+	}
+	for _, entry := range s.compareDiffs {
+		entry.wanted = false
+	}
+	for _, e := range b.Scene.Elements {
+		if e == nil || e.IsDeleted || len(e.CustomData) == 0 || !b.mediaVisible(e) {
+			continue
+		}
+		if n := b.aiNode(e); n != nil && n.Role == whiteboard.AICompare {
+			b.prepareCompareMedia(o, e, n, needed)
+		}
+	}
+	for key, entry := range s.compareDiffs {
+		if !entry.wanted && !entry.pending {
+			delete(s.compareDiffs, key)
 		}
 	}
 }
@@ -260,6 +282,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-concat", "提示词拼接", "文本", "group", "text", add(whiteboard.AIConcat, "")},
 		{"ai-image", "生成图像", "图像", "image", "image", add(whiteboard.AIImage, "")},
 		{"ai-cutout", "本地抠图", "图像", "image", "image", add(whiteboard.AICutout, "")},
+		{"ai-compare", "图片对比", "图像", "image", "image", add(whiteboard.AICompare, "")},
 		{"ai-edit", "编辑图像", "图像", "sparkles", "image", add(whiteboard.AIImage, "编辑图像")},
 		{"ai-video", "文生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "")},
 		{"ai-i2v", "图生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "图生视频")},
@@ -400,7 +423,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 	}
 	panel.Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
 		boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
-		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
+		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare {
 			b.aiRunControls(c, o, id)
 		}
 		aiPropDivider(c, o)
@@ -416,6 +439,8 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		switch n.Role {
 		case whiteboard.AICutout:
 			ui.Text(c, i18n.T("请连接一张输入图片，模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
+		case whiteboard.AICompare:
+			ui.Text(c, i18n.T("连接图片 A 与图片 B，支持卷帘、并排、叠化、差异与切换对比")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIImageInput:
 			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIPrompt:
@@ -596,6 +621,20 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 				}
 			})
 		})
+	case whiteboard.AICompare:
+		aiPropDivider(c, o)
+		aiPropSection(c, o, "对比设置")
+		mode := b.aiCompareMode(b.Scene.ElementByID(id), n)
+		if v := aiChoice(c, o, "cmp-mode", "对比模式", mode, compareModeValues, translated(compareModeLabels...)); v != mode {
+			b.setCompareMode(o, b.Scene.ElementByID(id), v)
+		}
+		bg := b.aiCompareBg(b.Scene.ElementByID(id), n)
+		if v := aiChoice(c, o, "cmp-bg", "对比背景", bg, compareBgValues, translated(compareBgLabels...)); v != bg {
+			b.setCompareBg(o, b.Scene.ElementByID(id), v)
+		}
+		if !b.ReadOnly && !b.Scene.ElementByID(id).Locked && ui.Button(c.Key("cmp-swap"), i18n.T("交换图片 A 与图片 B")).Clicked() {
+			b.swapCompareInputs(o, b.Scene.ElementByID(id))
+		}
 	case whiteboard.AIVideo:
 		aiPropDivider(c, o)
 		aiPropSection(c, o, "生成参数")
@@ -796,7 +835,7 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 				if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
 					s.panel = !s.panel
 				}
-				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && !b.AIRunning() {
+				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare && !b.AIRunning() {
 					if boardFlatButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false, st).Height(26).Clicked() {
 						b.RunAI([]string{e.ID}, true, false, o)
 					}

@@ -5,6 +5,7 @@ package editor
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
@@ -262,6 +263,44 @@ func (b *Board) AddAnnotatedReference(sourceID, rel string, width, height int, g
 	return inputID, generatorID, b.err
 }
 
+// ReplaceAIImageInput replaces an image-input node's picture while keeping its
+// element ID and downstream links intact, resetting crop and flip for the new asset.
+func (b *Board) ReplaceAIImageInput(id string, data []byte) error {
+	if b.ReadOnly || b.AIRunning() {
+		return fmt.Errorf("whiteboard is read-only")
+	}
+	e := b.Scene.ElementByID(id)
+	n := b.aiNode(e)
+	if n == nil || e.Locked || n.Role != whiteboard.AIImageInput {
+		return fmt.Errorf("select an editable image input node")
+	}
+	if len(data) > 32<<20 {
+		return fmt.Errorf("image exceeds 32 MiB")
+	}
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > 100_000_000 {
+		return fmt.Errorf("image dimensions exceed limit")
+	}
+	mime := "image/" + format
+	if format == "jpg" {
+		mime = "image/jpeg"
+	}
+	fileID := digest(data)
+	b.edit(b.options, func() {
+		b.Scene.Files[fileID] = &whiteboard.FileData{ID: fileID, MIMEType: mime, DataURL: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)}
+		e.FileID = fileID
+		e.Status = "saved"
+		e.Crop = nil
+		e.Scale = whiteboard.Point{1, 1}
+		whiteboard.Touch(e)
+	})
+	delete(b.imageErrors, fileID)
+	return nil
+}
+
 // OpenAIImage forwards the selected input or generated picture to its host.
 func (b *Board) OpenAIImage(id string, edit bool, o BoardOptions) {
 	e := b.Scene.ElementByID(id)
@@ -298,6 +337,17 @@ func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bo
 		return
 	}
 	annotateDisabled := b.ReadOnly || e == nil || e.Locked || b.AIRunning()
+	if n := b.aiNode(e); n != nil && n.Role == whiteboard.AIImageInput && o.AI.ReplaceImage != nil {
+		if flat {
+			if boardFlatButton(c, "replace-node-image", i18n.T("更换图片"), false, st).Height(26).Disabled(annotateDisabled).Clicked() {
+				o.AI.ReplaceImage(id)
+			}
+		} else {
+			if ui.Button(c.Key("replace-node-image"), i18n.T("更换图片")).Height(28).Disabled(annotateDisabled).Clicked() {
+				o.AI.ReplaceImage(id)
+			}
+		}
+	}
 	if flat {
 		if boardFlatButton(c, "view-node-image", i18n.T("查看图片"), false, st).Height(26).Clicked() {
 			b.OpenAIImage(id, false, o)

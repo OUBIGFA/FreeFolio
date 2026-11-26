@@ -58,6 +58,8 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 		return 30
 	case whiteboard.AICutout:
 		return 32
+	case whiteboard.AICompare:
+		return 30
 	case whiteboard.AIConcat:
 		return 68
 	case whiteboard.AIPrompt, whiteboard.AIImageInput:
@@ -646,7 +648,7 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AICompare} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}

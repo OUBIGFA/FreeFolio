@@ -155,10 +155,10 @@ func (a *App) settingsResources(c *ui.Context) {
 			if index > 0 {
 				settingsSeparator(c)
 			}
-			detail := i18n.T("轻量版，适合先试用")
+			detail := i18n.T("通用与人像发丝均衡，推荐优先试用")
 			switch item.ID {
-			case "birefnet-general":
-				detail = i18n.T("完整版，适合复杂主体，占用更多内存")
+			case "birefnet-hr-matting":
+				detail = i18n.T("2048×2048 高清精细抠图，发丝与半透明细节更强，占用更多时间与内存")
 			case engine.ID:
 				detail = i18n.T("两个模型共用，首次下载模型时一并下载")
 			}

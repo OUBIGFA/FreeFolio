@@ -11,7 +11,7 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 	a, tester := newTestApp(t)
 	a.openSettings(tabResources)
 	tester.Frame()
-	if !tester.HasText("BiRefNet Lite") || !tester.HasText("BiRefNet General") {
+	if !tester.HasText("BEN2") || !tester.HasText("BiRefNet HR Matting") {
 		t.Fatal("missing cutout choices")
 	}
 	root := t.TempDir()
