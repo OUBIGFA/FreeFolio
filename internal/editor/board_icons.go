@@ -32,15 +32,17 @@ func boardIcon(name string) *ui.SVG {
 }
 func boardIconButton(c *ui.Context, key, name, label string, active bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(key)).Size(34, 34).Center().Radius(5).Focusable().Label(label).Tooltip(label)
+	b := ui.ButtonBase(c.Key(key)).Size(32, 32).Center().Radius(7).Focusable().Label(label).Tooltip(label)
+	ink := t.Text
 	if active {
-		b.Background(t.Accent.Alpha(.16))
+		b.Background(t.Accent.Alpha(.14))
+		ink = t.Accent
 	} else if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
 	b.Children(func() {
 		if icon := boardIcon(name); icon != nil {
-			ui.Icon(c, icon).FontSize(20).TextColor(t.Text)
+			ui.Icon(c, icon).FontSize(18).TextColor(ink)
 		}
 	})
 	return b

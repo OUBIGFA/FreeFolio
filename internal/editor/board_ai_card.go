@@ -88,46 +88,57 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 	running := run != nil && (run.status == "running" || run.status == "queued")
 	status, failed := b.aiStatus(e, n)
 
-	p.Shadow(card, 10, 0, 2, 8, 0, pal.shadow)
-	p.Fill(card, pal.cardBg, 10)
-	p.Clip(card, 10, func() {
-		// Title bar: what the node is.
+	p.Shadow(card, aiCardRadius, 0, 3, 12, 0, pal.shadow)
+	p.Fill(card, pal.cardBg, aiCardRadius)
+	p.Clip(card, aiCardRadius, func() {
+		// Clean header: icon badge + title; action sits on the right in inline controls.
 		p.Fill(ui.Rect{W: w, H: aiHeader}, pal.headerBg, 0)
-		p.Fill(ui.Rect{W: w, H: 3}, pal.accent, 0)
-		p.Line(0, aiHeader, w, aiHeader, 1, pal.divider)
-		role := b.aiCardTextFont(e.ID+"#role", i18n.T(aiRoleShortNames[n.Role]), 0, ui.Font{Size: 11, Weight: 600})
-		rw, _ := role.Size()
-		p.Fill(ui.Rect{X: aiPad, Y: 10, W: rw + 12, H: 19}, pal.accentSoft, 4)
-		p.TextLayout(role, aiPad+6, 12, pal.accent)
-		tx := aiPad + rw + 20
-		title := b.aiCardTextFont(e.ID+"#title", cmpOr(n.Title, i18n.T(aiRoleNames[n.Role])), 0, ui.Font{Size: 13.5, Weight: 600})
-		p.Clip(ui.Rect{X: tx, Y: 4, W: max(0, w-tx-aiPad), H: aiHeader - 4}, 0, func() { p.TextLayout(title, tx, 10, pal.ink) })
+		p.Line(0, aiHeader, w, aiHeader, 1, pal.divider.Alpha(0.75))
+		badge := ui.Rect{X: aiPad, Y: (aiHeader - 22) / 2, W: 22, H: 22}
+		p.Fill(badge, pal.accentSoft, 6)
+		if icon := boardIcon(aiRoleIcons[n.Role]); icon != nil {
+			p.Icon(icon, ui.Rect{X: badge.X + 4, Y: badge.Y + 4, W: 14, H: 14}, pal.accent)
+		}
+		tx := float32(aiPad + 30)
+		maxW := w - tx - aiPad
+		if l.headerRun.W > 0 {
+			maxW = l.headerRun.X - tx - 8
+		}
+		title := b.aiCardTextFont(e.ID+"#title", cmpOr(n.Title, i18n.T(aiRoleNames[n.Role])), 0, ui.Font{Size: 13, Weight: 600})
+		_, th := title.Size()
+		p.Clip(ui.Rect{X: tx, Y: 4, W: max(0, maxW), H: aiHeader - 8}, 0, func() {
+			p.TextLayout(title, tx, (aiHeader-th)/2, pal.ink)
+		})
 
 		// Slot rows: what flows in and out.
 		for i, sl := range l.slots {
 			y := l.slotTop + float32(i)*aiSlotRow
-			color := pal.secondary
+			color := pal.muted
+			if b.Scene.AILinkSource(n, sl.Name) != nil {
+				color = pal.secondary
+			}
 			if !b.aiSlotUsable(e.ID, sl.Type, true) {
-				color = color.Alpha(0.35)
+				color = color.Alpha(0.30)
 			}
-			label := aiSlotLabel(sl)
-			if sl.Widget && b.Scene.AILinkSource(n, sl.Name) == nil {
-				label += " · " + i18n.T("可直接填写")
-			}
-			p.TextLayout(b.aiCardTextFont(e.ID+"#slot"+sl.Name, label, 0, ui.Font{Size: 12, Weight: 500}), aiPad, y+5, color)
+			slLayout := b.aiCardTextFont(e.ID+"#slot"+sl.Name, aiSlotLabel(sl), 0, ui.Font{Size: 11.5, Weight: 500})
+			_, sh := slLayout.Size()
+			p.TextLayout(slLayout, aiPad, y+(aiSlotRow-sh)/2, color)
 		}
 		if l.out != "" {
-			label := b.aiCardTextFont(e.ID+"#out", aiTypeName(l.out), 0, ui.Font{Size: 12, Weight: 500})
-			lw, _ := label.Size()
-			color := pal.secondary
-			if !b.aiSlotUsable(e.ID, l.out, false) {
-				color = color.Alpha(0.35)
+			label := b.aiCardTextFont(e.ID+"#out", aiTypeName(l.out), 0, ui.Font{Size: 11.5, Weight: 500})
+			lw, lh := label.Size()
+			color := pal.muted
+			if s.linkedOut[e.ID] {
+				color = pal.secondary
 			}
-			p.TextLayout(label, w-aiPad-lw, l.slotTop+5, color)
+			if !b.aiSlotUsable(e.ID, l.out, false) {
+				color = color.Alpha(0.30)
+			}
+			p.TextLayout(label, w-aiPad-lw, l.slotTop+(aiSlotRow-lh)/2, color)
 		}
-		if len(l.slots) > 0 || l.out != "" {
-			y := l.widgets.Y - 3
-			p.Line(aiPad, y, w-aiPad, y, 1, pal.divider.Alpha(0.7))
+		if (len(l.slots) > 0 || l.out != "") && l.widgets.H > 0 {
+			y := l.widgets.Y - 4
+			p.Line(aiPad, y, w-aiPad, y, 1, pal.divider.Alpha(0.6))
 		}
 
 		// Without widgets (far out, or in an export) the controls' values
@@ -136,45 +147,53 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			b.paintAIWidgetValues(p, e, n, l.widgets, pal)
 		}
 		if l.preview.H > 12 {
-			p.Clip(l.preview, 6, func() { b.paintAIPreview(p, e, n, l.preview, pal) })
+			p.Clip(l.preview, 8, func() { b.paintAIPreview(p, e, n, l.preview, pal) })
 		}
 
-		// Status line.
+		// Slim integrated status footer.
 		fy := h - aiFooter
 		p.Fill(ui.Rect{Y: fy, W: w, H: aiFooter}, pal.footerBg, 0)
-		p.Line(0, fy, w, fy, 1, pal.divider)
+		p.Line(0, fy, w, fy, 1, pal.divider.Alpha(0.55))
 		var meta string
 		if len(n.Outputs) > 0 {
-			meta = fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))
+			cur := n.Current
 			if n.Role == whiteboard.AIImage {
-				meta = fmt.Sprintf("%d/%d", b.aiHistoryCurrent(e, n)+1, len(n.Outputs))
+				cur = b.aiHistoryCurrent(e, n)
+			}
+			cur = max(0, min(cur, len(n.Outputs)-1))
+			meta = fmt.Sprintf("%d/%d", cur+1, len(n.Outputs))
+			if n.Role == whiteboard.AIImage && n.Outputs[cur].Run > 0 {
+				meta = fmt.Sprintf(i18n.T("第 %d 次 · %d/%d"), n.Outputs[cur].Run, cur+1, len(n.Outputs))
 			}
 		}
 		var metaW float32
 		if meta != "" {
-			ml := b.aiCardTextFont(e.ID+"#meta", meta, 0, ui.Font{Size: 11.5, Weight: 500})
-			mw, _ := ml.Size()
+			ml := b.aiCardTextFont(e.ID+"#meta", meta, 0, ui.Font{Size: 11, Weight: 500})
+			mw, mh := ml.Size()
 			metaW = mw + 8
-			p.TextLayout(ml, w-aiPad-mw, fy+6, pal.muted)
+			p.TextLayout(ml, w-aiPad-mw, fy+(aiFooter-mh)/2, pal.muted)
 		}
-		sl := b.aiCardTextFont(e.ID+"#status", status, 0, ui.Font{Size: 11.5, Weight: 500})
+		sl := b.aiCardTextFont(e.ID+"#status", status, 0, ui.Font{Size: 11, Weight: 500})
+		_, sh := sl.Size()
 		color := pal.muted
 		if running {
 			color = pal.accent
 		} else if failed {
 			color = pal.danger
 		}
-		p.Clip(ui.Rect{X: aiPad, Y: fy, W: max(0, w-2*aiPad-metaW), H: aiFooter}, 0, func() { p.TextLayout(sl, aiPad, fy+6, color) })
+		p.Clip(ui.Rect{X: aiPad, Y: fy, W: max(0, w-2*aiPad-metaW), H: aiFooter}, 0, func() {
+			p.TextLayout(sl, aiPad, fy+(aiFooter-sh)/2, color)
+		})
 	})
 
-	border, bw := pal.border, float32(1.25)
+	border, bw := pal.border, float32(1)
 	switch {
 	case failed:
 		border, bw = pal.danger, 2
 	case b.Selected[e.ID] || running:
 		border, bw = pal.accent, 2
 	}
-	p.Stroke(card, border, 10, bw)
+	p.Stroke(card, border, aiCardRadius, bw)
 
 	// Slots: filled when linked, hollow when free, as LiteGraph draws them.
 	d := s.drag
@@ -182,7 +201,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		y := float32(aiInputPoint(e, l, i)[1] - e.Y)
 		c := aiTypeColor(sl.Type, dark)
 		if !b.aiSlotUsable(e.ID, sl.Type, true) {
-			c = c.Alpha(0.35)
+			c = c.Alpha(0.30)
 		}
 		lit := d != nil && d.target == e.ID && d.targetSlot == sl.Name
 		b.paintAISlot(p, 0, y, c, pal.cardBg, b.Scene.AILinkSource(n, sl.Name) != nil, lit)
@@ -190,7 +209,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 	if l.out != "" {
 		c := aiTypeColor(l.out, dark)
 		if !b.aiSlotUsable(e.ID, l.out, false) {
-			c = c.Alpha(0.35)
+			c = c.Alpha(0.30)
 		}
 		lit := d != nil && d.to != "" && d.target == e.ID
 		b.paintAISlot(p, w, l.slotTop+aiSlotRow/2, c, pal.cardBg, s.linkedOut[e.ID], lit)
@@ -200,8 +219,10 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 func (b *Board) paintAISlot(p *ui.Painter, x, y float32, c, bg ui.Color, filled, lit bool) {
 	if lit {
 		r := float32(aiPort + 5)
-		p.Fill(ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}, c.Alpha(0.28), r)
+		p.Fill(ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}, c.Alpha(0.24), r)
 	}
+	cut := float32(aiPort + 1.5)
+	p.Fill(ui.Rect{X: x - cut, Y: y - cut, W: 2 * cut, H: 2 * cut}, bg, cut)
 	r := float32(aiPort)
 	box := ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}
 	if filled {
@@ -256,15 +277,22 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		return
 	}
 	s := b.aiState()
+	drawBox := func() {
+		p.Fill(r, pal.mediaBg, 8)
+	}
+	drawBorder := func() {
+		p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
+	}
 	text := func(id, t string, color ui.Color) {
-		p.TextLayout(b.aiCardTextFont(id, t, r.W, ui.Font{Size: 13, LineHeight: 1.45}), r.X, r.Y, color)
+		p.TextLayout(b.aiCardTextFont(id, t, max(0, r.W-20), ui.Font{Size: 12.5, LineHeight: 1.5}), r.X+10, r.Y+8, color)
 	}
 	if n.Role == whiteboard.AIImageInput {
-		p.Fill(r, pal.mediaBg, 6)
+		drawBox()
 		bm := b.images[e.FileID]
 		if bm == nil {
 			message, _ := b.aiStatus(e, n)
 			text(e.ID+"#picture", message, pal.muted)
+			drawBorder()
 			return
 		}
 		iw, ih := bm.Size()
@@ -275,32 +303,49 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		scale := min(r.W/src.W, r.H/src.H)
 		w, h := src.W*scale, src.H*scale
 		p.ImageRegion(bm, src, ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}, ui.ImageOptions{FlipX: e.Scale[0] < 0, FlipY: e.Scale[1] < 0, Tint: ui.RGB(255, 255, 255).Alpha(float32(e.Opacity / 100))})
+		drawBorder()
 		return
 	}
 	if run := s.runs[e.ID]; run != nil && run.status == "running" && run.stream != "" {
+		drawBox()
 		stream := run.stream
 		if len(stream) > 4000 {
 			stream = "…" + stream[len(stream)-4000:]
 		}
 		text(e.ID+"#stream", stream, pal.ink)
+		drawBorder()
 		return
 	}
 	out := n.Output()
 	if out == nil {
-		hint := i18n.T("运行后在这里显示结果")
-		if n.Role == whiteboard.AINote {
+		hint := i18n.T("运行后显示文本")
+		switch n.Role {
+		case whiteboard.AIImage:
+			hint = i18n.T("运行后显示图像")
+		case whiteboard.AIVideo:
+			hint = i18n.T("运行后显示视频")
+		case whiteboard.AINote:
 			hint = i18n.T("运行后读取笔记正文")
 		}
-		p.Fill(r, pal.mediaBg, 6)
+		drawBox()
 		hl := b.aiCardTextFont(e.ID+"#hint", hint, 0, ui.Font{Size: 12})
 		hw, hh := hl.Size()
-		p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+(r.H-hh)/2, pal.muted)
+		if icon := boardIcon(aiRoleIcons[n.Role]); icon != nil && r.H >= 72 {
+			p.Icon(icon, ui.Rect{X: r.X + (r.W-20)/2, Y: r.Y + r.H/2 - 20, W: 20, H: 20}, pal.muted.Alpha(0.55))
+			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+r.H/2+6, pal.muted)
+		} else {
+			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+(r.H-hh)/2, pal.muted)
+		}
+		drawBorder()
 		return
 	}
 	switch out.Kind {
 	case "text":
+		drawBox()
 		text(e.ID+"#out-text", out.Text, pal.ink)
+		drawBorder()
 	case "image":
+		drawBox()
 		bm := s.media[out.Path]
 		if bm == nil {
 			msg := i18n.T("正在加载图片")
@@ -308,20 +353,24 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 				msg = i18n.T("图片无法读取：") + out.Path
 			}
 			text(e.ID+"#img-msg", msg, pal.muted)
+			drawBorder()
 			return
 		}
 		iw, ih := bm.Size()
 		scale := min(r.W/float32(iw), r.H/float32(ih))
 		dw, dh := float32(iw)*scale, float32(ih)*scale
-		p.Fill(r, pal.mediaBg, 6)
 		p.ImageRegion(bm, ui.Rect{}, ui.Rect{X: r.X + (r.W-dw)/2, Y: r.Y + (r.H-dh)/2, W: dw, H: dh}, ui.ImageOptions{})
+		drawBorder()
 	case "video":
-		p.Fill(r, ui.Hex("#16181C"), 6)
-		cx, cy := r.X+r.W/2, r.Y+r.H/2-14
-		p.Fill(ui.Rect{X: cx - 18, Y: cy - 18, W: 36, H: 36}, ui.RGBA(255, 255, 255, 0.16), 18)
-		p.Text(cx-5, cy-8, "▶", 14, ui.Hex("#F8F9FA"))
-		p.Text(r.X+12, r.Y+r.H-42, path.Base(out.Path), 12.5, ui.Hex("#E6E8EC"))
-		p.Text(r.X+12, r.Y+r.H-22, i18n.T("选中节点后播放"), 11.5, ui.Hex("#9CA3AF"))
+		p.Fill(r, ui.Hex("#14161A"), 8)
+		cx, cy := r.X+r.W/2, r.Y+r.H/2-12
+		p.Fill(ui.Rect{X: cx - 19, Y: cy - 19, W: 38, H: 38}, ui.RGBA(255, 255, 255, 0.18), 19)
+		if icon := boardIcon("player-play"); icon != nil {
+			p.Icon(icon, ui.Rect{X: cx - 8, Y: cy - 8, W: 16, H: 16}, ui.Hex("#F8F9FA"))
+		}
+		p.Text(r.X+12, r.Y+r.H-40, path.Base(out.Path), 12, ui.Hex("#E6E8EC"))
+		p.Text(r.X+12, r.Y+r.H-20, i18n.T("选中节点后播放"), 11, ui.Hex("#9CA3AF"))
+		drawBorder()
 	}
 }
 
@@ -335,7 +384,7 @@ func aiInlineSelect(c *ui.Context, key, label, current string, values, labels []
 		}
 	}
 	before := shown
-	ui.Select(c.Key(key), &shown, labels).Grow(1).MinWidth(0).Height(28).FontSize(11.5).Disabled(disabled).Label(label).Tooltip(label)
+	ui.Select(c.Key(key), &shown, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(label).Tooltip(label)
 	if shown != before {
 		for i, l := range labels {
 			if l == shown {
@@ -346,9 +395,9 @@ func aiInlineSelect(c *ui.Context, key, label, current string, values, labels []
 	return current, false
 }
 
-// aiNodeInlineControls puts each visible card's controls on it: the model,
-// the role's settings, run or stop, and its text field. The instruction
-// field is disabled while its slot is linked.
+// aiNodeInlineControls puts each visible card's controls on it: header run
+// action, prompt/instruction, model, settings, and image history. The
+// instruction field is disabled while its slot is linked.
 func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 	s := b.aiState()
 	if !b.aiInlineActive() {
@@ -359,6 +408,7 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		return
 	}
 	z := float32(b.Zoom)
+	st := boardChromeFor(o.Theme)
 	focusedNow := ""
 	for _, e := range b.Scene.Elements {
 		n := b.aiNode(e)
@@ -370,14 +420,20 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 			continue
 		}
 		l := b.aiLayout(e, n)
+		id := e.ID
+		disabled := b.ReadOnly || e.Locked
+		if l.headerRun.W > 0 {
+			hr := l.headerRun
+			ui.Row(c.Key("ai-header-run-"+id)).Absolute().Left(x+hr.X*z).Top(y+hr.Y*z).Size(hr.W, hr.H).TransformOrigin(0, 0).Scale(z, z).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+				b.aiInlineRun(c, o, id, n, disabled)
+			})
+		}
 		b.aiHistoryControls(c, o, e, n, l, x, y, z)
 		r := l.widgets
 		if r.W < 120 || r.H < 24 {
 			continue
 		}
-		id := e.ID
 		buf := b.aiNodeBuf(e, n)
-		disabled := b.ReadOnly || e.Locked
 		focus := func(el ui.Element) {
 			if s.focusInstruction && b.Selected[id] && len(b.Selected) == 1 && !disabled {
 				el.Focus()
@@ -401,32 +457,40 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 			case whiteboard.AIPrompt:
 				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容")))
 			case whiteboard.AINote:
-				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入引用的笔记名称")).FontSize(12.5).Grow(1).MinWidth(0).Height(30).Disabled(disabled).Label(i18n.T("引用的笔记")))
-					if n.Note != "" && o.OpenWiki != nil && boardButton(c, "inline-open-note-"+id, i18n.T("打开"), false).Height(30).Clicked() {
+				ui.Row(c).Height(28).Gap(4).AlignItems(ui.Center).Children(func() {
+					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入引用的笔记名称")).FontSize(12).Grow(1).MinWidth(0).Height(28).Disabled(disabled).Label(i18n.T("引用的笔记")))
+					if n.Note != "" && o.OpenWiki != nil && boardFlatButton(c, "inline-open-note-"+id, i18n.T("打开"), false, st).Height(28).Clicked() {
 						o.OpenWiki(n.Note, false)
 					}
 				})
 			case whiteboard.AIConcat:
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
+				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
 			default:
-				ui.Row(c.Key("inline-bar-" + id)).Height(28).Gap(4).AlignItems(ui.Center).Children(func() {
-					b.aiInlineModelSelect(c, o, id, n, disabled)
-					b.aiInlineRun(c, o, id, disabled)
-				})
-				ui.Row(c.Key("inline-params-" + id)).Height(28).Gap(4).AlignItems(ui.Center).Children(func() {
-					b.aiInlineParams(c, o, id, n, disabled)
-				})
 				src := b.aiPromptSource(n)
 				if src != "" {
 					// Linked: the upstream text is the instruction. The
 					// field shows the source, never the hidden own value.
 					empty := ""
 					note := fmt.Sprintf(i18n.T("已连接：%s"), src)
-					ui.TextArea(c.Key("board-ai-inline-linked-"+id), &empty).Placeholder(note).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(true).Label(i18n.T("指令")).Description(note)
-					return
+					ui.TextInput(c.Key("board-ai-inline-linked-"+id), &empty).Placeholder(note).FontSize(12).WidthPercent(100).Height(30).Disabled(true).Label(i18n.T("指令")).Description(note)
+				} else {
+					ph := i18n.T("输入指令或要求")
+					switch n.Role {
+					case whiteboard.AIImage:
+						ph = i18n.T("描述画面或输入提示词")
+					case whiteboard.AIVideo:
+						ph = i18n.T("描述视频画面或动作")
+					}
+					focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(58).Disabled(disabled).Label(i18n.T("指令")))
 				}
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入指令或提示词，或把文字节点连到左侧输入")).FontSize(12.5).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("指令")))
+				ui.Column(c.Key("inline-cfg-" + id)).Gap(4).Children(func() {
+					ui.Row(c.Key("inline-bar-" + id)).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
+						b.aiInlineModelSelect(c, o, id, n, disabled)
+					})
+					ui.Row(c.Key("inline-params-" + id)).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
+						b.aiInlineParams(c, o, id, n, disabled)
+					})
+				})
 			}
 		})
 	}
@@ -436,30 +500,31 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 	s.inlineFocused = focusedNow
 }
 
-func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, disabled bool) {
+func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
+	pal := aiNodePalette(n.Kind(), o.Theme.Dark)
 	run := b.ai.runs[id]
 	if b.AIRunning() && run != nil && (run.status == "running" || run.status == "queued") {
-		btn := ui.ButtonBase(c.Key("inline-stop-" + id)).Height(28).PaddingX(8).Gap(3).Center().Radius(6).Background(o.Theme.Danger.Alpha(0.14)).Focusable().Label(i18n.T("停止运行"))
+		btn := ui.ButtonBase(c.Key("inline-stop-" + id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.dangerSoft).Focusable().Label(i18n.T("停止运行"))
 		btn.Children(func() {
 			if icon := boardIcon("player-stop"); icon != nil {
-				ui.Icon(c, icon).FontSize(12).TextColor(o.Theme.Danger)
+				ui.Icon(c, icon).FontSize(12).TextColor(pal.danger)
 			}
-			ui.Text(c, i18n.T("停止")).FontSize(11.5).FontWeight(600).TextColor(o.Theme.Danger).NoWrap()
+			ui.Text(c, i18n.T("停止")).FontSize(11.5).FontWeight(600).TextColor(pal.danger).NoWrap()
 		})
 		if btn.Clicked() {
 			b.StopAI()
 		}
 		return
 	}
-	btn := ui.ButtonBase(c.Key("inline-run-" + id)).Height(28).PaddingX(8).Gap(3).Center().Radius(6).Background(o.Theme.Accent.Alpha(0.14)).Focusable().Disabled(disabled || b.AIRunning()).Label(i18n.T("运行此节点")).Tooltip(i18n.T("运行此节点"))
+	btn := ui.ButtonBase(c.Key("inline-run-" + id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.accentSoft).Focusable().Disabled(disabled || b.AIRunning()).Label(i18n.T("运行此节点")).Tooltip(i18n.T("运行此节点"))
 	if btn.Hovered() {
-		btn.Background(o.Theme.Accent.Alpha(0.22))
+		btn.Background(pal.accent.Alpha(0.20))
 	}
 	btn.Children(func() {
 		if icon := boardIcon("player-play"); icon != nil {
-			ui.Icon(c, icon).FontSize(12).TextColor(o.Theme.Accent)
+			ui.Icon(c, icon).FontSize(12).TextColor(pal.accent)
 		}
-		ui.Text(c, i18n.T("运行")).FontSize(11.5).FontWeight(600).TextColor(o.Theme.Accent).NoWrap()
+		ui.Text(c, i18n.T("运行")).FontSize(11.5).FontWeight(600).TextColor(pal.accent).NoWrap()
 	})
 	if btn.Clicked() {
 		b.selectIDs([]string{id})
@@ -545,26 +610,29 @@ func (b *Board) aiPickerMenu(c *ui.Context, o BoardOptions) {
 	x, y, _, _ := b.canvasRect(pk.at[0], pk.at[1], 0, 0)
 	left := x + 8
 	if pk.to != "" {
-		left = max(8, x-204)
+		left = max(8, x-212)
 	}
-	ui.Column(c.Key("board-ai-picker")).Absolute().Left(left).Top(y).Width(196).Padding(8).Gap(3).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.14)).Role(ui.RoleMenu).Label(i18n.T("接入新节点")).Children(func() {
-		ui.Text(c, i18n.T("接入新节点")).FontSize(12).FontWeight(600).TextColor(o.Theme.TextMuted).Margin(2, 6, 4, 6)
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Column(c.Key("board-ai-picker")).Absolute().Left(left).Top(y).Width(204).Padding(8).Gap(3), st).Role(ui.RoleMenu).Label(i18n.T("接入新节点")).Children(func() {
+		ui.Box(c).Padding(2, 6, 4, 6).Children(func() {
+			boardSectionLabel(c, st, i18n.T("接入新节点"))
+		})
 		for _, role := range aiPickerRoles(pk) {
 			label := i18n.T(aiRoleNames[role])
 			kind := (&whiteboard.AINode{Role: role}).Kind()
 			row := ui.ButtonBase(c.Key("pick-"+string(role))).WidthPercent(100).Padding(5, 8).Gap(8).AlignItems(ui.Center).Radius(6).Focusable().Label(label)
 			if row.Hovered() {
-				row.Background(o.Theme.SurfaceHover)
+				row.Background(st.hover)
 			}
 			row.Children(func() {
 				aiItemBadge(c, aiRoleIcons[role], kind, o.Theme.Dark)
-				ui.Text(c, label).FontSize(13).TextColor(o.Theme.Text)
+				ui.Text(c, label).FontSize(13).TextColor(st.text)
 			})
 			if row.Clicked() {
 				b.pickAINode(role, o)
 			}
 		}
-		if boardButton(c, "pick-cancel", i18n.T("取消"), false).Height(28).Clicked() {
+		if boardFlatButton(c, "pick-cancel", i18n.T("取消"), false, st).WidthPercent(100).Height(28).Clicked() {
 			s.picker = nil
 		}
 	})

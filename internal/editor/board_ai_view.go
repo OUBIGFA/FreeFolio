@@ -19,68 +19,6 @@ var (
 	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note"}
 )
 
-type aiNodeColors struct {
-	accent, accentSoft         ui.Color
-	cardBg, headerBg, footerBg ui.Color
-	mediaBg, divider, border   ui.Color
-	ink, secondary, muted      ui.Color
-	danger, dangerSoft, shadow ui.Color
-}
-
-func aiNodePalette(kind string, dark bool) aiNodeColors {
-	var accent ui.Color
-	if dark {
-		switch kind {
-		case "image":
-			accent = ui.Hex("#4ADE80")
-		case "video":
-			accent = ui.Hex("#FB923C")
-		default:
-			accent = ui.Hex("#60A5FA")
-		}
-		return aiNodeColors{
-			accent:     accent,
-			accentSoft: accent.Alpha(0.18),
-			cardBg:     ui.Hex("#1E2024"),
-			headerBg:   ui.Hex("#25282E"),
-			footerBg:   ui.Hex("#22252A"),
-			mediaBg:    ui.Hex("#16181C"),
-			divider:    ui.Hex("#32363F"),
-			border:     ui.Hex("#3D424D"),
-			ink:        ui.Hex("#E6E8EC"),
-			secondary:  ui.Hex("#B0B6C2"),
-			muted:      ui.Hex("#8B929E"),
-			danger:     ui.Hex("#F85149"),
-			dangerSoft: ui.Hex("#F85149").Alpha(0.16),
-			shadow:     ui.RGBA(0, 0, 0, 0.24),
-		}
-	}
-	switch kind {
-	case "image":
-		accent = ui.Hex("#15803D")
-	case "video":
-		accent = ui.Hex("#C2410C")
-	default:
-		accent = ui.Hex("#2563EB")
-	}
-	return aiNodeColors{
-		accent:     accent,
-		accentSoft: accent.Alpha(0.11),
-		cardBg:     ui.Hex("#FFFFFF"),
-		headerBg:   ui.Hex("#F7F8FA"),
-		footerBg:   ui.Hex("#F8F9FB"),
-		mediaBg:    ui.Hex("#F4F5F7"),
-		divider:    ui.Hex("#E4E6EB"),
-		border:     ui.Hex("#CFD4DC"),
-		ink:        ui.Hex("#1F2329"),
-		secondary:  ui.Hex("#525866"),
-		muted:      ui.Hex("#6E7681"),
-		danger:     ui.Hex("#CF222E"),
-		dangerSoft: ui.Hex("#CF222E").Alpha(0.10),
-		shadow:     ui.RGBA(0, 0, 0, 0.06),
-	}
-}
-
 // aiStatus is the card's status line and whether it reports a failure.
 func (b *Board) aiStatus(e *whiteboard.Element, n *whiteboard.AINode) (string, bool) {
 	if n.Role == whiteboard.AIImageInput && n.Error == "" {
@@ -215,25 +153,34 @@ func (b *Board) aiToolbar(c *ui.Context, o BoardOptions) {
 	if o.AI == nil {
 		return
 	}
-	ui.Box(c.Key("board-ai-sep")).Width(1).Height(20).Margin(0, 3).Background(o.Theme.Border).AlignSelf(ui.Center)
-	aiBtn := ui.ButtonBase(c.Key("board-ai")).Height(34).PaddingX(10).Gap(5).Center().Radius(6).Focusable().Label(i18n.T("AI 节点")).Tooltip(i18n.T("AI 节点"))
+	st := boardChromeFor(o.Theme)
+	boardToolbarDivider(c, "board-ai-sep", st)
+	aiBtn := ui.ButtonBase(c.Key("board-ai")).Height(32).PaddingX(9).Gap(5).Center().Radius(7).Focusable().Label(i18n.T("AI 节点")).Tooltip(i18n.T("AI 节点"))
+	aiInk := st.text
 	if b.ai.bar {
-		aiBtn.Background(o.Theme.Accent.Alpha(.16))
+		aiBtn.Background(st.activeBg)
+		aiInk = st.activeInk
 	} else if aiBtn.Hovered() {
-		aiBtn.Background(o.Theme.SurfaceHover)
+		aiBtn.Background(st.hover)
 	}
 	aiBtn.Children(func() {
 		if icon := boardIcon("sparkles"); icon != nil {
-			ui.Icon(c, icon).FontSize(17).TextColor(o.Theme.Accent)
+			ui.Icon(c, icon).FontSize(16).TextColor(aiInk)
 		}
-		ui.Text(c, "AI").FontSize(12.5).FontWeight(600).TextColor(o.Theme.Text).NoWrap()
+		ui.Text(c, "AI").FontSize(12.5).FontWeight(600).TextColor(aiInk).NoWrap()
 	})
 	if aiBtn.Clicked() {
 		b.ai.bar = !b.ai.bar
 		b.ai.barFocus = b.ai.bar
 	}
 	if b.AIRunning() {
-		if boardIconButton(c, "board-ai-stop", "player-stop", i18n.T("停止运行"), false).Clicked() {
+		stop := ui.ButtonBase(c.Key("board-ai-stop")).Size(32, 32).Center().Radius(7).Background(st.dangerSoft).Focusable().Label(i18n.T("停止运行")).Tooltip(i18n.T("停止运行"))
+		stop.Children(func() {
+			if icon := boardIcon("player-stop"); icon != nil {
+				ui.Icon(c, icon).FontSize(16).TextColor(st.danger)
+			}
+		})
+		if stop.Clicked() {
 			b.StopAI()
 		}
 		return
@@ -330,13 +277,9 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 	if o.Export != nil {
 		items = append(items, aiBarItem{"canvas-export", "导出 JSON Canvas", "交换", "duplicate", "text", func() { o.Export("canvas") }})
 	}
-	ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(236).MaxHeight(max(120, b.lastRect.H-132)).Padding(12).Gap(4).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Margin(0, 0, 4, 0).Children(func() {
-			ui.Text(c, i18n.T("AI 节点")).FontSize(14).FontWeight(600).Grow(1)
-			if boardIconButton(c, "close", "close", i18n.T("关闭"), false).Size(28, 28).Clicked() {
-				b.ai.bar = false
-			}
-		})
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(240).MaxHeight(max(120, b.lastRect.H-132)).Padding(12).Gap(4), st).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
+		boardPanelHeader(c, st, i18n.T("AI 节点"), "", "", o.Theme.Dark, func() { b.ai.bar = false })
 		search := ui.TextInput(c.Key("board-ai-search"), &b.ai.query).Placeholder(i18n.T("搜索节点")).WidthPercent(100)
 		if b.ai.barFocus {
 			search.Focus()
@@ -354,15 +297,17 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 				if group != "" {
 					ui.Box(c).Height(2)
 				}
-				ui.Text(c.Key("g-"+group), i18n.T(group)).FontSize(11.5).FontWeight(600).TextColor(o.Theme.TextMuted).Margin(6, 4, 2, 4)
+				ui.Box(c.Key("g-"+group)).Padding(6, 4, 2, 4).Children(func() {
+					boardSectionLabel(c, st, i18n.T(group))
+				})
 			}
 			row := ui.ButtonBase(c.Key("board-ai-item-"+it.key)).WidthPercent(100).Padding(5, 8).Gap(8).AlignItems(ui.Center).Radius(6).Focusable().Label(label)
 			if row.Hovered() {
-				row.Background(o.Theme.SurfaceHover)
+				row.Background(st.hover)
 			}
 			row.Children(func() {
 				aiItemBadge(c, it.icon, it.kind, o.Theme.Dark)
-				ui.Text(c, label).FontSize(13).TextColor(o.Theme.Text).SingleLine()
+				ui.Text(c, label).FontSize(13).TextColor(st.text).SingleLine()
 			})
 			if row.Clicked() {
 				it.run()
@@ -407,11 +352,11 @@ type aiEditBuffers struct {
 }
 
 func aiPropDivider(c *ui.Context, o BoardOptions) {
-	ui.Box(c).Height(1).Margin(4, 0).Background(o.Theme.Border.Alpha(0.6))
+	ui.Box(c).Height(1).Margin(4, 0).Background(boardChromeFor(o.Theme).divider)
 }
 
 func aiPropSection(c *ui.Context, o BoardOptions, title string) {
-	ui.Text(c, i18n.T(title)).FontSize(12).FontWeight(600).TextColor(o.Theme.TextMuted)
+	boardSectionLabel(c, boardChromeFor(o.Theme), i18n.T(title))
 }
 
 // aiProperties is the selected node's panel, as Vibe-Workflow's Properties:
@@ -441,15 +386,10 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		s.extraErr = ""
 	}
 	id := e.ID
+	st := boardChromeFor(o.Theme)
 	edit := func(fn func(*whiteboard.AINode)) { b.editAINode(o, id, fn) }
-	ui.Scroll(c.Key("board-ai-props")).Absolute().Top(66).Right(12).Width(308).MaxHeight(max(150, b.lastRect.H-140)).Padding(14).Gap(8).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-			aiItemBadge(c, aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark)
-			ui.Text(c, i18n.T(aiRoleNames[n.Role])).FontSize(15).FontWeight(600).Grow(1)
-			if boardIconButton(c, "close", "close", i18n.T("关闭"), false).Size(28, 28).Clicked() {
-				s.panel = false
-			}
-		})
+	boardSurface(ui.Scroll(c.Key("board-ai-props")).Absolute().Top(66).Right(12).Width(312).MaxHeight(max(150, b.lastRect.H-140)).Padding(14).Gap(8), st).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
+		boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
 		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
 			b.aiRunControls(c, o, id)
 		}
@@ -529,9 +469,10 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			for i, in := range inputs {
 				sl, _ := whiteboard.AISlotByName(n, in.Slot)
 				detail := b.aiSourceName(b.Scene.ElementByID(in.From))
-				ui.Row(c.Key(fmt.Sprint("in", i))).Padding(6, 8).Gap(6).AlignItems(ui.Center).Background(o.Theme.Surface).Border(1, o.Theme.Border.Alpha(0.6)).Radius(6).Children(func() {
-					ui.Text(c, aiSlotLabel(sl)).FontSize(12).FontWeight(500).TextColor(o.Theme.TextMuted).NoWrap()
-					ui.Text(c, detail).FontSize(12).TextColor(o.Theme.Text).SingleLine().Grow(1).MinWidth(0)
+				ui.Row(c.Key(fmt.Sprint("in", i))).Padding(6, 8).Gap(6).AlignItems(ui.Center).Background(st.surfaceMuted).Border(1, st.divider).Radius(6).Children(func() {
+					ui.Box(c).Size(6, 6).Radius(3).Background(aiTypeColor(sl.Type, o.Theme.Dark)).Shrink(0)
+					ui.Text(c, aiSlotLabel(sl)).FontSize(12).FontWeight(500).TextColor(st.muted).NoWrap()
+					ui.Text(c, detail).FontSize(12).TextColor(st.text).SingleLine().Grow(1).MinWidth(0)
 					if !b.ReadOnly && boardIconButton(c, "disconnect", "close", i18n.T("断开连接"), false).Size(22, 22).Clicked() {
 						b.deleteAILink(aiLinkRef{id, in.Slot}, o)
 					}
@@ -742,7 +683,7 @@ func (b *Board) aiRunControls(c *ui.Context, o BoardOptions, id string) {
 
 func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
 	if n.Role == whiteboard.AIImageInput {
-		b.aiImageButtons(c, o, id)
+		b.aiImageButtons(c, o, id, false)
 		return
 	}
 	out := n.Output()
@@ -767,7 +708,7 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 	}
 	ui.Row(c.Key("board-ai-out")).Gap(6).Wrap().Children(func() {
 		if out.Kind == "image" {
-			b.aiImageButtons(c, o, id)
+			b.aiImageButtons(c, o, id, false)
 		}
 		if out.Kind == "text" && ui.Button(c.Key("copy"), i18n.T("复制文字")).Clicked() {
 			b.services.WriteClipboard(out.Text)
@@ -810,7 +751,7 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 		}
 	}
 	before := current
-	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(28).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(i18n.T("模型"))
+	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(i18n.T("模型"))
 	if current != before {
 		for i, l := range labels {
 			if l == current {
@@ -840,36 +781,37 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 			if top < 56 {
 				top = y + h + 8
 			}
-			ui.Row(c.Key("board-ai-node-bar")).Absolute().Left(x).Top(top).Gap(4).Padding(4, 6).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleToolbar).Label(i18n.T("节点操作")).Children(func() {
+			st := boardChromeFor(o.Theme)
+			boardSurface(ui.Row(c.Key("board-ai-node-bar")).Absolute().Left(x).Top(top).Gap(3).Padding(4, 6).AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(i18n.T("节点操作")).Children(func() {
 				if n.Role == whiteboard.AIImageInput || out != nil && out.Kind == "image" {
-					b.aiImageButtons(c, o, e.ID)
+					b.aiImageButtons(c, o, e.ID, true)
 				}
 				// Running is on the card; the bar holds what a card has no
 				// room for, as ComfyUI's selection toolbox.
-				if boardButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel).Height(26).Label(i18n.T("全部设置")).Clicked() {
+				if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
 					s.panel = !s.panel
 				}
 				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && !b.AIRunning() {
-					if boardButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false).Height(26).Clicked() {
+					if boardFlatButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false, st).Height(26).Clicked() {
 						b.RunAI([]string{e.ID}, true, false, o)
 					}
 				}
-				if len(n.Outputs) > 1 {
-					ui.Box(c).Width(1).Height(16).Margin(0, 2).Background(o.Theme.Border)
-					if boardButton(c, "board-ai-prev", "‹", false).Height(26).MinWidth(26).Label(i18n.T("上一个结果")).Disabled(n.Current <= 0).Clicked() {
+				if len(n.Outputs) > 1 && n.Role != whiteboard.AIImage {
+					boardToolbarDivider(c, "node-bar-sep-1", st)
+					if boardFlatButton(c, "board-ai-prev", "‹", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("上一个结果")).Disabled(n.Current <= 0).Clicked() {
 						b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current-- })
 					}
-					ui.Text(c, fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))).FontSize(12).TextColor(o.Theme.TextMuted).PaddingX(2)
-					if boardButton(c, "board-ai-next", "›", false).Height(26).MinWidth(26).Label(i18n.T("下一个结果")).Disabled(n.Current >= len(n.Outputs)-1).Clicked() {
+					ui.Text(c, fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))).FontSize(11.5).TextColor(st.muted).PaddingX(2)
+					if boardFlatButton(c, "board-ai-next", "›", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("下一个结果")).Disabled(n.Current >= len(n.Outputs)-1).Clicked() {
 						b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current++ })
 					}
 				}
 				if out != nil && (out.Kind == "text" || out.Kind == "image") {
-					ui.Box(c).Width(1).Height(16).Margin(0, 2).Background(o.Theme.Border)
-					if out.Kind == "text" && boardButton(c, "board-ai-copy", i18n.T("复制"), false).Height(26).Label(i18n.T("复制文字")).Clicked() {
+					boardToolbarDivider(c, "node-bar-sep-2", st)
+					if out.Kind == "text" && boardFlatButton(c, "board-ai-copy", i18n.T("复制"), false, st).Height(26).Label(i18n.T("复制文字")).Clicked() {
 						b.services.WriteClipboard(out.Text)
 					}
-					if !b.ReadOnly && boardButton(c, "board-ai-place", i18n.T("放到白板"), false).Height(26).Clicked() {
+					if !b.ReadOnly && boardFlatButton(c, "board-ai-place", i18n.T("放到白板"), false, st).Height(26).Clicked() {
 						b.placeAIOutput(e.ID, o)
 					}
 				}
@@ -934,15 +876,16 @@ func (b *Board) aiSelectionBar(c *ui.Context, o BoardOptions) {
 	if top < 60 {
 		top = y + h + 10
 	}
-	ui.Row(c.Key("board-ai-selection")).Absolute().Left(max(8, x)).Top(top).Gap(4).Padding(4, 6).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.12)).Role(ui.RoleToolbar).Label(i18n.T("用选中内容运行 AI")).Children(func() {
-		if len(b.selectedImagesForNodes()) > 0 && boardButton(c, "board-ai-convert-image", i18n.T("转为节点"), false).Height(28).Clicked() {
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Row(c.Key("board-ai-selection")).Absolute().Left(max(8, x)).Top(top).Gap(3).Padding(4, 6).AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(i18n.T("用选中内容运行 AI")).Children(func() {
+		if len(b.selectedImagesForNodes()) > 0 && boardFlatButton(c, "board-ai-convert-image", i18n.T("转为节点"), false, st).Height(26).Clicked() {
 			b.convertImagesToNodes(o)
 		}
 		for _, a := range []struct {
 			role  whiteboard.AIRole
 			label string
 		}{{whiteboard.AIText, "AI 文本"}, {whiteboard.AIImage, "AI 生图"}, {whiteboard.AIVideo, "AI 视频"}} {
-			if boardButton(c, "board-ai-sel-"+string(a.role), i18n.T(a.label), false).Height(28).Clicked() {
+			if boardFlatButton(c, "board-ai-sel-"+string(a.role), i18n.T(a.label), false, st).Height(26).Clicked() {
 				if b.AIFromSelection(a.role, o) != "" {
 					b.ai.focusInstruction = true
 				}

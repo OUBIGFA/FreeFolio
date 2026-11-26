@@ -203,3 +203,41 @@ func TestBoardAIImageRunButtonAppendsHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestBoardAIImageHistoryBarCollapsesAndExpandsLayout(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 900)
+	tt.Frame()
+	id := b.AddAINode(whiteboard.AIImage, whiteboard.Point{400, 330}, o)
+	b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Instruction = "a mountain" })
+	tt.Frame()
+	e := b.Scene.ElementByID(id)
+	if l := b.aiLayout(e, b.aiNode(e)); l.history.H != 0 {
+		t.Fatalf("empty node should omit history bar, got %v", l.history.H)
+	}
+	if err := tt.Click("运行此节点"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if l := b.aiLayout(e, b.aiNode(e)); l.history.H != 0 || tt.HasText("对比") {
+		t.Fatalf("single output should omit history bar: h=%v", l.history.H)
+	}
+	if err := tt.Click("运行此节点"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	l1 := b.aiLayout(e, b.aiNode(e))
+	if l1.history.H != 26 || l1.history.Y <= l1.preview.Y {
+		t.Fatalf("two outputs should show 1-row history bar below preview: preview=%+v history=%+v", l1.preview, l1.history)
+	}
+	if err := tt.Click("对比图片"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	l2 := b.aiLayout(e, b.aiNode(e))
+	if l2.history.H <= l1.history.H || l2.preview.H >= l1.preview.H {
+		t.Fatalf("compare mode did not update layout immediately: before=%+v after=%+v", l1, l2)
+	}
+}

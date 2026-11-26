@@ -662,3 +662,65 @@ func TestBoardAICardControlsStayWhileDragging(t *testing.T) {
 		t.Fatalf("field did not scale: %v → %v", before.Bounds, after.Bounds)
 	}
 }
+
+func TestBoardAIHeaderRunLinkedCollapseAndPanelTitles(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1280, 860)
+	tt.Frame()
+	promptID := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{220, 320}, o)
+	imgID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{760, 320}, o)
+	b.updateAINode(o, promptID, func(n *whiteboard.AINode) { n.Instruction = "warm sunset" })
+	b.updateAINode(o, imgID, func(n *whiteboard.AINode) { n.Instruction = "a lake" })
+	b.selectIDs([]string{imgID})
+	tt.Frame()
+
+	imgEl := b.Scene.ElementByID(imgID)
+	unlinked := b.aiLayout(imgEl, b.aiNode(imgEl))
+	if unlinked.headerRun.W == 0 {
+		t.Fatal("missing header run rect")
+	}
+	if err := tt.Click("运行此节点"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(f.jobs) != 1 {
+		t.Fatalf("header run button did not run node: %d", len(f.jobs))
+	}
+
+	b.setAILink(imgID, "prompt", promptID)
+	tt.Frame()
+	linked := b.aiLayout(imgEl, b.aiNode(imgEl))
+	if linked.widgets.H >= unlinked.widgets.H || linked.preview.H <= unlinked.preview.H {
+		t.Fatalf("linked prompt did not collapse widgets and grow preview: unlinked=%+v linked=%+v", unlinked, linked)
+	}
+	if field, ok := tt.Access("指令"); !ok || !field.Disabled || !strings.Contains(field.Description, "已连接") {
+		t.Fatalf("linked instruction field: %+v", field)
+	}
+
+	imgEl.Locked = true
+	tt.Frame()
+	if btn, ok := tt.Access("运行此节点"); !ok || !btn.Disabled {
+		t.Fatalf("locked node run button should be disabled: %+v", btn)
+	}
+	imgEl.Locked = false
+	o.ReadOnly = true
+	tt.Frame()
+	if btn, ok := tt.Access("运行此节点"); !ok || !btn.Disabled {
+		t.Fatalf("read-only board run button should be disabled: %+v", btn)
+	}
+	o.ReadOnly = false
+
+	for _, panel := range []struct{ id, title string }{
+		{"search", "搜索白板内容"},
+		{"help", "白板快捷键"},
+		{"library", "组件素材库"},
+	} {
+		b.panel = panel.id
+		tt.Frame()
+		if !tt.HasText(panel.title) {
+			t.Fatalf("panel %q missing semantic title %q", panel.id, panel.title)
+		}
+	}
+}

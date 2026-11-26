@@ -58,12 +58,14 @@ func (b *Board) searchPanel(c *ui.Context) {
 			if runes := []rune(title); len(runes) > 100 {
 				title = string(runes[:100]) + "…"
 			}
-			button := ui.ButtonBase(c.Key("board-search-result-" + row.ElementID)).WidthPercent(100).Padding(8).Radius(5).Focusable().Label(title)
+			button := ui.ButtonBase(c.Key("board-search-result-"+row.ElementID)).WidthPercent(100).Padding(7, 10).Radius(6).Focusable().Label(title)
 			if i == s.index {
-				button.Background(c.Theme().Accent.Alpha(.12))
+				button.Background(c.Theme().Accent.Alpha(.14))
 				if s.reveal {
 					button.ScrollIntoView()
 				}
+			} else if button.Hovered() {
+				button.Background(c.Theme().SurfaceHover)
 			}
 			button.Children(func() { ui.Text(c, title).FontSize(13).SingleLine() })
 			if button.Clicked() {

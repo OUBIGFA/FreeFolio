@@ -40,7 +40,7 @@ func textCard(s *Scene, text string) *Element {
 func TestAINodeRoundTripKeepsOtherCustomData(t *testing.T) {
 	e := NewAINode(AIImage, 10, 20)
 	n := AINodeOf(e)
-	if n == nil || n.Role != AIImage || e.W != 360 {
+	if n == nil || n.Role != AIImage || e.W != 380 {
 		t.Fatalf("%+v", n)
 	}
 	e.CustomData = json.RawMessage(`{"other":{"keep":true},"freefolioAI":{"v":1,"role":"text"}}`)

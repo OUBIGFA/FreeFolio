@@ -128,9 +128,10 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			}
 		}
 		if b.err != nil {
-			ui.Row(c.Key("board-error")).Absolute().Top(64).Right(14).MaxWidth(400).Padding(10).Gap(8).Background(o.Theme.Background).Border(1, o.Theme.Danger).Radius(6).Children(func() {
-				ui.Text(c, b.err.Error()).FontSize(13).TextColor(o.Theme.Danger).Grow(1)
-				if ui.Button(c, "×").Clicked() {
+			st := boardChromeFor(o.Theme)
+			ui.Row(c.Key("board-error")).Absolute().Top(64).Right(14).MaxWidth(400).Padding(10, 12).Gap(8).AlignItems(ui.Center).Background(st.surface).Border(1, st.danger).Radius(10).Shadow(0, 4, 14, 0, st.shadow).Children(func() {
+				ui.Text(c, b.err.Error()).FontSize(13).TextColor(st.danger).Grow(1)
+				if boardIconButton(c, "board-error-close", "close", i18n.T("关闭"), false).Size(24, 24).Clicked() {
 					b.err = nil
 				}
 			})
@@ -139,19 +140,12 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 	return root
 }
 func boardButton(c *ui.Context, id, label string, active bool) ui.Element {
-	t := c.Theme()
-	e := ui.ButtonBase(c.Key(id)).Height(32).MinWidth(32).PaddingX(8).Center().Radius(5).Focusable().Label(label)
-	if active {
-		e.Background(t.Accent.Alpha(.16))
-	} else if e.Hovered() {
-		e.Background(t.SurfaceHover)
-	}
-	e.Children(func() { ui.Text(c, label).FontSize(13).TextColor(t.Text).NoWrap() })
-	return e
+	return boardFlatButton(c, id, label, active, boardChromeFor(c.Theme()))
 }
 func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
+	st := boardChromeFor(o.Theme)
 	ui.Row(c.Key("board-toolbar-wrap")).Absolute().Top(10).Left(8).Right(8).Justify(ui.Center).PassThrough().Children(func() {
-		ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
+		boardSurface(ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).AlignItems(ui.Center), st).Children(func() {
 			lock := "unlocked"
 			if b.ToolLocked {
 				lock = "locked"
@@ -160,10 +154,14 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				b.ToolLocked = !b.ToolLocked
 				b.RequestFocus = true
 			}
+			capacity := b.toolCapacity(o)
 			for _, d := range boardTools {
-				capacity := b.toolCapacity(o)
 				if int(d.tool) > capacity {
 					continue
+				}
+				switch d.tool {
+				case ToolRect, ToolArrow, ToolText, ToolImage:
+					boardToolbarDivider(c, fmt.Sprintf("board-tool-sep-%d", d.tool), st)
 				}
 				if boardIconButton(c, fmt.Sprintf("board-tool-%d", d.tool), boardToolIcons[d.tool], i18n.T(d.label)+" "+d.key, b.Tool == d.tool).Clicked() {
 					b.finishText(o)
@@ -176,6 +174,7 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				}
 			}
 			b.aiToolbar(c, o)
+			boardToolbarDivider(c, "board-more-sep", st)
 			menu := boardIconButton(c, "board-more", "dots", i18n.T("更多工具"), false)
 			menu.Menu(func(m *ui.Menu) {
 				if m.Item(i18n.T("dim0 手绘图形")).Chosen() {
@@ -237,42 +236,43 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 // toolCapacity is how many tools fit in the toolbar beside its fixed
 // buttons; the rest are in the More menu.
 func (b *Board) toolCapacity(o BoardOptions) int {
-	fixed := 2
+	fixed := 3
 	if o.AI != nil {
 		fixed += 4
 	}
-	return max(3, int((b.lastRect.W-32)/36)-fixed)
+	return max(3, int((b.lastRect.W-32)/34)-fixed)
 }
 func (b *Board) footer(c *ui.Context, o BoardOptions) {
-	ui.Row(c.Key("board-footer")).Absolute().Bottom(12).Left(12).Gap(2).Padding(4).AlignItems(ui.Center).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Row(c.Key("board-footer")).Absolute().Bottom(12).Left(12).Gap(2).Padding(4, 5).AlignItems(ui.Center), st).Children(func() {
 		run := func(id string) {
 			b.RunAction(id, o)
 			b.RequestFocus = true
 		}
-		if boardIconButton(c, "board-zoom-out", "zoom-out", i18n.T("缩小"), false).Size(30, 30).Clicked() {
+		if boardIconButton(c, "board-zoom-out", "zoom-out", i18n.T("缩小"), false).Size(28, 28).Clicked() {
 			run("zoom-out")
 		}
-		if boardButton(c, "board-reset-zoom", fmt.Sprintf("%.0f%%", b.Zoom*100), false).Height(30).MinWidth(52).Tooltip(i18n.T("重置缩放")).Clicked() {
+		if boardFlatButton(c, "board-reset-zoom", fmt.Sprintf("%.0f%%", b.Zoom*100), false, st).Height(28).MinWidth(48).PaddingX(6).Tooltip(i18n.T("重置缩放")).Clicked() {
 			run("reset-zoom")
 		}
-		if boardIconButton(c, "board-zoom-in", "zoom-in", i18n.T("放大"), false).Size(30, 30).Clicked() {
+		if boardIconButton(c, "board-zoom-in", "zoom-in", i18n.T("放大"), false).Size(28, 28).Clicked() {
 			run("zoom-in")
 		}
-		if boardButton(c, "board-fit", i18n.T("适应画布"), false).Height(30).Clicked() {
+		if boardFlatButton(c, "board-fit", i18n.T("适应画布"), false, st).Height(28).Clicked() {
 			run("fit")
 		}
 		if b.ReadOnly {
 			return
 		}
 		// Undo and redo are a separate group: they change content, zoom does not.
-		ui.Box(c.Key("board-footer-sep")).Width(1).Height(18).Margin(0, 3).Background(o.Theme.Border)
-		if boardIconButton(c, "board-undo", "undo", i18n.T("撤销"), false).Size(30, 30).Disabled(!b.History.CanUndo()).Clicked() {
+		boardToolbarDivider(c, "board-footer-sep", st)
+		if boardIconButton(c, "board-undo", "undo", i18n.T("撤销"), false).Size(28, 28).Disabled(!b.History.CanUndo()).Clicked() {
 			run("undo")
 		}
-		if boardIconButton(c, "board-redo", "redo", i18n.T("重做"), false).Size(30, 30).Disabled(!b.History.CanRedo()).Clicked() {
+		if boardIconButton(c, "board-redo", "redo", i18n.T("重做"), false).Size(28, 28).Disabled(!b.History.CanRedo()).Clicked() {
 			run("redo")
 		}
-		if o.Done != nil && boardButton(c, "board-done", i18n.T("返回文档"), false).Clicked() {
+		if o.Done != nil && boardFlatButton(c, "board-done", i18n.T("返回文档"), false, st).Height(28).Clicked() {
 			b.finishText(o)
 			o.Done()
 		}
@@ -283,7 +283,7 @@ var boardRouteLabels = map[string]string{"sharp": "直线", "curved": "贝塞尔
 var boardArrowLabels = map[string]string{"": "无箭头", "arrow": "空心箭头", "triangle": "实心箭头", "barb": "倒钩箭头"}
 
 func (b *Board) propSelect(c *ui.Context, key, label, current string, options []string, o BoardOptions) {
-	ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted)
+	boardSectionLabel(c, boardChromeFor(o.Theme), i18n.T(label))
 	value := current
 	labels := make([]string, len(options))
 	for i, v := range options {
@@ -302,7 +302,7 @@ func (b *Board) propSelect(c *ui.Context, key, label, current string, options []
 		}
 	}
 	before := value
-	ui.Select(c.Key("board-property-"+key), &value, labels).WidthPercent(100).FontSize(13)
+	ui.Select(c.Key("board-property-"+key), &value, labels).WidthPercent(100).Height(28).FontSize(12.5)
 	if value != before {
 		for i, label := range labels {
 			if value == label {
@@ -321,20 +321,17 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 	if len(ids) > 0 {
 		e = b.Scene.ElementByID(ids[0])
 	}
-	ui.Scroll(c.Key("board-properties")).Absolute().Top(66).Left(12).Width(226).MaxHeight(max(100, b.lastRect.H-132)).Padding(12).Gap(8).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.10)).Children(func() {
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Scroll(c.Key("board-properties")).Absolute().Top(66).Left(12).Width(232).MaxHeight(max(100, b.lastRect.H-132)).Padding(12).Gap(8), st).Children(func() {
 		for _, which := range []struct{ key, label, current string }{{"stroke", "描边", e.StrokeColor}, {"fill", "填充", e.FillColor}} {
-			ui.Text(c, i18n.T(which.label)).FontSize(12).TextColor(o.Theme.TextMuted)
-			ui.Row(c.Key(which.key)).Gap(5).Children(func() {
+			boardSectionLabel(c, st, i18n.T(which.label))
+			ui.Row(c.Key(which.key)).Gap(5).AlignItems(ui.Center).Children(func() {
 				for _, color := range []string{"#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00", "transparent"} {
-					el := ui.ButtonBase(c.Key(which.key+color)).Size(22, 22).Radius(4).Background(boardColor(color, o.Theme.Dark)).Border(1, o.Theme.Border).Focusable().Label(which.label + color)
-					if color == which.current {
-						el.Border(2, o.Theme.Accent)
-					}
-					if el.Clicked() {
+					if boardSwatch(c, which.key+color, color, which.label+color, color == which.current, o.Theme.Dark, st).Clicked() {
 						b.ChangeProperty(which.key, color, o)
 					}
 				}
-				more := boardButton(c, which.key+"-custom", "…", false)
+				more := boardFlatButton(c, which.key+"-custom", "…", false, st).Size(24, 24).PaddingX(0).MinWidth(24)
 				more.Menu(func(m *ui.Menu) {
 					if m.Item(i18n.T("输入颜色值")).Chosen() {
 						b.panel = "color:" + which.key
@@ -343,21 +340,31 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 				})
 			})
 		}
-		ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
-		b.propSelect(c, "fill-style", "填充样式", string(e.FillStyle), []string{"hachure", "cross-hatch", "solid", "zigzag"}, o)
-		b.propSelect(c, "stroke-style", "线条样式", string(e.StrokeStyle), []string{"solid", "dashed", "dotted"}, o)
+		ui.Box(c).Height(1).Margin(2, 0).Background(st.divider)
+		ui.Row(c.Key("prop-style-row")).Gap(6).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				b.propSelect(c, "fill-style", "填充样式", string(e.FillStyle), []string{"hachure", "cross-hatch", "solid", "zigzag"}, o)
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				b.propSelect(c, "stroke-style", "线条样式", string(e.StrokeStyle), []string{"solid", "dashed", "dotted"}, o)
+			})
+		})
 		round := e.Roundness != nil
 		beforeRound := round
 		ui.Checkbox(c.Key("board-roundness"), &round, i18n.T("圆角"))
 		if round != beforeRound {
 			b.ChangeProperty("round", round, o)
 		}
-		ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
+		ui.Box(c).Height(1).Margin(2, 0).Background(st.divider)
 		for _, p := range []struct {
 			key, label    string
 			value, lo, hi float64
 		}{{"width", "线宽", e.StrokeWidth, 1, 12}, {"roughness", "手绘程度", e.Roughness, 0, 2}, {"opacity", "不透明度", e.Opacity, 0, 100}} {
-			ui.Text(c, fmt.Sprintf("%s  %.0f", i18n.T(p.label), p.value)).FontSize(12)
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				boardSectionLabel(c, st, i18n.T(p.label))
+				ui.Spacer(c)
+				ui.Text(c, fmt.Sprintf("%.0f", p.value)).FontSize(11.5).TextColor(st.text)
+			})
 			v := p.value
 			ui.Slider(c.Key(p.key), &v, p.lo, p.hi).WidthPercent(100)
 			if v != p.value {
@@ -365,32 +372,38 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 			}
 		}
 		if len(ids) == 0 || e.Kind == whiteboard.KindText || e.BoundTextID() != "" {
-			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
+			ui.Box(c).Height(1).Margin(2, 0).Background(st.divider)
 			v := fmt.Sprint(e.FontFamily)
 			if e.FontFamily == 0 {
 				v = "5"
 			}
-			ui.Text(c, i18n.T("字体")).FontSize(12)
+			boardSectionLabel(c, st, i18n.T("字体"))
 			fonts := []string{"1 Virgil", "2 Sans", "3 Cascadia", "5 Excalifont", "6 Nunito", "7 Lilita One", "8 Comic Shanns", "9 Arial", "10 Assistant"}
 			current := v + " " + whiteboard.FontName(e.FontFamily)
 			selected := current
-			ui.Select(c.Key("board-font"), &selected, fonts).WidthPercent(100)
+			ui.Select(c.Key("board-font"), &selected, fonts).WidthPercent(100).Height(28).FontSize(12.5)
 			if selected != current {
 				n, _ := strconv.Atoi(strings.Fields(selected)[0])
 				b.ChangeProperty("font", n, o)
 			}
-			ui.Row(c).Gap(3).Children(func() {
+			ui.Row(c).Gap(4).Children(func() {
 				for _, size := range []float64{16, 20, 28, 36} {
-					if boardButton(c, fmt.Sprint("font", size), fmt.Sprint(size), e.FontSize == size).Clicked() {
+					if boardFlatButton(c, fmt.Sprint("font", size), fmt.Sprint(size), e.FontSize == size, st).Grow(1).MinWidth(0).PaddingX(0).Clicked() {
 						b.ChangeProperty("font-size", size, o)
 					}
 				}
 			})
-			b.propSelect(c, "text-align", "文字对齐", e.TextAlign, []string{"left", "center", "right"}, o)
-			b.propSelect(c, "vertical-align", "垂直对齐", e.VerticalAlign, []string{"top", "middle", "bottom"}, o)
+			ui.Row(c.Key("prop-align-row")).Gap(6).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					b.propSelect(c, "text-align", "文字对齐", e.TextAlign, []string{"left", "center", "right"}, o)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					b.propSelect(c, "vertical-align", "垂直对齐", e.VerticalAlign, []string{"top", "middle", "bottom"}, o)
+				})
+			})
 		}
 		if e.IsLinear() || b.Tool == ToolArrow || b.Tool == ToolLine {
-			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
+			ui.Box(c).Height(1).Margin(2, 0).Background(st.divider)
 			dim := e.DimArrow
 			if ui.Checkbox(c.Key("board-dim0-arrow"), &dim, i18n.T("dim0 箭头")).Changed() {
 				b.ChangeProperty("dim0-arrow", dim, o)
@@ -403,24 +416,30 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 			}
 			b.propSelect(c, "routing", "连线", routing, []string{"sharp", "curved", "elbow"}, o)
 			heads := []string{"", "arrow", "triangle", "barb", "bar", "circle", "circle_outline", "triangle_outline", "diamond", "diamond_outline", "cardinality_one", "cardinality_many", "cardinality_one_or_many", "cardinality_exactly_one", "cardinality_zero_or_one", "cardinality_zero_or_many"}
-			b.propSelect(c, "start-arrow", "起点", string(e.StartArrowhead), heads, o)
-			b.propSelect(c, "end-arrow", "终点", string(e.EndArrowhead), heads, o)
+			ui.Row(c.Key("prop-heads-row")).Gap(6).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					b.propSelect(c, "start-arrow", "起点", string(e.StartArrowhead), heads, o)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					b.propSelect(c, "end-arrow", "终点", string(e.EndArrowhead), heads, o)
+				})
+			})
 		}
 		if len(ids) > 0 {
-			ui.Box(c).Height(1).Margin(2, 0).Background(o.Theme.Border.Alpha(0.6))
-			ui.Row(c).Gap(3).Children(func() {
+			ui.Box(c).Height(1).Margin(2, 0).Background(st.divider)
+			ui.Row(c).Gap(4).Children(func() {
 				for _, a := range []struct{ id, label string }{{"duplicate", "复制图形"}, {"delete", "删除"}} {
-					if boardButton(c, a.id, i18n.T(a.label), false).Clicked() {
+					if boardFlatButton(c, a.id, i18n.T(a.label), false, st).Grow(1).MinWidth(0).Clicked() {
 						b.RunAction(a.id, o)
 					}
 				}
 			})
 			b.arrangeButtons(c, o, len(ids))
-			if boardButton(c, "board-link", i18n.T("关联文档或链接"), false).Clicked() {
+			if boardFlatButton(c, "board-link", i18n.T("关联文档或链接"), false, st).WidthPercent(100).Clicked() {
 				b.panel = "link"
 				b.propertyInput = e.Link
 			}
-			if e.Kind == whiteboard.KindImage && boardButton(c, "board-crop", i18n.T("裁剪图片"), false).Clicked() {
+			if e.Kind == whiteboard.KindImage && boardFlatButton(c, "board-crop", i18n.T("裁剪图片"), false, st).WidthPercent(100).Clicked() {
 				b.beginCrop(e.ID)
 			}
 		}
@@ -558,29 +577,74 @@ func (b *Board) beginCrop(id string) {
 	b.cropper = ce
 	b.panel = ""
 }
+func (b *Board) panelTitle() string {
+	switch {
+	case b.panel == "search":
+		return i18n.T("搜索白板内容")
+	case b.panel == "outline":
+		return i18n.T("大纲转思维导图")
+	case b.panel == "clear":
+		return i18n.T("清空白板")
+	case b.panel == "help":
+		return i18n.T("白板快捷键")
+	case strings.HasPrefix(b.panel, "color:"):
+		return i18n.T("自定义颜色")
+	case b.panel == "link":
+		return i18n.T("关联文档或链接")
+	case b.panel == "crop":
+		return i18n.T("裁剪图片")
+	case b.panel == "library":
+		return i18n.T("组件素材库")
+	case b.panel == "mermaid":
+		return i18n.T("Mermaid 转白板")
+	case b.panel == "background":
+		return i18n.T("画布背景")
+	case b.panel == "frame-name":
+		return i18n.T("重命名画框")
+	}
+	return i18n.T("白板")
+}
+
 func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 	if b.panel == "" {
 		return
 	}
-	ui.Scroll(c.Key("board-panel")).Absolute().Top(68).Right(12).Width(min(330, max(180, b.lastRect.W-24))).MaxHeight(max(150, b.lastRect.H-140)).Padding(16).Gap(10).Background(o.Theme.Background).Border(1, o.Theme.Border).Radius(8).Children(func() {
-		ui.Row(c).Children(func() {
-			ui.Text(c, i18n.T("白板")).FontSize(15).Grow(1)
-			if ui.Button(c, "×").Clicked() {
-				b.panel = ""
-			}
-		})
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Scroll(c.Key("board-panel")).Absolute().Top(66).Right(12).Width(min(336, max(180, b.lastRect.W-24))).MaxHeight(max(150, b.lastRect.H-140)).Padding(14).Gap(10), st).Children(func() {
+		boardPanelHeader(c, st, b.panelTitle(), "", "", o.Theme.Dark, func() { b.panel = "" })
 		switch {
 		case b.panel == "search":
 			b.searchPanel(c)
 		case b.panel == "outline":
 			b.outlinePanel(c, o)
 		case b.panel == "clear":
-			ui.Text(c, i18n.T("清空当前白板？可以撤销此操作"))
+			ui.Text(c, i18n.T("清空当前白板？可以撤销此操作")).FontSize(13).TextColor(st.text)
 			if ui.Button(c, i18n.T("清空白板")).Clicked() {
 				b.RunAction("clear-confirm", o)
 			}
 		case b.panel == "help":
-			ui.Text(c, "V 选择 · H 抓手 · R 矩形 · D 菱形\nO 椭圆 · A 箭头 · L 直线 · P 画笔\nT 文字 · N 便签 · E 橡皮 · F 画框\nSpace 平移 · Ctrl + 滚轮 缩放\nCtrl+Z 撤销 · Ctrl+Shift+Z 重做\nCtrl+C / X / V 复制、剪切、粘贴\nCtrl+D 复制图形 · Ctrl+G 组合\nShift 保持比例 · Alt 拖动复制\nEnter 编辑文字 · Esc 返回").FontSize(13)
+			shortcuts := [][2]string{
+				{"V / H", "选择与抓手"},
+				{"R / D / O", "矩形、菱形、椭圆"},
+				{"A / L / P", "箭头、直线、画笔"},
+				{"T / N / E / F", "文字、便签、橡皮、画框"},
+				{"Space / Ctrl+滚轮", "平移与缩放"},
+				{"Ctrl+Z / Shift+Z", "撤销与重做"},
+				{"Ctrl+C / X / V", "复制、剪切、粘贴"},
+				{"Ctrl+D / Ctrl+G", "复制图形与组合"},
+				{"Shift / Alt", "保持比例与拖动复制"},
+				{"Enter / Esc", "编辑文字与返回"},
+			}
+			ui.Column(c).Gap(6).Children(func() {
+				for _, sc := range shortcuts {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Box(c).Padding(2, 6).Radius(4).Background(st.surfaceMuted).Children(func() {
+							ui.Text(c, sc[0]).FontSize(11.5).FontWeight(500).TextColor(st.text).NoWrap()
+						})
+						ui.Text(c, i18n.T(sc[1])).FontSize(12).TextColor(st.muted).Grow(1).MinWidth(0)
+					})
+				}
+			})
 		case strings.HasPrefix(b.panel, "color:"):
 			ui.TextInput(c.Key("board-color-input"), &b.propertyInput).WidthPercent(100)
 			if ui.Button(c, i18n.T("应用颜色")).Clicked() {
@@ -607,7 +671,7 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 			}
 		case b.panel == "crop":
 			for i, label := range []string{"X", "Y", "宽度", "高度"} {
-				ui.Text(c, i18n.T(label))
+				boardSectionLabel(c, st, i18n.T(label))
 				ui.TextInput(c.Key(fmt.Sprint("crop", i)), &b.cropValues[i]).WidthPercent(100)
 			}
 			if ui.Button(c, i18n.T("应用裁剪")).Clicked() {
@@ -637,9 +701,14 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 		case b.panel == "mermaid":
 			b.mermaidPanel(c, o)
 		case b.panel == "background":
-			ui.Row(c).Gap(6).Children(func() {
+			ui.Row(c).Gap(8).Children(func() {
+				currentBg := strings.ToLower(b.Scene.AppState.ViewBackgroundColor)
 				for _, color := range []string{"#ffffff", "#f8f9fa", "#fff9db", "#e7f5ff", "#f3f0ff", "#000000"} {
-					if ui.ButtonBase(c.Key(color)).Size(30, 30).Background(boardColor(color, false)).Border(1, o.Theme.Border).Label(color).Clicked() {
+					sw := ui.ButtonBase(c.Key(color)).Size(30, 30).Radius(8).Background(boardColor(color, false)).Border(1, st.border).Focusable().Label(color)
+					if currentBg == color {
+						sw.Border(2, st.activeInk)
+					}
+					if sw.Clicked() {
 						b.edit(o, func() { b.Scene.AppState.ViewBackgroundColor = color })
 					}
 				}

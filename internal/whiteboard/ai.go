@@ -205,15 +205,15 @@ func AINodeSize(role AIRole) (float64, float64) {
 	case AIImageInput:
 		return 300, 300
 	case AIImage:
-		return 360, 480
+		return 380, 520
 	case AIVideo:
-		return 360, 440
+		return 380, 470
 	case AIText:
-		return 340, 420
+		return 350, 430
 	case AIConcat:
-		return 300, 260
+		return 310, 280
 	}
-	return 280, 190
+	return 300, 210
 }
 
 // NewAINode makes a node card at a scene point (its top left).

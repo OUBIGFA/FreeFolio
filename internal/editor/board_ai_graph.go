@@ -24,11 +24,12 @@ import (
 
 // Card geometry, in scene units.
 const (
-	aiHeader  = 36
-	aiSlotRow = 24
-	aiFooter  = 26
-	aiPad     = 12
-	aiPort    = 5
+	aiHeader     = 40
+	aiSlotRow    = 22
+	aiFooter     = 24
+	aiPad        = 12
+	aiPort       = 5
+	aiCardRadius = 12
 )
 
 // aiCardLayout places a card's parts in its local coordinates.
@@ -36,22 +37,35 @@ type aiCardLayout struct {
 	slots            []whiteboard.AISlot
 	out              string
 	slotTop          float32
+	headerRun        ui.Rect
 	widgets, preview ui.Rect
 	history          ui.Rect
 }
 
-// aiWidgetHeight is the height of a role's in-node controls.
-func aiWidgetHeight(role whiteboard.AIRole) float32 {
+func aiRunnableRole(role whiteboard.AIRole) bool {
+	switch role {
+	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote:
+		return true
+	}
+	return false
+}
+
+// aiWidgetHeightFor is the height of a role's in-node controls.
+func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	switch role {
 	case whiteboard.AINote:
-		return 34
+		return 30
 	case whiteboard.AIConcat:
-		return 76
+		return 68
 	case whiteboard.AIPrompt, whiteboard.AIImageInput:
 		return 0
 	}
-	// Model row, settings row and the instruction field.
-	return 28 + 6 + 28 + 6 + 72
+	// Prompt/instruction field (collapsed when linked), model row, and settings row.
+	promptH := float32(58)
+	if linkedPrompt {
+		promptH = 30
+	}
+	return promptH + 6 + 26 + 4 + 26
 }
 
 // aiPreviewMin is the least room a role's result needs.
@@ -60,13 +74,15 @@ func aiPreviewMin(role whiteboard.AIRole) float32 {
 	case whiteboard.AIPrompt:
 		return 80
 	case whiteboard.AINote:
-		return 40
+		return 44
 	case whiteboard.AIConcat:
 		return 56
 	case whiteboard.AIText:
-		return 96
+		return 100
+	case whiteboard.AIVideo:
+		return 150
 	}
-	return 140
+	return 160
 }
 
 func aiSlotRows(slots []whiteboard.AISlot, out string) int {
@@ -81,36 +97,61 @@ func aiSlotRows(slots []whiteboard.AISlot, out string) int {
 // some of the result.
 func aiMinHeight(n *whiteboard.AINode) float64 {
 	rows := aiSlotRows(whiteboard.AISlots(n), whiteboard.AIOutputType(n.Role))
-	return float64(aiHeader + 6 + float32(rows)*aiSlotRow + 6 + aiWidgetHeight(n.Role) + 8 + aiPreviewMin(n.Role) + aiFooter)
+	linkedPrompt := n.LinkAt("prompt") != ""
+	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	previewGap := float32(10)
+	if wh == 0 {
+		previewGap = 4
+	}
+	return float64(aiHeader + 4 + float32(rows)*aiSlotRow + 6 + wh + previewGap + aiPreviewMin(n.Role) + 8 + aiFooter)
 }
 
 func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayout {
 	s := b.aiState()
+	var slots []whiteboard.AISlot
 	cached, ok := s.nodes[e.ID]
 	if ok && cached.node == n && cached.layout != nil {
-		return *cached.layout
-	}
-	l := aiCardLayout{slots: whiteboard.AISlots(n), out: whiteboard.AIOutputType(n.Role), slotTop: aiHeader + 6}
-	w, h := float32(e.W), float32(e.H)
-	top := l.slotTop + float32(aiSlotRows(l.slots, l.out))*aiSlotRow + 6
-	wh := aiWidgetHeight(n.Role)
-	l.widgets = ui.Rect{X: aiPad, Y: top, W: max(0, w-2*aiPad), H: wh}
-	if n.Role == whiteboard.AIPrompt {
-		// A text node's field is its body.
-		l.widgets.H = max(0, h-aiFooter-6-top)
-		l.preview = ui.Rect{X: aiPad, Y: top + l.widgets.H, W: l.widgets.W}
+		slots = cached.layout.slots
 	} else {
-		py := top + wh + 8
-		l.preview = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: max(0, h-aiFooter-8-py)}
-		if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
-			l.history = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: 62}
-			l.preview.Y += l.history.H
-			l.preview.H = max(0, l.preview.H-l.history.H)
+		slots = whiteboard.AISlots(n)
+		if ok && cached.node == n {
+			cached.layout = &aiCardLayout{slots: slots}
+			s.nodes[e.ID] = cached
 		}
 	}
-	if ok && cached.node == n {
-		cached.layout = &l
-		s.nodes[e.ID] = cached
+	l := aiCardLayout{slots: slots, out: whiteboard.AIOutputType(n.Role), slotTop: aiHeader + 4}
+	w, h := float32(e.W), float32(e.H)
+	innerW := max(0, w-2*aiPad)
+	if aiRunnableRole(n.Role) && w >= 180 {
+		l.headerRun = ui.Rect{X: w - aiPad - 76, Y: (aiHeader - 26) / 2, W: 76, H: 26}
+	}
+	linkedPrompt := b.Scene.AILinkSource(n, "prompt") != nil
+	top := l.slotTop + float32(aiSlotRows(l.slots, l.out))*aiSlotRow + 6
+	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	l.widgets = ui.Rect{X: aiPad, Y: top, W: innerW, H: wh}
+	if n.Role == whiteboard.AIPrompt {
+		// A text node's field is its body.
+		l.widgets.H = max(0, h-aiFooter-8-top)
+		l.preview = ui.Rect{X: aiPad, Y: top + l.widgets.H, W: innerW}
+		return l
+	}
+	outGap := float32(10)
+	if wh == 0 {
+		outGap = 4
+	}
+	outTop := top + wh + outGap
+	avail := max(0, h-aiFooter-8-outTop)
+	if n.Role == whiteboard.AIImage && len(n.Outputs) >= 2 {
+		histH := float32(26)
+		if b.aiHistory(e, n).compare {
+			histH = 56
+		}
+		gap := float32(6)
+		prevH := max(0, avail-histH-gap)
+		l.preview = ui.Rect{X: aiPad, Y: outTop, W: innerW, H: prevH}
+		l.history = ui.Rect{X: aiPad, Y: outTop + prevH + gap, W: innerW, H: histH}
+	} else {
+		l.preview = ui.Rect{X: aiPad, Y: outTop, W: innerW, H: avail}
 	}
 	return l
 }
@@ -243,16 +284,20 @@ func (b *Board) paintAILink(p *ui.Painter, c [4]whiteboard.Point, color ui.Color
 func (b *Board) paintAILinks(p *ui.Painter, dark bool, viewport whiteboard.Box) {
 	s := b.aiState()
 	clear(s.linkedOut)
+	cardBg := aiNodePalette("text", dark).cardBg
 	for _, l := range b.aiLinks() {
 		s.linkedOut[l.from.ID] = true
 		if !viewport.Intersects(whiteboard.PointsBounds(l.curve[:]).Expand(8)) {
 			continue
 		}
-		b.paintAILink(p, l.curve, aiTypeColor(l.typ, dark), 2.5, dark)
-		// LiteGraph's circular link centre, kept legible at every zoom.
+		color := aiTypeColor(l.typ, dark)
+		b.paintAILink(p, l.curve, color.Alpha(0.85), 2.2, dark)
+		// LiteGraph's circular link centre with a cutout halo, kept legible at every zoom.
 		mid := aiSplineAt(l.curve, .5)
-		radius := float32(5 / b.Zoom)
-		p.Fill(ui.Rect{X: float32(mid[0]) - radius, Y: float32(mid[1]) - radius, W: radius * 2, H: radius * 2}, aiTypeColor(l.typ, dark), radius)
+		radius := float32(4.5 / b.Zoom)
+		halo := radius + float32(1.5/b.Zoom)
+		p.Fill(ui.Rect{X: float32(mid[0]) - halo, Y: float32(mid[1]) - halo, W: halo * 2, H: halo * 2}, cardBg, halo)
+		p.Fill(ui.Rect{X: float32(mid[0]) - radius, Y: float32(mid[1]) - radius, W: radius * 2, H: radius * 2}, color, radius)
 	}
 }
 
@@ -287,7 +332,7 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 				a = b.aiSourcePoint(t)
 			}
 		}
-		b.paintAILink(p, aiSpline(a, z), aiTypeColor(d.typ, dark), 2.5, dark)
+		b.paintAILink(p, aiSpline(a, z), aiTypeColor(d.typ, dark), 2.4, dark)
 		return
 	}
 	var shown *aiLink
@@ -308,7 +353,7 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 		return
 	}
 	color := aiTypeColor(shown.typ, dark)
-	b.paintAILink(p, shown.curve, color, 4, dark)
+	b.paintAILink(p, shown.curve, color, 3.2, dark)
 }
 
 // aiLinkControls gives the small centre marker a screen-sized hit target.

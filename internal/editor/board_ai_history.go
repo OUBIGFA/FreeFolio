@@ -98,19 +98,20 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 	h := b.aiHistory(e, n)
 	current := b.aiHistoryCurrent(e, n)
 	values, labels := aiHistoryLabels(n)
+	st := boardChromeFor(o.Theme)
 	ui.Column(c.Key("ai-history-"+e.ID)).Absolute().Left(x+l.history.X*z).Top(y+l.history.Y*z).Size(l.history.W, l.history.H).TransformOrigin(0, 0).Scale(z, z).Gap(4).Children(func() {
-		ui.Row(c).Height(28).Gap(4).Children(func() {
-			if boardButton(c, "previous", "‹", false).Width(26).Height(28).Label(i18n.T("上张图片")).Disabled(current == 0).Clicked() {
+		ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
+			if boardFlatButton(c, "previous", "‹", false, st).Width(24).Height(26).PaddingX(0).Label(i18n.T("上张图片")).Disabled(current == 0).Clicked() {
 				b.aiSelectImage(o, e, n, current-1)
 			}
 			if v, ok := aiInlineSelect(c, "current", i18n.T("图片历史"), strconv.Itoa(current), values, labels, false); ok {
 				index, _ := strconv.Atoi(v)
 				b.aiSelectImage(o, e, n, index)
 			}
-			if boardButton(c, "next", "›", false).Width(26).Height(28).Label(i18n.T("下张图片")).Disabled(current == len(n.Outputs)-1).Clicked() {
+			if boardFlatButton(c, "next", "›", false, st).Width(24).Height(26).PaddingX(0).Label(i18n.T("下张图片")).Disabled(current == len(n.Outputs)-1).Clicked() {
 				b.aiSelectImage(o, e, n, current+1)
 			}
-			if boardButton(c, "compare", i18n.T("对比"), h.compare).Height(28).Label(i18n.T("对比图片")).Disabled(len(n.Outputs) < 2).Clicked() {
+			if boardFlatButton(c, "compare", i18n.T("对比"), h.compare, st).Height(26).PaddingX(8).Label(i18n.T("对比图片")).Disabled(len(n.Outputs) < 2).Clicked() {
 				h.compare = !h.compare
 				if h.compare {
 					h.b, h.a = current, max(0, current-1)
@@ -120,16 +121,17 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 				}
 			}
 		})
-		ui.Row(c).Height(28).Gap(4).AlignItems(ui.Center).Children(func() {
-			if !h.compare {
-				ui.Text(c, i18n.T("当前图片将作为下游参考图")).FontSize(12).TextColor(o.Theme.TextMuted).SingleLine()
-				return
-			}
+		if !h.compare {
+			return
+		}
+		ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
 			for _, field := range []struct {
 				label, description string
 				value              *int
 			}{{"A", i18n.T("对比图片 A"), &h.a}, {"B", i18n.T("对比图片 B"), &h.b}} {
-				ui.Text(c, field.label).FontSize(12).TextColor(o.Theme.TextMuted)
+				ui.Box(c).Size(18, 18).Radius(4).Background(st.surfaceMuted).Center().Shrink(0).Children(func() {
+					ui.Text(c, field.label).FontSize(11).FontWeight(600).TextColor(st.muted)
+				})
 				if v, ok := aiInlineSelect(c, field.label, field.description, strconv.Itoa(*field.value), values, labels, false); ok {
 					*field.value, _ = strconv.Atoi(v)
 				}
@@ -175,7 +177,7 @@ func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whi
 			if b.ai.mediaErr[rel] != nil {
 				msg = i18n.T("图片无法读取：") + rel
 			}
-			p.TextLayout(b.aiCardTextFont(e.ID+"#history-"+rel, msg, r.W-12, ui.Font{Size: 12}), r.X+6, r.Y+24, pal.muted)
+			p.TextLayout(b.aiCardTextFont(e.ID+"#history-"+rel, msg, max(0, r.W-20), ui.Font{Size: 12}), r.X+10, r.Y+16, pal.muted)
 			return
 		}
 		iw, ih := bm.Size()
@@ -184,15 +186,22 @@ func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whi
 		p.ImageRegion(bm, ui.Rect{}, ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-height)/2, W: w, H: height}, ui.ImageOptions{})
 	}
 	draw(paths[0])
-	if !h.compare {
-		return
+	if h.compare {
+		splitX := r.X + r.W*h.split
+		p.Clip(ui.Rect{X: splitX, Y: r.Y, W: r.W * (1 - h.split), H: r.H}, 0, func() { draw(paths[1]) })
+		p.Line(splitX, r.Y, splitX, r.Y+r.H, 3, ui.RGBA(0, 0, 0, 0.42))
+		p.Line(splitX, r.Y, splitX, r.Y+r.H, 1.5, ui.RGB(255, 255, 255))
+		pill := ui.Rect{X: splitX - 10, Y: r.Y + r.H/2 - 14, W: 20, H: 28}
+		p.Fill(pill, ui.RGB(255, 255, 255), 10)
+		p.Stroke(pill, ui.RGBA(0, 0, 0, 0.22), 10, 1)
+		p.Text(splitX-6, r.Y+r.H/2-8, "↔", 12, ui.Hex("#1F2329"))
+		badge := func(bx float32, text string) {
+			box := ui.Rect{X: bx, Y: r.Y + 8, W: 20, H: 18}
+			p.Fill(box, ui.RGBA(17, 19, 24, 0.72), 4)
+			p.Text(bx+6, r.Y+10, text, 11, ui.RGB(255, 255, 255))
+		}
+		badge(r.X+8, "A")
+		badge(r.X+r.W-28, "B")
 	}
-	splitX := r.X + r.W*h.split
-	p.Clip(ui.Rect{X: splitX, Y: r.Y, W: r.W * (1 - h.split), H: r.H}, 0, func() { draw(paths[1]) })
-	p.Line(splitX, r.Y, splitX, r.Y+r.H, 3, pal.cardBg)
-	p.Line(splitX, r.Y, splitX, r.Y+r.H, 1, pal.ink)
-	p.Fill(ui.Rect{X: splitX - 9, Y: r.Y + r.H/2 - 14, W: 18, H: 28}, pal.cardBg, 8)
-	p.Text(splitX-6, r.Y+r.H/2-8, "↔", 12, pal.ink)
-	p.Text(r.X+6, r.Y+6, "A", 12, pal.ink)
-	p.Text(r.X+r.W-16, r.Y+6, "B", 12, pal.ink)
+	p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
 }

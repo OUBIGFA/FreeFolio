@@ -190,9 +190,10 @@ func (b *Board) paint(p *ui.Painter, r ui.Rect, dark bool, controls bool) {
 	if b.ShowGrid && controls {
 		step := b.Scene.AppState.GridSize * b.Zoom
 		if step >= 5 {
+			dot := boardColor("#ced4da", dark).Alpha(0.7)
 			for x := math.Mod(b.PanX, step); x < float64(r.W); x += step {
 				for y := math.Mod(b.PanY, step); y < float64(r.H); y += step {
-					p.Fill(ui.Rect{X: r.X + float32(x), Y: r.Y + float32(y), W: 1, H: 1}, boardColor("#ced4da", dark), 0)
+					p.Fill(ui.Rect{X: r.X + float32(x), Y: r.Y + float32(y), W: 1.5, H: 1.5}, dot, 0.75)
 				}
 			}
 		}
@@ -370,21 +371,33 @@ func (b *Board) paintSelection(p *ui.Painter, r ui.Rect, dark bool) {
 	color := boardColor("#6965db", dark)
 	ids := b.SelectedIDs()
 	if len(ids) > 0 {
+		var singleAI *whiteboard.AINode
+		if len(ids) == 1 {
+			singleAI = b.aiNode(b.Scene.ElementByID(ids[0]))
+		}
 		bounds := whiteboard.SelectionBounds(b.Scene, ids)
 		x, y := b.screenPoint(whiteboard.Point{bounds.X, bounds.Y})
-		p.Stroke(ui.Rect{X: x, Y: y, W: float32(bounds.W * b.Zoom), H: float32(bounds.H * b.Zoom)}, color, 0, 1)
+		if singleAI == nil {
+			p.Stroke(ui.Rect{X: x, Y: y, W: float32(bounds.W * b.Zoom), H: float32(bounds.H * b.Zoom)}, color, 2, 1)
+		}
 		_, handles := b.selectionHandles()
 		for _, handle := range handles {
-			x, y := b.screenPoint(handle.point)
-			p.Fill(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, boardColor("#ffffff", dark), 2)
-			p.Stroke(ui.Rect{X: x - 4, Y: y - 4, W: 8, H: 8}, color, 2, 1)
+			hx, hy := b.screenPoint(handle.point)
+			if singleAI != nil {
+				pal := aiNodePalette(singleAI.Kind(), dark)
+				p.Fill(ui.Rect{X: hx - 3.5, Y: hy - 3.5, W: 7, H: 7}, pal.cardBg, 3.5)
+				p.Stroke(ui.Rect{X: hx - 3.5, Y: hy - 3.5, W: 7, H: 7}, pal.accent, 3.5, 1.5)
+				continue
+			}
+			p.Fill(ui.Rect{X: hx - 4, Y: hy - 4, W: 8, H: 8}, boardColor("#ffffff", dark), 2.5)
+			p.Stroke(ui.Rect{X: hx - 4, Y: hy - 4, W: 8, H: 8}, color, 2.5, 1)
 		}
 	}
 	if b.mode == "marquee" {
 		bb := b.selectionBox
 		x, y := b.screenPoint(whiteboard.Point{bb.X, bb.Y})
-		p.Fill(ui.Rect{X: x, Y: y, W: float32(bb.W * b.Zoom), H: float32(bb.H * b.Zoom)}, color.Alpha(.1), 0)
-		p.Stroke(ui.Rect{X: x, Y: y, W: float32(bb.W * b.Zoom), H: float32(bb.H * b.Zoom)}, color, 0, 1)
+		p.Fill(ui.Rect{X: x, Y: y, W: float32(bb.W * b.Zoom), H: float32(bb.H * b.Zoom)}, color.Alpha(.1), 2)
+		p.Stroke(ui.Rect{X: x, Y: y, W: float32(bb.W * b.Zoom), H: float32(bb.H * b.Zoom)}, color, 2, 1)
 	}
 	if len(b.lasso) > 1 {
 		for i := 1; i < len(b.lasso); i++ {

@@ -131,11 +131,12 @@ func (b *Board) annotationToolbar(c *ui.Context, o BoardOptions) {
 	for _, t := range boardTools {
 		toolMeta[t.tool] = t
 	}
+	st := boardChromeFor(o.Theme)
 	ui.Row(c.Key("annotation-tools")).Absolute().Top(12).Left(12).Right(12).Justify(ui.Center).PassThrough().Children(func() {
-		ui.Row(c).Padding(4, 6).Gap(2).AlignItems(ui.Center).Background(o.Theme.Surface).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 18, 0, ui.RGBA(0, 0, 0, 0.12)).Children(func() {
+		boardSurface(ui.Row(c).Padding(4, 6).Gap(2).AlignItems(ui.Center), st).Children(func() {
 			for gi, group := range groups {
 				if gi > 0 {
-					ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(o.Theme.Border.Alpha(0.7))
+					boardToolbarDivider(c, fmt.Sprintf("ann-sep-%d", gi), st)
 				}
 				for _, toolID := range group {
 					tool := toolMeta[toolID]
@@ -171,31 +172,22 @@ func (b *Board) annotationProperties(c *ui.Context, o BoardOptions) {
 			return
 		}
 	}
-	ui.Column(c.Key("annotation-properties")).Absolute().Top(64).Left(12).Width(220).Padding(12).Gap(10).
-		Background(o.Theme.Surface).Border(1, o.Theme.Border).Radius(10).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.12)).Children(func() {
+	st := boardChromeFor(o.Theme)
+	boardSurface(ui.Column(c.Key("annotation-properties")).Absolute().Top(64).Left(12).Width(220).Padding(12).Gap(10), st).Children(func() {
 		for _, which := range []struct{ key, label, value string }{{"stroke", "颜色", e.StrokeColor}, {"fill", "填充", e.FillColor}} {
 			if which.key == "fill" && b.Tool != ToolRect && b.Tool != ToolEllipse && e.Kind != whiteboard.KindRectangle && e.Kind != whiteboard.KindEllipse {
 				continue
 			}
-			ui.Text(c, i18n.T(which.label)).FontSize(11.5).FontWeight(600).TextColor(o.Theme.TextMuted)
+			boardSectionLabel(c, st, i18n.T(which.label))
 			ui.Row(c.Key(which.key)).Gap(6).Children(func() {
 				for _, color := range []string{"#e03131", "#1971c2", "#2f9e44", "#f08c00", "#1e1e1e", "#ffffff", "transparent"} {
-					button := ui.ButtonBase(c.Key(color)).Size(22, 22).Radius(6).Background(boardColor(color, false)).Border(1, o.Theme.Border).Focusable().Label(i18n.T(which.label) + color)
-					if color == "transparent" {
-						button.Draw(func(p *ui.Painter, r ui.Rect) {
-							p.StrokePolyline([][2]float32{{r.X + 4, r.Y + r.H - 4}, {r.X + r.W - 4, r.Y + 4}}, 1.6, o.Theme.Danger)
-						})
-					}
-					if color == which.value {
-						button.Border(2, o.Theme.Accent)
-					}
-					if button.Clicked() {
+					if boardSwatch(c, color, color, i18n.T(which.label)+color, color == which.value, false, st).Clicked() {
 						b.ChangeProperty(which.key, color, o)
 					}
 				}
 			})
 		}
-		ui.Box(c).Height(1).Background(o.Theme.Border.Alpha(0.6))
+		ui.Box(c).Height(1).Background(st.divider)
 		for _, field := range []struct {
 			key, label, unit string
 			value, lo, hi    float64
@@ -285,15 +277,26 @@ func (b *Board) OpenAIImage(id string, edit bool, o BoardOptions) {
 	}
 }
 
-func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string) {
+func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bool) {
 	if o.AI == nil || o.AI.OpenImage == nil {
 		return
 	}
 	e := b.Scene.ElementByID(id)
+	st := boardChromeFor(o.Theme)
+	annotateDisabled := b.ReadOnly || e == nil || e.Locked || b.AIRunning()
+	if flat {
+		if boardFlatButton(c, "view-node-image", i18n.T("查看图片"), false, st).Height(26).Clicked() {
+			b.OpenAIImage(id, false, o)
+		}
+		if boardFlatButton(c, "annotate-node-image", i18n.T("标注图片"), false, st).Height(26).Disabled(annotateDisabled).Clicked() {
+			b.OpenAIImage(id, true, o)
+		}
+		return
+	}
 	if ui.Button(c.Key("view-node-image"), i18n.T("查看图片")).Height(28).Clicked() {
 		b.OpenAIImage(id, false, o)
 	}
-	if ui.Button(c.Key("annotate-node-image"), i18n.T("标注图片")).Height(28).Disabled(b.ReadOnly || e == nil || e.Locked || b.AIRunning()).Clicked() {
+	if ui.Button(c.Key("annotate-node-image"), i18n.T("标注图片")).Height(28).Disabled(annotateDisabled).Clicked() {
 		b.OpenAIImage(id, true, o)
 	}
 }

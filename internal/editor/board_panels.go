@@ -47,7 +47,10 @@ func (b *Board) libraryPanel(c *ui.Context, o BoardOptions) {
 		if b.libraryQuery != "" && !strings.Contains(strings.ToLower(item.Name+" "+item.Category), strings.ToLower(b.libraryQuery)) {
 			continue
 		}
-		row := ui.ButtonBase(c.Key("board-lib-"+item.ID)).WidthPercent(100).Padding(8).Radius(5).Border(1, o.Theme.Border).Focusable().Label(i18n.T(item.Name))
+		row := ui.ButtonBase(c.Key("board-lib-"+item.ID)).WidthPercent(100).Padding(8).Gap(10).AlignItems(ui.Center).Radius(8).Border(1, o.Theme.Border).Focusable().Label(i18n.T(item.Name))
+		if row.Hovered() {
+			row.Background(o.Theme.SurfaceHover)
+		}
 		row.Children(func() {
 			if b.libraryPreviews == nil {
 				b.libraryPreviews = map[string]*Board{}
@@ -61,14 +64,14 @@ func (b *Board) libraryPanel(c *ui.Context, o BoardOptions) {
 				preview.prepareImages(o)
 				b.libraryPreviews[item.ID] = preview
 			}
-			ui.Box(c.Key("preview:"+item.ID)).Size(70, 48).Draw(func(p *ui.Painter, r ui.Rect) {
+			ui.Box(c.Key("preview:"+item.ID)).Size(70, 48).Radius(6).Clip().Border(1, o.Theme.Border.Alpha(0.5)).Draw(func(p *ui.Painter, r ui.Rect) {
 				preview.lastRect = r
 				preview.fit(false)
 				preview.paint(p, r, o.Theme.Dark, false)
 			})
 			ui.Column(c).Gap(3).Children(func() {
-				ui.Text(c, i18n.T(item.Name)).FontSize(13)
-				ui.Text(c, i18n.T(item.Category)).FontSize(12).TextColor(o.Theme.TextMuted)
+				ui.Text(c, i18n.T(item.Name)).FontSize(13).FontWeight(500)
+				ui.Text(c, i18n.T(item.Category)).FontSize(11.5).TextColor(o.Theme.TextMuted)
 			})
 		})
 		if row.Clicked() {
