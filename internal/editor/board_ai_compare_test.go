@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
 	"testing"
 
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
@@ -127,5 +128,68 @@ func TestComputeCompareDiffImage(t *testing.T) {
 	diff := computeCompareDiffImage(a, b, nil, nil, false, false, false, false)
 	if px := diff.NRGBAAt(2, 2); px.R == 0 || px.B == 0 {
 		t.Fatalf("alpha difference was not highlighted: %+v", px)
+	}
+}
+
+func TestBoardAICompareKeepsOffscreenUpstreamImageLoadedAtHighZoom(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	pngA := testColoredPNG(t, 8, 8, color.NRGBA{R: 220, G: 40, B: 40, A: 255})
+	pngB := testColoredPNG(t, 8, 8, color.NRGBA{R: 40, G: 180, B: 220, A: 255})
+	o.AI.ReadFile = func(rel string) ([]byte, error) {
+		switch rel {
+		case "assets/a.png":
+			return pngA, nil
+		case "assets/b.png":
+			return pngB, nil
+		}
+		return nil, os.ErrNotExist
+	}
+	b := NewBoard(whiteboard.NewScene())
+	// Place both upstream AIImage nodes far off-screen to the left.
+	aID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{-2400, 100}, o)
+	bID := b.AddAINode(whiteboard.AIImage, whiteboard.Point{-2400, 700}, o)
+	b.updateAINode(o, aID, func(n *whiteboard.AINode) {
+		n.Outputs = []whiteboard.AIOutput{{Kind: "image", Path: "assets/a.png", MIME: "image/png"}}
+	})
+	b.updateAINode(o, bID, func(n *whiteboard.AINode) {
+		n.Outputs = []whiteboard.AIOutput{{Kind: "image", Path: "assets/b.png", MIME: "image/png"}}
+	})
+
+	cmpID := b.AddAINode(whiteboard.AICompare, whiteboard.Point{400, 300}, o)
+	b.setAILink(cmpID, "a", aID)
+	b.setAILink(cmpID, "b", bID)
+
+	// Zoom to 80% centered on the compare node so both upstream nodes are outside the viewport.
+	b.Zoom, b.PanX, b.PanY = 0.8, 200, 100
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	tt.Frame()
+	tt.Frame()
+	if b.ai.media["assets/a.png"] == nil || b.ai.media["assets/b.png"] == nil {
+		t.Fatalf("compare node evicted or failed to load offscreen upstream bitmaps: a=%v b=%v", b.ai.media["assets/a.png"] != nil, b.ai.media["assets/b.png"] != nil)
+	}
+}
+
+func TestBoardAICompareHandleUsableAtLowZoom(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	if err := b.InsertImage(testColoredPNG(t, 8, 8, color.NRGBA{R: 220, G: 40, B: 40, A: 255}), whiteboard.Point{120, 200}); err != nil {
+		t.Fatal(err)
+	}
+	imgA := b.Scene.ElementByID(b.SelectedIDs()[0])
+	if err := b.InsertImage(testColoredPNG(t, 8, 8, color.NRGBA{R: 40, G: 80, B: 220, A: 255}), whiteboard.Point{120, 420}); err != nil {
+		t.Fatal(err)
+	}
+	imgB := b.Scene.ElementByID(b.SelectedIDs()[0])
+	cmpID := b.AddAINode(whiteboard.AICompare, whiteboard.Point{600, 320}, o)
+	b.setAILink(cmpID, "a", imgA.ID)
+	b.setAILink(cmpID, "b", imgB.ID)
+
+	b.Zoom, b.PanX, b.PanY = 0.25, 300, 200
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	tt.Frame()
+	if _, ok := tt.Access("图片对比分隔线"); !ok {
+		t.Fatal("compare divider handle is missing at 25% zoom")
 	}
 }

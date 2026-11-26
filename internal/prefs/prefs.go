@@ -38,22 +38,34 @@ import (
 // new blank spaces by default, so version 15 migrates unchanged.
 // Version 17 adds independent font families, font lists and quick-note choices.
 // Empty values preserve the previous font category and leave global capture off.
-const CurrentVersion = 18
+// Version 18 adds optional local resource directory.
+// Version 19 adds ComfyUI local directory and server URL preferences;
+// empty values leave managed ComfyUI unconfigured, so version 18 migrates
+// unchanged.
+const CurrentVersion = 19
+
+// ComfyUIPrefs configures an optional local ComfyUI installation or running
+// server URL reused by FreeFolio for GPU-accelerated workflows.
+type ComfyUIPrefs struct {
+	Dir string `json:"dir,omitempty"`
+	URL string `json:"url,omitempty"`
+}
 
 // Prefs are the preferences.
 type Prefs struct {
-	ResourceDir          string   `json:"resourceDir,omitempty"`
-	BodyFont             string   `json:"bodyFont,omitempty"`
-	InterfaceFont        string   `json:"interfaceFont,omitempty"`
-	FavoriteFonts        []string `json:"favoriteFonts,omitempty"`
-	RecentBodyFonts      []string `json:"recentBodyFonts,omitempty"`
-	RecentInterfaceFonts []string `json:"recentInterfaceFonts,omitempty"`
-	QuickNoteEnabled     bool     `json:"quickNoteEnabled,omitempty"`
-	QuickNoteShortcut    string   `json:"quickNoteShortcut,omitempty"`
-	QuickNoteSpace       string   `json:"quickNoteSpace,omitempty"`
-	QuickNoteFolder      string   `json:"quickNoteFolder,omitempty"`
-	MindMapOpen          bool     `json:"mindMapOpen,omitempty"`
-	MindMapBothSides     bool     `json:"mindMapBothSides,omitempty"`
+	ResourceDir          string       `json:"resourceDir,omitempty"`
+	ComfyUI              ComfyUIPrefs `json:"comfyUI,omitzero"`
+	BodyFont             string       `json:"bodyFont,omitempty"`
+	InterfaceFont        string       `json:"interfaceFont,omitempty"`
+	FavoriteFonts        []string     `json:"favoriteFonts,omitempty"`
+	RecentBodyFonts      []string     `json:"recentBodyFonts,omitempty"`
+	RecentInterfaceFonts []string     `json:"recentInterfaceFonts,omitempty"`
+	QuickNoteEnabled     bool         `json:"quickNoteEnabled,omitempty"`
+	QuickNoteShortcut    string       `json:"quickNoteShortcut,omitempty"`
+	QuickNoteSpace       string       `json:"quickNoteSpace,omitempty"`
+	QuickNoteFolder      string       `json:"quickNoteFolder,omitempty"`
+	MindMapOpen          bool         `json:"mindMapOpen,omitempty"`
+	MindMapBothSides     bool         `json:"mindMapBothSides,omitempty"`
 	// SidebarLeft opts out of the default right-hand workspace sidebar.
 	SidebarLeft bool `json:"sidebarLeft,omitempty"`
 	// GrayFolderIcons renders sidebar folder icons in a uniform light gray

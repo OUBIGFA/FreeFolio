@@ -69,6 +69,21 @@ func (b *Board) aiSelectImage(o BoardOptions, e *whiteboard.Element, n *whiteboa
 }
 
 func (b *Board) aiPreviewPaths(e *whiteboard.Element, n *whiteboard.AINode) []string {
+	if n.Role == whiteboard.AICompare {
+		var paths []string
+		for _, slot := range []string{"a", "b"} {
+			from := b.Scene.AILinkSource(n, slot)
+			if from == nil {
+				continue
+			}
+			if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
+				if rel := b.DisplayedAIImage(from.ID); rel != "" {
+					paths = append(paths, rel)
+				}
+			}
+		}
+		return paths
+	}
 	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
 		h := b.aiHistory(e, n)
 		if h.compare {
@@ -145,6 +160,17 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 	if !h.compare || l.preview.H < 12 {
 		return
 	}
+	b.aiHistoryCompareHandle(c, e, n, l, x, y, z)
+}
+
+func (b *Board) aiHistoryCompareHandle(c *ui.Context, e *whiteboard.Element, n *whiteboard.AINode, l aiCardLayout, x, y, z float32) {
+	if n.Role != whiteboard.AIImage || len(n.Outputs) < 2 || l.preview.H < 12 {
+		return
+	}
+	h := b.aiHistory(e, n)
+	if !h.compare {
+		return
+	}
 	r := l.preview
 	// A fixed full-preview hit area keeps pointer capture stable while the
 	// divider moves and prevents the gesture from dragging the board node.
@@ -170,7 +196,7 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 
 // The node-local A/B selection and clipped, aspect-preserving comparison
 // follow rgthree Image Comparer's interaction, implemented with MyGo.
-func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors) {
+func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors, zoom float32) {
 	h := b.aiHistory(e, n)
 	paths := b.aiPreviewPaths(e, n)
 	draw := func(rel string) {
@@ -193,19 +219,11 @@ func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whi
 	if h.compare {
 		splitX := r.X + r.W*h.split
 		p.Clip(ui.Rect{X: splitX, Y: r.Y, W: r.W * (1 - h.split), H: r.H}, 0, func() { draw(paths[1]) })
-		p.Line(splitX, r.Y, splitX, r.Y+r.H, 3, ui.RGBA(0, 0, 0, 0.42))
-		p.Line(splitX, r.Y, splitX, r.Y+r.H, 1.5, ui.RGB(255, 255, 255))
-		pill := ui.Rect{X: splitX - 10, Y: r.Y + r.H/2 - 14, W: 20, H: 28}
-		p.Fill(pill, ui.RGB(255, 255, 255), 10)
-		p.Stroke(pill, ui.RGBA(0, 0, 0, 0.22), 10, 1)
-		p.Text(splitX-6, r.Y+r.H/2-8, "↔", 12, ui.Hex("#1F2329"))
-		badge := func(bx float32, text string) {
-			box := ui.Rect{X: bx, Y: r.Y + 8, W: 20, H: 18}
-			p.Fill(box, ui.RGBA(17, 19, 24, 0.72), 4)
-			p.Text(bx+6, r.Y+10, text, 11, ui.RGB(255, 255, 255))
-		}
-		badge(r.X+8, "A")
-		badge(r.X+r.W-28, "B")
+		paintCompareDivider(p, r, h.split, zoom)
+		s := compareBadgeScale(zoom)
+		pad := 8 * s
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
+		paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, "B")
 	}
 	p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
 }

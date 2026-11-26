@@ -104,9 +104,13 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		if l.headerRun.W > 0 {
 			maxW = l.headerRun.X - tx - 8
 		}
-		title := b.aiCardTextFont(e.ID+"#title", cmpOr(n.Title, i18n.T(aiRoleNames[n.Role])), 0, ui.Font{Size: 13, Weight: 600})
+		titleFontSize := float32(13)
+		if zoom < 0.5 {
+			titleFontSize = min(float32(22), 13/max(float32(0.45), zoom))
+		}
+		title := b.aiCardTextFont(e.ID+"#title", cmpOr(n.Title, i18n.T(aiRoleNames[n.Role])), 0, ui.Font{Size: titleFontSize, Weight: 600})
 		_, th := title.Size()
-		p.Clip(ui.Rect{X: tx, Y: 4, W: max(0, maxW), H: aiHeader - 8}, 0, func() {
+		p.Clip(ui.Rect{X: tx, Y: 2, W: max(0, maxW), H: aiHeader - 4}, 0, func() {
 			p.TextLayout(title, tx, (aiHeader-th)/2, pal.ink)
 		})
 
@@ -193,6 +197,10 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 	case b.Selected[e.ID] || running:
 		border, bw = pal.accent, 2
 	}
+	if zoom < 1 {
+		zScale := max(float32(0.2), zoom)
+		bw = max(bw, bw/zScale*0.8)
+	}
 	p.Stroke(card, border, aiCardRadius, bw)
 
 	// Slots: filled when linked, hollow when free, as LiteGraph draws them.
@@ -204,7 +212,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			c = c.Alpha(0.30)
 		}
 		lit := d != nil && d.target == e.ID && d.targetSlot == sl.Name
-		b.paintAISlot(p, 0, y, c, pal.cardBg, b.Scene.AILinkSource(n, sl.Name) != nil, lit)
+		b.paintAISlot(p, 0, y, c, pal.cardBg, b.Scene.AILinkSource(n, sl.Name) != nil, lit, zoom)
 	}
 	if l.out != "" {
 		c := aiTypeColor(l.out, dark)
@@ -212,25 +220,26 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			c = c.Alpha(0.30)
 		}
 		lit := d != nil && d.to != "" && d.target == e.ID
-		b.paintAISlot(p, w, l.slotTop+aiSlotRow/2, c, pal.cardBg, s.linkedOut[e.ID], lit)
+		b.paintAISlot(p, w, l.slotTop+aiSlotRow/2, c, pal.cardBg, s.linkedOut[e.ID], lit, zoom)
 	}
 }
 
-func (b *Board) paintAISlot(p *ui.Painter, x, y float32, c, bg ui.Color, filled, lit bool) {
+func (b *Board) paintAISlot(p *ui.Painter, x, y float32, c, bg ui.Color, filled, lit bool, zoom float32) {
+	z := max(float32(0.2), min(float32(1), zoom))
+	r := min(float32(12), float32(aiPort)/z)
 	if lit {
-		r := float32(aiPort + 5)
-		p.Fill(ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}, c.Alpha(0.24), r)
+		halo := r + 5/z
+		p.Fill(ui.Rect{X: x - halo, Y: y - halo, W: 2 * halo, H: 2 * halo}, c.Alpha(0.24), halo)
 	}
-	cut := float32(aiPort + 1.5)
+	cut := r + 1.5/z
 	p.Fill(ui.Rect{X: x - cut, Y: y - cut, W: 2 * cut, H: 2 * cut}, bg, cut)
-	r := float32(aiPort)
 	box := ui.Rect{X: x - r, Y: y - r, W: 2 * r, H: 2 * r}
 	if filled {
 		p.Fill(box, c, r)
 		return
 	}
 	p.Fill(box, bg, r)
-	p.Stroke(box, c, r, 1.75)
+	p.Stroke(box, c, r, max(1.75, 1.75/z*0.8))
 }
 
 func aiTypeName(typ string) string {
@@ -279,7 +288,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		return
 	}
 	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
-		b.paintAIImageHistory(p, e, n, r, pal)
+		b.paintAIImageHistory(p, e, n, r, pal, zoom)
 		return
 	}
 	s := b.aiState()
@@ -409,12 +418,17 @@ func aiInlineSelect(c *ui.Context, key, label, current string, values, labels []
 // instruction field is disabled while its slot is linked.
 func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 	s := b.aiState()
-	if !b.aiInlineActive() {
+	if o.AI == nil || b.Zoom < 0.1 {
 		if s.inlineFocused != "" {
 			s.inlineFocused = ""
 			b.flushAIEdit()
 		}
 		return
+	}
+	fullWidgets := b.aiInlineActive()
+	if !fullWidgets && s.inlineFocused != "" {
+		s.inlineFocused = ""
+		b.flushAIEdit()
 	}
 	z := float32(b.Zoom)
 	st := boardChromeFor(o.Theme)
@@ -431,17 +445,29 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		l := b.aiLayout(e, n)
 		id := e.ID
 		disabled := b.ReadOnly || e.Locked
-		if l.headerRun.W > 0 {
+		if l.headerRun.W > 0 && b.Zoom >= 0.2 {
 			hr := l.headerRun
-			ui.Row(c.Key("ai-header-run-"+id)).Absolute().Left(x+hr.X*z).Top(y+hr.Y*z).Size(hr.W, hr.H).TransformOrigin(0, 0).Scale(z, z).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+			btnScale := z
+			if !fullWidgets {
+				// Keep the header run button comfortably clickable at 20%–29% zoom.
+				btnScale = max(z, 0.45)
+			}
+			ui.Row(c.Key("ai-header-run-"+id)).Absolute().Left(x+(hr.X+hr.W)*z-hr.W*btnScale).Top(y+(hr.Y+hr.H/2)*z-(hr.H/2)*btnScale).Size(hr.W, hr.H).TransformOrigin(0, 0).Scale(btnScale, btnScale).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 				b.aiInlineRun(c, o, id, n, disabled)
 			})
 		}
-		b.aiHistoryControls(c, o, e, n, l, x, y, z)
 		if n.Role == whiteboard.AICompare {
-			b.aiCompareControls(c, o, e, n, l, x, y, z, disabled)
+			b.aiCompareHandleControls(c, e, n, l, x, y, z)
+			if fullWidgets {
+				b.aiCompareBarControls(c, o, e, n, l, x, y, z, disabled)
+			}
 			continue
 		}
+		if !fullWidgets {
+			b.aiHistoryCompareHandle(c, e, n, l, x, y, z)
+			continue
+		}
+		b.aiHistoryControls(c, o, e, n, l, x, y, z)
 		r := l.widgets
 		if r.W < 120 || r.H < 24 {
 			continue

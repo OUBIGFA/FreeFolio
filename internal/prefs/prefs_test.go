@@ -167,3 +167,22 @@ func TestNoSpaceStarterMigratesAndRoundTrips(t *testing.T) {
 		t.Fatalf("noSpaceStarter round-trip: %+v, %v", again, err)
 	}
 }
+
+func TestComfyUIPrefsMigrateAndRoundTrip(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "prefs.json")}
+	if err := os.WriteFile(store.Path, []byte(`{"version":18,"resourceDir":"C:\\resources"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := store.Load()
+	if err != nil || p.Version != CurrentVersion || p.ResourceDir != `C:\resources` || p.ComfyUI != (ComfyUIPrefs{}) {
+		t.Fatalf("version 18 migrated: %+v, %v", p, err)
+	}
+	p.ComfyUI = ComfyUIPrefs{Dir: `D:\ComfyUI`, URL: "http://127.0.0.1:8188"}
+	if err := store.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Load()
+	if err != nil || again.ComfyUI != p.ComfyUI {
+		t.Fatalf("ComfyUI prefs round-trip: %+v, %v", again, err)
+	}
+}

@@ -28,6 +28,14 @@
 
 引擎包在 Windows x64 为 43.4 MiB，Linux x64 为 44.8 MiB，macOS 为 49.4 MiB；选择 `2×` 时先以 4× 推理再用 Catmull-Rom 超采样缩回 2× 尺寸。单张放大输出上限为 64 兆像素、长边不超过 16384 像素。
 
+## ComfyUI 引擎（复用本机 PyTorch / CUDA）
+
+如果本机已安装 ComfyUI（如便携版、桌面版或源码虚拟环境），可在「设置 → 可选资源 → ComfyUI 引擎（GPU 加速）」中指定 ComfyUI 目录（或填写正在运行的 ComfyUI 服务地址），点「检测并启动」：
+
+- FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起 ComfyUI，并在退出时自动结束由 FreeFolio 拉起的进程。
+- 启动时自动通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`），既能直接复用用户原 ComfyUI 目录里已有的模型，也能把新模型独立放到资源目录中而不污染原目录。
+- 探测 `/object_info` 后，白板「图片放大」与「本地抠图」节点会自动列出 ComfyUI 中已可用的放大模型（`UpscaleModelLoader`）与抠图模型（`RMBG` 节点，如 `RMBG-3.0` / `BEN2`），并通过原生 HTTP API（`/upload/image`、`/prompt`、`/history`、`/view`）执行。
+
 ## 依据、位置与删除
 
 - **依据与限制。** 参照 [BEN2](https://github.com/PramaLLC/BEN2)、[BiRefNet](https://github.com/ZhengPeng7/BiRefNet) 与 [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) 原项目及对应模型卡。[BRIA RMBG 2.0/3.0](https://huggingface.co/briaai/RMBG-3.0) 与 `4x-UltraSharp` 为非商业许可，`upscayl-ncnn` 为 AGPL-3.0，均不作为默认本地包分发。

@@ -683,7 +683,10 @@ func (a *App) Run() error {
 		a.updates.svc, a.updates.async = newUpdateService(a.cfg.ConfigDir), true
 		a.ensureChatGPT()
 		a.chatgpt.openBrowser = mygo.Shell.OpenExternal
-		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
+		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+			a.quitting = true
+			a.stopComfyUI()
+		})
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
 		a.win.OnClose(func(event *mygo.CloseEvent) {
 			a.finishLaunch()
@@ -715,8 +718,10 @@ func (a *App) Run() error {
 			a.cancelPDF()
 			a.cancelCloudSync()
 			a.cancelChatGPTSignIn()
+			a.stopComfyUI()
 		})
 	})
+	defer a.stopComfyUI()
 	return mygo.App.Run()
 }
 

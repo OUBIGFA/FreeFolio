@@ -38,6 +38,15 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 			t.Fatalf("missing download action for %s", upscale.Name)
 		}
 	}
+	if !tester.HasText("ComfyUI 引擎（GPU 加速）") {
+		t.Fatal("missing ComfyUI engine section")
+	}
+	a.setComfyDirectory(root)
+	tester.Frame()
+	saved, err = a.prefStore.Load()
+	if err != nil || saved.ComfyUI.Dir != root {
+		t.Fatalf("ComfyUI directory not saved: %+v %v", saved.ComfyUI, err)
+	}
 }
 
 func TestSettingsTabsHaveIcons(t *testing.T) {

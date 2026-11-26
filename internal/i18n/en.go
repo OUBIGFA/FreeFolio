@@ -2486,4 +2486,22 @@ var en = map[string]string{
 	"请在设置的可选资源中下载图片放大模型":        "Download an upscaling model in Settings → Optional resources",
 	"请在设置的可选资源中下载图片放大资源":        "Download the image upscaling engine in Settings → Optional resources",
 	"不支持的图片放大提供方":               "Unsupported image upscale provider",
+
+	// Managed ComfyUI engine settings.
+	"ComfyUI 引擎（GPU 加速）": "ComfyUI Engine (GPU Acceleration)",
+	"选择 ComfyUI 目录":      "Choose ComfyUI folder",
+	"ComfyUI 目录":         "ComfyUI folder",
+	"未配置":                "Not configured",
+	"清除":                 "Clear",
+	"选择目录":               "Choose folder",
+	"服务地址（可选）":           "Server URL (optional)",
+	"留空则按 ComfyUI 目录静默启动，也可填已运行的地址": "Leave blank to launch silently from folder, or enter a running URL",
+	"未检测":             "Not checked",
+	"正在启动并检测 ComfyUI": "Starting and probing ComfyUI",
+	"已连接 %s · 放大模型 %d 个 · 抠图模型 %d 个": "Connected %s · %d upscale models · %d cutout models",
+	"运行状态":  "Status",
+	"停止引擎":  "Stop engine",
+	"检测并启动": "Check & Start",
+	"FreeFolio 会通过 --extra-model-paths-config 挂载资源目录下的 comfyui 文件夹，不修改原有 ComfyUI 目录": "FreeFolio mounts the comfyui folder under your resource folder via --extra-model-paths-config without modifying your ComfyUI folder",
+	"ComfyUI 连接失败：": "ComfyUI connection failed: ",
 }

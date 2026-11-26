@@ -134,17 +134,6 @@ func (b *Board) prepareCompareMedia(o BoardOptions, e *whiteboard.Element, n *wh
 	if s.compareDiffs == nil {
 		s.compareDiffs = map[string]*aiCompareDiffCache{}
 	}
-	for _, slot := range []string{"a", "b"} {
-		from := b.Scene.AILinkSource(n, slot)
-		if from == nil {
-			continue
-		}
-		if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
-			if rel := b.DisplayedAIImage(from.ID); rel != "" {
-				needed[rel] = true
-			}
-		}
-	}
 	if b.aiCompareMode(e, n) != "diff" {
 		return
 	}
@@ -305,11 +294,62 @@ func paintCompareBackground(p *ui.Painter, r ui.Rect, bg string) {
 	}
 }
 
-func paintCompareBadge(p *ui.Painter, x, y float32, text string) {
-	w := float32(max(20, len([]rune(text))*9+12))
-	box := ui.Rect{X: x, Y: y, W: w, H: 18}
-	p.Fill(box, ui.RGBA(17, 19, 24, 0.74), 4)
-	p.Text(x+6, y+2, text, 11, ui.RGB(255, 255, 255))
+func compareBadgeScale(zoom float32) float32 {
+	z := max(float32(0.2), min(float32(1), zoom))
+	return min(float32(2.5), 1/z)
+}
+
+func compareBadgeWidth(s float32, text string) float32 {
+	return max(20*s, (float32(len([]rune(text)))*8.5+12)*s)
+}
+
+func paintCompareBadge(p *ui.Painter, x, y, zoom float32, text string) {
+	s := compareBadgeScale(zoom)
+	w := compareBadgeWidth(s, text)
+	h := 18 * s
+	box := ui.Rect{X: x, Y: y, W: w, H: h}
+	p.Fill(box, ui.RGBA(17, 19, 24, 0.78), 4*s)
+	p.Text(x+6*s, y+2.5*s, text, 11*s, ui.RGB(255, 255, 255))
+}
+
+func paintCompareBadgeRight(p *ui.Painter, rightX, y, zoom float32, text string) {
+	s := compareBadgeScale(zoom)
+	w := compareBadgeWidth(s, text)
+	paintCompareBadge(p, rightX-w, y, zoom, text)
+}
+
+func paintCompareDivider(p *ui.Painter, r ui.Rect, split, zoom float32) {
+	z := max(float32(0.15), min(float32(1), zoom))
+	inv := 1 / z
+	splitX := r.X + r.W*split
+	p.Line(splitX, r.Y, splitX, r.Y+r.H, max(3, 3.6*inv), ui.RGBA(0, 0, 0, 0.48))
+	p.Line(splitX, r.Y, splitX, r.Y+r.H, max(1.5, 2.0*inv), ui.RGB(255, 255, 255))
+	pw := min(r.W*0.32, 22*inv)
+	ph := min(r.H*0.48, 34*inv)
+	if pw < 8 || ph < 12 {
+		return
+	}
+	cy := r.Y + r.H/2
+	pill := ui.Rect{X: splitX - pw/2, Y: cy - ph/2, W: pw, H: ph}
+	rad := min(pw/2, ph/2)
+	p.Shadow(pill, rad, 0, 1.5*inv, 6*inv, 0, ui.RGBA(0, 0, 0, 0.30))
+	p.Fill(pill, ui.RGB(255, 255, 255), rad)
+	p.Stroke(pill, ui.RGBA(17, 19, 24, 0.35), rad, max(1, 1.4*inv))
+	ink := ui.Hex("#1F2329")
+	stroke := max(1.5, 1.9*inv)
+	dx := pw * 0.24
+	arm := pw * 0.14
+	dy := ph * 0.16
+	p.StrokePolyline([][2]float32{
+		{splitX - dx + arm, cy - dy},
+		{splitX - dx, cy},
+		{splitX - dx + arm, cy + dy},
+	}, stroke, ink)
+	p.StrokePolyline([][2]float32{
+		{splitX + dx - arm, cy - dy},
+		{splitX + dx, cy},
+		{splitX + dx - arm, cy + dy},
+	}, stroke, ink)
 }
 
 func (b *Board) paintCompareInput(p *ui.Painter, e *whiteboard.Element, r ui.Rect, in aiCompareInput, alpha float32, pal aiNodeColors, tag string) {
@@ -318,7 +358,9 @@ func (b *Board) paintCompareInput(p *ui.Painter, e *whiteboard.Element, r ui.Rec
 		if in.err != nil {
 			msg = i18n.T("图片无法读取")
 		}
-		p.TextLayout(b.aiCardTextFont(e.ID+"#cmp-"+tag, msg, max(0, r.W-20), ui.Font{Size: 12}), r.X+10, r.Y+16, pal.muted)
+		tl := b.aiCardTextFont(e.ID+"#cmp-"+tag, msg, max(0, r.W-20), ui.Font{Size: 12})
+		tw, th := tl.Size()
+		p.TextLayout(tl, r.X+max(10, (r.W-tw)/2), r.Y+max(10, (r.H-th)/2), pal.muted)
 		return
 	}
 	iw, ih := in.bm.Size()
@@ -344,10 +386,12 @@ func (b *Board) paintAIComparePreview(p *ui.Painter, e *whiteboard.Element, n *w
 
 	if !inA.ok && !inB.ok {
 		hint := i18n.T("连接图片 A 与图片 B 进行对比")
-		hl := b.aiCardTextFont(e.ID+"#cmp-hint", hint, 0, ui.Font{Size: 12})
+		fontScale := min(float32(1.75), 1/max(float32(0.45), min(float32(1), zoom)))
+		hl := b.aiCardTextFont(e.ID+"#cmp-hint", hint, 0, ui.Font{Size: 12 * fontScale})
 		hw, hh := hl.Size()
+		iconSize := min(float32(42), 20/max(float32(0.35), min(float32(1), zoom)))
 		if icon := boardIcon("image"); icon != nil && r.H >= 72 {
-			paintBoardIcon(p, icon, ui.Rect{X: r.X + (r.W-20)/2, Y: r.Y + r.H/2 - 20, W: 20, H: 20}, pal.muted, zoom)
+			paintBoardIcon(p, icon, ui.Rect{X: r.X + (r.W-iconSize)/2, Y: r.Y + r.H/2 - iconSize, W: iconSize, H: iconSize}, pal.muted, zoom)
 			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+r.H/2+6, pal.muted)
 		} else {
 			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+(r.H-hh)/2, pal.muted)
@@ -355,17 +399,18 @@ func (b *Board) paintAIComparePreview(p *ui.Painter, e *whiteboard.Element, n *w
 		drawBorder()
 		return
 	}
+	pad := 8 * compareBadgeScale(zoom)
 	if inA.ok && !inB.ok {
 		b.paintCompareInput(p, e, r, inA, 1, pal, "a")
-		paintCompareBadge(p, r.X+8, r.Y+8, "A")
-		paintCompareBadge(p, r.X+r.W-76, r.Y+8, i18n.T("缺图片 B"))
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
+		paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, i18n.T("缺图片 B"))
 		drawBorder()
 		return
 	}
 	if !inA.ok && inB.ok {
 		b.paintCompareInput(p, e, r, inB, 1, pal, "b")
-		paintCompareBadge(p, r.X+8, r.Y+8, i18n.T("缺图片 A"))
-		paintCompareBadge(p, r.X+r.W-28, r.Y+8, "B")
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, i18n.T("缺图片 A"))
+		paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, "B")
 		drawBorder()
 		return
 	}
@@ -378,13 +423,13 @@ func (b *Board) paintAIComparePreview(p *ui.Painter, e *whiteboard.Element, n *w
 		right := ui.Rect{X: r.X + half + 1, Y: r.Y, W: max(0, half-1), H: r.H}
 		p.Clip(left, 0, func() { b.paintCompareInput(p, e, left, inA, 1, pal, "a") })
 		p.Clip(right, 0, func() { b.paintCompareInput(p, e, right, inB, 1, pal, "b") })
-		p.Line(r.X+half, r.Y, r.X+half, r.Y+r.H, 1.5, pal.divider)
-		paintCompareBadge(p, r.X+8, r.Y+8, "A")
-		paintCompareBadge(p, r.X+half+8, r.Y+8, "B")
+		p.Line(r.X+half, r.Y, r.X+half, r.Y+r.H, max(1.5, 1.5/max(float32(0.2), min(float32(1), zoom))), pal.divider)
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
+		paintCompareBadge(p, r.X+half+pad, r.Y+pad, zoom, "B")
 	case "overlay":
 		b.paintCompareInput(p, e, r, inA, 1, pal, "a")
 		b.paintCompareInput(p, e, r, inB, cs.split, pal, "b")
-		paintCompareBadge(p, r.X+8, r.Y+8, fmt.Sprintf("B %.0f%%", cs.split*100))
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, fmt.Sprintf("B %.0f%%", cs.split*100))
 	case "diff":
 		key, _, _, _ := b.aiCompareDiffKey(e, n)
 		entry := b.ai.compareDiffs[key]
@@ -393,21 +438,23 @@ func (b *Board) paintAIComparePreview(p *ui.Painter, e *whiteboard.Element, n *w
 			if entry != nil && entry.err != nil {
 				msg = i18n.T("无法计算差异")
 			}
-			p.TextLayout(b.aiCardTextFont(e.ID+"#cmp-diff", msg, max(0, r.W-20), ui.Font{Size: 12}), r.X+10, r.Y+16, pal.muted)
+			tl := b.aiCardTextFont(e.ID+"#cmp-diff", msg, max(0, r.W-20), ui.Font{Size: 12})
+			tw, th := tl.Size()
+			p.TextLayout(tl, r.X+max(10, (r.W-tw)/2), r.Y+max(10, (r.H-th)/2), pal.muted)
 		} else {
 			iw, ih := entry.bitmap.Size()
 			scale := min(r.W/float32(iw), r.H/float32(ih))
 			w, h := float32(iw)*scale, float32(ih)*scale
 			p.ImageRegion(entry.bitmap, ui.Rect{}, ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}, ui.ImageOptions{})
 		}
-		paintCompareBadge(p, r.X+8, r.Y+8, i18n.T("差异"))
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, i18n.T("差异"))
 	case "toggle":
 		if cs.holdA {
 			b.paintCompareInput(p, e, r, inA, 1, pal, "a")
-			paintCompareBadge(p, r.X+8, r.Y+8, i18n.T("当前 A"))
+			paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, i18n.T("当前 A"))
 		} else {
 			b.paintCompareInput(p, e, r, inB, 1, pal, "b")
-			paintCompareBadge(p, r.X+8, r.Y+8, i18n.T("B · 按住看 A"))
+			paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, i18n.T("B · 按住看 A"))
 		}
 	default:
 		b.paintCompareInput(p, e, r, inA, 1, pal, "a")
@@ -416,14 +463,9 @@ func (b *Board) paintAIComparePreview(p *ui.Painter, e *whiteboard.Element, n *w
 			paintCompareBackground(p, r, bg)
 			b.paintCompareInput(p, e, r, inB, 1, pal, "b")
 		})
-		p.Line(splitX, r.Y, splitX, r.Y+r.H, 3, ui.RGBA(0, 0, 0, 0.42))
-		p.Line(splitX, r.Y, splitX, r.Y+r.H, 1.5, ui.RGB(255, 255, 255))
-		pill := ui.Rect{X: splitX - 10, Y: r.Y + r.H/2 - 14, W: 20, H: 28}
-		p.Fill(pill, ui.RGB(255, 255, 255), 10)
-		p.Stroke(pill, ui.RGBA(0, 0, 0, 0.22), 10, 1)
-		p.Text(splitX-6, r.Y+r.H/2-8, "↔", 12, ui.Hex("#1F2329"))
-		paintCompareBadge(p, r.X+8, r.Y+8, "A")
-		paintCompareBadge(p, r.X+r.W-28, r.Y+8, "B")
+		paintCompareDivider(p, r, cs.split, zoom)
+		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
+		paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, "B")
 	}
 	drawBorder()
 }
@@ -465,25 +507,30 @@ func (b *Board) swapCompareInputs(o BoardOptions, e *whiteboard.Element) {
 	})
 }
 
-func (b *Board) aiCompareControls(c *ui.Context, o BoardOptions, e *whiteboard.Element, n *whiteboard.AINode, l aiCardLayout, x, y, z float32, disabled bool) {
+func (b *Board) aiCompareBarControls(c *ui.Context, o BoardOptions, e *whiteboard.Element, n *whiteboard.AINode, l aiCardLayout, x, y, z float32, disabled bool) {
 	st := boardChromeFor(o.Theme)
-	cs := b.aiCompare(e)
 	mode := b.aiCompareMode(e, n)
 	bg := b.aiCompareBg(e, n)
 	w := l.widgets
-	if w.W >= 120 && w.H >= 24 {
-		ui.Row(c.Key("ai-compare-bar-"+e.ID)).Absolute().Left(x+w.X*z).Top(y+w.Y*z).Size(w.W, w.H).TransformOrigin(0, 0).Scale(z, z).Gap(4).AlignItems(ui.Center).Children(func() {
-			if v, ok := aiInlineSelect(c, "cmp-mode-"+e.ID, i18n.T("对比模式"), mode, compareModeValues, translated(compareModeLabels...), false); ok {
-				b.setCompareMode(o, e, v)
-			}
-			if v, ok := aiInlineSelect(c, "cmp-bg-"+e.ID, i18n.T("对比背景"), bg, compareBgValues, translated(compareBgLabels...), false); ok {
-				b.setCompareBg(o, e, v)
-			}
-			if boardFlatButton(c, "cmp-swap-"+e.ID, i18n.T("对调"), false, st).Height(26).PaddingX(8).Disabled(disabled).Tooltip(i18n.T("交换图片 A 与图片 B")).Clicked() {
-				b.swapCompareInputs(o, e)
-			}
-		})
+	if w.W < 120 || w.H < 24 {
+		return
 	}
+	ui.Row(c.Key("ai-compare-bar-"+e.ID)).Absolute().Left(x+w.X*z).Top(y+w.Y*z).Size(w.W, w.H).TransformOrigin(0, 0).Scale(z, z).Gap(4).AlignItems(ui.Center).Children(func() {
+		if v, ok := aiInlineSelect(c, "cmp-mode-"+e.ID, i18n.T("对比模式"), mode, compareModeValues, translated(compareModeLabels...), false); ok {
+			b.setCompareMode(o, e, v)
+		}
+		if v, ok := aiInlineSelect(c, "cmp-bg-"+e.ID, i18n.T("对比背景"), bg, compareBgValues, translated(compareBgLabels...), false); ok {
+			b.setCompareBg(o, e, v)
+		}
+		if boardFlatButton(c, "cmp-swap-"+e.ID, i18n.T("对调"), false, st).Height(26).PaddingX(8).Disabled(disabled).Tooltip(i18n.T("交换图片 A 与图片 B")).Clicked() {
+			b.swapCompareInputs(o, e)
+		}
+	})
+}
+
+func (b *Board) aiCompareHandleControls(c *ui.Context, e *whiteboard.Element, n *whiteboard.AINode, l aiCardLayout, x, y, z float32) {
+	cs := b.aiCompare(e)
+	mode := b.aiCompareMode(e, n)
 	r := l.preview
 	if r.H < 12 {
 		return

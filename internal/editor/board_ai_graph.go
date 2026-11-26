@@ -280,7 +280,7 @@ func (b *Board) paintAILink(p *ui.Painter, c [4]whiteboard.Point, color ui.Color
 		for index := range c {
 			scaled[index] = whiteboard.ScalePoint(c[index], float64(zoom))
 		}
-		p.StrokePath(aiSplinePath(scaled), width*zoom, color)
+		p.StrokePath(aiSplinePath(scaled), max(1.6, width*zoom), color)
 		direction := whiteboard.Sub(c[3], c[2])
 		if length := whiteboard.Distance(c[3], c[2]); length > 0 {
 			direction = whiteboard.ScalePoint(direction, 1/length)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,89 @@ type resourceState struct {
 	err                error
 	received           atomic.Int64
 	total              int64
+
+	comfy        *localresource.ComfyManager
+	comfyURL     string
+	comfyURLInit bool
+	comfyBusy    bool
+	comfyCaps    *localresource.ComfyCapabilities
+	comfyErr     error
+}
+
+func (a *App) comfyManager() *localresource.ComfyManager {
+	if a.resources.comfy == nil {
+		a.resources.comfy = localresource.NewComfyManager()
+	}
+	return a.resources.comfy
+}
+
+func (a *App) comfyConfig() localresource.ComfyConfig {
+	return localresource.ComfyConfig{
+		Dir:         strings.TrimSpace(a.prefs.ComfyUI.Dir),
+		URL:         strings.TrimSpace(a.prefs.ComfyUI.URL),
+		ResourceDir: a.resourceDirectory(),
+	}
+}
+
+func (a *App) stopComfyUI() {
+	if a.resources.comfy != nil {
+		a.resources.comfy.Stop()
+	}
+}
+
+func (a *App) setComfyDirectory(dir string) {
+	dir = strings.TrimSpace(dir)
+	if dir != "" && !filepath.IsAbs(dir) {
+		return
+	}
+	if dir != "" {
+		dir = filepath.Clean(dir)
+	}
+	a.prefs.ComfyUI.Dir = dir
+	a.savePrefs()
+	a.resources.comfyCaps = nil
+	a.resources.comfyErr = nil
+	a.stopComfyUI()
+}
+
+func (a *App) chooseComfyDirectory() {
+	win := a.win
+	if win == nil {
+		return
+	}
+	opts := mygo.OpenDialogOptions{Parent: win, Directory: true, Title: i18n.T("选择 ComfyUI 目录"), DefaultPath: a.prefs.ComfyUI.Dir}
+	a.backgroundResult(func() func() {
+		picked, err := mygo.Dialog.Open(opts)
+		return func() {
+			if err != nil {
+				a.resources.comfyErr = err
+			} else if len(picked) > 0 {
+				a.setComfyDirectory(picked[0])
+			}
+		}
+	})
+}
+
+func (a *App) probeComfyUI() {
+	s := &a.resources
+	if s.comfyBusy {
+		return
+	}
+	s.comfyBusy, s.comfyErr = true, nil
+	mgr := a.comfyManager()
+	cfg := a.comfyConfig()
+	a.backgroundResult(func() func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+		caps, err := mgr.Probe(ctx, cfg)
+		return func() {
+			s.comfyBusy = false
+			s.comfyErr = err
+			if err == nil {
+				s.comfyCaps = caps
+			}
+		}
+	})
 }
 
 func (a *App) resourceDirectory() string {
@@ -213,6 +297,60 @@ func (a *App) settingsResources(c *ui.Context) {
 			detail := fmt.Sprintf("%s · %.1f MiB · MIT / BSD-3-Clause", i18n.T("含 Real-ESRGAN x4plus（通用写实）与 x4plus Anime（动漫插画），支持 Vulkan GPU 加速"), float64(upscaleEngine.Size)/(1<<20))
 			a.settingsResourceRow(c, upscaleEngine, detail)
 		})
+	}
+	settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
+	if !s.comfyURLInit {
+		s.comfyURL = a.prefs.ComfyUI.URL
+		s.comfyURLInit = true
+	}
+	settingsGroup(c, "comfyui-engine", func() {
+		dirNote := a.prefs.ComfyUI.Dir
+		if dirNote == "" {
+			dirNote = i18n.T("未配置")
+		}
+		settingRow(c, "comfy-dir", i18n.T("ComfyUI 目录"), dirNote, func() {
+			if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy).Clicked() {
+				a.setComfyDirectory("")
+			}
+			if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy).Clicked() {
+				a.chooseComfyDirectory()
+			}
+		})
+		settingsSeparator(c)
+		settingRow(c, "comfy-url", i18n.T("服务地址（可选）"), i18n.T("留空则按 ComfyUI 目录静默启动，也可填已运行的地址"), func() {
+			if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy).Changed() {
+				a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
+				a.savePrefs()
+				s.comfyCaps = nil
+				s.comfyErr = nil
+			}
+		})
+		settingsSeparator(c)
+		status := i18n.T("未检测")
+		switch {
+		case s.comfyBusy:
+			status = i18n.T("正在启动并检测 ComfyUI")
+		case s.comfyCaps != nil:
+			dev := s.comfyCaps.Device
+			if dev == "" {
+				dev = "ComfyUI"
+			}
+			status = fmt.Sprintf(i18n.T("已连接 %s · 放大模型 %d 个 · 抠图模型 %d 个"), dev, len(s.comfyCaps.UpscaleModels), len(s.comfyCaps.CutoutModels))
+		}
+		settingRow(c, "comfy-status", i18n.T("运行状态"), status, func() {
+			if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
+				a.stopComfyUI()
+				s.comfyCaps = nil
+			}
+			canProbe := !s.comfyBusy && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
+			if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
+				a.probeComfyUI()
+			}
+		})
+		ui.Text(c, i18n.T("FreeFolio 会通过 --extra-model-paths-config 挂载资源目录下的 comfyui 文件夹，不修改原有 ComfyUI 目录")).FontSize(12).TextColor(c.Theme().TextMuted).Padding(0, 16, 12, 16)
+	})
+	if s.comfyErr != nil {
+		ui.Text(c, i18n.T("ComfyUI 连接失败：")+s.comfyErr.Error()).TextColor(c.Theme().Danger).FontSize(12)
 	}
 	if s.confirm != "" {
 		ui.Text(c, i18n.T("仅移除所选资源，不影响原图或已生成的图片")).FontSize(12)

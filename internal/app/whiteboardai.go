@@ -36,6 +36,11 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		for _, model := range localresource.Models {
 			out = append(out, editor.BoardAIModel{Connection: "local", Model: model.ID, Name: model.Name})
 		}
+		if a.resources.comfyCaps != nil {
+			for _, model := range a.resources.comfyCaps.CutoutModels {
+				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
+			}
+		}
 		return out
 	}
 	if role == whiteboard.AIUpscale {
@@ -48,6 +53,11 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 				label = model.Name + " · " + i18n.T("动漫插画")
 			}
 			out = append(out, editor.BoardAIModel{Connection: "local-ncnn", Model: model.ID, Name: label})
+		}
+		if a.resources.comfyCaps != nil {
+			for _, model := range a.resources.comfyCaps.UpscaleModels {
+				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
+			}
 		}
 		return out
 	}
@@ -248,20 +258,28 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		return added[len(added)-1].Text, nil
 	}
 	resourceDir := a.resourceDirectory()
+	comfyMgr := a.comfyManager()
+	comfyCfg := a.comfyConfig()
 	r.Media = func(ctx context.Context, job editor.BoardAIJob, progress func(string)) ([]editor.BoardAIMedia, error) {
 		if job.Node.Role == whiteboard.AICutout {
-			model, ok := localresource.Model(job.Node.Model)
-			engine, supported := localresource.Runtime()
-			if !supported {
-				return nil, errors.New(i18n.T("此平台暂不支持本地抠图"))
-			}
-			if !ok || !localresource.Present(resourceDir, model) || !localresource.Present(resourceDir, engine) {
-				return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型和运行库"))
-			}
 			if len(job.Images) != 1 {
 				return nil, errors.New(i18n.T("请连接一张输入图片"))
 			}
-			data, err := localresource.Cutout(ctx, resourceDir, model.ID, job.Images[0].Data)
+			var data []byte
+			var err error
+			if job.Node.Connection == "comfyui" {
+				data, err = comfyMgr.Cutout(ctx, comfyCfg, job.Node.Model, job.Images[0].Data)
+			} else {
+				model, ok := localresource.Model(job.Node.Model)
+				engine, supported := localresource.Runtime()
+				if !supported {
+					return nil, errors.New(i18n.T("此平台暂不支持本地抠图"))
+				}
+				if !ok || !localresource.Present(resourceDir, model) || !localresource.Present(resourceDir, engine) {
+					return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型和运行库"))
+				}
+				data, err = localresource.Cutout(ctx, resourceDir, model.ID, job.Images[0].Data)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -278,6 +296,8 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if len(job.Images) != 1 {
 				return nil, errors.New(i18n.T("请连接一张输入图片"))
 			}
+			var data []byte
+			var err error
 			switch job.Node.Connection {
 			case "", "local-ncnn":
 				model, ok := localresource.UpscaleModel(job.Node.Model)
@@ -288,21 +308,23 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				if !ok || !localresource.Present(resourceDir, engine) {
 					return nil, errors.New(i18n.T("请在设置的可选资源中下载图片放大资源"))
 				}
-				data, err := localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data)
-				if err != nil {
-					return nil, err
-				}
-				if err = ctx.Err(); err != nil {
-					return nil, err
-				}
-				url, err := a.writeAssetFor(d, path.Dir(rel), "upscale.png", data)
-				if err != nil {
-					return nil, err
-				}
-				return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
+				data, err = localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data)
+			case "comfyui":
+				data, err = comfyMgr.Upscale(ctx, comfyCfg, job.Node.Model, job.Node.Params.Scale, job.Images[0].Data)
 			default:
 				return nil, errors.New(i18n.T("不支持的图片放大提供方"))
 			}
+			if err != nil {
+				return nil, err
+			}
+			if err = ctx.Err(); err != nil {
+				return nil, err
+			}
+			url, err := a.writeAssetFor(d, path.Dir(rel), "upscale.png", data)
+			if err != nil {
+				return nil, err
+			}
+			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
 		}
 		s, err := find(job.Node)
 		if err != nil {
