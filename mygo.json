@@ -2,7 +2,7 @@
   "name": "FreeFolio",
   "slug": "freefolio",
   "identifier": "io.github.oubigfa.freefolio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "resources/icon.png",
   "main": "./cmd/freefolio",
   "out": "dist",
