@@ -2471,4 +2471,19 @@ var en = map[string]string{
 	"B · 按住看 A": "B · Hold for A",
 	"叠化透明度":     "Overlay opacity",
 	"按住查看图片 A":  "Hold to view Image A",
+
+	// Real-ESRGAN Vulkan optional resource and extensible image upscale node.
+	"按需下载到本机，白板抠图与图片放大不会上传图片": "Download only what you need; background removal and upscaling never upload your pictures",
+	"本地图片放大":        "Local image upscaling",
+	"此平台暂不支持本地图片放大": "Local image upscaling is not available on this platform",
+	"含 Real-ESRGAN x4plus（通用写实）与 x4plus Anime（动漫插画），支持 Vulkan GPU 加速": "Includes Real-ESRGAN x4plus (general) and x4plus Anime with Vulkan GPU acceleration",
+	"图片放大": "Image Upscale",
+	"放大设置": "Upscale Settings",
+	"放大倍数": "Scale factor",
+	"通用写实": "General",
+	"动漫插画": "Anime",
+	"请连接一张输入图片，本地模型在设置的可选资源中下载": "Connect one input image and download local models in Settings → Optional resources",
+	"请在设置的可选资源中下载图片放大模型":        "Download an upscaling model in Settings → Optional resources",
+	"请在设置的可选资源中下载图片放大资源":        "Download the image upscaling engine in Settings → Optional resources",
+	"不支持的图片放大提供方":               "Unsupported image upscale provider",
 }

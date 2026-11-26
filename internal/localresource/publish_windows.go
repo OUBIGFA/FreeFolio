@@ -1,6 +1,11 @@
 package localresource
 
-import "golang.org/x/sys/windows"
+import (
+	"os/exec"
+	"syscall"
+
+	"golang.org/x/sys/windows"
+)
 
 func publishDownload(source, target string) error {
 	from, err := windows.UTF16PtrFromString(source)
@@ -12,4 +17,11 @@ func publishDownload(source, target string) error {
 		return err
 	}
 	return windows.MoveFileEx(from, to, windows.MOVEFILE_WRITE_THROUGH)
+}
+
+func hideConsole(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
 }

@@ -56,6 +56,7 @@ type aiSlotSpec struct {
 // are interface text, translated where they are shown.
 var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 	AICutout:  {{"image", "输入图片", AITypeImage, false, false}},
+	AIUpscale: {{"image", "输入图片", AITypeImage, false, false}},
 	AICompare: {{"a", "图片 A", AITypeImage, false, false}, {"b", "图片 B", AITypeImage, false, false}},
 	AIText:    {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
 	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
@@ -67,7 +68,7 @@ var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 // result is not passed on.
 func AIOutputType(role AIRole) string {
 	switch role {
-	case AIImage, AIImageInput, AICutout:
+	case AIImage, AIImageInput, AICutout, AIUpscale:
 		return AITypeImage
 	case AIVideo, AICompare:
 		return ""

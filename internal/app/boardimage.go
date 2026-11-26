@@ -79,7 +79,7 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 		}
 	}
 	w := &boardImageWindow{doc: d, nodeID: id, sourceKey: string(key), editing: edit, loading: true}
-	if n.Role == whiteboard.AIImage || n.Role == whiteboard.AICutout {
+	if n.Role == whiteboard.AIImage || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 		w.exportPath = rel
 	}
 	a.boardImages = append(a.boardImages, w)

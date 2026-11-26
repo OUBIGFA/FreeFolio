@@ -30,6 +30,14 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 			t.Fatalf("missing download action for %s", item.Name)
 		}
 	}
+	if upscale, ok := localresource.UpscaleRuntime(); ok {
+		if !tester.HasText(upscale.Name) {
+			t.Fatalf("missing upscale choice %s", upscale.Name)
+		}
+		if _, ok := tester.Access("下载 " + upscale.Name); !ok {
+			t.Fatalf("missing download action for %s", upscale.Name)
+		}
+	}
 }
 
 func TestSettingsTabsHaveIcons(t *testing.T) {

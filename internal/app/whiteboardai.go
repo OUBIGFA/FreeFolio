@@ -38,6 +38,19 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		}
 		return out
 	}
+	if role == whiteboard.AIUpscale {
+		for _, model := range localresource.UpscaleModels {
+			label := model.Name
+			switch model.ID {
+			case "realesrgan-x4plus":
+				label = model.Name + " · " + i18n.T("通用写实")
+			case "realesrgan-x4plus-anime":
+				label = model.Name + " · " + i18n.T("动漫插画")
+			}
+			out = append(out, editor.BoardAIModel{Connection: "local-ncnn", Model: model.ID, Name: label})
+		}
+		return out
+	}
 	for _, c := range a.prefs.AI.Connections {
 		for _, m := range c.Models {
 			if !m.Enabled {
@@ -260,6 +273,36 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				return nil, err
 			}
 			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
+		}
+		if job.Node.Role == whiteboard.AIUpscale {
+			if len(job.Images) != 1 {
+				return nil, errors.New(i18n.T("请连接一张输入图片"))
+			}
+			switch job.Node.Connection {
+			case "", "local-ncnn":
+				model, ok := localresource.UpscaleModel(job.Node.Model)
+				engine, supported := localresource.UpscaleRuntime()
+				if !supported {
+					return nil, errors.New(i18n.T("此平台暂不支持本地图片放大"))
+				}
+				if !ok || !localresource.Present(resourceDir, engine) {
+					return nil, errors.New(i18n.T("请在设置的可选资源中下载图片放大资源"))
+				}
+				data, err := localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data)
+				if err != nil {
+					return nil, err
+				}
+				if err = ctx.Err(); err != nil {
+					return nil, err
+				}
+				url, err := a.writeAssetFor(d, path.Dir(rel), "upscale.png", data)
+				if err != nil {
+					return nil, err
+				}
+				return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
+			default:
+				return nil, errors.New(i18n.T("不支持的图片放大提供方"))
+			}
 		}
 		s, err := find(job.Node)
 		if err != nil {

@@ -328,7 +328,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		switch n.Role {
 		case whiteboard.AIImage:
 			hint = i18n.T("运行后显示图像")
-		case whiteboard.AICutout:
+		case whiteboard.AICutout, whiteboard.AIUpscale:
 			hint = i18n.T("请连接一张输入图片")
 		case whiteboard.AIVideo:
 			hint = i18n.T("运行后显示视频")
@@ -480,6 +480,17 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
 			case whiteboard.AICutout:
 				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
+			case whiteboard.AIUpscale:
+				ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
+					b.aiInlineModelSelect(c, o, id, n, disabled)
+					scale := strconv.Itoa(aiUpscaleFactor(n.Params.Scale))
+					ui.Row(c.Key("inline-upscale-box-" + id)).Width(64).Shrink(0).Children(func() {
+						if v, ok := aiInlineSelect(c, "inline-upscale-"+id, i18n.T("放大倍数"), scale, []string{"2", "4"}, []string{"2×", "4×"}, disabled); ok {
+							k, _ := strconv.Atoi(v)
+							b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Params.Scale = k })
+						}
+					})
+				})
 			default:
 				src := b.aiPromptSource(n)
 				if src != "" {

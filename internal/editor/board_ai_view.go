@@ -13,8 +13,8 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AICompare: "对比"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AICompare: "image"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
@@ -282,6 +282,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-concat", "提示词拼接", "文本", "group", "text", add(whiteboard.AIConcat, "")},
 		{"ai-image", "生成图像", "图像", "image", "image", add(whiteboard.AIImage, "")},
 		{"ai-cutout", "本地抠图", "图像", "image", "image", add(whiteboard.AICutout, "")},
+		{"ai-upscale", "图片放大", "图像", "image", "image", add(whiteboard.AIUpscale, "")},
 		{"ai-compare", "图片对比", "图像", "image", "image", add(whiteboard.AICompare, "")},
 		{"ai-edit", "编辑图像", "图像", "sparkles", "image", add(whiteboard.AIImage, "编辑图像")},
 		{"ai-video", "文生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "")},
@@ -432,13 +433,15 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
 			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 			b.aiModelField(c, o, id, n)
 		}
 		aiPropDivider(c, o)
 		switch n.Role {
 		case whiteboard.AICutout:
 			ui.Text(c, i18n.T("请连接一张输入图片，模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
+		case whiteboard.AIUpscale:
+			ui.Text(c, i18n.T("请连接一张输入图片，本地模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AICompare:
 			ui.Text(c, i18n.T("连接图片 A 与图片 B，支持卷帘、并排、叠化、差异与切换对比")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AIImageInput:
@@ -621,6 +624,14 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 				}
 			})
 		})
+	case whiteboard.AIUpscale:
+		aiPropDivider(c, o)
+		aiPropSection(c, o, "放大设置")
+		scale := strconv.Itoa(aiUpscaleFactor(p.Scale))
+		if v := aiChoice(c, o, "upscale", "放大倍数", scale, []string{"2", "4"}, []string{"2×", "4×"}); v != scale {
+			k, _ := strconv.Atoi(v)
+			set(func(p *whiteboard.AIParams) { p.Scale = k })
+		}
 	case whiteboard.AICompare:
 		aiPropDivider(c, o)
 		aiPropSection(c, o, "对比设置")

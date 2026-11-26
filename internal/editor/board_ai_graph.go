@@ -45,7 +45,7 @@ type aiCardLayout struct {
 
 func aiRunnableRole(role whiteboard.AIRole) bool {
 	switch role {
-	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout:
+	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout, whiteboard.AIUpscale:
 		return true
 	}
 	return false
@@ -56,7 +56,7 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	switch role {
 	case whiteboard.AINote:
 		return 30
-	case whiteboard.AICutout:
+	case whiteboard.AICutout, whiteboard.AIUpscale:
 		return 32
 	case whiteboard.AICompare:
 		return 30
@@ -648,14 +648,14 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AICompare} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
-	for _, r := range []whiteboard.AIRole{whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage} {
+	for _, r := range []whiteboard.AIRole{whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage, whiteboard.AICutout, whiteboard.AIUpscale} {
 		if t := whiteboard.AIOutputType(r); t != "" && whiteboard.AIValidConnection(t, pk.typ) {
 			out = append(out, r)
 		}

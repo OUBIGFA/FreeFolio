@@ -1,8 +1,10 @@
-# 可选资源与白板抠图
+# 可选资源与白板抠图 / 图片放大
 
-在「设置 → 可选资源」选保存位置，再点模型旁的「下载」。第一次下载模型时会同时下载共用的 CPU 运行库。不需要 Python、显卡或 OneBot Key；安装和打开 FreeFolio 不会自动下载。
+在「设置 → 可选资源」选保存位置，再点对应资源旁的「下载」。第一次下载抠图模型时会同时下载共用的 CPU 运行库；图片放大包已内置 Vulkan 引擎与两款模型，一次下载即可使用。不需要 Python 或 OneBot Key；安装和打开 FreeFolio 不会自动下载。
 
-在白板的 AI 节点菜单添加「本地抠图」，选择已下载的模型，将一张图片接到「输入图片」，再点「运行」。结果是保留原尺寸和原透明度的 PNG 附件，不覆盖原图。可以另存或接到下游图像节点。模型推理在本机独立进程内执行，可以停止。
+## 本地抠图
+
+在白板的 AI 节点菜单添加「本地抠图」，选择已下载的模型，将一张图片接到「输入图片」，再点「运行」。结果是保留原尺寸和原透明度的 PNG 附件，不覆盖原图。可以另存或接到下游图像或对比节点。模型推理在本机独立进程内执行，可以停止。
 
 | 可选模型 | 权重下载 | 推理输入 | 建议用途 |
 | --- | ---: | ---: | --- |
@@ -13,8 +15,20 @@
 
 **处理管线。** 输入图片先经 Catmull-Rom 缩放到模型输入分辨率并按 ImageNet 均值方差归一化；模型输出根据权重类型转为 `[0, 1]` 透明度（`BiRefNet HR Matting` 为已激活的 Alpha 概率，`BEN2` 自动区分 logits 与概率，避免重复 sigmoid 导致灰底）并双线性缩回原尺寸；随后在半透明过渡区域执行前景色去色溢（估算邻近纯前景像素颜色替换背景残留色边），最后乘以原图透明度输出 PNG。单张输入最多 64 MiB、32 兆像素。
 
-**依据与限制。** 参照 [BEN2 原项目](https://github.com/PramaLLC/BEN2)、[BiRefNet 原项目](https://github.com/ZhengPeng7/BiRefNet) 与上表两份精确修订的 ONNX 模型卡。[BRIA RMBG 2.0](https://huggingface.co/briaai/RMBG-2.0) 与 [BRIA RMBG 3.0](https://huggingface.co/briaai/RMBG-3.0) 为非商业许可（且 RMBG 3.0 依赖 PyTorch/CUDA 与受限访问仓库），不作为纯 Go 本地 MIT 可选资源分发。
+**运行库。** 两款抠图模型共用 [Microsoft ONNX Runtime 1.28.0](https://pypi.org/project/onnxruntime/1.28.0/#files) 官方 CPU 包。Windows x64 下载 13.1 MiB；Linux x64（glibc 2.27+）和 macOS 14+ Apple Silicon 各约 18.3 MiB。保留完整的官方包和其中的 LICENSE、ThirdPartyNotices；仅加载核对后的本平台运行库，不安装 Python 包。其他平台不提供该下载。
 
-**运行库。** 两款模型共用 [Microsoft ONNX Runtime 1.28.0](https://pypi.org/project/onnxruntime/1.28.0/#files) 官方 CPU 包。Windows x64 下载 13.1 MiB；Linux x64（glibc 2.27+）和 macOS 14+ Apple Silicon 各约 18.3 MiB。保留完整的官方包和其中的 LICENSE、ThirdPartyNotices；仅加载核对后的本平台运行库，不安装 Python 包。其他平台不提供该下载。
+## 本地图片放大
 
-**位置和删除。** 切换目录只更改当前资源位置，旧文件不移动。要管理旧文件，选回原目录。下载和使用前核对 SHA-256。删除时核对文件内容并移到系统回收站；不递归删除目录，不动旧笔记、已生成图片或其他文件。同名文件内容不符时会报错，不覆盖或删除。单独移除模型不影响另一款模型；删除共用运行库后，两款模型都要重新下载运行库才能使用。
+在白板的 AI 节点菜单添加「图片放大」，选择模型与放大倍数（`2×` 或 `4×`），将一张图片接到「输入图片」，再点「运行」。底层通过本机独立进程调用 [Real-ESRGAN ncnn-vulkan v0.2.5.0](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0)（支持 NVIDIA / AMD / Intel 显卡及 Apple Silicon Vulkan/MoltenVK 加速），输出无损 PNG 附件，可接到下游「图片对比」或「图像生成」节点。
+
+| 模型 | 适用场景 | 许可 |
+| --- | --- | --- |
+| `realesrgan-x4plus` | 通用照片、自然画面、商品与复杂纹理 | BSD-3-Clause |
+| `realesrgan-x4plus-anime` | 动漫、二次元插画、线稿与扁平色块 | BSD-3-Clause |
+
+引擎包在 Windows x64 为 43.4 MiB，Linux x64 为 44.8 MiB，macOS 为 49.4 MiB；选择 `2×` 时先以 4× 推理再用 Catmull-Rom 超采样缩回 2× 尺寸。单张放大输出上限为 64 兆像素、长边不超过 16384 像素。
+
+## 依据、位置与删除
+
+- **依据与限制。** 参照 [BEN2](https://github.com/PramaLLC/BEN2)、[BiRefNet](https://github.com/ZhengPeng7/BiRefNet) 与 [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) 原项目及对应模型卡。[BRIA RMBG 2.0/3.0](https://huggingface.co/briaai/RMBG-3.0) 与 `4x-UltraSharp` 为非商业许可，`upscayl-ncnn` 为 AGPL-3.0，均不作为默认本地包分发。
+- **位置和删除。** 切换目录只更改当前资源位置，旧文件不移动。要管理旧文件，选回原目录。下载和使用前核对 SHA-256。删除时核对文件内容并移到系统回收站；不递归删除目录，不动旧笔记、已生成图片或其他文件。同名文件内容不符时会报错，不覆盖或删除。单独移除抠图模型不影响另一款模型或图片放大资源；删除共用 ONNX 运行库后，两款抠图模型都需要重新下载运行库才能使用。

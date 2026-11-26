@@ -103,7 +103,7 @@ func (b *Board) aiCompareInputAt(n *whiteboard.AINode, slot string) aiCompareInp
 			key:   fmt.Sprintf("file:%s:%s:%v,%v", from.FileID, cropKey, from.Scale[0] < 0, from.Scale[1] < 0),
 		}
 	}
-	if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout) {
+	if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
 		if rel := b.DisplayedAIImage(from.ID); rel != "" {
 			return aiCompareInput{
 				ok:  true,
@@ -139,7 +139,7 @@ func (b *Board) prepareCompareMedia(o BoardOptions, e *whiteboard.Element, n *wh
 		if from == nil {
 			continue
 		}
-		if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout) {
+		if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
 			if rel := b.DisplayedAIImage(from.ID); rel != "" {
 				needed[rel] = true
 			}

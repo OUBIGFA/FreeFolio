@@ -897,3 +897,51 @@ func TestBoardAIImageInputReplacePreservesLinksAndSupportsUndo(t *testing.T) {
 		t.Fatal("read-only board allowed replacement")
 	}
 }
+
+func TestBoardAIUpscaleNodeConnectsAndRuns(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	o.AI.Models = func(role whiteboard.AIRole) []BoardAIModel {
+		if role == whiteboard.AIUpscale {
+			return []BoardAIModel{
+				{Connection: "local-ncnn", Model: "realesrgan-x4plus", Name: "Real-ESRGAN x4plus"},
+				{Connection: "local-ncnn", Model: "realesrgan-x4plus-anime", Name: "Real-ESRGAN x4plus Anime"},
+			}
+		}
+		return []BoardAIModel{{Connection: "openai", ConnectionName: "OpenAI", Model: "gpt-4o", Name: "gpt-4o"}}
+	}
+	o.AI.Default = func(role whiteboard.AIRole) BoardAIModel {
+		models := o.AI.Models(role)
+		if len(models) > 0 {
+			return models[0]
+		}
+		return BoardAIModel{}
+	}
+	b := NewBoard(whiteboard.NewScene())
+	if err := b.InsertImage(testPNG(t), whiteboard.Point{120, 200}); err != nil {
+		t.Fatal(err)
+	}
+	src := b.Scene.ElementByID(b.SelectedIDs()[0])
+	upID := b.AddAINode(whiteboard.AIUpscale, whiteboard.Point{560, 260}, o)
+	upEl := b.Scene.ElementByID(upID)
+	if err := b.connectAI(src, upEl, false); err != nil {
+		t.Fatal(err)
+	}
+	cmpID := b.AddAINode(whiteboard.AICompare, whiteboard.Point{1040, 260}, o)
+	if err := b.connectAI(upEl, b.Scene.ElementByID(cmpID), false); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1400, 900)
+	tt.Frame()
+	if _, ok := tt.Access("放大倍数"); !ok {
+		t.Fatal("missing inline upscale factor control")
+	}
+	b.RunAI([]string{upID}, false, false, o)
+	if len(f.jobs) != 1 || f.jobs[0].Node.Role != whiteboard.AIUpscale || f.jobs[0].Node.Params.Scale != 4 || f.jobs[0].Node.Model != "realesrgan-x4plus" {
+		t.Fatalf("unexpected upscale job: %+v", f.jobs)
+	}
+	upNode := whiteboard.AINodeOf(b.Scene.ElementByID(upID))
+	if len(upNode.Outputs) != 1 || upNode.Outputs[0].Kind != "image" {
+		t.Fatalf("upscale did not record image output: %+v", upNode.Outputs)
+	}
+}

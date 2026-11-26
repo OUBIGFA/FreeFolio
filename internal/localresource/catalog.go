@@ -52,6 +52,42 @@ func Model(id string) (Resource, bool) {
 	return Resource{}, false
 }
 
+var UpscaleModels = []Resource{
+	{ID: "realesrgan-x4plus", Name: "Real-ESRGAN x4plus"},
+	{ID: "realesrgan-x4plus-anime", Name: "Real-ESRGAN x4plus Anime"},
+}
+
+func UpscaleModel(id string) (Resource, bool) {
+	for _, model := range UpscaleModels {
+		if model.ID == id {
+			return model, true
+		}
+	}
+	return Resource{}, false
+}
+
+func UpscaleRuntime() (Resource, bool) {
+	const prefix = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/"
+	item := Resource{ID: "realesrgan-vulkan", Name: "Real-ESRGAN Vulkan 引擎与模型"}
+	switch runtime.GOOS + "/" + runtime.GOARCH {
+	case "windows/amd64":
+		item.File = "realesrgan-ncnn-vulkan-20220424-windows.zip"
+		item.URL = prefix + item.File
+		item.SHA, item.Size, item.member = "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d", 45474481, "realesrgan-ncnn-vulkan.exe"
+	case "linux/amd64":
+		item.File = "realesrgan-ncnn-vulkan-20220424-ubuntu.zip"
+		item.URL = prefix + item.File
+		item.SHA, item.Size, item.member = "e5aa6eb131234b87c0c51f82b89390f5e3e642b7b70f2b9bbe95b6a285a40c96", 46931474, "realesrgan-ncnn-vulkan"
+	case "darwin/arm64", "darwin/amd64":
+		item.File = "realesrgan-ncnn-vulkan-20220424-macos.zip"
+		item.URL = prefix + item.File
+		item.SHA, item.Size, item.member = "e0ad05580abfeb25f8d8fb55aaf7bedf552c375b5b4d9bd3c8d59764d2cc333a", 51817124, "realesrgan-ncnn-vulkan"
+	default:
+		return Resource{}, false
+	}
+	return item, true
+}
+
 func Runtime() (Resource, bool) {
 	const prefix = "https://files.pythonhosted.org/packages/"
 	item := Resource{ID: "onnxruntime", Name: "ONNX Runtime 1.28 CPU"}

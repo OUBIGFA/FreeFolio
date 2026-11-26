@@ -368,7 +368,7 @@ func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bo
 func (b *Board) DisplayedAIImage(id string) string {
 	e := b.Scene.ElementByID(id)
 	n := b.aiNode(e)
-	if n == nil || (n.Role != whiteboard.AIImage && n.Role != whiteboard.AICutout) || len(n.Outputs) == 0 {
+	if n == nil || (n.Role != whiteboard.AIImage && n.Role != whiteboard.AICutout && n.Role != whiteboard.AIUpscale) || len(n.Outputs) == 0 {
 		return ""
 	}
 	output := n.Outputs[b.aiHistoryCurrent(e, n)]

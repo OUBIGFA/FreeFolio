@@ -29,6 +29,8 @@ const (
 	AIImageInput AIRole = "image-input"
 	// AICutout removes the background of a connected picture locally.
 	AICutout AIRole = "cutout"
+	// AIUpscale enlarges a connected picture via local or future remote upscalers.
+	AIUpscale AIRole = "upscale"
 	// AICompare previews two pictures side-by-side, slid, overlaid, toggled or diffed.
 	AICompare AIRole = "compare"
 	// AIText writes text from its inputs: summaries, rewrites, prompts.
@@ -44,7 +46,7 @@ const (
 )
 
 // AIRoles are the supported roles stored in a scene.
-var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote, AICutout, AICompare}
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
 
 // MaxAIOutputs bounds non-image history; image references remain available
 // for selection and comparison across runs.
@@ -58,6 +60,7 @@ type AIParams struct {
 	Quality     string `json:"quality,omitempty"`
 	Count       int    `json:"count,omitempty"`
 	Seconds     int    `json:"seconds,omitempty"`
+	Scale       int    `json:"scale,omitempty"`
 	// Template joins a concat node's inputs; {1}, {2}… are inputs by order
 	// and {all} is every input, one per line.
 	Template string `json:"template,omitempty"`
@@ -114,7 +117,7 @@ func (n *AINode) Output() *AIOutput {
 // Kind is the data a node supplies downstream.
 func (n *AINode) Kind() string {
 	switch n.Role {
-	case AIImage, AIImageInput, AICutout, AICompare:
+	case AIImage, AIImageInput, AICutout, AIUpscale, AICompare:
 		return "image"
 	case AIVideo:
 		return "video"
@@ -213,6 +216,8 @@ func AINodeSize(role AIRole) (float64, float64) {
 		return 300, 300
 	case AICutout:
 		return 340, 350
+	case AIUpscale:
+		return 340, 360
 	case AICompare:
 		return 420, 380
 	case AIImage:

@@ -85,7 +85,8 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	s.busy, s.confirm, s.err = item.ID, "", nil
 	items := []localresource.Resource{item}
 	engine, supported := localresource.Runtime()
-	if !remove && supported && item.ID != engine.ID && !s.installed[engine.ID] {
+	upscaleEngine, _ := localresource.UpscaleRuntime()
+	if !remove && supported && item.ID != engine.ID && item.ID != upscaleEngine.ID && !s.installed[engine.ID] {
 		items = append([]localresource.Resource{engine}, items...)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -124,18 +125,57 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	})
 }
 
+func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, detail string) {
+	s := &a.resources
+	settingRow(c, item.ID, item.Name, detail, func() {
+		switch {
+		case s.busy == item.ID:
+			if s.cancel != nil {
+				ui.Text(c, fmt.Sprintf("%.0f / %.0f MiB", float64(s.received.Load())/(1<<20), float64(s.total)/(1<<20))).FontSize(12)
+				if ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
+					s.cancel()
+				}
+				c.After(150 * time.Millisecond)
+			} else {
+				ui.Text(c, i18n.T("正在移除资源")).FontSize(12)
+			}
+		case s.confirm == item.ID:
+			if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
+				a.resourceAction(item, true)
+			}
+			if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
+				s.confirm = ""
+			}
+		case s.installed[item.ID]:
+			ui.Text(c, i18n.T("已下载")).FontSize(12)
+			if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "").Clicked() {
+				s.confirm = item.ID
+			}
+		default:
+			if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + item.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
+				a.resourceAction(item, false)
+			}
+		}
+	})
+}
+
 func (a *App) settingsResources(c *ui.Context) {
 	s := &a.resources
 	root := a.resourceDirectory()
 	engine, supported := localresource.Runtime()
+	upscaleEngine, upscaleSupported := localresource.UpscaleRuntime()
 	items := append([]localresource.Resource(nil), localresource.Models...)
 	if supported {
 		items = append(items, engine)
 	}
-	if s.dir != root {
-		a.inspectResources(root, items)
+	inspectItems := append([]localresource.Resource(nil), items...)
+	if upscaleSupported {
+		inspectItems = append(inspectItems, upscaleEngine)
 	}
-	settingsHeading(c, i18n.T("可选资源"), i18n.T("按需下载到本机，白板抠图不会上传图片"))
+	if s.dir != root {
+		a.inspectResources(root, inspectItems)
+	}
+	settingsHeading(c, i18n.T("可选资源"), i18n.T("按需下载到本机，白板抠图与图片放大不会上传图片"))
 	settingsSection(c, i18n.T("保存位置"))
 	settingsGroup(c, "resource-folder", func() {
 		settingRow(c, "path", i18n.T("资源目录"), root, func() {
@@ -148,56 +188,35 @@ func (a *App) settingsResources(c *ui.Context) {
 	settingsSection(c, i18n.T("本地抠图"))
 	if !supported {
 		ui.Text(c, i18n.T("此平台暂不支持本地抠图"))
-		return
-	}
-	settingsGroup(c, "cutout-resources", func() {
-		for index, item := range items {
-			if index > 0 {
-				settingsSeparator(c)
-			}
-			detail := i18n.T("通用与人像发丝均衡，推荐优先试用")
-			switch item.ID {
-			case "birefnet-hr-matting":
-				detail = i18n.T("2048×2048 高清精细抠图，发丝与半透明细节更强，占用更多时间与内存")
-			case engine.ID:
-				detail = i18n.T("两个模型共用，首次下载模型时一并下载")
-			}
-			detail = fmt.Sprintf("%s · %.1f MiB · MIT", detail, float64(item.Size)/(1<<20))
-			settingRow(c, item.ID, item.Name, detail, func() {
-				switch {
-				case s.busy == item.ID:
-					if s.cancel != nil {
-						ui.Text(c, fmt.Sprintf("%.0f / %.0f MiB", float64(s.received.Load())/(1<<20), float64(s.total)/(1<<20))).FontSize(12)
-						if ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
-							s.cancel()
-						}
-						c.After(150 * time.Millisecond)
-					} else {
-						ui.Text(c, i18n.T("正在移除资源")).FontSize(12)
-					}
-				case s.confirm == item.ID:
-					if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
-						a.resourceAction(item, true)
-					}
-					if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
-						s.confirm = ""
-					}
-				case s.installed[item.ID]:
-					ui.Text(c, i18n.T("已下载")).FontSize(12)
-					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "").Clicked() {
-						s.confirm = item.ID
-					}
-				default:
-					if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + item.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
-						a.resourceAction(item, false)
-					}
+	} else {
+		settingsGroup(c, "cutout-resources", func() {
+			for index, item := range items {
+				if index > 0 {
+					settingsSeparator(c)
 				}
-			})
-		}
-	})
+				detail := i18n.T("通用与人像发丝均衡，推荐优先试用")
+				switch item.ID {
+				case "birefnet-hr-matting":
+					detail = i18n.T("2048×2048 高清精细抠图，发丝与半透明细节更强，占用更多时间与内存")
+				case engine.ID:
+					detail = i18n.T("两个模型共用，首次下载模型时一并下载")
+				}
+				a.settingsResourceRow(c, item, fmt.Sprintf("%s · %.1f MiB · MIT", detail, float64(item.Size)/(1<<20)))
+			}
+		})
+	}
+	settingsSection(c, i18n.T("本地图片放大"))
+	if !upscaleSupported {
+		ui.Text(c, i18n.T("此平台暂不支持本地图片放大"))
+	} else {
+		settingsGroup(c, "upscale-resources", func() {
+			detail := fmt.Sprintf("%s · %.1f MiB · MIT / BSD-3-Clause", i18n.T("含 Real-ESRGAN x4plus（通用写实）与 x4plus Anime（动漫插画），支持 Vulkan GPU 加速"), float64(upscaleEngine.Size)/(1<<20))
+			a.settingsResourceRow(c, upscaleEngine, detail)
+		})
+	}
 	if s.confirm != "" {
 		ui.Text(c, i18n.T("仅移除所选资源，不影响原图或已生成的图片")).FontSize(12)
-		if s.confirm == engine.ID {
+		if supported && s.confirm == engine.ID {
 			ui.Text(c, i18n.T("删除共用运行库后，两个模型都需要重新下载运行库才能运行")).FontSize(12)
 		}
 	}
