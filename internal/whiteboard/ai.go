@@ -215,7 +215,7 @@ func AINodeSize(role AIRole) (float64, float64) {
 	case AIImageInput:
 		return 300, 300
 	case AICutout:
-		return 340, 350
+		return 340, 380
 	case AIUpscale:
 		return 340, 360
 	case AICompare:

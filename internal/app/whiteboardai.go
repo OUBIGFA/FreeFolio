@@ -36,8 +36,23 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		for _, model := range localresource.Models {
 			out = append(out, editor.BoardAIModel{Connection: "local", Model: model.ID, Name: model.Name})
 		}
-		if a.resources.comfyCaps != nil {
-			for _, model := range a.resources.comfyCaps.CutoutModels {
+		a.ensureResourcesInspected()
+		caps := a.resources.comfyCaps
+		for _, pack := range localresource.ComfyPacks {
+			installed := a.resources.installed[pack.ID]
+			switch pack.Kind {
+			case "rmbg3":
+				if installed || (caps != nil && caps.RMBG3Native && len(caps.RMBG3Models) > 0) {
+					out = append(out, editor.BoardAIModel{Connection: "comfyui-rmbg3", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
+				}
+			case "sa2va":
+				if installed || (caps != nil && caps.Sa2VANode != "") {
+					out = append(out, editor.BoardAIModel{Connection: "comfyui-sa2va", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
+				}
+			}
+		}
+		if caps != nil {
+			for _, model := range caps.CutoutModels {
 				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
 			}
 		}
@@ -267,9 +282,23 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			}
 			var data []byte
 			var err error
-			if job.Node.Connection == "comfyui" {
+			switch job.Node.Connection {
+			case "comfyui-rmbg3":
+				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+				}
+				data, err = comfyMgr.CutoutRMBG3(ctx, comfyCfg, job.Prompt, job.Images[0].Data)
+			case "comfyui-sa2va":
+				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+				}
+				data, err = comfyMgr.CutoutSa2VA(ctx, comfyCfg, job.Node.Model, job.Prompt, job.Images[0].Data)
+			case "comfyui":
+				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+				}
 				data, err = comfyMgr.Cutout(ctx, comfyCfg, job.Node.Model, job.Images[0].Data)
-			} else {
+			default:
 				model, ok := localresource.Model(job.Node.Model)
 				engine, supported := localresource.Runtime()
 				if !supported {

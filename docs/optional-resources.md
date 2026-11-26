@@ -28,13 +28,22 @@
 
 引擎包在 Windows x64 为 43.4 MiB，Linux x64 为 44.8 MiB，macOS 为 49.4 MiB；选择 `2×` 时先以 4× 推理再用 Catmull-Rom 超采样缩回 2× 尺寸。单张放大输出上限为 64 兆像素、长边不超过 16384 像素。
 
-## ComfyUI 引擎（复用本机 PyTorch / CUDA）
+## ComfyUI 引擎与专业 GPU 模型（BRIA RMBG-3.0 FP8 / Sa2VA）
 
-如果本机已安装 ComfyUI（如便携版、桌面版或源码虚拟环境），可在「设置 → 可选资源 → ComfyUI 引擎（GPU 加速）」中指定 ComfyUI 目录（或填写正在运行的 ComfyUI 服务地址），点「检测并启动」：
+如果本机已安装独立显卡（例如 NVIDIA 8 GB+ / 12 GB 显存）和 ComfyUI（便携版、桌面版或源码虚拟环境），可在「设置 → 可选资源 → ComfyUI 引擎（GPU 加速）」按两步开启：
 
-- FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起 ComfyUI，并在退出时自动结束由 FreeFolio 拉起的进程。
-- 启动时自动通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`），既能直接复用用户原 ComfyUI 目录里已有的模型，也能把新模型独立放到资源目录中而不污染原目录。
-- 探测 `/object_info` 后，白板「图片放大」与「本地抠图」节点会自动列出 ComfyUI 中已可用的放大模型（`UpscaleModelLoader`）与抠图模型（`RMBG` 节点，如 `RMBG-3.0` / `BEN2`），并通过原生 HTTP API（`/upload/image`、`/prompt`、`/history`、`/view`）执行。
+1. **连接 ComfyUI**：指定本地 ComfyUI 目录（或填写已运行的服务地址），点「检测并启动」。FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起，并在退出时自动结束子进程；同时通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`、`sa2va`、`vitmatte`），不污染原 ComfyUI 目录。
+2. **下载 GPU 专业模型（断点可续、SHA-256 校验）**：
+
+| 模型包 | 适用显卡 | 下载位置（资源目录内） | 用途与说明 | 许可 |
+| --- | --- | --- | --- | --- |
+| **BRIA RMBG-3.0 (FP8)** | 8 GB+ 显存（12 GB 推荐） | `comfyui/diffusion_models/RMBG-3.0-fp8.safetensors`、`text_encoders/qwen3vl_4b_int8_convrot.safetensors`、`vae/flux2-vae.safetensors` | 生成级柔和透明抠图，发丝、玻璃、婚纱与半透明物体效果最佳；通过 ComfyUI ≥ 0.4.60 原生节点运行，无需额外插件 | CC-BY-NC-4.0 |
+| **Sa2VA-InternVL3-2B** | 6 GB+ 显存（推荐） | `comfyui/sa2va/ByteDance/Sa2VA-InternVL3-2B/` | 按自然语言指代抠出特定对象（如「左边穿白衣服的人」），轻量快速；需安装 `ComfyUI-Sa2VA-XJ` 或 `ComfyUI-Sa2VA` 插件 | Apache-2.0 |
+| **Sa2VA-Qwen3-VL-4B** | 10 GB+ 显存（≤16 GB 自动 8-bit 量化） | `comfyui/sa2va/ByteDance/Sa2VA-Qwen3-VL-4B/` | 复杂场景指代理解精度更高，12 GB 显卡自动启用 8-bit 量化避免爆显存；需安装 `ComfyUI-Sa2VA-XJ` 或 `ComfyUI-Sa2VA` 插件 | Apache-2.0 |
+
+白板「本地抠图」节点新增了可选的「抠图说明」输入口与文本栏：使用 **BRIA RMBG-3.0 (FP8)** 时可提示主体材质（如 `透明玻璃杯`），使用 **Sa2VA** 时可直接描述要抠出的具体对象；留空时均默认自动识别主体。
+
+此外，探测 `/object_info` 后也会继续列出 ComfyUI 中已有的通用放大模型（`UpscaleModelLoader`）与 `RMBG` 自定义节点模型。
 
 ## 依据、位置与删除
 

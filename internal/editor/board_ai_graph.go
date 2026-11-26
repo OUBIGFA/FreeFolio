@@ -56,7 +56,9 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	switch role {
 	case whiteboard.AINote:
 		return 30
-	case whiteboard.AICutout, whiteboard.AIUpscale:
+	case whiteboard.AICutout:
+		return 60
+	case whiteboard.AIUpscale:
 		return 32
 	case whiteboard.AICompare:
 		return 30

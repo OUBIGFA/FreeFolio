@@ -506,6 +506,13 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
 			case whiteboard.AICutout:
 				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
+				if src := b.aiPromptSource(n); src != "" {
+					empty := ""
+					note := fmt.Sprintf(i18n.T("已连接：%s"), src)
+					ui.TextInput(c.Key("board-ai-inline-linked-"+id), &empty).Placeholder(note).FontSize(12).WidthPercent(100).Height(28).Disabled(true).Label(i18n.T("抠图说明")).Description(note)
+				} else {
+					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")).FontSize(11.5).WidthPercent(100).Height(28).Disabled(disabled).Label(i18n.T("抠图说明")))
+				}
 			case whiteboard.AIUpscale:
 				ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
 					b.aiInlineModelSelect(c, o, id, n, disabled)

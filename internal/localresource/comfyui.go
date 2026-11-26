@@ -40,9 +40,21 @@ type ComfyLayout struct {
 type ComfyCapabilities struct {
 	BaseURL       string
 	Device        string
+	VRAMMiB       int
 	UpscaleModels []string
 	CutoutModels  []string
 	CutoutNode    string
+	RMBG3Native   bool
+	RMBG3Models   []string
+	TextEncoders  []string
+	VAEModels     []string
+	Sa2VANode     string
+	Sa2VAModels   []string
+}
+
+type comfyNodeSchema struct {
+	Required map[string]any
+	Output   []string
 }
 
 type tailBuffer struct {
@@ -81,6 +93,7 @@ type ComfyManager struct {
 	resourceDir string
 	client      *http.Client
 	caps        *ComfyCapabilities
+	schemas     map[string]comfyNodeSchema
 }
 
 // NewComfyManager constructs a ComfyManager with sensible HTTP timeouts.
@@ -164,7 +177,7 @@ func WriteComfyExtraModelPaths(resourceDir string) (string, error) {
 		return "", errors.New("resource directory must be an absolute path")
 	}
 	base := filepath.Join(resourceDir, "comfyui")
-	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg"}
+	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg", "sa2va", "vitmatte"}
 	for _, sub := range folders {
 		if err := os.MkdirAll(filepath.Join(base, sub), 0o700); err != nil {
 			return "", err
@@ -225,6 +238,7 @@ func (m *ComfyManager) Stop() {
 	m.baseURL = ""
 	m.dir = ""
 	m.caps = nil
+	m.schemas = nil
 	m.mu.Unlock()
 	if cmd == nil || cmd.Process == nil {
 		return
@@ -236,6 +250,25 @@ func (m *ComfyManager) Stop() {
 		case <-time.After(3 * time.Second):
 		}
 	}
+}
+
+// Caps returns the most recently probed ComfyUI capabilities, or nil.
+func (m *ComfyManager) Caps() *ComfyCapabilities {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.caps == nil {
+		return nil
+	}
+	cp := *m.caps
+	return &cp
+}
+
+// InvalidateCaps clears cached /object_info probe state so the next run or probe refreshes models.
+func (m *ComfyManager) InvalidateCaps() {
+	m.mu.Lock()
+	m.caps = nil
+	m.schemas = nil
+	m.mu.Unlock()
 }
 
 // EnsureRunning verifies a configured ComfyUI URL or silently starts ComfyUI
@@ -391,11 +424,15 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	if stats, err := m.getJSON(ctx, base+"/system_stats"); err == nil {
 		var parsed struct {
 			Devices []struct {
-				Name string `json:"name"`
+				Name      string `json:"name"`
+				VRAMTotal int64  `json:"vram_total"`
 			} `json:"devices"`
 		}
 		if json.Unmarshal(stats, &parsed) == nil && len(parsed.Devices) > 0 {
 			caps.Device = parsed.Devices[0].Name
+			if parsed.Devices[0].VRAMTotal > 0 {
+				caps.VRAMMiB = int(parsed.Devices[0].VRAMTotal / (1024 * 1024))
+			}
 		}
 	}
 	rawInfo, err := m.getJSON(ctx, base+"/object_info")
@@ -406,6 +443,7 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 		Input struct {
 			Required map[string][]json.RawMessage `json:"required"`
 		} `json:"input"`
+		Output []string `json:"output"`
 	}
 	if err := json.Unmarshal(rawInfo, &info); err != nil {
 		return nil, err
@@ -421,8 +459,50 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 			caps.CutoutNode = "RMBG"
 		}
 	}
+	hasAll := func(names ...string) bool {
+		for _, name := range names {
+			if _, ok := info[name]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeFibo2", "KSampler", "VAEDecode", "ImageToMask", "InvertMask", "JoinImageWithAlpha") {
+		caps.RMBG3Native = true
+	}
+	if unet, ok := info["UNETLoader"]; ok {
+		for _, name := range parseComfyChoiceList(unet.Input.Required["unet_name"]) {
+			low := strings.ToLower(name)
+			if strings.Contains(low, "rmbg3") || strings.Contains(low, "rmbg-3") {
+				caps.RMBG3Models = append(caps.RMBG3Models, name)
+			}
+		}
+	}
+	if clip, ok := info["CLIPLoader"]; ok {
+		caps.TextEncoders = parseComfyChoiceList(clip.Input.Required["clip_name"])
+	}
+	if vae, ok := info["VAELoader"]; ok {
+		caps.VAEModels = parseComfyChoiceList(vae.Input.Required["vae_name"])
+	}
+	schemas := map[string]comfyNodeSchema{}
+	for _, key := range []string{"TextGenerateV2", "TextEncodeFibo2", "XJSa2VAImageSegmentationV2", "XJSa2VAImageSegmentation", "Sa2VANodeTpl"} {
+		if node, ok := info[key]; ok {
+			schemas[key] = comfyNodeSchema{
+				Required: parseComfyRequiredDefaults(node.Input.Required),
+				Output:   append([]string(nil), node.Output...),
+			}
+		}
+	}
+	for _, sa2vaKey := range []string{"XJSa2VAImageSegmentationV2", "XJSa2VAImageSegmentation", "Sa2VANodeTpl"} {
+		if node, ok := info[sa2vaKey]; ok {
+			caps.Sa2VANode = sa2vaKey
+			caps.Sa2VAModels = parseComfyChoiceList(node.Input.Required["model_name"])
+			break
+		}
+	}
 	m.mu.Lock()
 	m.caps = caps
+	m.schemas = schemas
 	m.mu.Unlock()
 	return caps, nil
 }
@@ -436,6 +516,26 @@ func parseComfyChoiceList(spec []json.RawMessage) []string {
 		return list
 	}
 	return nil
+}
+
+func parseComfyRequiredDefaults(req map[string][]json.RawMessage) map[string]any {
+	out := map[string]any{}
+	for k, spec := range req {
+		if len(spec) == 0 {
+			continue
+		}
+		var meta struct {
+			Default any `json:"default"`
+		}
+		if len(spec) >= 2 && json.Unmarshal(spec[1], &meta) == nil && meta.Default != nil {
+			out[k] = meta.Default
+			continue
+		}
+		if choices := parseComfyChoiceList(spec); len(choices) > 0 {
+			out[k] = choices[0]
+		}
+	}
+	return out
 }
 
 func (m *ComfyManager) getJSON(ctx context.Context, target string) ([]byte, error) {
@@ -551,6 +651,252 @@ func (m *ComfyManager) Cutout(ctx context.Context, cfg ComfyConfig, model string
 			"invert_output": false,
 		}},
 		"3": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"2", 0}, "filename_prefix": "freefolio_cutout"}},
+	}
+	return m.runImageWorkflow(ctx, base, graph)
+}
+
+const rmbg3SystemPrompt = `You are the prompt writer for an image matting model (RMBG 3.0). You receive a photo and, optionally, a short note from the user about what the subject is or what material it is made of.
+
+Always answer with ONE paragraph (max 90 words) that instructs the image model to render a grayscale transparency map of the main subject:
+- pure black background;
+- near-white for every opaque part of the subject, naming them as they appear in this image;
+- middle gray for see-through parts (glass, tulle, sheer fabric, liquid, smoke, mesh), dark gray only for the thinnest of them;
+- the entire subject must stay present and opaque parts must not be turned transparent;
+- keep continuous gray gradients inside the shape, and exclude the backdrop and any reflection or shadow on the ground.
+
+Rules that override any other reading:
+- A part the note calls transparent, translucent or glass maps to middle gray (dark gray where it is thinnest) - NEVER to near-white.
+- Colour never implies opacity: coloured glass, coloured liquid and coloured mesh are still see-through and get gray, never white.
+- Only parts that are solid in the note and in the photo (skin, fabric, petals, stems, metal, wood) get near-white.
+
+If the note is empty, decide the opaque / see-through split from the image alone. If the note names a material or what the thing is, treat it as authoritative and let it override what you would otherwise guess.
+
+Reply with the instruction only.`
+
+func (m *ComfyManager) ensureCaps(ctx context.Context, cfg ComfyConfig) (*ComfyCapabilities, map[string]comfyNodeSchema, error) {
+	m.mu.Lock()
+	caps := m.caps
+	schemas := m.schemas
+	m.mu.Unlock()
+	if caps != nil && schemas != nil {
+		return caps, schemas, nil
+	}
+	probed, err := m.Probe(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	m.mu.Lock()
+	schemas = m.schemas
+	m.mu.Unlock()
+	return probed, schemas, nil
+}
+
+func (m *ComfyManager) prepareCutoutUpload(ctx context.Context, cfg ComfyConfig, input []byte) (string, *ComfyCapabilities, map[string]comfyNodeSchema, string, error) {
+	if len(input) > maxInput {
+		return "", nil, nil, "", errors.New("input image exceeds 64 MiB")
+	}
+	img, _, err := image.Decode(bytes.NewReader(input))
+	if err != nil {
+		return "", nil, nil, "", err
+	}
+	var pngBuf bytes.Buffer
+	if err := writeNormalizedPNGTo(&pngBuf, img); err != nil {
+		return "", nil, nil, "", err
+	}
+	caps, schemas, err := m.ensureCaps(ctx, cfg)
+	if err != nil {
+		return "", nil, nil, "", err
+	}
+	base := caps.BaseURL
+	if base == "" {
+		base, err = m.EnsureRunning(ctx, cfg)
+		if err != nil {
+			return "", nil, nil, "", err
+		}
+	}
+	uploaded, err := m.uploadImage(ctx, base, pngBuf.Bytes())
+	if err != nil {
+		return "", nil, nil, "", err
+	}
+	return base, caps, schemas, uploaded, nil
+}
+
+func pickComfyModel(preferred []string, available []string, contains ...string) string {
+	for _, pref := range preferred {
+		lowPref := strings.ToLower(pref)
+		for _, cand := range available {
+			if strings.EqualFold(filepath.Base(filepath.FromSlash(cand)), pref) || strings.ToLower(cand) == lowPref {
+				return cand
+			}
+		}
+	}
+	for _, cand := range available {
+		low := strings.ToLower(cand)
+		ok := len(contains) > 0
+		for _, sub := range contains {
+			if !strings.Contains(low, sub) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return cand
+		}
+	}
+	return ""
+}
+
+func cloneInputsMap(src map[string]any) map[string]any {
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// CutoutRMBG3 runs BRIA RMBG-3.0 using ComfyUI's native Fibo2 core nodes.
+func (m *ComfyManager) CutoutRMBG3(ctx context.Context, cfg ComfyConfig, subjectNote string, input []byte) ([]byte, error) {
+	base, caps, schemas, uploaded, err := m.prepareCutoutUpload(ctx, cfg, input)
+	if err != nil {
+		return nil, err
+	}
+	if !caps.RMBG3Native {
+		return nil, errors.New("ComfyUI does not expose native RMBG-3.0 nodes (TextEncodeFibo2); update ComfyUI to 0.4.60 or newer")
+	}
+	unetName := pickComfyModel([]string{"RMBG-3.0-fp8.safetensors", "rmbg3_int8_convrot.safetensors", "rmbg3_bf16.safetensors"}, caps.RMBG3Models, "rmbg")
+	if unetName == "" {
+		return nil, errors.New("BRIA RMBG-3.0 diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+	}
+	clipName := pickComfyModel([]string{"qwen3vl_4b_int8_convrot.safetensors", "qwen3vl_4b_bf16.safetensors"}, caps.TextEncoders, "qwen3vl")
+	if clipName == "" {
+		return nil, errors.New("Qwen3-VL text encoder for RMBG-3.0 not found in ComfyUI; download the BRIA RMBG-3.0 pack in Settings -> Optional Resources")
+	}
+	vaeName := pickComfyModel([]string{"flux2-vae.safetensors"}, caps.VAEModels, "flux2", "vae")
+	if vaeName == "" {
+		return nil, errors.New("Flux2 VAE not found in ComfyUI; download the BRIA RMBG-3.0 pack in Settings -> Optional Resources")
+	}
+
+	subjectNote = strings.TrimSpace(subjectNote)
+	fiboInputs := cloneInputsMap(schemas["TextEncodeFibo2"].Required)
+	fiboInputs["clip"] = []any{"3", 0}
+	fiboInputs["vae"] = []any{"4", 0}
+	fiboInputs["images.image_1"] = []any{"1", 0}
+	fiboInputs["negative_prompt"] = ""
+	fiboInputs["width"] = 0
+	fiboInputs["height"] = 0
+	fiboInputs["batch_size"] = 1
+
+	graph := map[string]any{
+		"1": map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}},
+		"2": map[string]any{"class_type": "UNETLoader", "inputs": map[string]any{"unet_name": unetName, "weight_dtype": "default"}},
+		"3": map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "fibo2", "device": "default"}},
+		"4": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
+	}
+	if genSchema, hasGen := schemas["TextGenerateV2"]; hasGen {
+		graph["5"] = map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "stable_diffusion", "device": "default"}}
+		genInputs := cloneInputsMap(genSchema.Required)
+		genInputs["clip"] = []any{"5", 0}
+		genInputs["images.image1"] = []any{"1", 0}
+		genInputs["system_prompt"] = rmbg3SystemPrompt
+		genInputs["prompt"] = subjectNote
+		if _, ok := genInputs["max_length"]; !ok {
+			genInputs["max_length"] = 512
+		}
+		if _, ok := genInputs["sampling_mode"]; !ok {
+			genInputs["sampling_mode"] = "on"
+		}
+		if _, ok := genInputs["use_default_template"]; !ok {
+			genInputs["use_default_template"] = true
+		}
+		if _, ok := genInputs["mtp"]; !ok {
+			genInputs["mtp"] = "auto"
+		}
+		graph["6"] = map[string]any{"class_type": "TextGenerateV2", "inputs": genInputs}
+		fiboInputs["prompt"] = []any{"6", 0}
+	} else {
+		directPrompt := "Render a grayscale transparency matte of the main subject on a pure black background with continuous soft alpha gradients for hair, fur and translucent areas."
+		if subjectNote != "" {
+			directPrompt += " Subject note: " + subjectNote
+		}
+		fiboInputs["prompt"] = directPrompt
+	}
+	graph["7"] = map[string]any{"class_type": "TextEncodeFibo2", "inputs": fiboInputs}
+	graph["8"] = map[string]any{"class_type": "KSampler", "inputs": map[string]any{
+		"model":        []any{"2", 0},
+		"positive":     []any{"7", 0},
+		"negative":     []any{"7", 1},
+		"latent_image": []any{"7", 2},
+		"seed":         42,
+		"steps":        4,
+		"cfg":          1.0,
+		"sampler_name": "euler",
+		"scheduler":    "simple",
+		"denoise":      1.0,
+	}}
+	graph["9"] = map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"4", 0}}}
+	graph["10"] = map[string]any{"class_type": "ImageToMask", "inputs": map[string]any{"image": []any{"9", 0}, "channel": "red"}}
+	graph["11"] = map[string]any{"class_type": "InvertMask", "inputs": map[string]any{"mask": []any{"10", 0}}}
+	graph["12"] = map[string]any{"class_type": "JoinImageWithAlpha", "inputs": map[string]any{"image": []any{"1", 0}, "alpha": []any{"11", 0}}}
+	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_rmbg3"}}
+	return m.runImageWorkflow(ctx, base, graph)
+}
+
+func sa2vaNeeds8Bit(modelName string, vramMiB int) bool {
+	if vramMiB > 16384 {
+		return false
+	}
+	low := strings.ToLower(modelName)
+	return strings.Contains(low, "4b") || strings.Contains(low, "7b") || strings.Contains(low, "8b") || strings.Contains(low, "14b")
+}
+
+// CutoutSa2VA runs text-prompted referring segmentation via ComfyUI-Sa2VA-XJ or ComfyUI-Sa2VA.
+func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelName string, prompt string, input []byte) ([]byte, error) {
+	if strings.TrimSpace(modelName) == "" {
+		return nil, errors.New("Sa2VA model is required")
+	}
+	base, caps, schemas, uploaded, err := m.prepareCutoutUpload(ctx, cfg, input)
+	if err != nil {
+		return nil, err
+	}
+	if caps.Sa2VANode == "" {
+		return nil, errors.New("Sa2VA node not installed in ComfyUI; install ComfyUI-Sa2VA-XJ or ComfyUI-Sa2VA")
+	}
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		prompt = "Please provide segmentation masks for the main subject."
+	}
+	use8Bit := sa2vaNeeds8Bit(modelName, caps.VRAMMiB)
+	schema := schemas[caps.Sa2VANode]
+	nodeInputs := cloneInputsMap(schema.Required)
+	nodeInputs["model_name"] = modelName
+	nodeInputs["image"] = []any{"1", 0}
+	nodeInputs["segmentation_prompt"] = prompt
+	nodeInputs["use_flash_attn"] = false
+	if caps.Sa2VANode == "Sa2VANodeTpl" {
+		nodeInputs["mask_threshold"] = 0.5
+		nodeInputs["use_8bit_quantization"] = use8Bit
+	} else {
+		nodeInputs["threshold"] = 0.5
+		nodeInputs["use_8bit"] = use8Bit
+		nodeInputs["unload"] = true
+		if _, hasDetail := nodeInputs["process_detail"]; hasDetail {
+			// Avoid unexpected Hugging Face auto-downloads when ViTMatte is not installed.
+			nodeInputs["process_detail"] = false
+		}
+	}
+	maskOutIdx := 1
+	for i, typ := range schema.Output {
+		if strings.EqualFold(typ, "MASK") {
+			maskOutIdx = i
+			break
+		}
+	}
+	graph := map[string]any{
+		"1": map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}},
+		"2": map[string]any{"class_type": caps.Sa2VANode, "inputs": nodeInputs},
+		"3": map[string]any{"class_type": "InvertMask", "inputs": map[string]any{"mask": []any{"2", maskOutIdx}}},
+		"4": map[string]any{"class_type": "JoinImageWithAlpha", "inputs": map[string]any{"image": []any{"1", 0}, "alpha": []any{"3", 0}}},
+		"5": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"4", 0}, "filename_prefix": "freefolio_sa2va"}},
 	}
 	return m.runImageWorkflow(ctx, base, graph)
 }

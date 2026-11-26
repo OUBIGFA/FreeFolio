@@ -439,7 +439,8 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		aiPropDivider(c, o)
 		switch n.Role {
 		case whiteboard.AICutout:
-			ui.Text(c, i18n.T("请连接一张输入图片，模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
+			ui.Text(c, i18n.T("请连接输入图片；使用 Sa2VA 或 BRIA RMBG-3.0 时可在下方填写抠图说明")).FontSize(12).TextColor(o.Theme.TextMuted)
+			aiPropDivider(c, o)
 		case whiteboard.AIUpscale:
 			ui.Text(c, i18n.T("请连接一张输入图片，本地模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
 		case whiteboard.AICompare:
@@ -481,9 +482,13 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			if ui.TextArea(c.Key("board-ai-template"), &b.ai.buf.template).WidthPercent(100).Height(88).Changed() {
 				edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
 			}
-		default:
+		}
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
 			aiPropSection(c, o, "指令")
 			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
+			if n.Role == whiteboard.AICutout {
+				placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
+			}
 			linked := b.aiPromptSource(n)
 			if linked != "" {
 				// The linked slot feeds the instruction, so the field is
