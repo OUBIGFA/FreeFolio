@@ -80,6 +80,32 @@ func TestAINodeRoundTripKeepsOtherCustomData(t *testing.T) {
 	}
 }
 
+func TestAIImageHistorySurvivesManyRunsAndReload(t *testing.T) {
+	e := NewAINode(AIImage, 0, 0)
+	n := AINodeOf(e)
+	for range 40 {
+		n.AddOutputs([]AIOutput{{Kind: "image", Path: "assets/result.png"}})
+	}
+	n.Current = 2
+	if err := SetAINode(e, n); err != nil {
+		t.Fatal(err)
+	}
+	s := NewScene()
+	s.Elements = append(s.Elements, e)
+	data, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Decode(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := AINodeOf(back.Elements[0])
+	if len(got.Outputs) != 40 || got.Output().Run != 3 {
+		t.Fatalf("history or selected image lost: %+v", got)
+	}
+}
+
 func TestAIImageInputRetainsFileAndLinks(t *testing.T) {
 	s := NewScene()
 	picture := NewElement(KindImage, 20, 40, 300, 240)

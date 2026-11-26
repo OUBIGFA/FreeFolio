@@ -37,6 +37,7 @@ type aiCardLayout struct {
 	out              string
 	slotTop          float32
 	widgets, preview ui.Rect
+	history          ui.Rect
 }
 
 // aiWidgetHeight is the height of a role's in-node controls.
@@ -101,6 +102,11 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	} else {
 		py := top + wh + 8
 		l.preview = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: max(0, h-aiFooter-8-py)}
+		if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
+			l.history = ui.Rect{X: aiPad, Y: py, W: l.widgets.W, H: 62}
+			l.preview.Y += l.history.H
+			l.preview.H = max(0, l.preview.H-l.history.H)
+		}
 	}
 	if ok && cached.node == n {
 		cached.layout = &l

@@ -146,6 +146,9 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		var meta string
 		if len(n.Outputs) > 0 {
 			meta = fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))
+			if n.Role == whiteboard.AIImage {
+				meta = fmt.Sprintf("%d/%d", b.aiHistoryCurrent(e, n)+1, len(n.Outputs))
+			}
 		}
 		var metaW float32
 		if meta != "" {
@@ -248,6 +251,10 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 // paintAIPreview draws the node's result, its streamed text while it runs,
 // or what it will show.
 func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors) {
+	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
+		b.paintAIImageHistory(p, e, n, r, pal)
+		return
+	}
 	s := b.aiState()
 	text := func(id, t string, color ui.Color) {
 		p.TextLayout(b.aiCardTextFont(id, t, r.W, ui.Font{Size: 13, LineHeight: 1.45}), r.X, r.Y, color)
@@ -363,6 +370,7 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 			continue
 		}
 		l := b.aiLayout(e, n)
+		b.aiHistoryControls(c, o, e, n, l, x, y, z)
 		r := l.widgets
 		if r.W < 120 || r.H < 24 {
 			continue
@@ -455,7 +463,10 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, disabled b
 	})
 	if btn.Clicked() {
 		b.selectIDs([]string{id})
-		b.RunAI([]string{id}, false, false, o)
+		// A deliberate image run requests a new variation, even with the
+		// same prompt. Whole-workflow runs still use the input cache.
+		force := b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImage
+		b.RunAI([]string{id}, false, force, o)
 	}
 }
 

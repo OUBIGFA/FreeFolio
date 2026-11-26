@@ -80,6 +80,24 @@ folder errors offer remote-folder settings, and network/storage errors explain t
 required corrective action. The sidebar issue button opens these recovery actions.
 Version and permission failures do not queue the same automatic retry.
 
+When a version check keeps failing, the same settings section also offers
+**Prefer cloud version** and **Prefer local version** for the failed space.
+The confirmation names that space and the replacement direction. This is a
+single recovery run, following [rclone v1.76.0 bisync resync-mode](https://github.com/rclone/rclone/blob/v1.76.0/docs/content/bisync.md#resync-mode):
+different files at the same path use the chosen side; files present on only one
+side are kept and copied to the other side. Other selected spaces are untouched.
+Changing the destination or space folder invalidates the old recovery choice.
+
+Recovery reads current remote content without cached validators and preserves
+the replaced content before writing. Explicit uploads bypass unusable conditional
+write validators, then download and compare the stored bytes before advancing
+the baseline. This cannot provide atomic protection against another writer on a
+service with unusable validators; normal sync retains conditional writes.
+Local replacements keep recovery copies, and protected or concurrently changed
+local files are skipped. Failure, cancellation or a failed preflight never queues
+the overwrite direction for an automatic retry. Subsequent normal runs remain
+bidirectional and use their updated common baseline.
+
 Before replacing or deleting a local file, FreeFolio writes a recovery copy under
 the application's `sync-state/backups` directory. **Open recovery backups** opens
 that directory. Local recovery copies are not automatically deleted. Local

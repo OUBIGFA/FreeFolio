@@ -134,50 +134,61 @@ func (b *Board) aiPrepareMedia(o BoardOptions) {
 		return
 	}
 	s := b.aiState()
+	needed := map[string]bool{}
 	for _, e := range b.Scene.Elements {
 		n := b.aiNode(e)
 		if n == nil || e.IsDeleted {
 			continue
 		}
-		out := n.Output()
-		if out == nil || out.Kind != "image" || out.Path == "" {
-			continue
-		}
-		rel := out.Path
-		if s.media[rel] != nil || s.mediaErr[rel] != nil || s.mediaPending[rel] {
-			continue
-		}
-		s.mediaPending[rel] = true
-		read := o.AI.ReadFile
-		load := func() (*ui.Bitmap, error) {
-			data, err := read(rel)
-			if err != nil {
-				return nil, err
+		for _, rel := range b.aiPreviewPaths(e, n) {
+			needed[rel] = true
+			if s.media[rel] != nil || s.mediaErr[rel] != nil || s.mediaPending[rel] {
+				continue
 			}
-			cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-			if err != nil {
-				return nil, err
+			s.mediaPending[rel] = true
+			read := o.AI.ReadFile
+			load := func() (*ui.Bitmap, error) {
+				data, err := read(rel)
+				if err != nil {
+					return nil, err
+				}
+				cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+				if err != nil {
+					return nil, err
+				}
+				if int64(cfg.Width)*int64(cfg.Height) > 100_000_000 {
+					return nil, fmt.Errorf("image dimensions exceed limit")
+				}
+				return ui.DecodeBitmap(data)
 			}
-			if int64(cfg.Width)*int64(cfg.Height) > 100_000_000 {
-				return nil, fmt.Errorf("image dimensions exceed limit")
+			apply := func(bm *ui.Bitmap, err error) {
+				if b.ai.mediaPending == nil {
+					return
+				}
+				delete(s.mediaPending, rel)
+				if err != nil {
+					s.mediaErr[rel] = err
+				} else {
+					s.media[rel] = bm
+				}
 			}
-			return ui.DecodeBitmap(data)
-		}
-		apply := func(bm *ui.Bitmap, err error) {
-			if b.ai.mediaPending == nil {
-				return
-			}
-			delete(s.mediaPending, rel)
-			if err != nil {
-				s.mediaErr[rel] = err
+			if o.Dispatch != nil {
+				go func() { bm, err := load(); o.Dispatch(func() { apply(bm, err) }) }()
 			} else {
-				s.media[rel] = bm
+				apply(load())
 			}
 		}
-		if o.Dispatch != nil {
-			go func() { bm, err := load(); o.Dispatch(func() { apply(bm, err) }) }()
-		} else {
-			apply(load())
+	}
+	// History stores lightweight references. Retain decoded images only
+	// while a node displays them, so browsing does not retain every bitmap.
+	for rel := range s.media {
+		if !needed[rel] {
+			delete(s.media, rel)
+		}
+	}
+	for rel := range s.mediaErr {
+		if !needed[rel] {
+			delete(s.mediaErr, rel)
 		}
 	}
 }
@@ -716,7 +727,7 @@ func (b *Board) aiRunControls(c *ui.Context, o BoardOptions, id string) {
 			return
 		}
 		if ui.PrimaryButton(c.Key("run"), i18n.T("运行节点")).WidthPercent(100).Clicked() {
-			b.RunAI([]string{id}, false, false, o)
+			b.RunAI([]string{id}, false, b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImage, o)
 		}
 		ui.Row(c).Gap(6).Children(func() {
 			if ui.Button(c.Key("run-up"), i18n.T("连同上游运行")).Grow(1).Clicked() {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/webdav"
 )
@@ -63,6 +64,135 @@ func TestCloudRemoteFailureOffersRecheckAction(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("修改账号或密钥") {
 		t.Fatal("authentication error did not offer credential repair")
+	}
+}
+
+func TestCloudRecoveryOffersScopedOverwriteChoices(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.openSettings(tabCloud)
+	s := &a.cloud
+	s.config.Enabled = true
+	s.config.Spaces[a.state.Active] = "Notes"
+	sp := a.state.Get(a.state.Active)
+	s.failed = true
+	s.lastError = cloudsync.ErrRemoteChanged
+	s.message = cloudsync.ErrRemoteChanged.Error()
+	s.recovery = &cloudRecoveryTarget{space: sp.ID, name: sp.Name, root: sp.Root, remote: "Notes", target: s.config.TargetID()}
+	tt.Frame()
+	for _, label := range []string{"以云端为准", "以本地为准"} {
+		if _, ok := tt.Access(label); !ok {
+			t.Fatalf("missing recovery choice %s", label)
+		}
+	}
+	if err := tt.Click("以本地为准"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.busy || s.confirmReconcile != "local" {
+		t.Fatal("choice must show concrete scope before writing")
+	}
+	if !tt.HasText("确认覆盖并同步") || !tt.HasText(sp.Name) {
+		t.Fatal("confirmation has no space or action")
+	}
+	if dir := os.Getenv("FREEFOLIO_SNAPSHOT"); dir != "" {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Create(filepath.Join(dir, "cloud-overwrite.png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = png.Encode(file, tt.Image())
+		_ = file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tt.Click("取消覆盖"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.confirmReconcile != "" || s.busy {
+		t.Fatal("canceled overwrite ran")
+	}
+	if err := tt.Click("以云端为准"); err != nil {
+		t.Fatal(err)
+	}
+	s.config.Spaces[sp.ID] = "Different"
+	tt.Frame()
+	button, ok := tt.Access("确认覆盖并同步")
+	if !ok || !button.Disabled {
+		t.Fatal("stale recovery allowed a different remote folder")
+	}
+}
+
+func TestCloudOverwriteRunsOnlyFailedSpaceAndConsumesDirection(t *testing.T) {
+	a, tt := newTestApp(t)
+	sp := a.state.Get(a.state.Active)
+	other := &space.Space{ID: "other", Name: "Other", Root: t.TempDir()}
+	a.state.Spaces = append(a.state.Spaces, other)
+	if err := os.WriteFile(filepath.Join(sp.Root, "recovery.txt"), []byte("local"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other.Root, "untouched.txt"), []byte("other"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	remote := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(remote, "FreeFolio", "Notes"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(remote, "FreeFolio", "Notes", "recovery.txt")
+	if err := os.WriteFile(file, []byte("cloud"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(&webdav.Handler{FileSystem: webdav.Dir(remote), LockSystem: webdav.NewMemLS()})
+	defer server.Close()
+	s := &a.cloud
+	s.config.Enabled = true
+	s.config.WebDAVURL = server.URL
+	s.config.Spaces = map[string]string{sp.ID: "Notes", other.ID: "Other"}
+	s.recovery = &cloudRecoveryTarget{sp.ID, sp.Name, sp.Root, "Notes", s.config.TargetID()}
+	s.conflicts = []cloudConflict{{space: other.ID, name: other.Name, detail: cloudsync.Conflict{Path: "conflict.md"}}}
+	s.failed, s.lastError, s.message = true, cloudsync.ErrRemoteChanged, cloudsync.ErrRemoteChanged.Error()
+	a.openSettings(tabCloud)
+	tt.Frame()
+	if err := tt.Click("以本地为准"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("确认覆盖并同步"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for s.busy {
+		select {
+		case g := <-s.guards:
+			g.reply <- nil
+		case out := <-s.done:
+			s.done <- out
+			tt.Frame()
+		case <-deadline.C:
+			a.cancelCloudSync()
+			t.Fatal("recovery worker timed out")
+		}
+	}
+	if s.failed || s.reconcile != "" || s.confirmReconcile != "" {
+		t.Fatalf("recovery failed or direction retained: %s", s.message)
+	}
+	if len(s.conflicts) != 1 || s.conflicts[0].space != other.ID {
+		t.Fatal("recovery discarded another space's conflict")
+	}
+	if data, _ := os.ReadFile(file); string(data) != "local" {
+		t.Fatalf("cloud content=%q", data)
+	}
+	if _, err := os.Stat(filepath.Join(remote, "FreeFolio", "Other")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("recovery touched another selected space")
+	}
+	s.reconcile = "local"
+	a.startCloudSync(false, false)
+	if s.busy || s.reconcile != "" {
+		t.Fatal("automatic run accepted or retained overwrite")
 	}
 }
 

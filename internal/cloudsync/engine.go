@@ -44,6 +44,9 @@ type Conflict struct {
 // Hooks lets the native app protect active edits and send user files to the
 // system recycle bin after the engine has saved a recovery copy.
 type Hooks struct {
+	// Reconcile is an explicit, one-run recovery direction (local or remote).
+	// It preserves one-sided files and must never be enabled by a retry.
+	Reconcile string
 	// Recheck bypasses cached validators while keeping the common baseline,
 	// backups and all conditional writes intact.
 	Recheck     bool
@@ -180,6 +183,9 @@ func listLocal(root string) (map[string]bool, error) {
 // Sync uses a per-file common baseline. Concurrent changes preserve the local
 // file and save the remote side as an excluded, visible conflict copy.
 func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (result Result, err error) {
+	if h.Reconcile != "" && h.Reconcile != "local" && h.Reconcile != "remote" {
+		return result, errors.New("无效的同步覆盖方向")
+	}
 	if !c.Enabled {
 		return result, errors.New("请先启用云端同步")
 	}
@@ -293,6 +299,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 		}
 		entry, rexists := remote[rel]
 		etag, rh := entry.ETag, ""
+		remoteEncrypted := old.Encrypted
 		var raw, r []byte
 		loaded := false
 		load := func(validate bool) error {
@@ -322,13 +329,17 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 			if e != nil {
 				return e
 			}
+			var envelope struct {
+				Format string `json:"format"`
+			}
+			remoteEncrypted = json.Unmarshal(raw, &envelope) == nil && envelope.Format == sealedFormat
 			if int64(len(r)) > maxFileBytes {
 				return errors.New("文件超过 64 MiB")
 			}
 			rh = hashBytes(r)
 			return nil
 		}
-		if h.Recheck {
+		if h.Recheck || h.Reconcile != "" {
 			if err = load(false); err != nil {
 				return result, err
 			}
@@ -340,22 +351,21 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 			}
 		}
 
-		needEncrypt := c.Encrypt && lexists && rexists && (!known || !old.Encrypted)
+		needEncrypt := h.Reconcile != "remote" && c.Encrypt && lexists && rexists && (!known || !old.Encrypted)
 		if needEncrypt && !loaded {
 			if err = load(false); err != nil {
 				return result, err
 			}
 		}
 		if needEncrypt {
-			var envelope sealedBackup
-			needEncrypt = json.Unmarshal(raw, &envelope) != nil || envelope.Format != sealedFormat
+			needEncrypt = !remoteEncrypted
 		}
 		if lh == rh && !needEncrypt {
 			if lexists {
 				if err = remember(rel, l); err != nil {
 					return result, err
 				}
-				row := baselineRow{Hash: lh, RemoteETag: etag, Encrypted: c.Encrypt || old.Encrypted}
+				row := baselineRow{Hash: lh, RemoteETag: etag, Encrypted: remoteEncrypted}
 				if !known || row != old {
 					b.Files[rel], dirty = row, true
 				}
@@ -381,6 +391,12 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 				return result, errRemoteChanged
 			}
 			localChanged, remoteChanged = choice.UseLocal, !choice.UseLocal
+		}
+		if h.Reconcile != "" {
+			// Like rclone bisync --resync-mode path1/path2, prefer the
+			// chosen side for collisions and keep the union of one-sided files.
+			localChanged = lexists && (!rexists || h.Reconcile == "local")
+			remoteChanged = rexists && (!lexists || h.Reconcile == "remote")
 		}
 		switch {
 		case localChanged && remoteChanged:
@@ -483,6 +499,32 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 			checked++
 			continue // Keep the old baseline until the user resolves the conflict.
 		case localChanged:
+			if h.Reconcile != "" {
+				if h.BeforeApply != nil && h.BeforeApply(rel) != nil {
+					if ctx.Err() != nil {
+						return result, ctx.Err()
+					}
+					result.Skipped = append(result.Skipped, rel)
+					checked++
+					continue
+				}
+				current, exists, e := readLocal(sp.Root, rel)
+				if e != nil {
+					return result, e
+				}
+				if exists != lexists || !bytes.Equal(current, l) {
+					result.Skipped = append(result.Skipped, rel)
+					checked++
+					continue
+				}
+				// Keep the old remote bytes locally as well. This recovery
+				// does not depend solely on the failing service's history.
+				if rexists {
+					if err = backupLocal(stateDir, key, rel, raw, c.KeepSnapshots); err != nil {
+						return result, err
+					}
+				}
+			}
 			if rexists {
 				if !loaded {
 					expectedHash := rh
@@ -516,7 +558,12 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 						return result, err
 					}
 				}
-				if etag, err = writeRemote(s, sp.Remote+"/"+rel, payload, etag, rexists); err != nil {
+				if h.Reconcile != "" && rexists {
+					etag, err = overwriteRemote(s, sp.Remote+"/"+rel, payload)
+				} else {
+					etag, err = writeRemote(s, sp.Remote+"/"+rel, payload, etag, rexists)
+				}
+				if err != nil {
 					return result, err
 				}
 				if err = remember(rel, l); err != nil {
@@ -589,7 +636,7 @@ func Sync(ctx context.Context, c Config, sp Space, stateDir string, h Hooks) (re
 				if err = remember(rel, r); err != nil {
 					return result, err
 				}
-				b.Files[rel] = baselineRow{Hash: rh, RemoteETag: etag, Encrypted: c.Encrypt}
+				b.Files[rel] = baselineRow{Hash: rh, RemoteETag: etag, Encrypted: remoteEncrypted}
 				dirty = true
 				result.Downloaded++
 			}

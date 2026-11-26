@@ -42,8 +42,8 @@ const (
 // AIRoles are the supported roles stored in a scene.
 var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote}
 
-// MaxAIOutputs bounds a node's kept history; older entries are dropped from
-// the node, never deleted from disk.
+// MaxAIOutputs bounds non-image history; image references remain available
+// for selection and comparison across runs.
 const MaxAIOutputs = 30
 
 // AIParams are a node's generation options. Zero values are the service's
@@ -115,8 +115,7 @@ func (n *AINode) Kind() string {
 	return "text"
 }
 
-// AddOutputs appends a run's results, shows the first of them and keeps
-// the history bounded.
+// AddOutputs appends a run's results and shows the first of them.
 func (n *AINode) AddOutputs(outs []AIOutput) {
 	if len(outs) == 0 {
 		return
@@ -130,7 +129,7 @@ func (n *AINode) AddOutputs(outs []AIOutput) {
 		}
 	}
 	n.Outputs = append(n.Outputs, outs...)
-	if extra := len(n.Outputs) - MaxAIOutputs; extra > 0 {
+	if extra := len(n.Outputs) - MaxAIOutputs; n.Role != AIImage && extra > 0 {
 		n.Outputs = n.Outputs[extra:]
 	}
 	n.Current = len(n.Outputs) - len(outs)

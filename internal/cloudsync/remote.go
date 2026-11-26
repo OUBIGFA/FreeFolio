@@ -93,7 +93,7 @@ func writeRemote(s remoteStore, key string, data []byte, etag string, exists boo
 	cond := map[string]string{"Content-Type": "application/octet-stream"}
 	if exists {
 		if etag == "" || strings.HasPrefix(etag, "W/") {
-			return "", errors.New("服务未提供可用于安全覆盖的 ETag")
+			return "", fmt.Errorf("服务未提供可用于安全覆盖的 ETag：%w", ErrRemoteChanged)
 		}
 		cond["If-Match"] = etag
 	} else {
@@ -115,9 +115,31 @@ func writeRemote(s remoteStore, key string, data []byte, etag string, exists boo
 	return resp.Header.Get("ETag"), nil
 }
 
+// overwriteRemote is reserved for an explicit recovery direction. Ordinary
+// sync never falls back to it. A read-back verifies actual bytes before the
+// caller advances its baseline; a successful PUT alone is insufficient.
+func overwriteRemote(s remoteStore, key string, data []byte) (string, error) {
+	resp, err := remoteRequest(s, http.MethodPut, key, data, map[string]string{"Content-Type": "application/octet-stream"})
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", remoteError("覆盖上传", resp)
+	}
+	actual, etag, err := readRemote(s, key, "")
+	if err != nil {
+		return "", err
+	}
+	if !bytes.Equal(actual, data) {
+		return "", fmt.Errorf("覆盖后内容核对不一致：%w", ErrRemoteChanged)
+	}
+	return etag, nil
+}
+
 func deleteRemote(s remoteStore, key, etag string) error {
 	if etag == "" || strings.HasPrefix(etag, "W/") {
-		return errors.New("服务未提供可用于安全删除的 ETag")
+		return fmt.Errorf("服务未提供可用于安全删除的 ETag：%w", ErrRemoteChanged)
 	}
 	resp, err := remoteRequest(s, http.MethodDelete, key, nil, map[string]string{"If-Match": etag})
 	if err != nil {

@@ -130,6 +130,7 @@ type boardAIState struct {
 	media         map[string]*ui.Bitmap
 	mediaErr      map[string]error
 	mediaPending  map[string]bool
+	history       map[string]*aiImageHistory
 	videos        map[string]*ui.VideoPlayer
 	texts         map[string]boardAICardText
 	// edit is the node the properties panel edits; before is the scene
@@ -684,6 +685,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 						if err := addImage("", m.Data, in.Mask); err != nil {
 							return nil, err
 						}
+						// A new batch displays its first image; a cached result
+						// contains the chosen historical image. Pass that one.
+						break
 					}
 				}
 				continue

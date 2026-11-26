@@ -31,6 +31,14 @@ type cloudOutcome struct {
 	err       error
 	probe     bool
 	conflicts []cloudConflict
+	recovery  *cloudRecoveryTarget
+	onlySpace string
+}
+
+// Recovery is bound to the failed space and destination, so editing settings
+// cannot turn an old failure into authorization to overwrite another folder.
+type cloudRecoveryTarget struct {
+	space, name, root, remote, target string
 }
 type cloudConflict struct {
 	space, name string
@@ -58,6 +66,9 @@ type cloudState struct {
 	lastError       error
 	recheck         bool
 	recoveryFocus   string
+
+	recovery                    *cloudRecoveryTarget
+	reconcile, confirmReconcile string
 }
 
 func (a *App) loadCloudSync() {
@@ -95,7 +106,15 @@ func (a *App) saveCloudSync() bool {
 
 func (a *App) startCloudSync(probe, manual bool) {
 	s := &a.cloud
+	// Consume recovery before any early return. A canceled save or failed
+	// preflight must never leave an overwrite queued for an automatic run.
+	reconcile := s.reconcile
+	s.reconcile, s.confirmReconcile = "", ""
 	if s.busy || s.broken {
+		return
+	}
+	if reconcile != "" && (probe || !manual || !a.cloudRecoveryValid()) {
+		s.failed, s.message = true, i18n.T("同步目标已改变，请先重新同步")
 		return
 	}
 	if !probe && (!s.config.Enabled || !a.flushForTask()) {
@@ -103,6 +122,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 	}
 	c := s.config
 	c.Spaces = maps.Clone(c.Spaces)
+	if reconcile != "" {
+		c.Spaces = map[string]string{s.recovery.space: s.recovery.remote}
+	}
 	var spaces []space.Space
 	for id := range c.Spaces {
 		if sp := a.state.Get(id); sp != nil && !sp.IsExternal() {
@@ -148,6 +170,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 	go func() {
 		defer cancel()
 		out := cloudOutcome{probe: probe}
+		if reconcile != "" {
+			out.onlySpace = spaces[0].ID
+		}
 		if probe {
 			out.err = cloudsync.TestConnection(ctx, c)
 			done <- out
@@ -155,8 +180,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 		}
 		for _, sp := range spaces {
 			hooks := cloudsync.Hooks{
-				Recheck: recheck || len(resolutions[sp.ID]) > 0,
-				Merge:   editor.MergeFiles,
+				Reconcile: reconcile,
+				Recheck:   recheck || len(resolutions[sp.ID]) > 0,
+				Merge:     editor.MergeFiles,
 				// Keep the latest progress without making the worker wait for a frame.
 				Progress: func(p cloudsync.Progress) { progress.Store(&cloudProgress{sp.Name, p}) },
 				Resolve:  resolutions[sp.ID],
@@ -201,6 +227,7 @@ func (a *App) startCloudSync(probe, manual bool) {
 			}
 			if err != nil {
 				out.err = fmt.Errorf("%s: %w", sp.Name, err)
+				out.recovery = &cloudRecoveryTarget{sp.ID, sp.Name, sp.Root, c.Spaces[sp.ID], c.TargetID()}
 				break
 			}
 		}
@@ -265,8 +292,14 @@ func (a *App) cloudTick(c *ui.Context) {
 			g.reply <- err
 		case out := <-s.done:
 			s.lastError = out.err
+			s.recovery, s.confirmReconcile = out.recovery, ""
 			if !out.probe {
-				s.conflicts = out.conflicts
+				if out.onlySpace == "" {
+					s.conflicts = out.conflicts
+				} else {
+					s.conflicts = slices.DeleteFunc(s.conflicts, func(conflict cloudConflict) bool { return conflict.space == out.onlySpace })
+					s.conflicts = append(s.conflicts, out.conflicts...)
+				}
 			}
 			s.busy = false
 			s.cancel = nil
@@ -372,6 +405,56 @@ func (a *App) cancelCloudSync() {
 	}
 }
 
+func (a *App) cloudRecoveryValid() bool {
+	s := &a.cloud
+	r := s.recovery
+	if r == nil || r.target != s.config.TargetID() || s.config.Spaces[r.space] != r.remote {
+		return false
+	}
+	sp := a.state.Get(r.space)
+	return sp != nil && !sp.IsExternal() && sp.Root == r.root
+}
+
+func (a *App) cloudOverwriteChoices(c *ui.Context) {
+	s := &a.cloud
+	if s.recovery == nil {
+		return
+	}
+	valid := a.cloudRecoveryValid() && s.config.Enabled && !s.broken
+	ui.Text(c, fmt.Sprintf(i18n.T("覆盖范围：%s，单侧文件保留并补齐"), s.recovery.name)).FontSize(12).TextColor(c.Theme().TextMuted)
+	ui.Row(c).Gap(8).Wrap().Children(func() {
+		if ui.Button(c.Key("prefer-remote"), i18n.T("以云端为准")).Disabled(!valid).Clicked() {
+			s.confirmReconcile = "remote"
+		}
+		if ui.Button(c.Key("prefer-local"), i18n.T("以本地为准")).Disabled(!valid).Clicked() {
+			s.confirmReconcile = "local"
+		}
+	})
+	if s.confirmReconcile == "" {
+		return
+	}
+	hint := i18n.T("将用云端同名文件覆盖本地版本，覆盖前保留恢复副本")
+	if s.confirmReconcile == "local" {
+		hint = i18n.T("将用本地同名文件覆盖云端版本，覆盖前保留恢复副本")
+	}
+	if !valid {
+		hint = i18n.T("同步目标已改变，请先重新同步")
+	}
+	ui.Text(c, hint).FontSize(12).TextColor(c.Theme().Text)
+	ui.Row(c).Gap(8).Children(func() {
+		if ui.PrimaryButton(c.Key("confirm-overwrite"), i18n.T("确认覆盖并同步")).Disabled(!valid).Clicked() {
+			direction := s.confirmReconcile
+			if a.saveCloudSync() {
+				s.reconcile, s.resolve, s.recheck = direction, nil, false
+				a.startCloudSync(false, true)
+			}
+		}
+		if ui.Button(c.Key("cancel-overwrite"), i18n.T("取消覆盖")).Clicked() {
+			s.confirmReconcile = ""
+		}
+	})
+}
+
 // cloudRecoveryActions offers a different operation when a plain retry cannot
 // help. A recheck keeps the baseline and exposes conflicts for explicit choice.
 func (a *App) cloudRecoveryActions(c *ui.Context) {
@@ -400,6 +483,9 @@ func (a *App) cloudRecoveryActions(c *ui.Context) {
 		}
 	}
 	ui.Column(c.Key("cloud-recovery")).Padding(0, 16, 12, 16).Gap(8).Children(func() {
+		if remoteChanged {
+			a.cloudOverwriteChoices(c)
+		}
 		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(c.Theme().TextMuted)
 		ui.Row(c).Gap(8).Wrap().Children(func() {
 			if remoteChanged && ui.PrimaryButton(c.Key("recheck"), i18n.T("重新核对并同步")).Disabled(s.broken || !s.config.Enabled).Clicked() {

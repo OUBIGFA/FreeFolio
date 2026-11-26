@@ -2,6 +2,28 @@ package i18n
 
 // en translates the interface's messages into English, by their Chinese.
 var en = map[string]string{
+	"以云端为准": "Prefer cloud version",
+	"以本地为准": "Prefer local version",
+	"同步目标已改变，请先重新同步":           "The sync destination changed, sync again first",
+	"覆盖范围：%s，单侧文件保留并补齐":        "Scope: %s, files present on only one side are kept and copied",
+	"将用云端同名文件覆盖本地版本，覆盖前保留恢复副本": "Cloud files will replace local files with the same name, recovery copies are saved first",
+	"将用本地同名文件覆盖云端版本，覆盖前保留恢复副本": "Local files will replace cloud files with the same name, recovery copies are saved first",
+	"确认覆盖并同步":         "Confirm overwrite and sync",
+	"取消覆盖":            "Cancel overwrite",
+	"无效的同步覆盖方向":       "Invalid sync overwrite direction",
+	"覆盖上传":            "Overwrite upload",
+	"覆盖后内容核对不一致：":     "Content verification after overwrite failed: ",
+	"上张图片":            "Previous image",
+	"下张图片":            "Next image",
+	"图片历史":            "Image history",
+	"对比":              "Compare",
+	"对比图片":            "Compare images",
+	"对比图片 A":          "Comparison image A",
+	"对比图片 B":          "Comparison image B",
+	"图片对比分隔线":         "Image comparison divider",
+	"当前图片将作为下游参考图":    "Current image is used by downstream nodes",
+	"第 %d 张 · 第 %d 次": "Image %d · Run %d",
+
 	"选择连线": "Select link",
 	"选择连线，按 Delete 或右键断开": "Select link, press Delete or right-click to disconnect",
 	"ChatGPT 请求失败：":       "ChatGPT request failed: ",
