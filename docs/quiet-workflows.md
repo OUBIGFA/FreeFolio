@@ -2,6 +2,10 @@
 
 采用 Quiet.md 固定提交 `dfdf6da369eb0432a7f6c9024ca4f5c7605de4da` 的六项工作流，使用 FreeFolio 的 Go + MyGo 实现。来源见[第三方记录](../third_party/manifests/upstreams.json)。
 
+## 工作区
+
+在工作区，当前文档和文件标签使用空间的强调色。关闭文档后，空间主页提供新建、搜索和本次会话最近打开的三篇本空间文档。命令栏保留所有匹配结果，可用方向键选择、Enter 打开。窗口窄于 720 个逻辑像素时，设置页将分类移到顶部菜单，给选项留出整行。工作区层级参考 [Linear 的界面改版](https://linear.app/now/how-we-redesigned-the-linear-ui)，设置分组参考 [Windows 设置设计指南](https://learn.microsoft.com/en-us/windows/apps/design/app-settings/guidelines-for-app-settings)。
+
 ## 字体
 
 在 **设置 → 外观** 分别选择界面字体和正文字体。列表支持搜索、分类、收藏和最近使用。移动指针或按上下方向键临时预览，点击或按 Enter 保存；Esc、点击外部或“取消预览”恢复原字体。正文预览使用当前文档的独立只读副本。

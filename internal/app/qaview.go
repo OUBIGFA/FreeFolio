@@ -162,6 +162,14 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 	t := c.Theme()
 	s.beginCitationFrame(c)
+	if len(s.turns) == 0 {
+		s.finishCitationFrame(c)
+		ui.Box(c.Key("welcome-above")).Grow(1)
+		ui.Scroll(c.Key("qa-welcome")).MinHeight(0).Shrink(1).PaddingX(14).Children(func() { a.qaEmpty(c, name) })
+		a.oneBotComposer(c, s)
+		ui.Box(c.Key("welcome-below")).Grow(1)
+		return
+	}
 	for _, turn := range s.turns {
 		turn.prepareStream(c)
 	}
@@ -198,8 +206,6 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 			}
 			ui.Column(c.Key("content")).Padding(0, 0, gap, 0).Children(func() {
 				switch r.kind {
-				case qaEmptyRow:
-					a.qaEmpty(c, name)
 				case qaQuestionRow:
 					a.qaQuestion(c, spaceID, s, r.turn)
 				case qaStepsRow:
@@ -274,19 +280,18 @@ func qaRoundButton(c *ui.Context, key string, icon *ui.SVG, label string, disabl
 
 func (a *App) qaEmpty(c *ui.Context, name string) {
 	t := c.Theme()
-	ui.Column(c.Key("qa-empty")).Gap(12).Padding(28, 6, 8, 6).AlignItems(ui.Center).Children(func() {
-		ui.Box(c.Key("qa-badge")).Size(44, 44).Radius(12).Background(t.Accent.Alpha(0.10)).
-			Border(1, t.Accent.Alpha(0.18)).Center().Children(func() {
-			ui.Icon(c, iconAsk).FontSize(22).TextColor(t.Accent)
+	ui.Column(c.Key("qa-empty")).Gap(10).Padding(12, 2, 2, 2).AlignItems(ui.Start).Children(func() {
+		ui.Box(c.Key("qa-badge")).Size(34, 34).Radius(9).Background(t.Accent.Alpha(0.09)).Center().Children(func() {
+			ui.Icon(c, iconAsk).FontSize(19).TextColor(t.Accent)
 		})
-		ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
-			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("FreeFolio 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处")
+		ui.Column(c).Gap(4).Children(func() {
+			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("搜索这个空间的文档，并在回答中标出来源")
 			if a.files != nil {
-				title, hint = i18n.T("向打开的文件提问"), i18n.T("FreeFolio 会阅读已打开的文件来回答，并标出每句话的出处")
+				title, hint = i18n.T("向打开的文件提问"), i18n.T("搜索已打开的文件，并在回答中标出来源")
 			}
-			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, title).FontSize(18).FontWeight(600)
 			ui.Text(c, hint).
-				FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(290)
+				FontSize(13).LineHeight(1.45).TextColor(t.TextMuted)
 		})
 		if err := a.qaReady(); err != nil {
 			ui.Column(c.Key("qa-unset-card")).Gap(10).Padding(12, 16).Radius(10).AlignItems(ui.Center).
@@ -298,20 +303,20 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 			})
 			return
 		}
-		ui.Column(c).Gap(7).Padding(6, 0, 0, 0).AlignItems(ui.Stretch).MaxWidth(320).WidthPercent(100).Children(func() {
+		ui.Column(c).Gap(2).AlignItems(ui.Stretch).WidthPercent(100).Children(func() {
 			examples := qaExamples
 			if a.files != nil {
 				examples = fileQAExamples
 			}
 			for i, ex := range examples {
 				ex := i18n.T(ex)
-				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(9, 12).Radius(10).Gap(8).AlignItems(ui.Center).
-					Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.45)).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
+				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(7, 8).Radius(controlRadius).Gap(8).AlignItems(ui.Center).
+					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
 				if row.Hovered() {
-					row.Background(t.Accent.Alpha(0.07)).Border(1, t.Accent.Alpha(0.32))
+					row.Background(hoverFill(t))
 				}
 				row.Children(func() {
-					ui.Icon(c, iconSearch).FontSize(13).TextColor(t.TextMuted)
+					ui.Icon(c, iconArrowUpRight).FontSize(13).TextColor(t.Accent)
 					ui.Text(c, ex).FontSize(12.5).LineHeight(1.4).Shrink(1).MinWidth(0)
 				})
 				if row.Clicked() {
@@ -320,8 +325,7 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 				}
 			}
 		})
-		ui.Text(c, i18n.T("提问时，读到的文档片段会发送给你设置的模型服务")).FontSize(11).TextColor(t.TextMuted.Alpha(0.8)).
-			TextAlign(ui.Center).MaxWidth(290).Padding(4, 0, 0, 0)
+		ui.Text(c, i18n.T("提问时，读到的文档片段会发送给你设置的模型服务")).FontSize(12).LineHeight(1.4).TextColor(t.TextMuted)
 	})
 }
 

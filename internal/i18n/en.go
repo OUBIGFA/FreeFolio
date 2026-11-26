@@ -2,8 +2,11 @@ package i18n
 
 // en translates the interface's messages into English, by their Chinese.
 var en = map[string]string{
-	"以云端为准": "Prefer cloud version",
-	"以本地为准": "Prefer local version",
+	"图形样式":   "Shape styles",
+	"白板工具":   "Whiteboard tools",
+	"选择设置页面": "Choose settings page",
+	"以云端为准":  "Prefer cloud version",
+	"以本地为准":  "Prefer local version",
 	"同步目标已改变，请先重新同步":           "The sync destination changed, sync again first",
 	"覆盖范围：%s，单侧文件保留并补齐":        "Scope: %s, files present on only one side are kept and copied",
 	"将用云端同名文件覆盖本地版本，覆盖前保留恢复副本": "Cloud files will replace local files with the same name, recovery copies are saved first",
@@ -1600,7 +1603,11 @@ var en = map[string]string{
 	"退出资料库":                 "Leave Library",
 	"退出资料库 (Esc)":           "Leave Library (Esc)",
 	"适应窗口":                  "Fit Window",
-	"选择一篇文档，或按 ⌘K 搜索":       "Choose a document, or press ⌘K to search",
+	"从侧边栏选择文档，或搜索空间内容":      "Choose a document in the sidebar or search this space",
+	"最近打开":                  "Recently opened",
+	"继续打开：":                 "Reopen: ",
+	"搜索结果":                  "Search results",
+	"%d 个结果":                "%d results",
 	"选择全部内容块":               "Select All Blocks",
 	"选择分屏文档":                "Choose a document for the pane",
 	"选择图标":                  "Choose Icon",
@@ -1672,7 +1679,7 @@ var en = map[string]string{
 	"%s 篇":    "%s documents",
 	"AI 问答":   "AI Q&A",
 	"AI 问答设置": "AI Q&A Settings",
-	"FreeFolio 会像翻资料一样搜索、阅读这个空间里的文档来回答，并标出每句话的出处": "FreeFolio searches and reads this space's documents to answer, the way you would look things up, and shows where each statement comes from",
+	"搜索这个空间的文档，并在回答中标出来源": "Search documents in this space and cite sources in the answer",
 	"保存":         "Save",
 	"保存在本机配置目录":  "Saved in the local configuration folder",
 	"停止":         "Stop",
@@ -1684,10 +1691,10 @@ var en = map[string]string{
 	"向「%s」提问":    "Ask “%s”",
 	"向当前空间提问":    "Ask the Current Space",
 	"向打开的文件提问":   "Ask the Open Files",
-	"FreeFolio 会阅读已打开的文件来回答，并标出每句话的出处": "FreeFolio reads the open files to answer and cites the source of every sentence",
-	"总结一下这篇文档":     "Summarize this document",
-	"这篇文档里有哪些待办事项": "What to-dos does this document list",
-	"有没有前后矛盾的地方":   "Does anything contradict itself",
+	"搜索已打开的文件，并在回答中标出来源": "Search open files and cite sources in the answer",
+	"总结一下这篇文档":           "Summarize this document",
+	"这篇文档里有哪些待办事项":       "What to-dos does this document list",
+	"有没有前后矛盾的地方":         "Does anything contradict itself",
 	"在问答面板（%s）里向当前空间提问；模型会搜索、阅读空间里的文档后回答并标出出处，不建立向量索引": "Ask the current space in the Q&A panel (%s); The model searches and reads the space's documents, then answers with sources; no vector index is built",
 	"失败":  "Failed",
 	"已保存": "Saved",
@@ -1957,8 +1964,8 @@ var en = map[string]string{
 
 	// OneBot drag-and-drop & attachments.
 	"松开以引用到 OneBot（支持多文件、图片）": "Drop to reference in OneBot (supports multiple files & images)",
-	"发送消息、拖入文件或图片，或描述要修改的内容":  "Send a message, drop files or images, or describe what to edit",
-	"打开附件": "Open attachment",
+	"发送消息，或拖入附件":              "Message OneBot or drop a file",
+	"打开附件":                    "Open attachment",
 
 	"一次最多添加 %d 个附件": "You can attach up to %d files at once",
 	// OneBot conversation UI actions & context controls.

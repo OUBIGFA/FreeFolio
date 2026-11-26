@@ -390,7 +390,14 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 	id := e.ID
 	st := boardChromeFor(o.Theme)
 	edit := func(fn func(*whiteboard.AINode)) { b.editAINode(o, id, fn) }
-	boardSurface(ui.Scroll(c.Key("board-ai-props")).Absolute().Top(66).Right(12).Width(312).MaxHeight(max(150, b.lastRect.H-140)).Padding(14).Gap(8), st).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
+	panel := boardSurface(ui.Scroll(c.Key("board-ai-props")).Absolute().Top(62).Width(min(312, max(1, b.lastRect.W-24))).MaxHeight(max(44, b.lastRect.H-118)).Padding(14).Gap(8), st)
+	center, _, _, _ := b.canvasRect(e.X+e.W/2, 0, 0, 0)
+	if center > b.lastRect.W/2 {
+		panel.Left(12)
+	} else {
+		panel.Right(12)
+	}
+	panel.Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
 		boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
 		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
 			b.aiRunControls(c, o, id)
@@ -778,14 +785,8 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 		x, y, w, h := b.canvasRect(e.X, e.Y, e.W, e.H)
 		out := n.Output()
 		{
-			// Above the card, or below it where the toolbar would cover it,
-			// so the bar never hides the card's title and slots.
-			top := y - 44
-			if top < 56 {
-				top = y + h + 8
-			}
 			st := boardChromeFor(o.Theme)
-			boardSurface(ui.Row(c.Key("board-ai-node-bar")).Absolute().Left(x).Top(top).Gap(3).Padding(4, 6).AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(i18n.T("节点操作")).Children(func() {
+			b.selectionToolbar(c, "board-ai-node-bar", i18n.T("节点操作"), ui.Rect{X: x, Y: y, W: w, H: h}, st).Children(func() {
 				if n.Role == whiteboard.AIImageInput || out != nil && out.Kind == "image" {
 					b.aiImageButtons(c, o, e.ID, true)
 				}
@@ -874,13 +875,9 @@ func (b *Board) aiSelectionBar(c *ui.Context, o BoardOptions) {
 		}
 	}
 	box := whiteboard.SelectionBounds(b.Scene, b.SelectedIDs())
-	x, y, _, h := b.canvasRect(box.X, box.Y, box.W, box.H)
-	top := y - 46
-	if top < 60 {
-		top = y + h + 10
-	}
+	x, y, w, h := b.canvasRect(box.X, box.Y, box.W, box.H)
 	st := boardChromeFor(o.Theme)
-	boardSurface(ui.Row(c.Key("board-ai-selection")).Absolute().Left(max(8, x)).Top(top).Gap(3).Padding(4, 6).AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(i18n.T("用选中内容运行 AI")).Children(func() {
+	b.selectionToolbar(c, "board-ai-selection", i18n.T("用选中内容运行 AI"), ui.Rect{X: x, Y: y, W: w, H: h}, st).Children(func() {
 		if len(b.selectedImagesForNodes()) > 0 && boardFlatButton(c, "board-ai-convert-image", i18n.T("转为节点"), false, st).Height(26).Clicked() {
 			b.convertImagesToNodes(o)
 		}

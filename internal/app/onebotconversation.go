@@ -103,7 +103,7 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 	}
 	ui.Column(c.Key("composer-margin")).Padding(8, 12, 12, 12).Shrink(0).Children(func() {
 		a.chatGPTUsageView(c)
-		composer := ui.Column(c.Key("composer")).Radius(12).Border(1, t.Border.Alpha(0.85)).Background(field(t)).Padding(10, 12, 7, 12).Gap(6)
+		composer := ui.Column(c.Key("composer")).Radius(panelRadius).Border(1, t.Border).Background(field(t)).Padding(8, 10, 6, 10).Gap(4)
 		if a.qa.dropHover {
 			composer.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.06))
 		} else if composer.FocusWithin() {
@@ -139,18 +139,31 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 					}
 				})
 			}
-			a.oneBotQuoteBadges(c, "quotes", a.qa.quotes, true)
-			if len(a.qa.attachments) > 0 {
-				badges := make([]oneBotAttachmentBadge, len(a.qa.attachments))
-				for i, item := range a.qa.attachments {
-					badges[i] = item.badge()
-				}
-				a.oneBotAttachmentBadges(c, "attachments", badges, func(i int) {
-					a.qa.attachments = append(a.qa.attachments[:i:i], a.qa.attachments[i+1:]...)
+			if len(a.qa.quotes) > 0 || len(a.qa.attachments) > 0 {
+				_, height := c.Size()
+				ui.Scroll(c.Key("draft-references")).MinHeight(0).MaxHeight(min(108, height/5)).Gap(4).Children(func() {
+					a.oneBotQuoteBadges(c, "quotes", a.qa.quotes, true)
+					badges := make([]oneBotAttachmentBadge, len(a.qa.attachments))
+					for i, item := range a.qa.attachments {
+						badges[i] = item.badge()
+					}
+					a.oneBotAttachmentBadges(c, "attachments", badges, func(i int) {
+						a.qa.attachments = append(a.qa.attachments[:i:i], a.qa.attachments[i+1:]...)
+					})
 				})
 			}
 			svc := c.Services()
-			in := ui.TextInput(c.Key("qa-question"), &a.qa.input).Multiline(true).Height(58).Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息、拖入文件或图片，或描述要修改的内容")).OnPaste(func(text string) bool {
+			in := ui.TextAreaBase(c.Key("qa-question"), &a.qa.input).Lines(1, 6).MinHeight(24).FontSize(14).Padding(2, 0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或拖入附件")).OnTextKey(func(key ui.TextKey) bool {
+				if key.Key != ui.KeyEnter || key.Mods != 0 {
+					return false
+				}
+				a.qa.input = key.Text()
+				a.askQA()
+				if a.qa.input != key.Text() {
+					key.SetText(a.qa.input)
+				}
+				return true
+			}).OnPaste(func(text string) bool {
 				data := svc.ReadClipboardData(transfer.FileList, transfer.PNG)
 				if files, err := data.Files(); err == nil && len(files) > 0 {
 					a.addOneBotFiles(files)
@@ -167,12 +180,6 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 			if a.qa.focusInput {
 				a.qa.focusInput = false
 				in.Focus()
-			}
-			if in.Submitted() {
-				a.askQA()
-			}
-			if in.Focused() && c.Shortcut(0, ui.KeyEnter) {
-				a.askQA()
 			}
 			ui.Row(c.Key("composer-toolbar")).Gap(5).AlignItems(ui.Center).Children(func() {
 				iconButton(c, "context-add", iconPlus, i18n.T("添加上下文"), i18n.T("添加附件或编辑范围"), false).Size(28, 28).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {

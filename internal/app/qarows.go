@@ -10,8 +10,7 @@ import (
 type qaRowKind uint8
 
 const (
-	qaEmptyRow qaRowKind = iota
-	qaQuestionRow
+	qaQuestionRow qaRowKind = iota
 	qaStepsRow
 	qaAnswerRow
 	qaSourcesRow
@@ -135,9 +134,6 @@ func (s *qaSession) visibleRowsWith(fs func() *spacefs.FS) []qaRow {
 	clear(s.rowState)
 	s.rows = s.rows[:0]
 	s.rowState = s.rowState[:0]
-	if len(s.turns) == 0 {
-		s.rows = append(s.rows, qaRow{kind: qaEmptyRow})
-	}
 	var cachedFS *spacefs.FS
 	gotFS := false
 	getFS := func() *spacefs.FS {

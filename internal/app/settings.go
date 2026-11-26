@@ -131,36 +131,67 @@ func (a *App) settingsView(c *ui.Context) {
 	if w < 800 {
 		rail = 148
 	}
+	compact := w < 720
+	if compact {
+		rail = 0
+	}
+	tabs := settingsTabs()
+	current := ""
+	for _, tab := range tabs {
+		if tab.id == a.settingsTab {
+			current = tab.label
+		}
+	}
+	back := func() {
+		if iconButton(c, "settings-back", iconBack, i18n.T("返回"), i18n.T("返回")+" (Esc)", false).Clicked() {
+			a.settingsOpen = false
+		}
+	}
 	ui.Overlay(c.Key("settings"), func() {
 		ui.Column(c.Key("settings-surface")).Fill().Modal().Role(ui.RoleDialog).Label(i18n.T("设置")).Disabled(a.updates.installing).Background(t.Background).Children(func() {
 			ui.Box(c.Key("settings-title")).Height(max(12, bar.Height)).DragWindow()
 			ui.Row(c.Key("settings-body")).Grow(1).MinHeight(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 10, 10, 10).Gap(8).Children(func() {
-					// The way back heads the navigation, beside its title.
-					ui.Row(c.Key("settings-back-row")).Gap(4).AlignItems(ui.Center).Children(func() {
-						if iconButton(c, "settings-back", iconBack, i18n.T("返回"), i18n.T("返回")+" (Esc)", false).Clicked() {
-							a.settingsOpen = false
-						}
-						ui.Text(c, i18n.T("设置")).FontSize(15).FontWeight(600)
+				if !compact {
+					ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 10, 10, 10).Gap(8).Children(func() {
+						// The way back heads the navigation, beside its title.
+						ui.Row(c.Key("settings-back-row")).Gap(4).AlignItems(ui.Center).Children(func() {
+							back()
+							ui.Text(c, i18n.T("设置")).FontSize(15).FontWeight(600)
+						})
+						ui.Sidebar(c.Key("settings-tabs"), &a.settingsTab, func() {
+							for _, tab := range tabs {
+								ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(min(32, h/14))
+							}
+						}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(2).Background(ui.Transparent)
 					})
-					ui.Sidebar(c.Key("settings-tabs"), &a.settingsTab, func() {
-						for _, tab := range settingsTabs() {
-							ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(min(32, h/14))
-						}
-					}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(2).Background(ui.Transparent)
-					if !a.updates.installing && a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
-						a.settingsOpen = false
-					}
-				})
+				}
+				if !a.updates.installing && a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
+					a.settingsOpen = false
+				}
 				pane := ui.Column(c.Key("settings-pane")).Grow(1).MinWidth(0).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Margin(0, 8, 8, 0).Clip()
+				if compact {
+					pane.Margin(0).Radius(0).BorderWidth(1, 0, 0, 0)
+				}
 				pane.Children(func() {
 					ui.Row(c.Key("settings-header")).Height(44).Shrink(0).PaddingX(20).AlignItems(ui.Center).Children(func() {
-						chosen, current := 1, ""
-						for _, tab := range settingsTabs() {
-							if tab.id == a.settingsTab {
-								current = tab.label
-							}
+						if compact {
+							back()
+							ui.Text(c, i18n.T("设置")).FontSize(14).FontWeight(600).PaddingX(6)
+							ui.Spacer(c)
+							button := ui.Button(c.Key("settings-pages"), "").Role(ui.RoleMenuButton).Label(i18n.T("选择设置页面")).Gap(8).Children(func() {
+								ui.Text(c, current).SingleLine()
+								ui.Icon(c, iconChevronDown).FontSize(13)
+							})
+							button.PopoverMenuButton(func(menu *ui.Menu) {
+								for _, tab := range tabs {
+									if menu.Item(tab.label).Checked(tab.id == a.settingsTab).Chosen() {
+										a.settingsTab = tab.id
+									}
+								}
+							})
+							return
 						}
+						chosen := 1
 						if ui.Breadcrumbs(c.Key("crumbs"), []string{i18n.T("设置"), current}, &chosen).Label(i18n.T("设置")).Changed() && chosen == 0 {
 							a.settingsTab = tabGeneral
 						}
@@ -207,7 +238,7 @@ func (a *App) settingsView(c *ui.Context) {
 func settingsHeading(c *ui.Context, title, note string) {
 	t := c.Theme()
 	ui.Column(c).Gap(4).Padding(0, 0, 4, 0).Children(func() {
-		ui.Text(c, title).FontSize(20).FontWeight(600)
+		ui.Text(c, title).FontSize(22).FontWeight(600)
 		_, h := c.Size()
 		if note != "" && h >= 580 {
 			ui.Text(c, note).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
@@ -223,12 +254,12 @@ func settingsSection(c *ui.Context, title string) {
 // Settings groups share a surface and a common row inset.
 func settingsGroup(c *ui.Context, key string, rows func()) {
 	t := c.Theme()
-	ui.Column(c.Key(key)).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Clip().Children(rows)
+	ui.Column(c.Key(key)).Background(t.Surface).BorderWidth(1, 0, 1, 0).BorderColor(separator(t)).Clip().Children(rows)
 }
 
 // settingsSeparator is the hairline between a group's rows, inset as they are.
 func settingsSeparator(c *ui.Context) {
-	ui.Box(c).Height(1).Margin(0, 16).Background(c.Theme().Border.Alpha(0.6))
+	ui.Box(c).Height(1).Margin(0, 12).Background(separator(c.Theme()))
 }
 
 func settingsRowInset(c *ui.Context) float32 {
@@ -244,7 +275,7 @@ func settingsRowInset(c *ui.Context) float32 {
 func settingRow(c *ui.Context, key, label, note string, control func()) {
 	t := c.Theme()
 	_, h := c.Size()
-	ui.Row(c.Key(key)).Padding(settingsRowInset(c), 16).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
+	ui.Row(c.Key(key)).Padding(settingsRowInset(c), 12).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, label).FontSize(13).FontWeight(500)
 			if note != "" && h >= 560 {

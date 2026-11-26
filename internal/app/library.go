@@ -250,7 +250,7 @@ func (a *App) libraryRail(c *ui.Context) {
 func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon *ui.SVG) {
 	t := c.Theme()
 	chosen := a.library.page == page
-	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(10).Gap(6).Center().
+	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(controlRadius).Gap(5).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTab).Label(title).Selected(chosen)
 	if chosen && a.library.page != libTrash {
 		// The keys leave the document, which would take Escape, for the
@@ -259,7 +259,7 @@ func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon 
 	}
 	switch {
 	case chosen:
-		b.Background(t.Accent.Alpha(0.11))
+		b.Background(navigationFill(t))
 	case b.Hovered():
 		b.Background(hoverFill(t))
 	}

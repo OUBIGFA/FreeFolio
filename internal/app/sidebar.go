@@ -83,7 +83,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 				ui.Row(c.Key("history-bar")).Gap(2).Shrink(0).Children(func() { a.historyButtons(c) })
 			}
 			label := i18n.T("搜索或打开文档")
-			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(32)
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(32).Border(1, separator(t)).Background(field(t))
 			width := search.Bounds().W
 			search.Children(func() {
 				ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
@@ -915,6 +915,8 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		}
 		if into {
 			p.Stroke(fr, t.Text.Alpha(0.3), 10, 1.5)
+		} else if chosen && !lifted {
+			p.Fill(ui.Rect{X: fr.X + 1, Y: fr.Y + 7, W: 3, H: max(0, fr.H-14)}, t.Accent, 1.5)
 		}
 	})
 	closed := false

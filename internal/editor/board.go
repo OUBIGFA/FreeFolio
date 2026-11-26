@@ -81,6 +81,7 @@ type Board struct {
 	Zoom, PanX, PanY                           float64
 	ShowGrid, Snap, ArrowBinding, MidpointSnap bool
 	style                                      *whiteboard.Element
+	compactStyleOpen                           bool
 	lastRect                                   ui.Rect
 	fitted                                     bool
 	revision                                   uint64

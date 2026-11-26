@@ -153,10 +153,11 @@ type App struct {
 
 	// tree and docs are the folders and documents of treeFor, the space
 	// they were read for; docs lists the documents in tree order.
-	tree    []*vault.Node
-	docs    []*vault.Node
-	treeFor string
-	treeErr error
+	tree     []*vault.Node
+	docs     []*vault.Node
+	docPaths map[string]bool
+	treeFor  string
+	treeErr  error
 	// treeLoading is set while the active space's folder is read off the
 	// main thread; treeGen tells a read still wanted from one overtaken by
 	// a later read or a switch. readTreesAsync reads folders so, as the
@@ -1040,6 +1041,11 @@ func (a *App) setTree(sp *space.Space, nodes []*vault.Node, err error) {
 // collectDocs lists the documents of the tree in tree order.
 func (a *App) collectDocs() {
 	a.docs = a.docs[:0]
+	if a.docPaths == nil {
+		a.docPaths = make(map[string]bool)
+	} else {
+		clear(a.docPaths)
+	}
 	var walk func([]*vault.Node)
 	walk = func(nodes []*vault.Node) {
 		for _, n := range nodes {
@@ -1047,6 +1053,7 @@ func (a *App) collectDocs() {
 				walk(n.Children)
 			} else {
 				a.docs = append(a.docs, n)
+				a.docPaths[n.Path] = true
 			}
 		}
 	}

@@ -145,7 +145,7 @@ func boardButton(c *ui.Context, id, label string, active bool) ui.Element {
 func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 	st := boardChromeFor(o.Theme)
 	ui.Row(c.Key("board-toolbar-wrap")).Absolute().Top(10).Left(8).Right(8).Justify(ui.Center).PassThrough().Children(func() {
-		boardSurface(ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).AlignItems(ui.Center), st).Children(func() {
+		boardSurface(ui.Row(c.Key("board-toolbar")).Padding(4).Gap(2).AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(i18n.T("白板工具")).Children(func() {
 			lock := "unlocked"
 			if b.ToolLocked {
 				lock = "locked"
@@ -155,8 +155,16 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 				b.RequestFocus = true
 			}
 			capacity := b.toolCapacity(o)
-			for _, d := range boardTools {
-				if int(d.tool) > capacity {
+			last := capacity - 1
+			for index := capacity; index < len(boardTools); index++ {
+				if boardTools[index].tool == b.Tool {
+					last = index
+					break
+				}
+			}
+			visible := func(index int) bool { return index < capacity-1 || index == last }
+			for index, d := range boardTools {
+				if !visible(index) {
 					continue
 				}
 				switch d.tool {
@@ -188,9 +196,9 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 					b.RunAction("search", o)
 				}
 				b.layoutMenu(m, o)
-				capacity := b.toolCapacity(o)
-				for _, d := range boardTools {
-					if int(d.tool) > capacity && m.Item(i18n.T(d.label)).Chosen() {
+				for index, d := range boardTools {
+					if !visible(index) && m.Item(i18n.T(d.label)).Chosen() {
+						b.finishText(o)
 						b.Tool = d.tool
 						b.penSelection()
 						b.RequestFocus = true
@@ -236,11 +244,21 @@ func (b *Board) toolbar(c *ui.Context, o BoardOptions) {
 // toolCapacity is how many tools fit in the toolbar beside its fixed
 // buttons; the rest are in the More menu.
 func (b *Board) toolCapacity(o BoardOptions) int {
-	fixed := 3
+	available := b.lastRect.W - 104
 	if o.AI != nil {
-		fixed += 4
+		available -= 104
 	}
-	return max(3, int((b.lastRect.W-32)/34)-fixed)
+	for index, def := range boardTools {
+		available -= 34
+		switch def.tool {
+		case ToolRect, ToolArrow, ToolText, ToolImage:
+			available -= 9
+		}
+		if available < 0 {
+			return max(1, index)
+		}
+	}
+	return len(boardTools)
 }
 func (b *Board) footer(c *ui.Context, o BoardOptions) {
 	st := boardChromeFor(o.Theme)
@@ -315,6 +333,7 @@ func (b *Board) propSelect(c *ui.Context, key, label, current string, options []
 func (b *Board) properties(c *ui.Context, o BoardOptions) {
 	ids := b.SelectedIDs()
 	if len(ids) == 0 && (b.Tool == ToolSelect || b.Tool == ToolHand || b.Tool == ToolEraser || b.Tool == ToolLasso) {
+		b.compactStyleOpen = false
 		return
 	}
 	e := b.style
@@ -322,7 +341,31 @@ func (b *Board) properties(c *ui.Context, o BoardOptions) {
 		e = b.Scene.ElementByID(ids[0])
 	}
 	st := boardChromeFor(o.Theme)
-	boardSurface(ui.Scroll(c.Key("board-properties")).Absolute().Top(66).Left(12).Width(232).MaxHeight(max(100, b.lastRect.H-132)).Padding(12).Gap(8), st).Children(func() {
+	top := float32(62)
+	if b.lastRect.W < 600 {
+		boardSurface(ui.Row(c.Key("board-style-toggle")).Absolute().Left(8).Top(top).Padding(2), st).Children(func() {
+			if boardFlatButton(c, "toggle", i18n.T("图形样式"), b.compactStyleOpen, st).Clicked() {
+				b.compactStyleOpen = !b.compactStyleOpen
+			}
+		})
+		if !b.compactStyleOpen {
+			return
+		}
+		top += 38
+	}
+	panel := boardSurface(ui.Scroll(c.Key("board-properties")).Absolute().Top(top).Width(min(232, max(1, b.lastRect.W-24))).MaxHeight(max(44, b.lastRect.H-top-56)).Padding(12).Gap(8), st)
+	if len(ids) > 0 && b.lastRect.W >= 600 {
+		bounds := whiteboard.SelectionBounds(b.Scene, ids)
+		center, _, _, _ := b.canvasRect(bounds.X+bounds.W/2, 0, 0, 0)
+		if center < b.lastRect.W/2 {
+			panel.Right(12)
+		} else {
+			panel.Left(12)
+		}
+	} else {
+		panel.Left(8)
+	}
+	panel.Role(ui.RoleGroup).Label(i18n.T("图形样式")).Children(func() {
 		for _, which := range []struct{ key, label, current string }{{"stroke", "描边", e.StrokeColor}, {"fill", "填充", e.FillColor}} {
 			boardSectionLabel(c, st, i18n.T(which.label))
 			ui.Row(c.Key(which.key)).Gap(5).AlignItems(ui.Center).Children(func() {

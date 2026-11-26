@@ -115,6 +115,10 @@ func hoverFill(t *ui.Theme) ui.Color {
 	return pick(t, black.Alpha(0.045), white.Alpha(0.07))
 }
 
+func navigationFill(t *ui.Theme) ui.Color {
+	return pick(t, t.Accent.Alpha(0.10), t.Accent.Alpha(0.16))
+}
+
 // closedIconAlpha and closedInk dim a pinned document that is closed, as
 // Zen dims an unloaded pinned tab, so the open ones stand out beside them.
 const closedIconAlpha = 0.5
@@ -163,9 +167,9 @@ type spaceLook struct {
 // chromeFill is the window's chrome behind the paper.
 func chromeFill(dark bool) ui.Color {
 	if dark {
-		return ui.Hex("#141416")
+		return ui.Hex("#17191C")
 	}
-	return ui.Hex("#F4F4F5")
+	return ui.Hex("#F0F2F4")
 }
 
 // spaceAccent turns a space's color into an accent that reads on the

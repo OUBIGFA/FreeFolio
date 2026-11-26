@@ -575,7 +575,7 @@ const recentLimit = 4
 // documents last shown, then commands, then the rest of the documents.
 func (a *App) idleResults() []action {
 	var out []action
-	for _, p := range a.recentPlaces(recentLimit) {
+	for _, p := range a.recentPlaces(recentLimit, "") {
 		id, rel := p.space, p.rel
 		out = append(out, action{kind: i18n.T("最近"), title: vault.Title(rel), hint: a.docHint(id, rel), doc: p,
 			run: func() { a.openAnywhere(id, rel) }})
@@ -616,6 +616,10 @@ func (a *App) paletteView(c *ui.Context) {
 	winW, winH := c.Size()
 	width := min(float32(840), winW-80)
 	resultHeight := max(float32(80), winH-160)
+	showKeys := winH >= 460
+	if showKeys {
+		resultHeight -= 28
+	}
 	var top float32
 	var bounds ui.Rect
 	if p.pane != nil && p.pane.bounds.W > 0 {
@@ -651,8 +655,13 @@ func (a *App) paletteView(c *ui.Context) {
 			placeholder = i18n.T("搜索书签")
 		}
 		ui.Column(c).Width(width).Gap(6).Children(func() {
-			input := ui.TextInput(c.Key("query"), &p.query).Placeholder(placeholder).
-				AutoFocus().Label(i18n.T("命令栏")).FontSize(16).Padding(10, 12)
+			var input ui.Element
+			ui.Row(c.Key("search-head")).Padding(2, 8).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconSearch).FontSize(18).TextColor(t.TextMuted)
+				input = ui.TextInputBase(c.Key("query"), &p.query).Placeholder(placeholder).
+					AutoFocus().Label(i18n.T("命令栏")).FontSize(16).Height(36).Grow(1).MinWidth(0)
+			})
+			ui.Box(c).Height(1).Background(separator(t))
 			if input.Submitted() && len(res) > 0 {
 				run(res[p.index])
 				return
@@ -670,9 +679,20 @@ func (a *App) paletteView(c *ui.Context) {
 			}
 			// Bound the viewport, not the results; keep the input visible while
 			// the user scrolls through long document searches.
-			ui.Scroll(c.Key("palette-results")).MaxHeight(resultHeight).MinHeight(0).Children(func() {
+			ui.Scroll(c.Key("palette-results")).Role(ui.RoleListBox).Label(i18n.T("搜索结果")).MaxHeight(resultHeight).MinHeight(0).Children(func() {
+				duplicates := make(map[[5]string]int)
 				for i, act := range res {
-					row := ui.Row(c.Key(i)).Gap(10).Padding(7, 12).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(act.title)
+					key := [5]string{act.kind, act.title, act.hint, act.doc.space, act.doc.rel}
+					if mark := act.bookmark; mark != nil {
+						key = [5]string{act.kind, mark.Space, mark.Path, mark.Block}
+					}
+					ordinal := duplicates[key]
+					duplicates[key]++
+					rowKey := struct {
+						identity [5]string
+						ordinal  int
+					}{key, ordinal}
+					row := ui.Row(c.Key(rowKey)).Gap(10).Padding(7, 12).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleOption).AccessSelected(i == p.index).Label(act.title)
 					confirming := act.danger && p.confirm == act.title
 					renamingMark := act.bookmark != nil && p.renameOn && sameBookmark(p.renaming, *act.bookmark)
 					if confirming {
@@ -694,7 +714,7 @@ func (a *App) paletteView(c *ui.Context) {
 					row.Children(func() {
 						if i == p.index && !confirming {
 							ui.Box(c.Key("sel")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(controlRadius).
-								Background(t.Accent.Alpha(0.16)).PassThrough().
+								Background(navigationFill(t)).PassThrough().
 								Transition(ui.ElementTransition{Duration: 90 * time.Millisecond, Ease: ui.EaseOut, Match: palettePillMatch{}})
 						}
 						ui.Text(c, act.kind).FontSize(12).TextColor(t.TextMuted).Width(64).SingleLine()
@@ -736,6 +756,16 @@ func (a *App) paletteView(c *ui.Context) {
 				}
 			})
 			p.reveal = false
+			if showKeys {
+				ui.Row(c.Key("search-keys")).AlignItems(ui.Center).Gap(8).Padding(3, 8).Children(func() {
+					ui.Text(c, "↑↓ "+i18n.T("选择")).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, "Enter "+i18n.T("打开")).FontSize(12).TextColor(t.TextMuted)
+					ui.Spacer(c)
+					if p.query != "" {
+						ui.Text(c, fmt.Sprintf(i18n.T("%d 个结果"), len(res))).FontSize(12).TextColor(t.TextMuted)
+					}
+				})
+			}
 		})
 	})
 	if bounds.W > 0 {

@@ -286,7 +286,7 @@ func (a *App) docHint(id, rel string) string {
 
 // recentPlaces are the documents last shown, newest first, without the
 // open one, at most n.
-func (a *App) recentPlaces(n int) []place {
+func (a *App) recentPlaces(n int, spaceID string) []place {
 	var out []place
 	seen := map[place]bool{}
 	if a.doc != nil {
@@ -294,7 +294,14 @@ func (a *App) recentPlaces(n int) []place {
 	}
 	for i := len(a.history) - 1; i >= 0 && len(out) < n; i-- {
 		p := a.history[i]
-		if seen[p] || a.state.Get(p.space) == nil {
+		if seen[p] {
+			continue
+		}
+		if spaceID != "" {
+			if p.space != spaceID || !a.docPaths[p.rel] {
+				continue
+			}
+		} else if a.state.Get(p.space) == nil {
 			continue
 		}
 		seen[p] = true

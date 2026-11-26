@@ -724,7 +724,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		}
 		ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil).Shrink(0)
 		if a.qa.open {
-			ask.Background(glass(c.Theme()))
+			ask.Background(navigationFill(c.Theme()))
 		}
 		if ask.Clicked() {
 			a.toggleQA()
@@ -836,7 +836,7 @@ func (a *App) address(c *ui.Context) {
 			}
 		}
 		ui.Column(c).MinWidth(0).Shrink(1).Gap(1).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, path.Base(a.doc.rel)).FontSize(14).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.shownPath())
+			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.shownPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
 				breadcrumb += " / " + strings.ReplaceAll(dir, "/", " / ")
@@ -941,39 +941,68 @@ func (a *App) followLink(url string) {
 func (a *App) emptyState(c *ui.Context) {
 	t := c.Theme()
 	sp := a.state.ActiveSpace()
-	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
-		if sp != nil {
-			a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 40, t.Accent)
-			ui.Text(c, sp.Name).FontSize(20).Bold()
-		}
-		switch {
-		case a.treeErr != nil:
-			ui.Text(c, i18n.T("读取空间文件夹失败")+" "+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
-		case a.treeLoading && len(a.docs) == 0:
-			ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted)
-		case sp.IsExternal() && len(a.docs) == 0:
-			ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
-		case len(a.docs) == 0:
-			ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted)
-		default:
-			ui.Text(c, i18n.T("选择一篇文档，或按 ⌘K 搜索")).TextColor(t.TextMuted)
-		}
-		ui.Row(c).Gap(8).Children(func() {
-			if sp.IsExternal() {
-				if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Clicked() {
-					a.chooseExternalFiles()
-				}
-			} else {
-				if ui.PrimaryButton(c.Key("empty-new"), i18n.T("新建文档")).Tooltip("⌘N").Clicked() {
-					a.newDoc("")
-				}
-				// A whiteboard is the other kind of page a space starts with.
-				if ui.Button(c.Key("empty-board"), i18n.T("新建白板")).Tooltip(a.keyLabel("new-board")).Clicked() {
-					a.newWhiteboard("")
-				}
+	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(12).Children(func() {
+		ui.Scroll(c.Key("space-home")).WidthPercent(100).MaxWidth(440).MinHeight(0).Shrink(1).Padding(8).Gap(12).Children(func() {
+			if sp != nil {
+				ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+					a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 34, t.Accent)
+					ui.Text(c, sp.Name).FontSize(24).FontWeight(600).SingleLine().MinWidth(0)
+				})
 			}
-			if ui.Button(c.Key("empty-palette"), i18n.T("命令栏")).Tooltip("⌘K").Clicked() {
-				a.openPalette()
+			switch {
+			case a.treeErr != nil:
+				ui.Text(c, i18n.T("读取空间文件夹失败")+" "+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
+			case a.treeLoading && len(a.docs) == 0:
+				ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted)
+			case sp.IsExternal() && len(a.docs) == 0:
+				ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
+			case len(a.docs) == 0:
+				ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted)
+			default:
+				ui.Text(c, i18n.T("从侧边栏选择文档，或搜索空间内容")).TextColor(t.TextMuted)
+			}
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if sp.IsExternal() {
+					if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Clicked() {
+						a.chooseExternalFiles()
+					}
+				} else {
+					if ui.PrimaryButton(c.Key("empty-new"), i18n.T("新建文档")).Tooltip(a.withKey(i18n.T("新建文档"), "new-doc")).Clicked() {
+						a.newDoc("")
+					}
+					// A whiteboard is the other kind of page a space starts with.
+					if ui.Button(c.Key("empty-board"), i18n.T("新建白板")).Tooltip(a.keyLabel("new-board")).Clicked() {
+						a.newWhiteboard("")
+					}
+				}
+				if ui.Button(c.Key("empty-palette"), i18n.T("命令栏")).Tooltip(a.withKey(i18n.T("命令栏"), "palette")).Clicked() {
+					a.openPalette()
+				}
+			})
+			if sp == nil || a.treeErr != nil || a.treeLoading {
+				return
+			}
+			if recent := a.recentPlaces(3, sp.ID); len(recent) > 0 {
+				ui.Box(c).Height(1).Margin(0, 0, 2, 0).Background(separator(t))
+				ui.Text(c, i18n.T("最近打开")).FontSize(13).FontWeight(600).TextColor(t.TextMuted)
+				ui.Column(c).Gap(2).Children(func() {
+					for _, entry := range recent {
+						button := ui.ButtonBase(c.Key(entry.rel)).Height(34).PaddingX(8).Gap(10).AlignItems(ui.Center).Radius(controlRadius).Label(i18n.T("继续打开：") + entry.rel).Tooltip(entry.rel)
+						if button.Hovered() {
+							button.Background(hoverFill(t))
+						}
+						button.Children(func() {
+							ui.Icon(c, iconFileSimple).FontSize(16).TextColor(t.TextMuted)
+							ui.Text(c, vault.Title(entry.rel)).Grow(1).MinWidth(0).SingleLine()
+							if dir := path.Dir(entry.rel); dir != "." {
+								ui.Text(c, dir).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+							}
+						})
+						if button.Clicked() {
+							a.openIn(sp, entry.rel)
+						}
+					}
+				})
 			}
 		})
 	})

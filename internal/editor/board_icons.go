@@ -53,7 +53,7 @@ func boardIconButton(c *ui.Context, key, name, label string, active bool) ui.Ele
 	b := ui.ButtonBase(c.Key(key)).Size(32, 32).Center().Radius(7).Focusable().Label(label).Tooltip(label)
 	ink := t.Text
 	if active {
-		b.Background(t.Accent.Alpha(.14))
+		b.Background(t.Accent.Alpha(.14)).Border(1, t.Accent.Alpha(.40))
 		ink = t.Accent
 	} else if b.Hovered() {
 		b.Background(t.SurfaceHover)

@@ -22,11 +22,11 @@ func boardChromeFor(t *ui.Theme) boardChrome {
 	if t.Dark {
 		return boardChrome{
 			dark:         true,
-			surface:      ui.Hex("#222429"),
-			surfaceMuted: ui.Hex("#2A2D34"),
+			surface:      t.Surface,
+			surfaceMuted: t.Surface.Mix(t.Text, 0.055),
 			border:       t.Border,
 			divider:      t.Border.Alpha(0.75),
-			shadow:       ui.RGBA(0, 0, 0, 0.34),
+			shadow:       ui.RGBA(0, 0, 0, 0.20),
 			hover:        t.SurfaceHover,
 			activeBg:     t.Accent.Alpha(0.20),
 			activeInk:    t.Accent,
@@ -38,8 +38,8 @@ func boardChromeFor(t *ui.Theme) boardChrome {
 	}
 	return boardChrome{
 		dark:         false,
-		surface:      ui.Hex("#FFFFFF"),
-		surfaceMuted: ui.Hex("#F5F6F8"),
+		surface:      t.Surface,
+		surfaceMuted: t.Surface.Mix(t.Text, 0.035),
 		border:       t.Border,
 		divider:      t.Border.Alpha(0.65),
 		shadow:       ui.RGBA(0, 0, 0, 0.08),
@@ -54,7 +54,32 @@ func boardChromeFor(t *ui.Theme) boardChrome {
 }
 
 func boardSurface(el ui.Element, st boardChrome) ui.Element {
-	return el.Background(st.surface).Border(1, st.border).Radius(12).Shadow(0, 4, 16, 0, st.shadow)
+	return el.Background(st.surface).Border(1, st.border).Radius(9).Shadow(0, 2, 6, 0, st.shadow)
+}
+
+func (b *Board) selectionToolbar(c *ui.Context, key, label string, selection ui.Rect, st boardChrome) ui.Element {
+	bar := boardSurface(ui.Row(c.Key(key)).Absolute().Padding(4, 6).Gap(3).Wrap().AlignItems(ui.Center), st).Role(ui.RoleToolbar).Label(label)
+	measured := bar.LayoutBounds()
+	width, height := b.lastRect.W, b.lastRect.H
+	if width <= 0 || height <= 0 {
+		return bar.Left(max(8, selection.X)).Top(max(56, selection.Y-44))
+	}
+	if selection.X+selection.W < 0 || selection.X > width || selection.Y+selection.H < 0 || selection.Y > height {
+		return bar.Hidden(true)
+	}
+	bar.MaxWidth(max(1, width-16))
+	left := max(8, min(selection.X, width-measured.W-8))
+	top := selection.Y - max(36, measured.H) - 8
+	if top < 56 {
+		top = selection.Y + selection.H + 8
+	}
+	bar.Left(left).Top(max(8, min(top, height-max(36, measured.H)-8)))
+	bar.Draw(func(_ *ui.Painter, bounds ui.Rect) {
+		if measured.W != bounds.W || measured.H != bounds.H {
+			c.AnimationFrame()
+		}
+	})
+	return bar
 }
 
 func boardToolbarDivider(c *ui.Context, key string, st boardChrome) {
@@ -76,7 +101,7 @@ func boardPanelHeader(c *ui.Context, st boardChrome, title, iconName, iconKind s
 }
 
 func boardSectionLabel(c *ui.Context, st boardChrome, text string) {
-	ui.Text(c, text).FontSize(11.5).FontWeight(600).TextColor(st.muted)
+	ui.Text(c, text).FontSize(12.5).FontWeight(500).TextColor(st.muted)
 }
 
 func boardFlatButton(c *ui.Context, id, label string, active bool, st boardChrome) ui.Element {
@@ -130,7 +155,7 @@ func aiNodePalette(kind string, dark bool) aiNodeColors {
 			accent:     accent,
 			accentSoft: accent.Alpha(0.16),
 			cardBg:     ui.Hex("#1D1F24"),
-			headerBg:   ui.Hex("#23262D"),
+			headerBg:   ui.Hex("#23262D").Mix(accent, 0.10),
 			footerBg:   ui.Hex("#1D1F24"),
 			mediaBg:    ui.Hex("#15171B"),
 			divider:    ui.Hex("#2C303A"),
@@ -155,7 +180,7 @@ func aiNodePalette(kind string, dark bool) aiNodeColors {
 		accent:     accent,
 		accentSoft: accent.Alpha(0.11),
 		cardBg:     ui.Hex("#FFFFFF"),
-		headerBg:   ui.Hex("#F8F9FB"),
+		headerBg:   ui.Hex("#F8F9FB").Mix(accent, 0.06),
 		footerBg:   ui.Hex("#FFFFFF"),
 		mediaBg:    ui.Hex("#F3F4F6"),
 		divider:    ui.Hex("#E6E9EF"),

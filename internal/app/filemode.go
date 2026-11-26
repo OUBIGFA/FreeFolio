@@ -424,7 +424,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 			}
 			ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向打开的文件提问"), "ask"), false).Shrink(0)
 			if a.qa.open {
-				ask.Background(glass(c.Theme()))
+				ask.Background(navigationFill(c.Theme()))
 			}
 			if ask.Clicked() {
 				a.toggleQA()
@@ -558,7 +558,7 @@ func (a *App) fileTab(c *ui.Context, f *fileSession, i int, rel string, maxWidth
 	ink := t.TextMuted
 	switch {
 	case shown:
-		tab.Background(t.Surface).Border(1, t.Border)
+		tab.Background(navigationFill(t))
 		ink = t.Text
 		if f.revealed != rel {
 			f.revealed = rel
@@ -598,7 +598,7 @@ func (a *App) fileTab(c *ui.Context, f *fileSession, i int, rel string, maxWidth
 	tab.Children(func() {
 		weight := 400
 		if shown {
-			weight = 500
+			weight = 600
 		}
 		ui.Text(c, label).FontSize(13).FontWeight(weight).TextColor(ink).SingleLine().Shrink(1).MinWidth(0)
 		ui.Spacer(c)
