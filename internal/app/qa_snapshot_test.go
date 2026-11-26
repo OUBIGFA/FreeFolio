@@ -110,7 +110,7 @@ func TestQAWindowResizeSnapshot(t *testing.T) {
 
 func TestQASnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the question panel")
-	for _, name := range []string{"empty", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "polished", "polished-dark", "polished-narrow", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "loader", "loader-dark", "loader-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
+	for _, name := range []string{"empty", "empty-narrow", "empty-dark", "unset", "answer", "answer-dark", "answer-narrow", "answer-right", "polished", "polished-dark", "polished-narrow", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits", "error", "running", "running-dark", "running-narrow", "loader", "loader-dark", "loader-narrow", "thinking", "settings", "settings-empty", "settings-models", "settings-models-narrow", "settings-models-dark", "settings-models-en"} {
 		t.Run(name, func(t *testing.T) {
 			replyText := "发布**延期到 12 月 2 日**，主要有两个原因 [发布计划.md#L5]：\n\n- 支付联调需要排查回调 [发布计划.md#L7]，目前已在周报确认修复 [项目/周报.md#L5]\n- 证书审批还在走流程 [发布计划.md#L11]\n\n目前唯一的阻塞是证书，`payments` 模块已经修好。"
 			if strings.HasPrefix(name, "citations-") {

@@ -4,7 +4,7 @@ OneBot 在原问答侧栏中提供对话、文档修改和方案审阅。文件�
 
 拖动 OneBot 与编辑器之间的分隔线可以调整宽度，松开后自动保存。双击分隔线恢复默认宽度；分隔线获得焦点后，左右方向键可微调。窗口变窄时会暂时限制宽度，重新放大后恢复用户设置。
 
-新对话把示例问题和输入框放在一起。发出第一条消息后，输入框固定在侧栏底部。输入区从一行开始，随文字换行增长，超过六行后在框内滚动。按 Enter 发送，按 Shift+Enter 换行。只有添加附件或引用时才显示附件和引用列表；列表过长时可在列表内滚动，移除最后一项后不留空位。输入布局参考 [OpenCode 桌面输入框](https://github.com/anomalyco/opencode/blob/85951cb08614dfe6443905552cae49d59d2d6615/packages/app/src/composer/editor/editor.tsx)。
+输入框始终固定在对话侧栏底部。新对话的标题、说明和示例问题在输入框上方的可用区域居中；窗口较矮时，可以滚动查看示例，输入框不会跟着移动。输入区从一行开始，随文字换行增长，超过六行后在框内滚动。按 Enter 发送，按 Shift+Enter 换行。只有添加附件或引用时才显示附件和引用列表；列表过长时可在列表内滚动，移除最后一项后不留空位。输入布局参考 [OpenCode 桌面输入框](https://github.com/anomalyco/opencode/blob/85951cb08614dfe6443905552cae49d59d2d6615/packages/app/src/composer/editor/editor.tsx)。
 
 ## 配置和切换模型
 
