@@ -78,7 +78,7 @@ func (b *Board) aiSlotUsable(nodeID string, typ string, input bool) bool {
 }
 
 // paintAINode draws a node as a card in the element's local coordinates.
-func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, dark bool) {
+func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, dark bool, zoom float32) {
 	s := b.aiState()
 	w, h := float32(e.W), float32(e.H)
 	pal := aiNodePalette(n.Kind(), dark)
@@ -97,7 +97,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		badge := ui.Rect{X: aiPad, Y: (aiHeader - 22) / 2, W: 22, H: 22}
 		p.Fill(badge, pal.accentSoft, 6)
 		if icon := boardIcon(aiRoleIcons[n.Role]); icon != nil {
-			p.Icon(icon, ui.Rect{X: badge.X + 4, Y: badge.Y + 4, W: 14, H: 14}, pal.accent)
+			paintBoardIcon(p, icon, ui.Rect{X: badge.X + 3, Y: badge.Y + 3, W: boardCompactIconSize, H: boardCompactIconSize}, pal.accent, zoom)
 		}
 		tx := float32(aiPad + 30)
 		maxW := w - tx - aiPad
@@ -147,7 +147,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			b.paintAIWidgetValues(p, e, n, l.widgets, pal)
 		}
 		if l.preview.H > 12 {
-			p.Clip(l.preview, 8, func() { b.paintAIPreview(p, e, n, l.preview, pal) })
+			p.Clip(l.preview, 8, func() { b.paintAIPreview(p, e, n, l.preview, pal, zoom) })
 		}
 
 		// Slim integrated status footer.
@@ -271,7 +271,7 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 
 // paintAIPreview draws the node's result, its streamed text while it runs,
 // or what it will show.
-func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors) {
+func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors, zoom float32) {
 	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
 		b.paintAIImageHistory(p, e, n, r, pal)
 		return
@@ -331,7 +331,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		hl := b.aiCardTextFont(e.ID+"#hint", hint, 0, ui.Font{Size: 12})
 		hw, hh := hl.Size()
 		if icon := boardIcon(aiRoleIcons[n.Role]); icon != nil && r.H >= 72 {
-			p.Icon(icon, ui.Rect{X: r.X + (r.W-20)/2, Y: r.Y + r.H/2 - 20, W: 20, H: 20}, pal.muted.Alpha(0.55))
+			paintBoardIcon(p, icon, ui.Rect{X: r.X + (r.W-20)/2, Y: r.Y + r.H/2 - 20, W: 20, H: 20}, pal.muted, zoom)
 			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+r.H/2+6, pal.muted)
 		} else {
 			p.TextLayout(hl, r.X+(r.W-hw)/2, r.Y+(r.H-hh)/2, pal.muted)
@@ -366,7 +366,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		cx, cy := r.X+r.W/2, r.Y+r.H/2-12
 		p.Fill(ui.Rect{X: cx - 19, Y: cy - 19, W: 38, H: 38}, ui.RGBA(255, 255, 255, 0.18), 19)
 		if icon := boardIcon("player-play"); icon != nil {
-			p.Icon(icon, ui.Rect{X: cx - 8, Y: cy - 8, W: 16, H: 16}, ui.Hex("#F8F9FA"))
+			paintBoardIcon(p, icon, ui.Rect{X: cx - 8, Y: cy - 8, W: boardCompactIconSize, H: boardCompactIconSize}, ui.Hex("#F8F9FA"), zoom)
 		}
 		p.Text(r.X+12, r.Y+r.H-40, path.Base(out.Path), 12, ui.Hex("#E6E8EC"))
 		p.Text(r.X+12, r.Y+r.H-20, i18n.T("选中节点后播放"), 11, ui.Hex("#9CA3AF"))
@@ -384,7 +384,8 @@ func aiInlineSelect(c *ui.Context, key, label, current string, values, labels []
 		}
 	}
 	before := shown
-	ui.Select(c.Key(key), &shown, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(label).Tooltip(label)
+	// Rasterize the built-in chevron at the control's displayed scale too.
+	ui.Select(c.Key(key), &shown, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(label).Tooltip(label).Cache()
 	if shown != before {
 		for i, l := range labels {
 			if l == shown {
@@ -481,7 +482,8 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 					case whiteboard.AIVideo:
 						ph = i18n.T("描述视频画面或动作")
 					}
-					focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(58).Disabled(disabled).Label(i18n.T("指令")))
+					// Match the reserved area, including the text area's native minimum.
+					focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(aiPromptHeight).MinHeight(0).Disabled(disabled).Label(i18n.T("指令")))
 				}
 				ui.Column(c.Key("inline-cfg-" + id)).Gap(4).Children(func() {
 					ui.Row(c.Key("inline-bar-" + id)).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
@@ -507,7 +509,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 		btn := ui.ButtonBase(c.Key("inline-stop-" + id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.dangerSoft).Focusable().Label(i18n.T("停止运行"))
 		btn.Children(func() {
 			if icon := boardIcon("player-stop"); icon != nil {
-				ui.Icon(c, icon).FontSize(12).TextColor(pal.danger)
+				boardScaledIcon(c, icon, boardCompactIconSize, pal.danger, float32(b.Zoom))
 			}
 			ui.Text(c, i18n.T("停止")).FontSize(11.5).FontWeight(600).TextColor(pal.danger).NoWrap()
 		})
@@ -522,7 +524,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 	}
 	btn.Children(func() {
 		if icon := boardIcon("player-play"); icon != nil {
-			ui.Icon(c, icon).FontSize(12).TextColor(pal.accent)
+			boardScaledIcon(c, icon, boardCompactIconSize, pal.accent, float32(b.Zoom))
 		}
 		ui.Text(c, i18n.T("运行")).FontSize(11.5).FontWeight(600).TextColor(pal.accent).NoWrap()
 	})
@@ -561,14 +563,21 @@ func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whit
 			set(func(p *whiteboard.AIParams) { p.AspectRatio = v })
 		}
 		values, labels, nativeSize := aiImageSizeChoices(o, n, true)
-		if v, ok := aiInlineSelect(c, key("size"), i18n.T("尺寸"), p.Size, values, labels, disabled); ok {
-			set(func(p *whiteboard.AIParams) {
-				p.Size = v
-				if nativeSize {
-					p.Quality = ""
-				}
-			})
+		size := ui.Row(c.Key(key("size-control"))).Grow(1).MinWidth(0)
+		if !nativeSize {
+			// Pixel dimensions need room for both axes and the dropdown arrow.
+			size.MinWidth(124)
 		}
+		size.Children(func() {
+			if v, ok := aiInlineSelect(c, key("size"), i18n.T("尺寸"), p.Size, values, labels, disabled); ok {
+				set(func(p *whiteboard.AIParams) {
+					p.Size = v
+					if nativeSize {
+						p.Quality = ""
+					}
+				})
+			}
+		})
 		count := strconv.Itoa(max(1, p.Count))
 		if v, ok := aiInlineSelect(c, key("count"), i18n.T("数量"), count, []string{"1", "2", "3", "4"}, []string{"×1", "×2", "×3", "×4"}, disabled); ok {
 			k, _ := strconv.Atoi(v)

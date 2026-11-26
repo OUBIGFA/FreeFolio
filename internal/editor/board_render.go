@@ -209,7 +209,7 @@ func (b *Board) paint(p *ui.Painter, r ui.Rect, dark bool, controls bool) {
 	}
 	p.Clip(r, 0, func() {
 		p.Transform(ui.Scaling(float32(b.Zoom), float32(b.Zoom)).Then(ui.Translation(r.X+float32(b.PanX), r.Y+float32(b.PanY))), 0, 0, func() {
-			b.paintScene(p, viewport, dark)
+			b.paintScene(p, viewport, dark, float32(b.Zoom))
 			if controls {
 				b.paintAIOverlay(p, dark)
 			}
@@ -223,7 +223,7 @@ func (b *Board) paint(p *ui.Painter, r ui.Rect, dark bool, controls bool) {
 // paintScene draws the board's elements, then the node links over them,
 // then the node cards on top, as a node editor layers its canvas: the
 // cards carry live widgets that sit above every drawing anyway.
-func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool) {
+func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool, zoom float32) {
 	paint := func(nodes bool) {
 		for _, e := range b.Scene.Elements {
 			if e.IsDeleted || (b.aiNode(e) != nil) != nodes || !viewport.Intersects(b.elementBounds(e).Expand(e.StrokeWidth*5)) {
@@ -232,7 +232,7 @@ func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool) {
 			if b.editing != nil && b.editing.id == e.ID {
 				continue
 			}
-			draw := func() { b.paintElement(p, e, dark) }
+			draw := func() { b.paintElement(p, e, dark, zoom) }
 			if frame := b.Scene.ElementByID(e.FrameID); frame != nil {
 				cx, cy := float32(frame.X+frame.W/2), float32(frame.Y+frame.H/2)
 				p.Transform(ui.Rotation(float32(frame.Angle*180/math.Pi)), cx, cy, func() {
@@ -308,7 +308,7 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 		c.dark = dark
 		c.layer.Draw(p, func(cp *ui.Painter) {
 			cp.Transform(ui.Scaling(float32(bucket), float32(bucket)).Then(ui.Translation(float32(-world.X*bucket), float32(-world.Y*bucket))), 0, 0, func() {
-				b.paintScene(cp, world, dark)
+				b.paintScene(cp, world, dark, float32(bucket))
 			})
 		})
 	}
@@ -317,11 +317,11 @@ func (b *Board) paintDenseScene(p *ui.Painter, r ui.Rect, dark bool, viewport wh
 	c.used = true
 	return true
 }
-func (b *Board) paintElement(p *ui.Painter, e *whiteboard.Element, dark bool) {
+func (b *Board) paintElement(p *ui.Painter, e *whiteboard.Element, dark bool, zoom float32) {
 	p.Transform(ui.Rotation(float32(e.Angle*180/math.Pi)), float32(e.X+e.W/2), float32(e.Y+e.H/2), func() {
 		p.Transform(ui.Translation(float32(e.X), float32(e.Y)), 0, 0, func() {
 			if n := b.aiNode(e); n != nil {
-				b.paintAINode(p, e, n, dark)
+				b.paintAINode(p, e, n, dark, zoom)
 				return
 			}
 			for _, path := range b.elementPaths(e) {

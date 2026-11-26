@@ -24,12 +24,13 @@ import (
 
 // Card geometry, in scene units.
 const (
-	aiHeader     = 40
-	aiSlotRow    = 22
-	aiFooter     = 24
-	aiPad        = 12
-	aiPort       = 5
-	aiCardRadius = 12
+	aiHeader       = 40
+	aiSlotRow      = 22
+	aiFooter       = 24
+	aiPad          = 12
+	aiPort         = 5
+	aiCardRadius   = 12
+	aiPromptHeight = 80
 )
 
 // aiCardLayout places a card's parts in its local coordinates.
@@ -61,7 +62,7 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 		return 0
 	}
 	// Prompt/instruction field (collapsed when linked), model row, and settings row.
-	promptH := float32(58)
+	promptH := float32(aiPromptHeight)
 	if linkedPrompt {
 		promptH = 30
 	}
@@ -357,7 +358,7 @@ func (b *Board) paintAIOverlay(p *ui.Painter, dark bool) {
 }
 
 // aiLinkControls gives the small centre marker a screen-sized hit target.
-// Clicking selects only; disconnection stays with Delete and the context menu.
+// Selecting reveals a delete button; disconnection requires a second click.
 func (b *Board) aiLinkControls(c *ui.Context, o BoardOptions) {
 	if o.AI == nil || b.ReadOnly || b.Tool != ToolSelect || b.spaceDown || b.mode != "" || b.editing != nil {
 		return
@@ -369,14 +370,27 @@ func (b *Board) aiLinkControls(c *ui.Context, o BoardOptions) {
 			continue
 		}
 		node := b.Scene.ElementByID(l.node)
+		selected := b.ai.link != nil && *b.ai.link == l.aiLinkRef
 		button := ui.ButtonBase(c.Key("board-ai-link:"+l.node+":"+l.slot)).
 			Absolute().Left(x-14).Top(y-14).Size(28, 28).Radius(14).
-			Focusable().Label(i18n.T("选择连线")).Tooltip(i18n.T("选择连线，按 Delete 或右键断开")).
+			Focusable().Label(i18n.T("选择连线")).Tooltip(i18n.T("选择连线，再次点击删除")).
 			Cursor(ui.CursorPointer).Disabled(node == nil || node.Locked)
 		if node == nil || node.Locked {
 			button.Cursor(ui.CursorNotAllowed)
 		}
-		if button.Hovered() || b.ai.link != nil && *b.ai.link == l.aiLinkRef {
+		if selected {
+			st := boardChromeFor(o.Theme)
+			button.Label(i18n.T("删除连线")).Tooltip(i18n.T("删除连线")).
+				Background(st.surface).Border(1, st.danger).Center()
+			if button.Hovered() {
+				button.Background(st.hover)
+			}
+			button.Children(func() {
+				if icon := boardIcon("trash"); icon != nil {
+					ui.Icon(c, icon).FontSize(16).TextColor(st.danger)
+				}
+			})
+		} else if button.Hovered() {
 			color := aiTypeColor(l.typ, o.Theme.Dark)
 			button.Draw(func(p *ui.Painter, r ui.Rect) {
 				p.Stroke(ui.Rect{X: r.X + 5, Y: r.Y + 5, W: 18, H: 18}, color, 9, 2)
@@ -389,7 +403,12 @@ func (b *Board) aiLinkControls(c *ui.Context, o BoardOptions) {
 			b.RequestFocus = true
 		}
 		if button.Clicked() {
-			selectLink()
+			if selected {
+				b.deleteAILink(l.aiLinkRef, o)
+				b.RequestFocus = true
+			} else {
+				selectLink()
+			}
 		}
 		button.ContextMenu(func(m *ui.Menu) {
 			selectLink()

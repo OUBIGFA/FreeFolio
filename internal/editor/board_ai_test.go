@@ -175,6 +175,34 @@ func TestBoardAIChainsImagesWritesBackAndBlocksDownstream(t *testing.T) {
 	}
 }
 
+func TestBoardAIIndependentNodesShareRunSnapshot(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(nil)
+	// A populated scene exposes concurrent initialization of the snapshot index.
+	for i := range 1024 {
+		b.Scene.Elements = append(b.Scene.Elements, whiteboard.NewElement(whiteboard.KindRectangle, float64(i), 0, 10, 10))
+	}
+	var ids []string
+	for i := range 16 {
+		e := b.newAINode(whiteboard.AIText, whiteboard.Point{float64(i * 400), 100}, o)
+		n := whiteboard.AINodeOf(e)
+		n.Instruction = fmt.Sprintf("node %d", i)
+		if err := whiteboard.SetAINode(e, n); err != nil {
+			t.Fatal(err)
+		}
+		b.Scene.Elements = append(b.Scene.Elements, e)
+		ids = append(ids, e.ID)
+	}
+	b.RunAI(ids, false, false, o)
+	for i, id := range ids {
+		n := whiteboard.AINodeOf(b.Scene.ElementByID(id))
+		if out := n.Output(); out == nil || out.Text != fmt.Sprintf("answer: node %d", i) {
+			t.Fatalf("independent node %d lost its result: %+v", i, n)
+		}
+	}
+}
+
 func TestBoardAIFrameNoteAndConcatInputs(t *testing.T) {
 	f := &fakeAI{}
 	o := f.options(t)
@@ -552,7 +580,7 @@ func TestBoardAILinkedPromptDisablesFieldAndLinksMove(t *testing.T) {
 	}
 }
 
-func TestBoardAILinkCenterSelectsWithoutDisconnectingAtEveryZoom(t *testing.T) {
+func TestBoardAILinkCenterSelectsThenDeletesAtEveryZoom(t *testing.T) {
 	for _, zoom := range []float64{0.1, 1, 2} {
 		t.Run(fmt.Sprint(zoom), func(t *testing.T) {
 			b := NewBoard(nil)
@@ -574,6 +602,26 @@ func TestBoardAILinkCenterSelectsWithoutDisconnectingAtEveryZoom(t *testing.T) {
 			if b.ai.link == nil || b.ai.link.node != to || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
 				t.Fatal("center did not select the intact link")
 			}
+			tt.Frame()
+			remove, ok := tt.Access(i18n.T("删除连线"))
+			if !ok || remove.Disabled || remove.Bounds.W < 24 || remove.Bounds.H < 24 {
+				t.Fatalf("selected link has no usable delete button: %+v", remove)
+			}
+			tt.ClickAt(remove.Bounds.X+remove.Bounds.W/2, remove.Bounds.Y+remove.Bounds.H/2)
+			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {
+				t.Fatal("second click did not disconnect")
+			}
+			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("button disconnect was not undoable")
+			}
+			tt.Frame()
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			tt.ClickAt(480, 500)
+			tt.Frame()
+			if _, ok := tt.Access(i18n.T("删除连线")); ok || whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("clicking elsewhere did not dismiss deletion without changing the link")
+			}
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
 			tt.Key(0, ui.KeyDelete)
 			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {
 				t.Fatal("Delete did not disconnect")
@@ -590,10 +638,29 @@ func TestBoardAILinkCenterSelectsWithoutDisconnectingAtEveryZoom(t *testing.T) {
 				t.Fatal("context menu did not disconnect")
 			}
 			b.Undo()
+			tt.Frame()
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
 			b.Scene.ElementByID(to).Locked = true
+			tt.Frame()
+			if remove, ok := tt.Access(i18n.T("删除连线")); !ok || !remove.Disabled {
+				t.Fatal("locked node has an enabled delete button")
+			}
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
 			b.deleteAILink(aiLinkRef{to, "prompt"}, o)
 			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
 				t.Fatal("locked node was disconnected")
+			}
+			b.Scene.ElementByID(to).Locked = false
+			tt.Frame()
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			o.ReadOnly = true
+			tt.Frame()
+			if _, ok := tt.Access(i18n.T("删除连线")); ok {
+				t.Fatal("read-only board exposes a delete button")
+			}
+			tt.ClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
+			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != from {
+				t.Fatal("read-only link was disconnected")
 			}
 		})
 	}
@@ -721,6 +788,50 @@ func TestBoardAIHeaderRunLinkedCollapseAndPanelTitles(t *testing.T) {
 		tt.Frame()
 		if !tt.HasText(panel.title) {
 			t.Fatalf("panel %q missing semantic title %q", panel.id, panel.title)
+		}
+	}
+}
+
+func TestBoardAIParametersStayAbovePreview(t *testing.T) {
+	for _, role := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat} {
+		for _, linked := range []bool{false, true} {
+			if linked && role == whiteboard.AIConcat {
+				continue
+			}
+			for _, zoom := range []float64{0.5, 1, 1.25, 2} {
+				t.Run(fmt.Sprintf("%s/linked=%v/zoom=%g", role, linked, zoom), func(t *testing.T) {
+					b := NewBoard(nil)
+					o := BoardOptions{AI: &BoardAI{}}
+					tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1000, 900)
+					tt.Frame()
+					id := b.AddAINode(role, whiteboard.Point{450, 350}, o)
+					if linked {
+						from := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{-600, 350}, o)
+						b.setAILink(id, "prompt", from)
+					}
+					b.Selected = map[string]bool{}
+					b.Zoom, b.PanX, b.PanY = zoom, 500-450*zoom, 100
+					tt.Frame()
+					e := b.Scene.ElementByID(id)
+					l := b.aiLayout(e, b.aiNode(e))
+					_, previewY, _, _ := b.canvasRect(e.X+float64(l.preview.X), e.Y+float64(l.preview.Y), 0, 0)
+					labels := map[whiteboard.AIRole][]string{
+						whiteboard.AIText:   {"常用指令", "结果写到"},
+						whiteboard.AIImage:  {"画幅比例", "尺寸", "数量", "质量"},
+						whiteboard.AIVideo:  {"时长", "分辨率", "画幅比例"},
+						whiteboard.AIConcat: {"拼接模板"},
+					}[role]
+					for _, label := range labels {
+						control, ok := tt.Access(i18n.T(label))
+						if !ok {
+							t.Fatalf("missing parameter %s", label)
+						}
+						if bottom := control.Bounds.Y + control.Bounds.H; bottom+float32(8*zoom) > previewY+0.5 {
+							t.Fatalf("%s overlaps the preview: control bottom=%g, preview top=%g", label, bottom, previewY)
+						}
+					}
+				})
+			}
 		}
 	}
 }

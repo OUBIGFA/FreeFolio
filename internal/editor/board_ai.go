@@ -477,6 +477,8 @@ func (b *Board) RunAI(ids []string, upstream, force bool, o BoardOptions) {
 		s.runs[id] = &boardAIRun{status: "queued"}
 	}
 	snap := b.Scene.Clone()
+	// Build the lazy lookup index before parallel workers read the snapshot.
+	snap.ElementByID(order[0])
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	var mu sync.Mutex

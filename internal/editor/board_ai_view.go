@@ -206,7 +206,7 @@ func aiItemBadge(c *ui.Context, icon, kind string, dark bool) {
 	pal := aiNodePalette(kind, dark)
 	ui.Box(c).Size(24, 24).Radius(6).Background(pal.accentSoft).Center().Shrink(0).Children(func() {
 		if svg := boardIcon(icon); svg != nil {
-			ui.Icon(c, svg).FontSize(14).TextColor(pal.accent)
+			ui.Icon(c, svg).FontSize(boardCompactIconSize).TextColor(pal.accent)
 		}
 	})
 }
@@ -540,7 +540,7 @@ func aiImageSizeChoices(o BoardOptions, n *whiteboard.AINode, compact bool) ([]s
 		}
 	}
 	if compact {
-		return []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("尺寸"), "1024²", "1536×1024", "1024×1536"}, false
+		return []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("尺寸"), "1024 x 1024", "1536×1024", "1024×1536"}, false
 	}
 	return []string{"", "auto", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1024x1792"}, translated("服务默认", "自动", "1024×1024 方形", "1536×1024 横向", "1024×1536 纵向", "1792×1024 宽屏", "1024×1792 竖屏"), false
 }
@@ -751,7 +751,8 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 		}
 	}
 	before := current
-	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(i18n.T("模型"))
+	// The cached control includes its native chevron at the board's scale.
+	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(i18n.T("模型")).Cache()
 	if current != before {
 		for i, l := range labels {
 			if l == current {
