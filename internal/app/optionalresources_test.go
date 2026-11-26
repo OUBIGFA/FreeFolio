@@ -31,3 +31,11 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsTabsHaveIcons(t *testing.T) {
+	for _, tab := range settingsTabs() {
+		if settingsIcons[tab.icon] == nil {
+			t.Fatalf("settings tab %q (%s) is missing icon %q", tab.id, tab.label, tab.icon)
+		}
+	}
+}
