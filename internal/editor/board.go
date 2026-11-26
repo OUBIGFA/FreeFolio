@@ -115,6 +115,8 @@ type Board struct {
 	images                                     map[string]*ui.Bitmap
 	imageErrors                                map[string]error
 	imagePending                               map[string]bool
+	imageWanted                                map[string]bool
+	imageLoads                                 int
 	err                                        error
 	panel                                      string
 	propertyInput                              string
@@ -171,6 +173,9 @@ func (b *Board) ReplaceScene(s *whiteboard.Scene) {
 	})
 }
 func (b *Board) SelectedIDs() []string {
+	if len(b.Selected) == 0 {
+		return nil
+	}
 	var ids []string
 	for _, e := range b.Scene.Elements {
 		if b.Selected[e.ID] && !e.IsDeleted {
@@ -722,6 +727,7 @@ func (b *Board) Close() {
 	b.images = nil
 	b.imageErrors = nil
 	b.imagePending = nil
+	b.imageWanted = nil
 	b.before = nil
 	b.editing = nil
 	b.StopAI()

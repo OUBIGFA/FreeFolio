@@ -82,6 +82,49 @@ func BenchmarkBoardAILinks(b *testing.B) {
 	}
 }
 
+// Hover must not rebuild distant freehand outlines on every pointer move.
+func BenchmarkBoardHover(b *testing.B) {
+	for _, count := range []int{100, 1000} {
+		b.Run(fmt.Sprint(count), func(b *testing.B) {
+			board := NewBoard(nil)
+			for i := range count {
+				e := whiteboard.NewElement(whiteboard.KindFreedraw, float64(i*200), 0, 100, 80)
+				for j := range 40 {
+					e.Points = append(e.Points, whiteboard.Point{float64(j * 2), float64(j % 7)})
+				}
+				board.Scene.Elements = append(board.Scene.Elements, e)
+			}
+			board.canvasHit(whiteboard.Point{-100, -100})
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := range b.N {
+				board.canvasHit(whiteboard.Point{-100, float64(-100 - i%10)})
+			}
+		})
+	}
+}
+
+func TestBoardHoverReusesDistantStrokeBounds(t *testing.T) {
+	b := NewBoard(nil)
+	e := whiteboard.NewElement(whiteboard.KindFreedraw, 100, 100, 100, 80)
+	e.Points = []whiteboard.Point{{0, 0}, {40, 20}, {80, 10}}
+	b.Scene.Elements = append(b.Scene.Elements, e)
+	if allocations := testing.AllocsPerRun(5, func() { b.canvasHit(whiteboard.Point{-100, -100}) }); allocations != 0 {
+		t.Fatalf("hovering away from unchanged strokes allocates %v times", allocations)
+	}
+	b.mode = "erase"
+	if allocations := testing.AllocsPerRun(5, func() { b.pointerMove(ui.InputEvent{X: -100, Y: -100}, BoardOptions{}) }); allocations != 0 {
+		t.Fatalf("moving the eraser away from unchanged strokes allocates %v times", allocations)
+	}
+	// Moving a stroke must invalidate its cached bounds for hit testing.
+	b.Scene.Translate([]string{e.ID}, whiteboard.Point{400, 0})
+	for _, p := range []whiteboard.Point{{100, 100}, {500, 100}, {540, 120}, {580, 110}} {
+		if got, want := b.canvasHit(p), b.Scene.Hit(p, 6/b.Zoom, true); got != want {
+			t.Fatalf("hit at %v = %v, want %v", p, got, want)
+		}
+	}
+}
+
 func TestBoardAINodeMoveKeepsParsedContent(t *testing.T) {
 	b := NewBoard(nil)
 	e := whiteboard.NewAINode(whiteboard.AIText, 0, 0)

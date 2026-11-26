@@ -603,7 +603,7 @@ func (b *Board) pointerMove(ev ui.InputEvent, o BoardOptions) bool {
 	case "lasso":
 		b.lasso = append(b.lasso, p)
 	case "erase":
-		if hit := b.Scene.Hit(p, 8/b.Zoom, false); hit != nil {
+		if hit := b.hitElement(p, 8/b.Zoom, false); hit != nil {
 			b.Scene.Delete([]string{hit.ID})
 		}
 	case "line-point":

@@ -36,8 +36,6 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 	b.options = o
 	b.services = c.Services()
 	b.ShowGrid = b.Scene.AppState.GridModeEnabled
-	b.prepareImages(o)
-	b.aiPrepareMedia(o)
 	root := ui.Box(c.Key("whiteboard-root")).Grow(1).WidthPercent(100).MinWidth(0).MinHeight(0).Clip()
 	root.Children(func() {
 		canvas := ui.Box(c.Key("board-canvas")).Fill().Focusable().FocusRing(false).Role(ui.RoleGroup).Label(i18n.T("手绘白板"))
@@ -54,6 +52,8 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 				}
 				b.fitted = true
 			}
+			b.prepareImages(o)
+			b.aiPrepareMedia(o)
 		} else {
 			c.After(0)
 		}

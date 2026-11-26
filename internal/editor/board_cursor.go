@@ -80,13 +80,28 @@ func (b *Board) canvasCursor(mods ui.Modifiers, gesture bool) ui.Cursor {
 }
 
 func (b *Board) canvasHit(p whiteboard.Point) *whiteboard.Element {
-	hit := b.Scene.Hit(p, 6/b.Zoom, true)
+	hit := b.hitElement(p, 6/b.Zoom, true)
 	// The locked annotation base is the drawing surface. Text and eraser
 	// tools act on annotations above it rather than editing the base itself.
 	if hit != nil && hit.ID == b.annotationBase && (b.Tool == ToolText || b.Tool == ToolEraser) {
 		return nil
 	}
 	return hit
+}
+
+func (b *Board) hitElement(p whiteboard.Point, tolerance float64, includeLocked bool) *whiteboard.Element {
+	// Painting already retains versioned world bounds. Reject distant strokes
+	// before HitTest would reconstruct their pressure-sensitive outlines.
+	for i := len(b.Scene.Elements) - 1; i >= 0; i-- {
+		e := b.Scene.Elements[i]
+		if e == nil || e.IsDeleted || (!includeLocked && e.Locked) || !b.elementBounds(e).Expand(tolerance+e.StrokeWidth/2).Contains(p) {
+			continue
+		}
+		if whiteboard.HitTest(e, p, tolerance) {
+			return e
+		}
+	}
+	return nil
 }
 
 func boardHandleCursor(handle int) ui.Cursor {

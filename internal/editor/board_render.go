@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"image"
 	"image/png"
 	"math"
 	"strconv"
@@ -147,41 +146,58 @@ func boardFileBytes(f *whiteboard.FileData, o BoardOptions) ([]byte, error) {
 	return nil, fmt.Errorf("image cannot be found")
 }
 func (b *Board) prepareImages(o BoardOptions) {
-	for id, f := range b.Scene.Files {
+	if b.imageWanted == nil {
+		b.imageWanted = map[string]bool{}
+	}
+	clear(b.imageWanted)
+	for _, e := range b.Scene.Elements {
+		if e.FileID != "" && b.mediaVisible(e) {
+			b.imageWanted[e.FileID] = true
+		}
+	}
+	for id := range b.images {
+		if !b.imageWanted[id] {
+			delete(b.images, id)
+		}
+	}
+	for id := range b.imageErrors {
+		if !b.imageWanted[id] {
+			delete(b.imageErrors, id)
+		}
+	}
+	for id := range b.imageWanted {
 		if b.images[id] != nil || b.imageErrors[id] != nil || b.imagePending[id] {
 			continue
 		}
+		if o.Dispatch != nil && b.imageLoads >= boardImageLoadLimit {
+			continue
+		}
+		source := b.Scene.Files[id]
+		f := source.Clone()
 		b.imagePending[id] = true
-		f = f.Clone()
 		load := func() (*ui.Bitmap, error) {
 			data, err := boardFileBytes(f, o)
 			if err != nil {
 				return nil, err
 			}
-			cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-			if err != nil {
-				return nil, err
-			}
-			if int64(cfg.Width)*int64(cfg.Height) > 100_000_000 {
-				return nil, fmt.Errorf("image dimensions exceed limit")
-			}
-			return ui.DecodeBitmap(data)
+			return decodeBoardBitmap(data)
 		}
 		apply := func(bitmap *ui.Bitmap, err error) {
 			if b.imagePending == nil {
 				return
 			}
 			delete(b.imagePending, id)
+			if !b.imageWanted[id] || b.Scene.Files[id] != source {
+				return // The viewport or scene changed while this file decoded.
+			}
 			if err != nil {
 				b.imageErrors[id] = err
 			} else {
 				b.images[id] = bitmap
 			}
 		}
-		if o.Dispatch != nil {
-			go func() { bitmap, err := load(); o.Dispatch(func() { apply(bitmap, err) }) }()
-		} else {
-			apply(load())
+		if !b.loadBitmap(o, load, apply) {
+			delete(b.imagePending, id)
 		}
 	}
 }

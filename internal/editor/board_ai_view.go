@@ -1,10 +1,8 @@
 package editor
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"image"
 	"strconv"
 	"strings"
 
@@ -72,8 +70,15 @@ func (b *Board) aiPrepareMedia(o BoardOptions) {
 		return
 	}
 	s := b.aiState()
-	needed := map[string]bool{}
+	if s.mediaWanted == nil {
+		s.mediaWanted = map[string]bool{}
+	}
+	needed := s.mediaWanted
+	clear(needed)
 	for _, e := range b.Scene.Elements {
+		if e == nil || e.IsDeleted || len(e.CustomData) == 0 || !b.mediaVisible(e) {
+			continue
+		}
 		n := b.aiNode(e)
 		if n == nil || e.IsDeleted {
 			continue
@@ -83,6 +88,9 @@ func (b *Board) aiPrepareMedia(o BoardOptions) {
 			if s.media[rel] != nil || s.mediaErr[rel] != nil || s.mediaPending[rel] {
 				continue
 			}
+			if o.Dispatch != nil && b.imageLoads >= boardImageLoadLimit {
+				continue
+			}
 			s.mediaPending[rel] = true
 			read := o.AI.ReadFile
 			load := func() (*ui.Bitmap, error) {
@@ -90,30 +98,24 @@ func (b *Board) aiPrepareMedia(o BoardOptions) {
 				if err != nil {
 					return nil, err
 				}
-				cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-				if err != nil {
-					return nil, err
-				}
-				if int64(cfg.Width)*int64(cfg.Height) > 100_000_000 {
-					return nil, fmt.Errorf("image dimensions exceed limit")
-				}
-				return ui.DecodeBitmap(data)
+				return decodeBoardBitmap(data)
 			}
 			apply := func(bm *ui.Bitmap, err error) {
 				if b.ai.mediaPending == nil {
 					return
 				}
 				delete(s.mediaPending, rel)
+				if !s.mediaWanted[rel] {
+					return
+				}
 				if err != nil {
 					s.mediaErr[rel] = err
 				} else {
 					s.media[rel] = bm
 				}
 			}
-			if o.Dispatch != nil {
-				go func() { bm, err := load(); o.Dispatch(func() { apply(bm, err) }) }()
-			} else {
-				apply(load())
+			if !b.loadBitmap(o, load, apply) {
+				delete(s.mediaPending, rel)
 			}
 		}
 	}

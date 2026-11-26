@@ -130,6 +130,7 @@ type boardAIState struct {
 	media         map[string]*ui.Bitmap
 	mediaErr      map[string]error
 	mediaPending  map[string]bool
+	mediaWanted   map[string]bool
 	history       map[string]*aiImageHistory
 	videos        map[string]*ui.VideoPlayer
 	texts         map[string]boardAICardText

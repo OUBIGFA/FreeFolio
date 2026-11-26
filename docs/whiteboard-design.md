@@ -115,6 +115,10 @@ Mermaid 转图复用 `internal/mermaid.ParseAndLayout`。它当前支持 `flowch
 
 阻塞的磁盘操作、图片解码、SVG/PNG 输出和大型场景处理放到后台；结果经 `win.Update` 更新界面。手势时间使用 `c.Now()` / `c.After()`；回归使用 `Tester.Advance`。不更改 module cache，不使用 MyGo 的富文本编辑器组件。
 
+鼠标命中检查和橡皮擦复用按元素版本缓存的边界，先排除远处元素，再执行精确命中检查。没有选中元素时，不扫描场景生成空选择列表。
+
+交互白板只解码视口及其外围 240 屏幕单位内的图片，每个白板的普通图片与 AI 预览合计最多同时解码两张。移出范围或删除后释放解码缓存；异步结果返回时，重新核对资源是否仍需要。原始附件与图片历史引用保留。导出和图片标注快照不使用交互视口筛选，仍加载全部有效图片。缩小到全图可见时，需要显示的图片仍可能较多，此限制不是整板内存上限。
+
 ## 许可和仓库边界
 
 Quiet.md 和 Excalidraw 为 MIT。移植时一并核对并保留 rough.js、hachure-fill、points-on-curve、points-on-path、path-data-parser、perfect-freehand、fractional-indexing、nanoid 和图标的必要声明。字体分别遵守 OFL 1.1 或 MIT，不能把项目 MIT 当成全部资源的统一许可。
