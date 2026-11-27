@@ -7,7 +7,7 @@ import (
 
 // insertAIModelPreset creates real, editable model links in one undo step.
 func (b *Board) insertAIModelPreset(preset BoardAIPreset, label string, o BoardOptions) {
-	if b.ReadOnly {
+	if b.ReadOnly || preset.Model.NeedsDownload || preset.Model.Unavailable != "" {
 		return
 	}
 	m := preset.Model
@@ -44,7 +44,7 @@ func (b *Board) insertAIModelPreset(preset BoardAIPreset, label string, o BoardO
 			}
 		}
 		if preset.Role == whiteboard.AIImage && m.Connection != "comfyui-qwen-image" {
-			n.Params.Size = m.defaultImageSize()
+			n.Params.Size, n.Params.AspectRatio = "", ""
 			n.Params.Quality = ""
 		}
 		gen.H = max(gen.H, aiMinHeight(n))

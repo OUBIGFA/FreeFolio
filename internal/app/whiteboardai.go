@@ -30,8 +30,13 @@ import (
 const boardAISystem = "You are OneBot working inside the user's FreeFolio whiteboard. The user's instruction comes first, then the inputs connected to this node, in order. Answer with the requested content only, without preamble or commentary. Use the language of the instruction unless asked otherwise."
 
 // boardAIModels lists the enabled models able to run a node of the role.
-func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
-	var out []editor.BoardAIModel
+func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) {
+	a.ensureResourcesInspected()
+	defer func() {
+		for i := range out {
+			out[i] = a.boardModelAvailability(out[i])
+		}
+	}()
 	if role == whiteboard.AIModel {
 		a.ensureResourcesInspected()
 		for _, p := range localresource.ComfyPacks {
@@ -184,7 +189,7 @@ func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
 	models := a.boardAIModels(role)
 	if ref, ok := a.prefs.AI.Whiteboard[string(role)]; ok {
 		for _, m := range models {
-			if m.Connection == ref.Connection && m.Model == ref.Model {
+			if m.Connection == ref.Connection && m.Model == ref.Model && !m.NeedsDownload && m.Unavailable == "" {
 				return m
 			}
 		}
@@ -197,7 +202,7 @@ func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
 		}
 	}
 	for _, model := range models {
-		if !model.NeedsDownload && (!(role == whiteboard.AIImage || role == whiteboard.AIEnhance) || model.BaseModel == "") {
+		if !model.NeedsDownload && model.Unavailable == "" && (!(role == whiteboard.AIImage || role == whiteboard.AIEnhance) || model.BaseModel == "") {
 			return model
 		}
 	}
@@ -253,7 +258,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		}
 		return readBoardBytes(f, 256<<20)
 	}
-	ai := &editor.BoardAI{Models: a.boardAIModels, Presets: a.boardEnhancementPresets, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
+	ai := &editor.BoardAI{Models: a.boardAIModels, Unavailable: a.boardRoleUnavailable, Presets: a.boardEnhancementPresets, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
 	ai.ReplaceImage = func(nodeID string) { a.pickBoardNodeImage(d, nodeID) }
 	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
 	ai.SaveImage = func(rel string) {
@@ -565,6 +570,9 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 		p := job.Node.Params
 		req := agent.MediaRequest{Kind: kind, Prompt: job.Prompt, Size: p.Size, AspectRatio: p.AspectRatio, Count: p.Count, Quality: p.Quality, Seconds: p.Seconds, Extra: p.Extra}
+		if err := boardReferenceImageSize(s, &req, job.Images); err != nil {
+			return nil, err
+		}
 		part := func(img editor.BoardAIImage) agent.ContentPart {
 			return agent.ContentPart{Type: "image", MIME: img.MIME, Data: "data:" + img.MIME + ";base64," + base64.StdEncoding.EncodeToString(img.Data)}
 		}

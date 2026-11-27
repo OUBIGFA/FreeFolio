@@ -51,7 +51,7 @@ func (a *App) boardEnhancementPresets() []editor.BoardAIPreset {
 			m.LoRAStrength = &strength
 			m.NeedsDownload = m.NeedsDownload || !a.resources.installed[pack.BaseModel]
 		}
-		out = append(out, editor.BoardAIPreset{Role: role, Model: m})
+		out = append(out, editor.BoardAIPreset{Role: role, Model: a.boardModelAvailability(m)})
 	}
 	return out
 }

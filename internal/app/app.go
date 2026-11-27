@@ -719,6 +719,7 @@ func (a *App) Run() error {
 			a.cancelPDF()
 			a.cancelCloudSync()
 			a.cancelGit()
+			a.cancelResourceDownloads()
 			a.cancelChatGPTSignIn()
 			a.stopComfyUI()
 		})

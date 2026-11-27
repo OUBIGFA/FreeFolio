@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 	"image"
 	"io"
 	"math"
@@ -50,6 +51,8 @@ type ComfyLayout struct {
 
 // ComfyCapabilities records the GPU device and models exposed by ComfyUI.
 type ComfyCapabilities struct {
+	NodeTypes           map[string]bool
+	ModelFiles          map[string][]string
 	BaseURL             string
 	Device              string
 	VRAMMiB             int
@@ -701,7 +704,7 @@ func WriteComfyExtraModelPaths(resourceDir string) (string, error) {
 	for _, sub := range folders {
 		fmt.Fprintf(&sb, "    %s: %s\n", sub, sub)
 	}
-	if err := os.WriteFile(yamlPath, []byte(sb.String()), 0o600); err != nil {
+	if err := fsutil.WriteFileAtomic(yamlPath, []byte(sb.String()), 0o600); err != nil {
 		return "", err
 	}
 	return yamlPath, nil
@@ -1089,6 +1092,16 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	}
 	if err := json.Unmarshal(rawInfo, &info); err != nil {
 		return nil, err
+	}
+	caps.NodeTypes = map[string]bool{}
+	caps.ModelFiles = map[string][]string{}
+	for name := range info {
+		caps.NodeTypes[name] = true
+	}
+	for _, loader := range []struct{ node, key, folder string }{{"UNETLoader", "unet_name", "diffusion_models"}, {"CLIPLoader", "clip_name", "text_encoders"}, {"VAELoader", "vae_name", "vae"}, {"LoraLoaderModelOnly", "lora_name", "loras"}, {"CheckpointLoaderSimple", "ckpt_name", "checkpoints"}, {"UpscaleModelLoader", "model_name", "upscale_models"}} {
+		if node, ok := info[loader.node]; ok {
+			caps.ModelFiles[loader.folder] = parseComfyChoiceList(node.Input.Required[loader.key])
+		}
 	}
 	if _, hasApply := info["ImageUpscaleWithModel"]; hasApply {
 		if loader, ok := info["UpscaleModelLoader"]; ok {
@@ -1714,10 +1727,9 @@ func resolveComfyImageSize(size, aspect string, refImg []byte, mult int) (int, i
 	}
 	if len(refImg) > 0 {
 		if cfg, _, err := image.DecodeConfig(bytes.NewReader(refImg)); err == nil && cfg.Width > 0 && cfg.Height > 0 {
-			ratio := float64(cfg.Width) / float64(cfg.Height)
-			targetW := math.Sqrt(1024 * 1024 * ratio)
-			targetH := targetW / ratio
-			return alignDim(int(math.Round(targetW)), mult, 512, 2048), alignDim(int(math.Round(targetH)), mult, 512, 2048)
+			// Scale both axes with one factor before aligning to the latent grid.
+			factor := math.Min(1, 2048/float64(max(cfg.Width, cfg.Height)))
+			return alignDim(int(math.Round(float64(cfg.Width)*factor)), mult, mult, 2048), alignDim(int(math.Round(float64(cfg.Height)*factor)), mult, mult, 2048)
 		}
 	}
 	return 1024, 1024
@@ -2079,7 +2091,8 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 		"4": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
 	}
 	cacheInputs["model"] = attachLoRAChain(graph, loras)
-	if req.Enhance {
+	followInput := len(req.Images) > 0 && (strings.TrimSpace(req.Size) == "" || req.Size == "auto") && strings.TrimSpace(req.AspectRatio) == ""
+	if req.Enhance || followInput {
 		encInputs["resolution"] = 0
 	}
 	if len(req.Images) > 0 {
@@ -2092,13 +2105,29 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 			}
 			loadID := fmt.Sprintf("img_%d", i+1)
 			graph[loadID] = map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}}
-			encInputs[fmt.Sprintf("images.image_%d", i+1)] = []any{loadID, 0}
+			ref := []any{loadID, 0}
+			if followInput && !req.Enhance {
+				rw, rh := resolveComfyImageSize("", "", req.Images[i], 32)
+				cfg, _, err := image.DecodeConfig(bytes.NewReader(req.Images[i]))
+				if err != nil {
+					return nil, err
+				}
+				if float64(cfg.Width)/float64(cfg.Height) > 64 || float64(cfg.Height)/float64(cfg.Width) > 64 {
+					return nil, errors.New("reference image aspect ratio exceeds the local model size range")
+				}
+				if rw != cfg.Width || rh != cfg.Height {
+					scaleID := fmt.Sprintf("ref_size_%d", i+1)
+					graph[scaleID] = map[string]any{"class_type": "ImageScale", "inputs": map[string]any{"image": ref, "upscale_method": "lanczos", "width": rw, "height": rh, "crop": "disabled"}}
+					ref = []any{scaleID, 0}
+				}
+			}
+			encInputs[fmt.Sprintf("images.image_%d", i+1)] = ref
 		}
 	}
 	graph["5"] = map[string]any{"class_type": "TextEncodeQwenImage21", "inputs": encInputs}
 
 	var latentRef []any
-	if req.Enhance || len(req.Images) > 0 && strings.TrimSpace(req.Size) == "" && strings.TrimSpace(req.AspectRatio) == "" && count == 1 {
+	if req.Enhance || followInput && count == 1 {
 		latentRef = []any{"5", 2}
 	} else {
 		graph["6"] = map[string]any{"class_type": "EmptyLatentImage", "inputs": map[string]any{"width": w, "height": h, "batch_size": count}}

@@ -13,8 +13,7 @@ import (
 
 // Keep model bytes separate from dependency bytes in the existing sequential
 // download plan: LoRA bases come first; SeedVR2's shared VAE comes last.
-func (a *App) setPackDownloadProgress(pack, download localresource.ResourcePack) {
-	s := &a.resources
+func (a *App) setPackDownloadProgress(s *resourceTransfer, pack, download localresource.ResourcePack) {
 	s.received.Store(0)
 	s.total, s.ownStart, s.dependencyTotal, s.dependencyLabel = pack.TotalSize(), 0, 0, ""
 	if pack.BaseModel != "" || len(pack.Dependencies) > 0 {
@@ -31,8 +30,7 @@ func (a *App) setPackDownloadProgress(pack, download localresource.ResourcePack)
 
 // A pause cancels the request and keeps the row reserved until its writer has
 // closed. Resume starts a fresh ranged request from the persisted partial.
-func (a *App) pauseResourceDownload() {
-	s := &a.resources
+func (a *App) pauseResourceDownload(s *resourceTransfer) {
 	if s.cancel == nil || s.pausing || s.stopping {
 		return
 	}
@@ -40,13 +38,12 @@ func (a *App) pauseResourceDownload() {
 	s.cancel()
 }
 
-func (a *App) stopResourceDownload() {
-	s := &a.resources
+func (a *App) stopResourceDownload(s *resourceTransfer) {
 	if s.paused {
 		s.paused = false
 		s.busy = ""
 		s.resume = nil
-		s.dir = ""
+		a.resources.dir = ""
 		return
 	}
 	if s.cancel != nil {
@@ -56,8 +53,7 @@ func (a *App) stopResourceDownload() {
 	}
 }
 
-func (a *App) finishResourceDownload(err error) {
-	s := &a.resources
+func (a *App) finishResourceDownload(s *resourceTransfer, err error) {
 	s.cancel = nil
 	s.installing = false
 	if s.pausing && errors.Is(err, context.Canceled) {
@@ -65,7 +61,7 @@ func (a *App) finishResourceDownload(err error) {
 		s.paused = true
 		return
 	}
-	s.busy, s.dir = "", ""
+	s.busy, a.resources.dir = "", ""
 	s.resume = nil
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !errors.Is(err, context.Canceled) {
@@ -73,12 +69,11 @@ func (a *App) finishResourceDownload(err error) {
 	}
 }
 
-func (a *App) resourceDownloadControls(c *ui.Context) {
-	s := &a.resources
+func (a *App) resourceDownloadControls(c *ui.Context, s *resourceTransfer) {
 	if s.installing {
 		ui.Text(c, i18n.T("正在安装语音插件")).FontSize(12)
 		if ui.Button(c.Key("stop"), i18n.T("停止")).Disabled(s.stopping).Clicked() {
-			a.stopResourceDownload()
+			a.stopResourceDownload(s)
 		}
 		return
 	}
@@ -122,12 +117,43 @@ func (a *App) resourceDownloadControls(c *ui.Context) {
 			s.resume()
 		}
 	} else if ui.Button(c.Key("pause"), i18n.T("暂停")).Disabled(s.pausing || s.stopping).Clicked() {
-		a.pauseResourceDownload()
+		a.pauseResourceDownload(s)
 	}
 	if ui.Button(c.Key("stop"), i18n.T("停止")).Disabled(s.stopping).Clicked() {
-		a.stopResourceDownload()
+		a.stopResourceDownload(s)
 	}
 	if !s.paused {
 		c.After(150 * time.Millisecond)
+	}
+}
+
+func (a *App) resourceTransferFor(id string) *resourceTransfer {
+	if a.resources.downloads == nil {
+		a.resources.downloads = map[string]*resourceTransfer{}
+	}
+	job := a.resources.downloads[id]
+	if job == nil {
+		job = &resourceTransfer{}
+		a.resources.downloads[id] = job
+	}
+	return job
+}
+func (a *App) resourcesDownloading() bool {
+	for _, job := range a.resources.downloads {
+		if job.busy != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) cancelResourceDownloads() {
+	if a.resources.cancel != nil {
+		a.resources.cancel()
+	}
+	for _, job := range a.resources.downloads {
+		if job.cancel != nil {
+			job.cancel()
+		}
 	}
 }

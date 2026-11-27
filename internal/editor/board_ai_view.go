@@ -3,6 +3,7 @@ package editor
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -256,6 +257,8 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 			b.RequestFocus = true
 		}
 	}
+	unavailable := map[string]string{}
+	descriptions := map[string]string{}
 	items := []aiBarItem{
 		{"ai-prompt", "文字节点", "输入", "text", "text", add(whiteboard.AIPrompt, "")},
 		{"note", "便签文字", "输入", "sticky-note", "text", func() {
@@ -297,6 +300,19 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-video", "文生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "")},
 		{"ai-i2v", "图生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "图生视频")},
 	}
+	if o.AI.Unavailable != nil {
+		for key, role := range map[string]whiteboard.AIRole{"ai-text": whiteboard.AIText, "ai-image": whiteboard.AIImage, "ai-edit": whiteboard.AIImage, "ai-base": whiteboard.AIModel, "ai-lora": whiteboard.AILoRA, "ai-cutout": whiteboard.AICutout, "ai-upscale": whiteboard.AIUpscale, "ai-enhance": whiteboard.AIEnhance, "ai-video": whiteboard.AIVideo, "ai-i2v": whiteboard.AIVideo} {
+			unavailable[key] = o.AI.Unavailable(role)
+		}
+		for _, template := range aiTemplates {
+			for _, step := range template.steps {
+				if reason := o.AI.Unavailable(step.role); reason != "" {
+					unavailable["tpl-"+template.key] = reason
+					break
+				}
+			}
+		}
+	}
 	if o.AI.Presets != nil {
 		for _, isLoRA := range []bool{true, false} {
 			for _, preset := range o.AI.Presets() {
@@ -318,6 +334,11 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 				if m.BaseModel != "" {
 					group = "LoRA 流程（自动连线）"
 				}
+				unavailable["model-"+m.Model] = m.Unavailable
+				if m.NeedsDownload {
+					unavailable["model-"+m.Model] = i18n.T("请先下载模型及依赖")
+				}
+				descriptions["model-"+m.Model] = m.Description
 				items = append(items, aiBarItem{"model-" + m.Model, label, group, "image", "image", func() { b.insertAIModelPreset(preset, label, o) }})
 			}
 		}
@@ -339,6 +360,13 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 	if o.Export != nil {
 		items = append(items, aiBarItem{"canvas-export", "导出 JSON Canvas", "交换", "duplicate", "text", func() { o.Export("canvas") }})
 	}
+	groupOrder := map[string]int{}
+	for _, item := range items {
+		if _, ok := groupOrder[item.group]; !ok {
+			groupOrder[item.group] = len(groupOrder)
+		}
+	}
+	slices.SortStableFunc(items, func(a, b aiBarItem) int { return groupOrder[a.group] - groupOrder[b.group] })
 	st := boardChromeFor(o.Theme)
 	boardSurface(ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(min(360, max(220, b.lastRect.W-24))).MaxHeight(max(120, b.lastRect.H-96)).Padding(12).Gap(4).AlignItems(ui.Stretch), st).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
 		boardPanelHeader(c, st, i18n.T("AI 节点"), "", "", o.Theme.Dark, func() { b.ai.bar = false })
@@ -360,7 +388,7 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		group := ""
 		for _, it := range items {
 			label := i18n.T(it.label)
-			if query != "" && !strings.Contains(strings.ToLower(label+" "+i18n.T(it.group)), query) {
+			if query != "" && !strings.Contains(strings.ToLower(label+" "+i18n.T(it.group)+" "+descriptions[it.key]), query) {
 				continue
 			}
 			if it.group != group {
@@ -372,15 +400,23 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 					boardSectionLabel(c, st, i18n.T(group))
 				})
 			}
-			row := ui.ButtonBase(c.Key("board-ai-item-"+it.key)).WidthPercent(100).Padding(7, 8).Gap(8).Justify(ui.Start).AlignItems(ui.Center).Radius(6).Focusable().Label(label)
+			row := ui.ButtonBase(c.Key("board-ai-item-"+it.key)).WidthPercent(100).Padding(7, 8).Gap(8).Justify(ui.Start).AlignItems(ui.Center).Radius(6).Focusable().Label(label).Disabled(unavailable[it.key] != "").Description(unavailable[it.key]).Tooltip(unavailable[it.key])
 			if row.Hovered() {
 				row.Background(st.hover)
 			}
 			row.Children(func() {
 				aiItemBadge(c, it.icon, it.kind, o.Theme.Dark)
-				ui.Text(c, label).FontSize(13).TextColor(st.text).Grow(1).MinWidth(0).TextAlign(ui.Start).SingleLine()
+				ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+					ui.Text(c, label).FontSize(13).TextColor(st.text).WidthPercent(100).TextAlign(ui.Start).SingleLine()
+					if desc := descriptions[it.key]; desc != "" {
+						ui.Text(c, desc).FontSize(12).TextColor(st.muted).WidthPercent(100).TextAlign(ui.Start)
+					}
+					if reason := unavailable[it.key]; reason != "" {
+						ui.Text(c, reason).FontSize(12).TextColor(st.muted).WidthPercent(100).TextAlign(ui.Start)
+					}
+				})
 			})
-			if row.Clicked() {
+			if row.Clicked() && unavailable[it.key] == "" {
 				it.run()
 			}
 		}
@@ -389,7 +425,10 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 
 // aiChoice is a labeled select over values; it returns the chosen value.
 func aiChoice(c *ui.Context, o BoardOptions, key, label, current string, values, labels []string) string {
-	ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted)
+	return aiChoiceControl(c, o, key, label, current, values, labels, false)
+}
+
+func aiChoiceControl(c *ui.Context, o BoardOptions, key, label, current string, values, labels []string, disabled bool) string {
 	shown := current
 	for i, v := range values {
 		if v == current {
@@ -397,8 +436,17 @@ func aiChoice(c *ui.Context, o BoardOptions, key, label, current string, values,
 		}
 	}
 	before := shown
-	ui.Select(c.Key("board-ai-"+key), &shown, labels).WidthPercent(100).FontSize(13).Label(i18n.T(label))
-	if shown != before {
+	_, height := c.Size()
+	if height < 600 {
+		ui.Row(c.Key("field-" + key)).Gap(4).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted).Grow(1).MinWidth(0)
+			ui.Select(c.Key("board-ai-"+key), &shown, labels).WidthPercent(64).Height(28).FontSize(12).Disabled(disabled).Label(i18n.T(label))
+		})
+	} else {
+		ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted)
+		ui.Select(c.Key("board-ai-"+key), &shown, labels).WidthPercent(100).FontSize(13).Disabled(disabled).Label(i18n.T(label))
+	}
+	if shown != before && !disabled {
 		for i, l := range labels {
 			if l == shown {
 				return values[i]
@@ -456,120 +504,74 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		b.ai.buf = aiEditBuffers{n.Title, n.Instruction, n.Note, n.Params.Template, extra, n.Params.Lyrics, n.Params.VoiceStyle, defaultNegativePrompt(n)}
 		s.extraErr = ""
 	}
+	b.aiSettingsPopup(c, o, e, n)
+}
+
+func (b *Board) aiSettingsContent(c *ui.Context, o BoardOptions, e *whiteboard.Element, n *whiteboard.AINode) {
 	id := e.ID
-	st := boardChromeFor(o.Theme)
+	s := b.aiState()
 	edit := func(fn func(*whiteboard.AINode)) { b.editAINode(o, id, fn) }
-	ui.PopoverBase(c.Key("board-ai-properties-popup"), s.settingsAnchor, &s.panel, func(popup ui.Element) {
-		boardSurface(popup, st).Width(min(360, max(1, b.lastRect.W-24))).MaxHeight(max(44, b.lastRect.H-72))
-		ui.Scroll(c.Key("board-ai-props")).WidthPercent(100).MaxHeight(max(44, min(720, b.lastRect.H-72))).Padding(14).Gap(8).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
-			boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
-			if aiRunnableRole(n.Role) {
-				b.aiRunControls(c, o, id)
-			}
-			aiPropDivider(c, o)
-			aiPropSection(c, o, "基础设置")
-			ui.Text(c, i18n.T("名称")).FontSize(12).TextColor(o.Theme.TextMuted)
-			if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
-				edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
-			}
-			if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
-				b.aiModelField(c, o, id, n)
-			}
-			aiPropDivider(c, o)
-			switch n.Role {
-			case whiteboard.AICutout:
-				ui.Text(c, i18n.T("请连接输入图片；使用 Sa2VA 或 BRIA RMBG-3.0 时可在下方填写抠图说明")).FontSize(12).TextColor(o.Theme.TextMuted)
-				aiPropDivider(c, o)
-			case whiteboard.AIUpscale:
-				ui.Text(c, i18n.T("请连接一张输入图片，本地模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
-			case whiteboard.AICompare:
-				ui.Text(c, i18n.T("连接图片 A 与图片 B，支持卷帘、并排、叠化、差异与切换对比")).FontSize(12).TextColor(o.Theme.TextMuted)
-			case whiteboard.AIImageInput:
-				ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
-			case whiteboard.AIPrompt:
-				aiPropSection(c, o, "文字内容")
-				area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
-				if s.focusInstruction {
-					area.Focus()
-					s.focusInstruction = false
+	switch n.Role {
+	case whiteboard.AIPrompt:
+		aiPropSection(c, o, "文字内容")
+		area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本")).WidthPercent(100).Height(aiSettingsTextHeight(c, 140)).Label(i18n.T("文字内容"))
+		if s.focusInstruction {
+			area.Focus()
+			s.focusInstruction = false
+		}
+		if area.Changed() {
+			b.setAINodeText(o, id, b.ai.buf.instruction)
+		}
+	case whiteboard.AINote:
+		aiPropSection(c, o, "引用笔记")
+		if ui.TextInput(c.Key("board-ai-note"), &b.ai.buf.note).Placeholder(i18n.T("文档名称")).WidthPercent(100).Changed() {
+			edit(func(n *whiteboard.AINode) { n.Note = strings.Trim(strings.TrimSpace(b.ai.buf.note), "[]") })
+		}
+		if o.WikiSuggest != nil && strings.TrimSpace(b.ai.buf.note) != "" {
+			for i, name := range o.WikiSuggest(strings.Trim(b.ai.buf.note, "[]")) {
+				if i >= 5 {
+					break
 				}
-				if area.Changed() {
-					b.setAINodeText(o, id, b.ai.buf.instruction)
-				}
-			case whiteboard.AINote:
-				aiPropSection(c, o, "引用笔记")
-				if ui.TextInput(c.Key("board-ai-note"), &b.ai.buf.note).Placeholder(i18n.T("文档名称")).WidthPercent(100).Changed() {
-					edit(func(n *whiteboard.AINode) { n.Note = strings.Trim(strings.TrimSpace(b.ai.buf.note), "[]") })
-				}
-				if o.WikiSuggest != nil && strings.TrimSpace(b.ai.buf.note) != "" {
-					for i, name := range o.WikiSuggest(strings.Trim(b.ai.buf.note, "[]")) {
-						if i >= 5 {
-							break
-						}
-						if ui.Button(c.Key("sug-"+name), name).Clicked() {
-							b.ai.buf.note = name
-							edit(func(n *whiteboard.AINode) { n.Note = name })
-						}
-					}
-				}
-				if n.Note != "" && o.OpenWiki != nil && ui.Button(c.Key("open-note"), i18n.T("打开笔记")).Clicked() {
-					o.OpenWiki(n.Note, false)
-				}
-			case whiteboard.AIConcat:
-				aiPropSection(c, o, "拼接模板")
-				ui.Text(c, i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).TextColor(o.Theme.TextMuted)
-				if ui.TextArea(c.Key("board-ai-template"), &b.ai.buf.template).WidthPercent(100).Height(88).Changed() {
-					edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
+				if ui.Button(c.Key("sug-"+name), name).Clicked() {
+					b.ai.buf.note = name
+					edit(func(n *whiteboard.AINode) { n.Note = name })
 				}
 			}
-			if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout {
-				aiPropSection(c, o, "指令")
-				value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
-				if n.Role == whiteboard.AICutout {
-					placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
-				}
-				linked := b.aiPromptSource(n)
-				unsupported := !n.AcceptsPrompt()
-				if unsupported {
-					value, placeholder = new(string), i18n.T("此模型不支持提示词")
-				} else if linked != "" {
-					// The linked slot feeds the instruction, so the field is
-					// disabled and shows the source, as ComfyUI's widget inputs.
-					value, placeholder = new(string), fmt.Sprintf(i18n.T("已连接：%s"), linked)
-				}
-				area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(104).Disabled(unsupported || linked != "" || b.ReadOnly || e.Locked).Label(i18n.T("指令")).Description(placeholder)
-				if s.focusInstruction && !unsupported && linked == "" && !b.ReadOnly && !e.Locked {
-					area.Focus()
-					s.focusInstruction = false
-				}
-				if area.Changed() {
-					b.setAINodeText(o, id, b.ai.buf.instruction)
-				}
-			}
-			if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
-				aiPropDivider(c, o)
-				inputs := b.Scene.AIInputs(id)
-				aiPropSection(c, o, fmt.Sprintf(i18n.T("输入（%d）"), len(inputs)))
-				if len(inputs) == 0 && n.Role != whiteboard.AINote {
-					ui.Text(c, i18n.T("从其他节点的输出拖线到左侧输入，或从输入拖线到便签、图片、画框")).FontSize(12).TextColor(o.Theme.TextMuted)
-				}
-				for i, in := range inputs {
-					sl, _ := whiteboard.AISlotByName(n, in.Slot)
-					detail := b.aiSourceName(b.Scene.ElementByID(in.From))
-					ui.Row(c.Key(fmt.Sprint("in", i))).Padding(6, 8).Gap(6).AlignItems(ui.Center).Background(st.surfaceMuted).Border(1, st.divider).Radius(6).Children(func() {
-						ui.Box(c).Size(6, 6).Radius(3).Background(aiTypeColor(sl.Type, o.Theme.Dark)).Shrink(0)
-						ui.Text(c, aiSlotLabel(sl)).FontSize(12).FontWeight(500).TextColor(st.muted).NoWrap()
-						ui.Text(c, detail).FontSize(12).TextColor(st.text).SingleLine().Grow(1).MinWidth(0)
-						if !b.ReadOnly && boardIconButton(c, "disconnect", "close", i18n.T("断开连接"), false).Size(22, 22).Clicked() {
-							b.deleteAILink(aiLinkRef{id, in.Slot}, o)
-						}
-					})
-				}
-			}
-			b.aiParamsFields(c, o, id, n)
-			b.aiOutputActions(c, o, id, n)
-		})
-	})
+		}
+		if n.Note != "" && o.OpenWiki != nil && ui.Button(c.Key("open-note"), i18n.T("打开笔记")).Clicked() {
+			o.OpenWiki(n.Note, false)
+		}
+	case whiteboard.AIConcat:
+		aiPropSection(c, o, "拼接模板")
+		ui.Text(c, i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).TextColor(o.Theme.TextMuted)
+		if ui.TextArea(c.Key("board-ai-template"), &b.ai.buf.template).WidthPercent(100).Height(aiSettingsTextHeight(c, 88)).Changed() {
+			edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
+		}
+	}
+	if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout {
+		aiPropSection(c, o, "指令")
+		value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
+		if n.Role == whiteboard.AICutout {
+			placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
+		}
+		linked := b.aiPromptSource(n)
+		unsupported := !n.AcceptsPrompt()
+		if unsupported {
+			value, placeholder = new(string), i18n.T("此模型不支持提示词")
+		} else if linked != "" {
+			// The linked slot feeds the instruction, so the field is
+			// disabled and shows the source, as ComfyUI's widget inputs.
+			value, placeholder = new(string), fmt.Sprintf(i18n.T("已连接：%s"), linked)
+		}
+		area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(aiSettingsTextHeight(c, 104)).Disabled(unsupported || linked != "" || b.ReadOnly || e.Locked).Label(i18n.T("指令")).Description(placeholder)
+		if s.focusInstruction && !unsupported && linked == "" && !b.ReadOnly && !e.Locked {
+			area.Focus()
+			s.focusInstruction = false
+		}
+		if area.Changed() {
+			b.setAINodeText(o, id, b.ai.buf.instruction)
+		}
+	}
 }
 
 func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
@@ -585,24 +587,29 @@ func aiImageSizeChoices(o BoardOptions, n *whiteboard.AINode, compact bool) ([]s
 	if o.AI != nil && o.AI.Models != nil {
 		for _, m := range o.AI.Models(whiteboard.AIImage) {
 			if m.Connection == n.Connection && m.Model == n.Model && len(m.ImageSizes) > 0 {
-				return append([]string{""}, m.ImageSizes...), append([]string{i18n.T("服务默认")}, m.ImageSizes...), true
+				return append([]string{""}, m.ImageSizes...), append([]string{i18n.T("跟随输入图")}, m.ImageSizes...), true
 			}
 		}
 	}
 	if compact {
-		return []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("尺寸"), "1024 x 1024", "1536×1024", "1024×1536"}, false
+		return []string{"", "1024x1024", "1536x1024", "1024x1536"}, []string{i18n.T("跟随输入图"), "1024 x 1024", "1536×1024", "1024×1536"}, false
 	}
-	return []string{"", "auto", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1024x1792"}, translated("服务默认", "自动", "1024×1024 方形", "1536×1024 横向", "1024×1536 纵向", "1792×1024 宽屏", "1024×1792 竖屏"), false
+	return []string{"", "auto", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1024x1792"}, translated("跟随输入图", "自动", "1024×1024 方形", "1536×1024 横向", "1024×1536 纵向", "1792×1024 宽屏", "1024×1792 竖屏"), false
 }
 
 func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
+	b.aiMainParamsFields(c, o, id, n)
+	b.aiLyricsField(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked)
+	b.aiComfySamplingParams(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked)
+}
+
+func (b *Board) aiMainParamsFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
 	n = b.Scene.AIInputNode(n)
 	if n.Connection == "comfyui-media" {
 		aiPropSection(c, o, "生成参数")
-		b.aiLocalMediaParams(c, o, id, n, false, b.ReadOnly || b.Scene.ElementByID(id).Locked)
+		b.aiLocalMediaFields(c, o, id, n, false, b.ReadOnly || b.Scene.ElementByID(id).Locked)
 		return
 	}
-	b.aiComfySamplingParams(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked)
 	set := func(fn func(*whiteboard.AIParams)) {
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { fn(&n.Params) })
 	}
@@ -637,7 +644,7 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				if v := aiChoice(c, o, "aspect", "画幅比例", p.AspectRatio, []string{"", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}, []string{i18n.T("服务默认"), "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}); v != p.AspectRatio {
+				if v := aiChoice(c, o, "aspect", "画幅比例", p.AspectRatio, []string{"", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}, []string{i18n.T("跟随输入图"), "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}); v != p.AspectRatio {
 					set(func(p *whiteboard.AIParams) { p.AspectRatio = v })
 				}
 			})
@@ -745,14 +752,14 @@ func (b *Board) aiPresetRow(c *ui.Context, o BoardOptions, id string) {
 }
 
 func (b *Board) aiRunControls(c *ui.Context, o BoardOptions, id string) {
-	ui.Column(c.Key("board-ai-run")).Gap(6).Margin(2, 0, 0, 0).Children(func() {
+	ui.Row(c.Key("board-ai-run")).Gap(6).Margin(2, 0, 0, 0).Children(func() {
 		if b.AIRunning() {
 			if ui.Button(c.Key("stop"), i18n.T("停止")).WidthPercent(100).Clicked() {
 				b.StopAI()
 			}
 			return
 		}
-		if ui.PrimaryButton(c.Key("run"), i18n.T("运行节点")).WidthPercent(100).Clicked() {
+		if ui.PrimaryButton(c.Key("run"), i18n.T("运行节点")).Grow(1).Clicked() {
 			b.RunAI([]string{id}, false, b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImage, o)
 		}
 		ui.Row(c).Gap(6).Children(func() {
@@ -789,7 +796,8 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 		}
 	})
 	if out.Prompt != "" {
-		ui.Text(c, i18n.T("服务改写的提示词：")+out.Prompt).FontSize(12).TextColor(o.Theme.TextMuted)
+		prompt := out.Prompt
+		ui.TextArea(c.Key("output-prompt"), &prompt).ReadOnly(true).Height(aiSettingsTextHeight(c, 64)).WidthPercent(100).FontSize(12).Label(i18n.T("服务改写的提示词："))
 	}
 	ui.Row(c.Key("board-ai-out")).Gap(6).Wrap().Children(func() {
 		if out.Kind == "image" {
@@ -815,6 +823,9 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 }
 
 func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, model BoardAIModel) {
+	if model.NeedsDownload || model.Unavailable != "" {
+		return
+	}
 	_, _, wasNative := aiImageSizeChoices(o, n, false)
 	b.updateAINode(o, id, func(node *whiteboard.AINode) {
 		if (node.Connection == "comfyui-media" || model.Connection == "comfyui-media") && (node.Connection != model.Connection || node.Model != model.Model) {
@@ -837,7 +848,7 @@ func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, m
 			node.Instruction = model.Instruction
 		}
 		if node.Role == whiteboard.AIImage && wasNative != (len(model.ImageSizes) > 0) {
-			node.Params.Size, node.Params.Quality = model.defaultImageSize(), ""
+			node.Params.Size, node.Params.Quality = "", ""
 		}
 	})
 	if o.AI.Remember != nil {

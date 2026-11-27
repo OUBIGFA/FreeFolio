@@ -903,6 +903,29 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 			t.Fatal("character reference lost")
 		}
 	}
+	// Reference editing keeps pixels below the cap and scales oversized inputs
+	// before the encoder chooses its empty latent. Explicit sizes still win.
+	for _, tc := range []struct{ w, h, count int }{{640, 960, 1}, {4096, 2048, 1}, {640, 960, 2}} {
+		ref := comfyTestPNG(t, tc.w, tc.h, color.NRGBA{A: 255})
+		_, err := mgr.GenerateQwenImage21Turbo(context.Background(), cfg, ComfyImageRequest{Prompt: "edit", Images: [][]byte{ref}, Count: tc.count})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g := captured[len(captured)-1]
+		if g["5"]["resolution"] != float64(0) {
+			t.Fatal("reference was normalized to fixed megapixels")
+		}
+		if tc.w == 4096 {
+			if g["ref_size_1"]["width"] != float64(2048) || g["ref_size_1"]["height"] != float64(1024) {
+				t.Fatal("oversized reference not resized proportionally")
+			}
+		} else if g["ref_size_1"] != nil {
+			t.Fatal("supported source size was unnecessarily resized")
+		}
+		if tc.count == 2 && (g["6"]["width"] != float64(640) || g["6"]["height"] != float64(960)) {
+			t.Fatal("batch lost reference dimensions")
+		}
+	}
 	before = len(captured)
 	for _, req := range []ComfyImageRequest{
 		{BaseModel: "qwen-image-2.1-int8", Prompt: "test", LoRA: "qwen-fusal-turbo", Strength: 1},

@@ -11,6 +11,14 @@ import (
 
 // Local media exposes only controls that its workflow actually consumes.
 func (b *Board) aiLocalMediaParams(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, inline, disabled bool) {
+	b.aiLocalMediaFields(c, o, id, n, inline, disabled)
+	if !inline {
+		b.aiLyricsField(c, o, id, n, disabled)
+		b.aiComfySamplingParams(c, o, id, n, disabled)
+	}
+}
+
+func (b *Board) aiLocalMediaFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, inline, disabled bool) {
 	set := func(fn func(*whiteboard.AIParams)) {
 		if disabled {
 			return
@@ -25,9 +33,6 @@ func (b *Board) aiLocalMediaParams(c *ui.Context, o BoardOptions, id string, n *
 		return aiParamChoice(c, o, key, label, current, values, labels, disabled)
 	}
 	p := n.Params
-	if !inline {
-		defer b.aiComfySamplingParams(c, o, id, n, disabled)
-	}
 	if n.Model == "qwen3-tts" {
 		speaker := p.Speaker
 		if speaker == "" {
@@ -48,7 +53,7 @@ func (b *Board) aiLocalMediaParams(c *ui.Context, o BoardOptions, id string, n *
 				set(func(p *whiteboard.AIParams) { p.Language = v })
 			}
 			ui.Text(c, i18n.T("语气与情绪")).FontSize(12).TextColor(o.Theme.TextMuted)
-			if ui.TextArea(c.Key("voice-style"), &b.ai.buf.voiceStyle).WidthPercent(100).Height(84).Disabled(disabled).Label(i18n.T("语气与情绪")).Placeholder(i18n.T("例如：轻快、热情，语速稍快")).Changed() {
+			if ui.TextArea(c.Key("voice-style"), &b.ai.buf.voiceStyle).WidthPercent(100).Height(aiSettingsTextHeight(c, 84)).Disabled(disabled).Label(i18n.T("语气与情绪")).Placeholder(i18n.T("例如：轻快、热情，语速稍快")).Changed() {
 				set(func(p *whiteboard.AIParams) { p.VoiceStyle = b.ai.buf.voiceStyle })
 			}
 			ui.Text(c, i18n.T("在指令框填写朗读内容，每次最多 1000 字")).FontSize(12).TextColor(o.Theme.TextMuted)
@@ -125,11 +130,7 @@ func (b *Board) aiLocalMediaParams(c *ui.Context, o BoardOptions, id string, n *
 		if v := choice("language", "歌词语言", language, []string{"zh", "en", "ja", "ko", "yue", "unknown"}, translated("中文", "英语", "日语", "韩语", "粤语", "未指定")); v != language {
 			set(func(p *whiteboard.AIParams) { p.Language = v })
 		}
-		ui.Text(c, i18n.T("歌词，留空生成纯音乐")).FontSize(12).TextColor(o.Theme.TextMuted)
-		linked := n.LinkAt("lyrics") != ""
-		if ui.TextArea(c.Key("audio-lyrics"), &b.ai.buf.lyrics).WidthPercent(100).Height(140).Disabled(disabled || linked).Label(i18n.T("歌词")).Changed() {
-			set(func(p *whiteboard.AIParams) { p.Lyrics = b.ai.buf.lyrics })
-		}
+
 	} else if n.Role == whiteboard.AIVideo {
 		size := p.Size
 		if size == "" {
@@ -147,5 +148,15 @@ func (b *Board) aiLocalMediaParams(c *ui.Context, o BoardOptions, id string, n *
 			set(func(p *whiteboard.AIParams) { p.FPS = k })
 		}
 		ui.Text(c, i18n.T("尺寸、帧率越高，占用显存越多，可连接一张首帧图片")).FontSize(12).TextColor(o.Theme.TextMuted)
+	}
+}
+
+func (b *Board) aiLyricsField(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
+	if n.Connection != "comfyui-media" || n.Model != "ace15-turbo" {
+		return
+	}
+	ui.Text(c, i18n.T("歌词，留空生成纯音乐")).FontSize(12).TextColor(o.Theme.TextMuted)
+	if ui.TextArea(c.Key("audio-lyrics"), &b.ai.buf.lyrics).WidthPercent(100).Height(aiSettingsTextHeight(c, 100)).Disabled(disabled || n.LinkAt("lyrics") != "").Label(i18n.T("歌词")).Changed() {
+		b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Params.Lyrics = b.ai.buf.lyrics })
 	}
 }

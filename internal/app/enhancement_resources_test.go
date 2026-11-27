@@ -170,15 +170,16 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 		}
 		savePNG(t, filepath.Join(dir, name), tt)
 	}
-	a.resources.busy = "z-detail"
-	a.resources.total = 170127776
-	a.resources.received.Store(54000000)
-	a.resources.resume = func() {}
-	a.resources.cancel = func() {}
+	job := a.resourceTransferFor("z-detail")
+	job.busy = "z-detail"
+	job.total = 170127776
+	job.received.Store(54000000)
+	job.resume = func() {}
+	job.cancel = func() {}
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "enhancement-downloading.png"), tt)
-	a.resources.cancel = nil
-	a.resources.paused = true
+	job.cancel = nil
+	job.paused = true
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "enhancement-paused.png"), tt)
 	pack, _ := localresource.ComfyPack("z-detail")
@@ -186,8 +187,8 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.setPackDownloadProgress(pack, download)
-	a.resources.received.Store(a.resources.ownStart / 2)
+	a.setPackDownloadProgress(job, pack, download)
+	job.received.Store(job.ownStart / 2)
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "lora-base-size.png"), tt)
 }
@@ -235,6 +236,10 @@ func TestModelFlowSnapshot(t *testing.T) {
 	a, tt := newTestApp(t)
 	tt.SetSize(1600, 1000)
 	a.newWhiteboard("")
+	a.prefs.ComfyUI.Dir = t.TempDir()
+	a.resources.dir = a.resourceDirectory()
+	a.resources.installed = map[string]bool{"z-detail": true, "z-image-turbo-int8": true}
+	a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true, LoRANative: true}
 	tt.Frame()
 	if err := tt.Click("AI 节点"); err != nil {
 		t.Fatal(err)

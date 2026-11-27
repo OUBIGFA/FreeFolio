@@ -58,7 +58,7 @@ func TestLoRAResourceTabsFilterByBaseModel(t *testing.T) {
 	}
 	pack, _ := localresource.ComfyPack("qwen-fusal-turbo")
 	download, _ := localresource.PackDownload(pack)
-	a.setPackDownloadProgress(pack, download)
+	a.setPackDownloadProgress(&a.resources.resourceTransfer, pack, download)
 	if a.resources.total != 671174216 || a.resources.dependencyLabel != "依赖下载" {
 		t.Fatal("extra encoder is counted as LoRA weight")
 	}

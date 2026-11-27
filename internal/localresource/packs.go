@@ -26,6 +26,7 @@ type PackFile struct {
 type ResourcePack struct {
 	ID             string
 	Name           string
+	Description    string
 	License        string
 	Kind           string // "rmbg3" or "sa2va"
 	ModelID        string

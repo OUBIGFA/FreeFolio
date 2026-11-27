@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
-	"github.com/egoist/mygo/ui"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -39,14 +38,15 @@ func TestAIParametersSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 		tt.Frame()
-		for _, node := range tt.AccessAll() {
-			if node.Role == ui.RoleGroup && node.Name == "节点属性" {
-				tt.Scroll(node.Bounds.X+80, node.Bounds.Y+100, 0, 420)
-				break
-			}
-		}
+
 		tt.Frame()
 		savePNG(t, filepath.Join(dir, tc.name+"-parameters.png"), tt)
+		if tc.name == "music" {
+			tt.SetSize(960, 640)
+			tt.Frame()
+			tt.Frame()
+			savePNG(t, filepath.Join(dir, "music-settings-small.png"), tt)
+		}
 	}
 }
 

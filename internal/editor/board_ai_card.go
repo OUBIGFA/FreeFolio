@@ -676,7 +676,7 @@ func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whit
 			set(func(p *whiteboard.AIParams) { p.Write = v })
 		}
 	case whiteboard.AIImage:
-		if v, ok := aiInlineSelect(c, key("ratio"), i18n.T("画幅比例"), p.AspectRatio, []string{"", "1:1", "16:9", "9:16", "4:3", "3:4"}, []string{i18n.T("比例"), "1:1", "16:9", "9:16", "4:3", "3:4"}, disabled); ok {
+		if v, ok := aiInlineSelect(c, key("ratio"), i18n.T("画幅比例"), p.AspectRatio, []string{"", "1:1", "16:9", "9:16", "4:3", "3:4"}, []string{i18n.T("跟随输入图"), "1:1", "16:9", "9:16", "4:3", "3:4"}, disabled); ok {
 			set(func(p *whiteboard.AIParams) { p.AspectRatio = v })
 		}
 		values, labels, nativeSize := aiImageSizeChoices(o, n, true)

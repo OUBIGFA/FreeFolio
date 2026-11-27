@@ -24,6 +24,31 @@ func downloadFile(ctx context.Context, target, source string, size int64, digest
 	}
 	key := sha256.Sum256([]byte(source + "\x00" + digest + "\x00" + strconv.FormatInt(size, 10)))
 	partial := filepath.Join(filepath.Dir(target), ".freefolio-"+fmt.Sprintf("%x", key[:12])+".part")
+	gate, unlock, err := lockDownload(ctx, target, progress)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	partialGate, unlockPartial, err := lockDownload(ctx, partial, progress)
+	if err != nil {
+		return err
+	}
+	defer unlockPartial()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, err := verifyPackFile(filepath.Dir(target), PackFile{RelPath: filepath.Base(target), Size: size, SHA: digest}); err == nil {
+		gate.received.Store(size)
+		partialGate.received.Store(size)
+		if progress != nil {
+			progress(size)
+		}
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	gate.received.Store(0)
+	partialGate.received.Store(0)
 	if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
 		return err
 	}
@@ -55,6 +80,8 @@ func downloadFile(ctx context.Context, target, source string, size int64, digest
 		}
 	}
 	report := func(done int64) {
+		gate.received.Store(done)
+		partialGate.received.Store(done)
 		if progress != nil {
 			progress(done)
 		}

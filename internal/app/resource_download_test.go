@@ -25,14 +25,14 @@ func TestPackProgressShowsOwnSizeSeparateFromDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			a := &App{}
-			s := &a.resources
-			a.setPackDownloadProgress(pack, download)
+			s := &a.resources.resourceTransfer
+			a.setPackDownloadProgress(s, pack, download)
 			if s.total != tc.ownBytes {
 				t.Fatalf("display total includes dependencies: %d, want %d", s.total, tc.ownBytes)
 			}
 			s.resume = func() {}
 			s.received.Store(s.ownStart + tc.ownBytes/2)
-			tt := ui.NewTester(func(c *ui.Context) { ui.Row(c).Gap(6).Children(func() { a.resourceDownloadControls(c) }) }, 650, 180)
+			tt := ui.NewTester(func(c *ui.Context) { ui.Row(c).Gap(6).Children(func() { a.resourceDownloadControls(c, s) }) }, 650, 180)
 			tt.Frame()
 			p, ok := tt.Access("下载进度")
 			if !ok || p.Now < .499 || p.Now > .501 {
@@ -83,7 +83,7 @@ func TestPackProgressShowsOwnSizeSeparateFromDependencies(t *testing.T) {
 
 func TestResourceDownloadControlsPauseResumeAndStop(t *testing.T) {
 	a := &App{}
-	s := &a.resources
+	s := &a.resources.resourceTransfer
 	ctx, cancel := context.WithCancel(context.Background())
 	s.busy = "model"
 	s.total = 100
@@ -91,7 +91,7 @@ func TestResourceDownloadControlsPauseResumeAndStop(t *testing.T) {
 	s.cancel = cancel
 	resumed := 0
 	s.resume = func() { resumed++; s.paused = false; s.cancel = func() {} }
-	tt := ui.NewTester(func(c *ui.Context) { ui.Row(c).Gap(6).Children(func() { a.resourceDownloadControls(c) }) }, 600, 150)
+	tt := ui.NewTester(func(c *ui.Context) { ui.Row(c).Gap(6).Children(func() { a.resourceDownloadControls(c, s) }) }, 600, 150)
 	tt.Frame()
 	progress, ok := tt.Access("下载进度")
 	if !ok || progress.Now != .4 {
@@ -103,7 +103,7 @@ func TestResourceDownloadControlsPauseResumeAndStop(t *testing.T) {
 	if ctx.Err() == nil || !s.pausing || s.paused {
 		t.Fatal("pause did not wait for writer cancellation")
 	}
-	a.finishResourceDownload(context.Canceled)
+	a.finishResourceDownload(s, context.Canceled)
 	tt.Frame()
 	if !s.paused || s.busy != "model" || s.received.Load() != 40 {
 		t.Fatal("pause lost progress or active task")
@@ -121,7 +121,7 @@ func TestResourceDownloadControlsPauseResumeAndStop(t *testing.T) {
 	if !s.stopping || s.busy == "" {
 		t.Fatal("stop did not wait for writer completion")
 	}
-	a.finishResourceDownload(context.Canceled)
+	a.finishResourceDownload(s, context.Canceled)
 	if s.busy != "" || s.resume != nil || s.paused || s.stopping || s.err != nil {
 		t.Fatal("stop left an active or failed download")
 	}
@@ -129,12 +129,12 @@ func TestResourceDownloadControlsPauseResumeAndStop(t *testing.T) {
 
 func TestStoppingPausedResourceClearsTask(t *testing.T) {
 	a := &App{}
-	s := &a.resources
+	s := &a.resources.resourceTransfer
 	s.busy = "pack"
 	s.paused = true
 	s.resume = func() { t.Fatal("stop restarted download") }
 	s.received.Store(50)
-	a.stopResourceDownload()
+	a.stopResourceDownload(s)
 	if s.busy != "" || s.paused || s.resume != nil || s.received.Load() != 50 {
 		t.Fatal("stopping a paused task lost progress or kept the reservation")
 	}

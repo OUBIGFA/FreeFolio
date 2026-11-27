@@ -17,32 +17,38 @@ import (
 
 var loraBaseModels = []string{"z-image-turbo-int8", "qwen-image-2.1-turbo-int8", "qwen-image-2.1-int8"}
 
+type resourceTransfer struct {
+	installing                       bool
+	busy                             string
+	cancel                           context.CancelFunc
+	err                              error
+	received                         atomic.Int64
+	total, ownStart, dependencyTotal int64
+	dependencyLabel                  string
+	paused, pausing, stopping        bool
+	resume                           func()
+}
+
 type resourceState struct {
-	installing                bool
-	tab                       int
-	loraBaseTab               int
-	dir, busy, confirm        string
-	installed                 map[string]bool
-	cancel                    context.CancelFunc
-	err                       error
-	received                  atomic.Int64
-	total                     int64
-	ownStart, dependencyTotal int64
-	dependencyLabel           string
-	paused, pausing, stopping bool
-	resume                    func()
+	resourceTransfer // Directory migration and exclusive removal state.
+	downloads        map[string]*resourceTransfer
+	tab, loraBaseTab int
+	dir, confirm     string
+	installed        map[string]bool
 
 	gpuChecked bool
 	gpuDone    bool
 	gpuFound   bool
 	gpu        localresource.GPUInfo
 
-	comfy        *localresource.ComfyManager
-	comfyURL     string
-	comfyURLInit bool
-	comfyBusy    bool
-	comfyCaps    *localresource.ComfyCapabilities
-	comfyErr     error
+	comfy         *localresource.ComfyManager
+	comfyURL      string
+	comfyCheckKey string
+	comfyURLInit  bool
+	comfyBusy     bool
+	comfyCaps     *localresource.ComfyCapabilities
+	comfyErr      error
+	inspection    uint64
 }
 
 func (a *App) comfyManager() *localresource.ComfyManager {
@@ -77,6 +83,7 @@ func (a *App) setComfyDirectory(dir string) {
 	a.prefs.ComfyUI.Dir = dir
 	a.savePrefs()
 	a.resources.comfyCaps = nil
+	a.resources.comfyCheckKey = ""
 	a.resources.comfyErr = nil
 	a.resources.dir = ""
 	a.stopComfyUI()
@@ -148,7 +155,7 @@ func (a *App) resourceDirectory() string {
 const resourceBusyMigrate = "__migrate__"
 
 func (a *App) setResourceDirectory(dir string) {
-	if !filepath.IsAbs(dir) || a.resources.busy != "" {
+	if !filepath.IsAbs(dir) || a.resources.busy != "" || a.resourcesDownloading() {
 		return
 	}
 	newDir := filepath.Clean(dir)
@@ -165,6 +172,7 @@ func (a *App) setResourceDirectory(dir string) {
 		a.resources.confirm = ""
 		a.resources.err = nil
 		a.resources.comfyCaps = nil
+		a.resources.comfyCheckKey = ""
 		return
 	}
 	s := &a.resources
@@ -238,6 +246,8 @@ func (a *App) ensureResourcesInspected() {
 func (a *App) inspectResources(root string, items []localresource.Resource) {
 	state := &a.resources
 	state.dir = root
+	state.inspection++
+	inspection := state.inspection
 	state.installed = nil
 	packs := localresource.ComfyPacks
 	engineDir := a.prefs.ComfyUI.Dir
@@ -253,7 +263,7 @@ func (a *App) inspectResources(root string, items []localresource.Resource) {
 			}
 		}
 		return func() {
-			if state.dir == root {
+			if state.dir == root && state.inspection == inspection {
 				state.installed = installed
 			}
 		}
@@ -261,12 +271,21 @@ func (a *App) inspectResources(root string, items []localresource.Resource) {
 }
 
 func (a *App) resourceAction(item localresource.Resource, remove bool) {
-	s := &a.resources
-	if s.busy != "" || (remove && s.confirm != item.ID) {
+	state := &a.resources
+	if state.busy != "" || (remove && (state.confirm != item.ID || a.resourcesDownloading())) {
 		return
 	}
+	if job := state.downloads[item.ID]; job != nil && job.busy != "" {
+		return
+	}
+	s := a.resourceTransferFor(item.ID)
+
 	root := a.resourceDirectory()
-	s.busy, s.confirm, s.err = item.ID, "", nil
+	s.busy, s.err = item.ID, nil
+	state.confirm = ""
+	if remove {
+		state.busy = item.ID
+	}
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !remove {
 		s.resume = func() { s.busy = ""; a.resourceAction(item, false) }
@@ -276,7 +295,7 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	items := []localresource.Resource{item}
 	engine, supported := localresource.Runtime()
 	upscaleEngine, _ := localresource.UpscaleRuntime()
-	if !remove && supported && item.ID != engine.ID && item.ID != upscaleEngine.ID && !s.installed[engine.ID] {
+	if !remove && supported && item.ID != engine.ID && item.ID != upscaleEngine.ID && !state.installed[engine.ID] {
 		items = append([]localresource.Resource{engine}, items...)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -306,16 +325,24 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 			}
 		}
 		return func() {
-			a.finishResourceDownload(err)
+			a.finishResourceDownload(s, err)
+			if remove {
+				state.busy = ""
+			}
 		}
 	})
 }
 
 func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
-	s := &a.resources
-	if s.busy != "" || (remove && s.confirm != pack.ID) {
+	state := &a.resources
+	if state.busy != "" || (remove && (state.confirm != pack.ID || a.resourcesDownloading())) {
 		return
 	}
+	if job := state.downloads[pack.ID]; job != nil && job.busy != "" {
+		return
+	}
+	s := a.resourceTransferFor(pack.ID)
+
 	root := a.resourceDirectory()
 	engineDir := a.prefs.ComfyUI.Dir
 	if !remove && pack.Kind == "audio-tts" {
@@ -329,7 +356,11 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 			return
 		}
 	}
-	s.busy, s.confirm, s.err = pack.ID, "", nil
+	s.busy, s.err = pack.ID, nil
+	state.confirm = ""
+	if remove {
+		state.busy = pack.ID
+	}
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !remove {
 		s.resume = func() { s.busy = ""; a.packAction(pack, false) }
@@ -351,7 +382,7 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 	if remove {
 		s.cancel = nil
 	}
-	a.setPackDownloadProgress(pack, download)
+	a.setPackDownloadProgress(s, pack, download)
 	mgr := a.resources.comfy
 	a.backgroundResult(func() func() {
 		defer cancel()
@@ -384,8 +415,12 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 			mgr.InvalidateCaps()
 		}
 		return func() {
-			s.comfyCaps = nil
-			a.finishResourceDownload(err)
+			state.comfyCaps = nil
+			state.comfyCheckKey = ""
+			a.finishResourceDownload(s, err)
+			if remove {
+				state.busy = ""
+			}
 		}
 	})
 }
@@ -410,10 +445,11 @@ func resourceStatusBadge(c *ui.Context, text string, accent bool) {
 
 func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, detail string) {
 	s := &a.resources
+	job := s.downloads[item.ID]
 	settingRow(c, item.ID, item.Name, detail, func() {
 		switch {
-		case s.busy == item.ID:
-			a.resourceDownloadControls(c)
+		case job != nil && job.busy != "":
+			a.resourceDownloadControls(c, job)
 		case s.confirm == item.ID:
 			if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
 				a.resourceAction(item, true)
@@ -423,7 +459,7 @@ func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, de
 			}
 		case s.installed[item.ID]:
 			resourceStatusBadge(c, i18n.T("已下载"), true)
-			if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "").Clicked() {
+			if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
 				s.confirm = item.ID
 			}
 		default:
@@ -432,10 +468,14 @@ func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, de
 			}
 		}
 	})
+	if job != nil && job.err != nil {
+		ui.Text(c, job.err.Error()).FontSize(12).TextColor(c.Theme().Danger)
+	}
 }
 
 func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, badgeText string, badgeAccent bool, detail string) {
 	s := &a.resources
+	job := s.downloads[pack.ID]
 	t := c.Theme()
 	ui.Row(c.Key(pack.ID)).Padding(settingsRowInset(c), 12).Gap(16).AlignItems(ui.Center).MinHeight(56).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -449,8 +489,8 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 		})
 		ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 			switch {
-			case s.busy == pack.ID:
-				a.resourceDownloadControls(c)
+			case job != nil && job.busy != "":
+				a.resourceDownloadControls(c, job)
 			case s.confirm == pack.ID:
 				if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
 					a.packAction(pack, true)
@@ -460,7 +500,7 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 				}
 			case s.installed[pack.ID] && (pack.BaseModel == "" || s.installed[pack.BaseModel]):
 				resourceStatusBadge(c, i18n.T("已下载"), true)
-				if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "").Clicked() {
+				if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
 					s.confirm = pack.ID
 				}
 			default:
@@ -470,6 +510,9 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 			}
 		})
 	})
+	if job != nil && job.err != nil {
+		ui.Text(c, job.err.Error()).FontSize(12).TextColor(c.Theme().Danger)
+	}
 }
 
 func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string, accent bool, detail string) {
@@ -490,6 +533,9 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 				size += f.Size
 			}
 			detail += "\n" + fmt.Sprintf(i18n.T("另需文本编码器：%s"), formatResourceBytes(size))
+		}
+		if pack.Description != "" {
+			detail += "\n" + i18n.T(pack.Description)
 		}
 		return i18n.T(pack.Category), false, detail
 	}
@@ -545,7 +591,7 @@ func (a *App) settingsResources(c *ui.Context) {
 		items = append(items, engine)
 	}
 
-	settingsHeading(c, i18n.T("可选资源"), i18n.T("下载后可在白板节点中使用"))
+	settingsHeading(c, i18n.T("可选资源"), i18n.T("可同时下载多个资源，下载后在白板节点中使用"))
 
 	settingsSection(c, i18n.T("硬件与保存位置"))
 	settingsGroup(c, "resource-overview", func() {
@@ -572,7 +618,7 @@ func (a *App) settingsResources(c *ui.Context) {
 				c.After(150 * time.Millisecond)
 				return
 			}
-			if ui.Button(c.Key("change"), i18n.T("更改位置")).Disabled(s.busy != "").Clicked() {
+			if ui.Button(c.Key("change"), i18n.T("更改位置")).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
 				a.chooseResourceDirectory()
 			}
 		})
@@ -631,10 +677,10 @@ func (a *App) settingsResources(c *ui.Context) {
 				dirNote = i18n.T("请选择本机 ComfyUI 目录")
 			}
 			settingRow(c, "comfy-dir", i18n.T("ComfyUI 目录"), dirNote, func() {
-				if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy).Clicked() {
+				if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
 					a.setComfyDirectory("")
 				}
-				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy).Clicked() {
+				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
 					a.chooseComfyDirectory()
 				}
 			})
@@ -672,6 +718,7 @@ func (a *App) settingsResources(c *ui.Context) {
 				if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
 					a.stopComfyUI()
 					s.comfyCaps = nil
+					s.comfyCheckKey = ""
 				}
 				canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
 				if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
@@ -680,10 +727,11 @@ func (a *App) settingsResources(c *ui.Context) {
 			})
 			settingsSeparator(c)
 			settingRow(c, "comfy-url", i18n.T("服务地址（可选）"), i18n.T("连接已运行的服务时填写；留空则按所选目录启动"), func() {
-				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy).Changed() {
+				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy || a.resourcesDownloading()).Changed() {
 					a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
 					a.savePrefs()
 					s.comfyCaps = nil
+					s.comfyCheckKey = ""
 					s.comfyErr = nil
 				}
 			})

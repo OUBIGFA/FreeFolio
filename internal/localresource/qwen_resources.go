@@ -4,6 +4,7 @@ package localresource
 var qwenAdapterPacks = []ResourcePack{
 	{
 		ID:              "qwen-consistency",
+		Description:     "编辑构图保持 · 减少偏移 · 不适合改姿势",
 		Name:            "Qwen 2.1 Consistency",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-consistency",
@@ -16,6 +17,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-consistency-2000",
+		Description:     "编辑构图保持 · 2000 步权重 · 不适合改姿势",
 		Name:            "Qwen 2.1 Consistency 2000",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-consistency-2000",
@@ -28,6 +30,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-fusal-turbo",
+		Description:     "动漫风格转换 · 插画生成 · Turbo 试验版",
 		Name:            "FUSAL Anime Turbo E6",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-fusal-turbo",
@@ -45,6 +48,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-character-swap",
+		Description:     "双图换角色 · 原图＋目标角色",
 		Name:            "Qwen 2.1 Character Swap",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-character-swap",
@@ -58,6 +62,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-mosaic",
+		Description:     "半透明马赛克修复 · 单图 · 非通用去模糊",
 		Name:            "Qwen 2.1 MosaicMate",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-mosaic",
@@ -71,6 +76,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-fusal-base",
+		Description:     "动漫插画 · 赛璐璐 · 厚涂 · 水彩",
 		Name:            "FUSAL Anime V3",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-fusal-base",
@@ -87,6 +93,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-base-anime",
+		Description:     "动漫角色一致性 · 多视角与表情编辑",
 		Name:            "Qwen 2.1 Anime Consistency",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-base-anime",
@@ -100,6 +107,7 @@ var qwenAdapterPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-base-real",
+		Description:     "角色转真人 · 插画转写实",
 		Name:            "Qwen 2.1 Anything2Real",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-base-real",

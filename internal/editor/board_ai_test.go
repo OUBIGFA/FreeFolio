@@ -394,9 +394,11 @@ func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
 			if tt.HasText("质量") {
 				t.Fatal("Gemini exposes unsupported OpenAI quality settings")
 			}
-			if err := tt.Click("1K"); err != nil {
-				t.Fatal(err)
+			field, ok := tt.AccessByRole(ui.RolePopUpButton, "尺寸")
+			if !ok {
+				t.Fatal("size selector missing")
 			}
+			tt.ClickAt(field.Bounds.X+field.Bounds.W/2, field.Bounds.Y+field.Bounds.H/2)
 			if err := tt.Click("2K"); err != nil {
 				t.Fatal(err)
 			}
@@ -404,26 +406,22 @@ func TestImageNodeUsesProviderResolutionControls(t *testing.T) {
 			if got := whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size; got != "2K" {
 				t.Fatalf("resolution selection=%s", got)
 			}
-			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size != "1K" {
+			if !b.Undo() || whiteboard.AINodeOf(b.Scene.ElementByID(id)).Params.Size != "" {
 				t.Fatal("resolution edit is not undoable")
 			}
 		})
 	}
 }
 
-func TestNewImageNodeUsesSquareProviderResolution(t *testing.T) {
+func TestNewImageNodeDefaultsToInputResolution(t *testing.T) {
 	for _, sizes := range [][]string{nil, {"1K", "2K", "4K"}} {
 		model := BoardAIModel{Connection: "test", Model: "image", ImageSizes: sizes}
 		o := BoardOptions{AI: &BoardAI{Default: func(whiteboard.AIRole) BoardAIModel { return model }}}
 		board := NewBoard(whiteboard.NewScene())
 		id := board.AddAINode(whiteboard.AIImage, whiteboard.Point{}, o)
 		params := whiteboard.AINodeOf(board.Scene.ElementByID(id)).Params
-		want := "1024x1024"
-		if len(sizes) > 0 {
-			want = "1K"
-		}
-		if params.AspectRatio != "1:1" || params.Size != want {
-			t.Fatalf("new image params: %+v, want square %s", params, want)
+		if params.AspectRatio != "" || params.Size != "" {
+			t.Fatalf("new node must follow its reference: %+v", params)
 		}
 	}
 }

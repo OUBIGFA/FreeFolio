@@ -23,6 +23,7 @@ func (p ResourcePack) ResourceTab() int {
 var enhancementPacks = []ResourcePack{
 	{
 		ID:              "z-detail",
+		Description:     "生成细节 · 纹理增强",
 		Name:            "Z-Image Detailer",
 		Kind:            "lora-zimage",
 		ModelID:         "z-detail",
@@ -36,6 +37,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-realism",
+		Description:     "人物写实 · 自然肤质",
 		Name:            "V1 Realism",
 		Kind:            "lora-zimage",
 		ModelID:         "z-realism",
@@ -49,6 +51,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "qwen-restore",
+		Description:     "去模糊 · 降噪 · 压缩修复 · 单图",
 		Name:            "Qwen 2.1 Restore",
 		Kind:            "lora-qwen",
 		ModelID:         "qwen-restore",
@@ -62,6 +65,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-3d",
+		Description:     "3D 渲染 · 立体材质",
 		Name:            "3D Render Style Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-3d",
@@ -75,6 +79,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-mockup",
+		Description:     "商品样机 · 包装展示",
 		Name:            "Mockups Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-mockup",
@@ -88,6 +93,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-anime",
+		Description:     "动漫插画 · 二次元风格",
 		Name:            "Elusarca Anime",
 		Kind:            "lora-zimage",
 		ModelID:         "z-anime",
@@ -101,6 +107,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-pencil",
+		Description:     "铅笔素描 · 手绘线条",
 		Name:            "Pencil Sketch",
 		Kind:            "lora-zimage",
 		ModelID:         "z-pencil",
@@ -114,6 +121,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-coloring",
+		Description:     "黑白线稿 · 涂色页",
 		Name:            "ColoringBook Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-coloring",
@@ -127,6 +135,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-storybook",
+		Description:     "绘本插画 · 故事画面",
 		Name:            "Linex Storybook",
 		Kind:            "lora-zimage",
 		ModelID:         "z-storybook",
@@ -140,6 +149,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-lineart",
+		Description:     "动漫线稿 · 漫画轮廓",
 		Name:            "LineartAnime Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-lineart",
@@ -153,6 +163,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-doodle",
+		Description:     "简笔涂鸦 · 手绘轮廓",
 		Name:            "Doodle Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-doodle",
@@ -166,6 +177,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-icons",
+		Description:     "图标设计 · 简洁符号",
 		Name:            "Icons Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-icons",
@@ -179,6 +191,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-pixel",
+		Description:     "像素画 · 复古游戏风格",
 		Name:            "PixelArt Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-pixel",
@@ -192,6 +205,7 @@ var enhancementPacks = []ResourcePack{
 	},
 	{
 		ID:              "z-isometric",
+		Description:     "等距视角 · 立体场景",
 		Name:            "Isometric Redmond",
 		Kind:            "lora-zimage",
 		ModelID:         "z-isometric",

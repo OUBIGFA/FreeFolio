@@ -9,27 +9,24 @@ import (
 )
 
 func aiParamNumber(c *ui.Context, key, label string, value, lo, hi, step float64, disabled bool, change func(float64)) {
-	ui.Text(c, i18n.T(label)).FontSize(12).TextColor(c.Theme().TextMuted)
 	v := value
-	ui.NumberInput(c.Key("parameter-"+key), &v, lo, hi, step).WidthPercent(100).Disabled(disabled).Label(i18n.T(label))
+	_, height := c.Size()
+	if height < 600 {
+		ui.Row(c.Key("number-" + key)).Gap(4).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, i18n.T(label)).FontSize(12).TextColor(c.Theme().TextMuted).Grow(1).MinWidth(0)
+			ui.NumberInput(c.Key("parameter-"+key), &v, lo, hi, step).WidthPercent(64).Height(28).Disabled(disabled).Label(i18n.T(label))
+		})
+	} else {
+		ui.Text(c, i18n.T(label)).FontSize(12).TextColor(c.Theme().TextMuted)
+		ui.NumberInput(c.Key("parameter-"+key), &v, lo, hi, step).WidthPercent(100).Disabled(disabled).Label(i18n.T(label))
+	}
 	if v != value && !disabled {
 		change(v)
 	}
 }
 
 func aiParamChoice(c *ui.Context, o BoardOptions, key, label, current string, values, labels []string, disabled bool) string {
-	if !disabled {
-		return aiChoice(c, o, key, label, current, values, labels)
-	}
-	shown := current
-	for i, v := range values {
-		if v == current {
-			shown = labels[i]
-		}
-	}
-	ui.Text(c, i18n.T(label)).FontSize(12).TextColor(o.Theme.TextMuted)
-	ui.Select(c.Key("board-ai-"+key), &shown, labels).WidthPercent(100).Disabled(true).Label(i18n.T(label))
-	return current
+	return aiChoiceControl(c, o, key, label, current, values, labels, disabled)
 }
 
 func defaultNegativePrompt(n *whiteboard.AINode) string {
@@ -179,7 +176,7 @@ func (b *Board) aiComfySamplingParams(c *ui.Context, o BoardOptions, id string, 
 	negative := n.Connection == "comfyui-zimage" || n.Connection == "comfyui-qwen-image" || n.Connection == "comfyui-media" && (n.Model == "stable-audio3" || n.Model == "wan22-5b")
 	if negative {
 		ui.Text(c, i18n.T("避免内容（引导强度不为 1 时生效）")).FontSize(12).TextColor(o.Theme.TextMuted)
-		if ui.TextArea(c.Key("generation-negative"), &b.ai.buf.negative).WidthPercent(100).Height(84).Disabled(disabled || guidance == 1).Label(i18n.T("避免内容")).Changed() {
+		if ui.TextArea(c.Key("generation-negative"), &b.ai.buf.negative).WidthPercent(100).Height(aiSettingsTextHeight(c, 84)).Disabled(disabled || guidance == 1).Label(i18n.T("避免内容")).Changed() {
 			v := b.ai.buf.negative
 			set(func(p *whiteboard.AIParams) { p.NegativePrompt = &v })
 		}

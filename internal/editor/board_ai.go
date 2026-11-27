@@ -38,6 +38,8 @@ type BoardAI struct {
 	SaveImage    func(rel string)
 	// Models are the models that can run a node of the role.
 	Models func(role whiteboard.AIRole) []BoardAIModel
+	// Unavailable explains why a model-backed sidebar node cannot be inserted.
+	Unavailable func(role whiteboard.AIRole) string
 	// Presets exposes ready-configured local nodes, including missing resources.
 	Presets func() []BoardAIPreset
 	// Default is the model a new node of the role starts with.
@@ -68,6 +70,8 @@ type BoardAIModel struct {
 	LoRAStrength  *float64
 	Instruction   string
 	NeedsDownload bool
+	Unavailable   string
+	Description   string
 	BaseModel     string
 	// ImageSizes overrides pixel dimensions with the provider's native options.
 	ImageSizes []string
@@ -94,6 +98,9 @@ func (m BoardAIModel) label() string {
 	}
 	if m.NeedsDownload {
 		name += " · " + i18n.T("未下载")
+	}
+	if !m.NeedsDownload && m.Unavailable != "" {
+		name += " · " + m.Unavailable
 	}
 	if m.ConnectionName == "" {
 		return source + " · " + name
@@ -312,7 +319,7 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 		n.Instruction = model.Instruction
 	}
 	if role == whiteboard.AIImage {
-		n.Params.AspectRatio, n.Params.Size = "1:1", model.defaultImageSize()
+		n.Params.AspectRatio, n.Params.Size = "", ""
 	}
 	if role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIVideo {
 		n.Params.Count = 1
@@ -513,6 +520,7 @@ func (b *Board) insertAITemplate(key string, o BoardOptions) {
 // result unless force is set. Results are written as undoable edits as
 // each node finishes.
 func (b *Board) RunAI(ids []string, upstream, force bool, o BoardOptions) {
+	b.aiState().panel = false
 	if b.ReadOnly || o.AI == nil || o.AI.Prepare == nil {
 		return
 	}

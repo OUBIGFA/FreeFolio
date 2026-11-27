@@ -68,7 +68,7 @@ func (b *Board) aiModelSelect(c *ui.Context, o BoardOptions, id string, n *white
 		panel.Padding(4).Gap(2).Background(st.surface).Border(1, st.divider).Radius(6).MinWidth(300).MaxHeight(360)
 		ui.Scroll(c.Key("model-options")).MaxHeight(320).WidthPercent(100).Children(func() {
 			for _, m := range models {
-				item := sel.Item(m.Connection+"\x00"+m.Model).Padding(7, 8).Gap(7).Justify(ui.Start).AlignItems(ui.Center).Label(m.label()).WidthPercent(100)
+				item := sel.Item(m.Connection+"\x00"+m.Model).Padding(7, 8).Gap(7).Justify(ui.Start).AlignItems(ui.Center).Label(m.label()).WidthPercent(100).Disabled(m.NeedsDownload || m.Unavailable != "").Tooltip(m.Unavailable)
 				if item.Highlighted() {
 					item.Background(st.hover)
 				}
@@ -78,7 +78,7 @@ func (b *Board) aiModelSelect(c *ui.Context, o BoardOptions, id string, n *white
 	})
 	if current != before {
 		for _, m := range models {
-			if current == m.Connection+"\x00"+m.Model {
+			if current == m.Connection+"\x00"+m.Model && !m.NeedsDownload && m.Unavailable == "" {
 				b.chooseAIModel(o, id, n, m)
 				break
 			}
