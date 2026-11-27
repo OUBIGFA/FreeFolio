@@ -155,6 +155,11 @@ func (a *App) externalChanged(sp *space.Space, rel, full string, events []mygo.F
 // open document's file reloads or guards it (checkDisk). Writes alone keep
 // the tree, as autosave writes the open document often.
 func (a *App) filesChanged(id string, events []mygo.FileEvent) {
+	// A Git transaction refreshes the whole space after all files are applied,
+	// so a watcher cannot replace a protected editor midway through the batch.
+	if a.gitSync.applyingSpace == id {
+		return
+	}
 	sp := a.state.Get(id)
 	if sp == nil {
 		return

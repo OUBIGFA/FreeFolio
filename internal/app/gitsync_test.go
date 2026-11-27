@@ -1,0 +1,116 @@
+package app
+
+import (
+	"github.com/OUBIGFA/FreeFolio/internal/gitsync"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestGitSyncSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render Git sync settings")
+	a, tt := newTestApp(t)
+	a.initGitSync()
+	a.gitSync.loaded = true
+	a.openSettings(tabGit)
+	c := a.gitSpaceConfig(a.state.Active)
+	c.Automatic = true
+	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/example/notes.git", Branch: "main"}
+	tt.Frame()
+	tt.Advance(time.Second)
+	f, e := os.Create(filepath.Join(dir, "github-sync.png"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer f.Close()
+	if e = png.Encode(f, tt.Image()); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestGitRefreshPreservesFileSelection(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.initGitSync()
+	id := a.state.Active
+	s := gitsync.Repository{Changes: []gitsync.Change{{Path: "a.md"}, {Path: "b.md"}}}
+	a.applyGitRepo(id, s)
+	a.gitSync.checked[id]["b.md"] = false
+	a.applyGitRepo(id, s)
+	if a.gitSync.checked[id]["b.md"] || !a.gitSync.checked[id]["a.md"] {
+		t.Fatal("preview changed selected commit files")
+	}
+}
+
+func TestGitGuardRejectsLockedDocument(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.initGitSync()
+	s := &a.gitSync
+	s.busy = true
+	s.guard = make(chan gitGuard, 1)
+	s.done = make(chan func(), 1)
+	reply := make(chan error, 1)
+	a.doc.ed.SetReadOnly(true)
+	s.guard <- gitGuard{a.doc.space.ID, []string{a.doc.rel}, reply}
+	tt.Frame()
+	select {
+	case e := <-reply:
+		if e == nil {
+			t.Fatal("locked document accepted")
+		}
+	default:
+		t.Fatal("guard was not consumed")
+	}
+}
+
+func TestGitSettingsEnglish(t *testing.T) {
+	a, tt := newTestApp(t)
+	defer i18n.SetLanguage("zh-Hans")
+	a.initGitSync()
+	a.gitSync.loaded = true
+	a.openSettings(tabGit)
+	i18n.SetLanguage("en")
+	tt.Frame()
+	if !tt.HasText("GitHub Repository Sync") || !tt.HasText("Connect GitHub") {
+		t.Fatal(tt.Texts())
+	}
+}
+
+func TestGitSyncSettingsExposeCompleteControls(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.initGitSync()
+	a.gitSync.loaded = true
+	a.openSettings(tabGit)
+	c := a.gitSpaceConfig(a.state.Active)
+	c.Automatic = true
+	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/o/r.git", Branch: "main"}
+	tt.Frame()
+	for _, label := range []string{"GitHub 仓库同步", "连接 GitHub", "检查仓库", "同步动作", "同步计划", "提交说明方式", "保存 Git 同步设置"} {
+		if !tt.HasText(label) {
+			t.Fatalf("missing %s: %v", label, tt.Texts())
+		}
+	}
+}
+func TestGitSyncEnableDoesNotRunAndCloudOverlapRejected(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.initGitSync()
+	a.gitSync.loaded = true
+	c := a.gitSpaceConfig(a.state.Active)
+	c.Enabled, c.Automatic = true, true
+	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/o/r.git", Branch: "main"}
+	if !a.saveGitSync() {
+		t.Fatal(a.gitSync.message)
+	}
+	tt.Frame()
+	tt.Advance(time.Second)
+	if a.gitSync.busy {
+		t.Fatal("enable started sync")
+	}
+	a.cloud.config.Enabled = true
+	a.cloud.config.Spaces[a.state.Active] = "notes"
+	if a.saveGitSync() {
+		t.Fatal("overlapping sync accepted")
+	}
+}

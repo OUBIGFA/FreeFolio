@@ -105,6 +105,20 @@ func (a *App) saveCloudSync() bool {
 }
 
 func (a *App) startCloudSync(probe, manual bool) {
+	if !probe && a.gitSync.busy {
+		a.cloud.failed = true
+		a.cloud.message = i18n.T("Git 操作正在执行，请稍后再试")
+		return
+	}
+	if !probe {
+		for id := range a.cloud.config.Spaces {
+			if cfg := a.gitSync.config.Spaces[id]; cfg != nil && cfg.Enabled {
+				a.cloud.failed = true
+				a.cloud.message = i18n.T("同一空间不能同时启用 Git 与云端同步")
+				return
+			}
+		}
+	}
 	s := &a.cloud
 	// Consume recovery before any early return. A canceled save or failed
 	// preflight must never leave an overwrite queued for an automatic run.
@@ -390,6 +404,7 @@ func (a *App) cloudTick(c *ui.Context) {
 }
 
 func (a *App) cloudSaved(d *document) {
+	a.gitSaved(d)
 	if !d.justSaved {
 		return
 	}

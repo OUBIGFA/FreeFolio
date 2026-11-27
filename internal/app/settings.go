@@ -15,6 +15,7 @@ import (
 // Settings tabs.
 const (
 	tabCloud      = "cloud-sync"
+	tabGit        = "git-sync"
 	tabGeneral    = "general"
 	tabAppearance = "appearance"
 	tabSpaces     = "spaces"
@@ -31,6 +32,10 @@ const (
 func (a *App) openSettings(tab string) {
 	a.settingsOpen = true
 	a.settingsTab = tab
+	if tab == tabGit {
+		a.initGitSync()
+		a.loadGitSync()
+	}
 	if tab == tabAI {
 		a.loadChatGPTSession(a.prefs.AI.Active, false)
 	}
@@ -97,6 +102,9 @@ func (a *App) moreMenu(c *ui.Context) {
 		if a.menuKey(m.Item(i18n.T("设置")), "settings").Chosen() {
 			a.openSettings(tabGeneral)
 		}
+		if m.Item(i18n.T("GitHub 同步")).Chosen() {
+			a.openSettings(tabGit)
+		}
 	})
 }
 
@@ -111,6 +119,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabAI, i18n.T("OneBot"), "ask"},
 		{tabResources, i18n.T("可选资源"), "folder"},
 		{tabCloud, i18n.T("云端同步"), "cloud"},
+		{tabGit, i18n.T("GitHub 同步"), "refresh"},
 		{tabShortcuts, i18n.T("快捷键"), "keyboard"},
 		{tabUpdates, i18n.T("更新"), "refresh"},
 		{tabAbout, i18n.T("关于"), "info"},
@@ -221,6 +230,8 @@ func (a *App) settingsView(c *ui.Context) {
 								a.settingsUpdates(c)
 							case tabCloud:
 								a.settingsCloudSync(c)
+							case tabGit:
+								a.settingsGitSync(c)
 							case tabAI:
 								a.settingsAI(c)
 							case tabResources:

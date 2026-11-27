@@ -1,5 +1,8 @@
 # Dependencies and attribution
 
+GitHub repository sync uses the user's Git or optional publisher-supplied
+[MinGit and Git LFS](git-sync/README.md), downloaded only when needed
+
 Local background removal uses [onnxruntime_purego v1.28.0](https://github.com/getcharzp/onnxruntime_purego/tree/v1.28.0) under its [MIT license](onnxruntime-purego/LICENSE). Neither the model weights nor the ONNX Runtime binaries are bundled. Optional downloads, pinned sources, platform support and license details are listed in [Optional resources](../docs/optional-resources.md).
 
 FreeFolio uses `github.com/egoist/mygo` v0.10.0 for native windows, UI primitives,

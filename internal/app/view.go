@@ -32,6 +32,7 @@ func (a *App) Content() *ui.Content { return ui.View(a.View) }
 
 // View builds the window from the state, every frame.
 func (a *App) View(c *ui.Context) {
+	defer a.gitApplyingView(c)
 	defer a.importGuideView(c)
 	c.Root().Font(a.interfaceFont())
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
@@ -39,6 +40,7 @@ func (a *App) View(c *ui.Context) {
 	a.rowFocus, a.rowFocusNow = a.rowFocusNow, rowFocus{}
 	a.launchTick(c)
 	a.cloudTick(c)
+	a.gitTick(c)
 	a.memTrim.tick(c)
 	if a.versions.open && a.versions.for_ == a.doc {
 		a.versionsView(c)

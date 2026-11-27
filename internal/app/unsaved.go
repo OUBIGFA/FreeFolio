@@ -31,6 +31,9 @@ func (a *App) toggleAutosave() {
 // (moving, renaming, syncing). With autosave off the edits stay in memory
 // until the user saves, so there is nothing to write.
 func (a *App) flushForTask() bool {
+	if a.gitSync.applyingSpace != "" {
+		return false
+	}
 	return !a.autosaveEnabled() || a.flush()
 }
 

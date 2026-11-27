@@ -99,6 +99,7 @@ type App struct {
 	fonts        fontState
 	boardLibrary *boardLibraryState
 	cloud        cloudState
+	gitSync      gitUIState
 	// Sidebar selection belongs to one space and retains a range anchor.
 	picks      map[string]bool
 	picksSpace string
@@ -717,11 +718,13 @@ func (a *App) Run() error {
 			}
 			a.cancelPDF()
 			a.cancelCloudSync()
+			a.cancelGit()
 			a.cancelChatGPTSignIn()
 			a.stopComfyUI()
 		})
 	})
 	defer a.stopComfyUI()
+	defer a.waitGitShutdown()
 	return mygo.App.Run()
 }
 

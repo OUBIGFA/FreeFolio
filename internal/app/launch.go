@@ -84,6 +84,9 @@ func (a *App) finishLaunch() {
 }
 
 func (a *App) runDeferredStartup() {
+	if a.win != nil {
+		a.loadGitSync()
+	}
 	if a.imports.offer && !a.imports.discovering && a.win != nil {
 		if sp := a.state.ActiveSpace(); sp != nil {
 			a.imports.spaceID = sp.ID

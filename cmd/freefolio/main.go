@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/OUBIGFA/FreeFolio/internal/app"
+	"github.com/OUBIGFA/FreeFolio/internal/gitsync"
 	"github.com/OUBIGFA/FreeFolio/internal/localresource"
 	"github.com/OUBIGFA/FreeFolio/internal/sysproxy"
 	// The catalogs of mygo.json's i18n name the languages the installer and
@@ -21,6 +22,12 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "git-credential" {
+		if err := gitsync.CredentialHelper(os.Args[2], os.Stdin, os.Stdout); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "cutout-worker" {
 		if len(os.Args) != 5 {
 			log.Fatal("invalid cutout arguments")
