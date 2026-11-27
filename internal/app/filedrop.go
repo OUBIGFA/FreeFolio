@@ -94,7 +94,7 @@ func (a *App) importDroppedFiles(sp *space.Space, dir string, paths []string) {
 		created = append(created, rel)
 	}
 	if len(skipped) > 0 {
-		a.notify("只能导入 FreeFolio、Markdown 或 PDF 文档：%s 未导入", strings.Join(skipped, "、"))
+		a.notify("只能导入 FreeFolio、Markdown、MDZip 或 PDF 文档：%s 未导入", strings.Join(skipped, "、"))
 	}
 	if dir != "" && len(created)+len(existing) > 0 {
 		for cur := dir; cur != "." && cur != ""; cur = path.Dir(cur) {

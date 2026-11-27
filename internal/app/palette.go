@@ -65,6 +65,9 @@ type palettePillMatch struct{}
 func (a *App) openPalette() {
 	a.ensurePluginsLoaded()
 	a.palette = palette{open: true}
+	if a.files != nil {
+		return
+	}
 	// Other spaces' folders are read again for their documents' names,
 	// and the index takes in what changed since.
 	active := a.state.ActiveSpace()
@@ -150,6 +153,14 @@ func (a *App) openPalette() {
 // actions lists everything the command bar can do, before filtering.
 func (a *App) actions() []action {
 	var out []action
+	if f := a.files; f != nil && a.palette.pane != nil {
+		for _, rel := range f.order {
+			name := rel
+			out = append(out, action{kind: i18n.T("文档"), title: vault.Title(name), doc: place{f.locations.ID, name}, run: func() { a.showFileTab(name) }})
+		}
+		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("打开文件"), run: a.chooseExternalFiles})
+		return out
+	}
 	doc := func(id string, n *vault.Node) {
 		rel := n.Path
 		out = append(out, action{kind: i18n.T("文档"), title: n.Title(), hint: a.docHint(id, rel),
@@ -182,6 +193,17 @@ func (a *App) actions() []action {
 	if a.palette.pane != nil {
 		return out
 	}
+	if a.canZoomPage(a.doc) {
+		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("放大页面"), run: func() { a.stepPageZoom(1) }}, action{kind: i18n.T("命令"), title: i18n.T("缩小页面"), run: func() { a.stepPageZoom(-1) }}, action{kind: i18n.T("命令"), title: i18n.T("重置页面缩放"), run: a.resetPageZoom})
+	}
+	if d := a.doc; d != nil && d.source {
+		label := i18n.T("源码模式：开启分栏预览")
+		if d.sourceSplit {
+			label = i18n.T("源码模式：关闭分栏预览")
+		}
+		out = append(out, action{kind: i18n.T("命令"), title: label, run: func() { a.toggleSourceSplit(d) }}, action{kind: i18n.T("命令"), title: i18n.T("源码模式：对调左右分栏"), run: a.swapSourceSplit})
+	}
+
 	for _, s := range a.state.Spaces {
 		if active != nil && s.ID == active.ID {
 			continue
@@ -255,9 +277,16 @@ func (a *App) actions() []action {
 	dir := a.currentDir()
 	cmd(i18n.T("打开文件"), "", a.chooseExternalFiles)
 	cmd(i18n.T("在所有文档中查找和替换"), a.keyLabel("replace-all"), a.openReplaceAll)
+	if ext := a.state.Get(space.ExternalID); ext != nil && len(ext.ExternalFiles) > 0 {
+		cmd(i18n.T("清理外部空间中不存在的文件"), "", func() { a.cleanMissingExternal(ext) })
+	}
 	if !active.IsExternal() {
 		cmd(i18n.T("新建文档"), a.keyLabel("new-doc"), func() { a.newDoc(dir) })
 		cmd(i18n.T("新建白板"), a.keyLabel("new-board"), func() { a.newWhiteboard(dir) })
+		cmd(i18n.T("新建数据库"), a.keyLabel("new-database"), func() { a.newDatabase(dir) })
+		cmd(i18n.T("从 CSV 导入数据库…"), "", func() { a.pickAndImportCSV(nil) })
+		cmd(i18n.T("从 Notion 导出导入 (ZIP)…"), "", a.pickAndImportNotionZIP)
+		cmd(i18n.T("从 Notion 导出导入 (文件夹)…"), "", a.pickAndImportNotionFolder)
 		cmd(i18n.T("新建文件夹"), a.keyLabel("new-folder"), func() { a.newFolder(dir) })
 		cmd(i18n.T("今日笔记"), a.keyLabel("daily"), a.openDaily)
 		for _, t := range a.spaceTemplates(a.state.ActiveSpace()) {
@@ -383,6 +412,8 @@ func (a *App) actions() []action {
 	cmd(i18n.T("OneBot：修改当前章节"), "", func() { a.beginOneBotEdit("section") })
 	cmd(i18n.T("OneBot：修改整篇文档"), "", func() { a.beginOneBotEdit("document") })
 	cmd(i18n.T("书签"), a.keyLabel("bookmarks"), a.openBookmarks)
+	cmd(i18n.T("本地 Agent 接入设置…"), "", func() { a.openSettings(tabAI) })
+	cmd(i18n.T("安装本地 Agent Skill"), "", a.installAgentSkillsAction)
 	cmd(i18n.T("按标签浏览"), "#", func() { a.openPalette(); a.palette.query = "#" })
 	cmd(i18n.T("最近删除"), "", a.openTrash)
 	if len(a.state.Spaces) > 1 {
@@ -449,6 +480,50 @@ func (a *App) actions() []action {
 		formatDoc := a.doc.srcFile != nil || a.doc.converted
 		if a.doc.isPDF() {
 			a.pdfActions(cmd)
+		} else if a.doc.isMDZ() {
+			mdzDoc := a.doc
+			if mdzDoc.mdz.hasActivePage() {
+				cmd(i18n.T("在文档中查找…"), a.keyLabel("find"), func() {
+					if ed := mdzDoc.mdz.activeEditor(); ed != nil {
+						ed.OpenFind(false)
+					}
+				})
+				if len(mdzDoc.mdz.pages) > 1 {
+					railLabel := i18n.T("MDZip：展开包内文件")
+					if mdzDoc.mdz.sidebarOpen {
+						railLabel = i18n.T("MDZip：收起包内文件")
+					}
+					cmd(railLabel, "", func() { mdzDoc.mdz.sidebarOpen = !mdzDoc.mdz.sidebarOpen })
+					cmd(i18n.T("MDZip：上一页"), "", func() { mdzDoc.mdz.stepPage(-1) })
+					cmd(i18n.T("MDZip：下一页"), "", func() { mdzDoc.mdz.stepPage(1) })
+				}
+			}
+			if mdzDoc.mdz.archive != nil && len(mdzDoc.mdz.pages) > 0 {
+				cmd(i18n.T("MDZip：解包另存为文档"), "", func() { a.unpackMDZAsDocument(mdzDoc) })
+			}
+		} else if a.doc.isDatabase() {
+			dbDoc := a.doc
+			cmd(i18n.T("导出 CSV 文件"), "", func() { _, _ = a.exportDatabaseCSV(dbDoc) })
+			if !sp.IsExternal() {
+				cmd(i18n.T("向当前数据库导入 CSV…"), "", func() { a.pickAndImportCSV(dbDoc) })
+				cmd(i18n.T("新建记录"), "", func() {
+					if rec, err := dbDoc.dbView.Store.CreateRecord(i18n.T("无标题"), nil, ""); err == nil && rec != nil {
+						dbDoc.dbDirtySnapshot = true
+						a.refreshTree()
+						a.refreshSearch()
+					}
+				})
+				cmd(i18n.T("撤销"), "⌘Z", func() {
+					if paths, ok := dbDoc.dbView.Store.Undo(); ok {
+						a.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
+					}
+				})
+				cmd(i18n.T("重做"), "⇧⌘Z", func() {
+					if paths, ok := dbDoc.dbView.Store.Redo(); ok {
+						a.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
+					}
+				})
+			}
 		} else if formatDoc {
 			a.formatActions(cmd)
 		} else {
@@ -465,13 +540,14 @@ func (a *App) actions() []action {
 		if formatDoc && a.doc.loadErr == nil && !a.doc.boardLoading {
 			a.editorActions(cmd)
 		}
-		if !a.doc.isPDF() && !formatDoc {
+		if !a.doc.isPDF() && !formatDoc && !a.doc.isMDZ() && !a.doc.isDatabase() {
 			if a.doc.loadErr == nil && !a.doc.source {
 				a.editorActions(cmd)
 			}
 			cmd(i18n.T("导出 Markdown 文件"), "", a.exportMarkdown)
 			cmd(i18n.T("将当前文档存为模板"), "", a.saveAsTemplate)
 			cmd(i18n.T("导出 HTML 网页"), "", a.exportHTML)
+			cmd(i18n.T("导出 MDZip (.mdz)"), "", a.exportMDZ)
 		}
 		cmd(i18n.T("在新窗口中打开当前文档"), "", func() { a.openInWindow(sp, rel) })
 		cmd(i18n.T("在文件管理器中显示文档"), "", func() { a.revealIn(sp, rel) })
@@ -804,6 +880,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("插入行内公式"), "", after(ed.InsertInlineMath))
 	cmd(i18n.T("插入流程图"), "", after(ed.InsertMermaidFlowchart))
 	cmd(i18n.T("插入时序图"), "", after(ed.InsertMermaidSequence))
+	cmd(i18n.T("插入状态图"), "", after(ed.InsertMermaidState))
 	cmd(i18n.T("插入脚注"), "", after(ed.InsertFootnote))
 	cmd(i18n.T("上标"), "", after(func() { ed.SetScript("sup") }))
 	cmd(i18n.T("下标"), "", after(func() { ed.SetScript("sub") }))
@@ -819,6 +896,19 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	} else {
 		cmd(i18n.T("更换封面"), "", ed.EditCover)
 		cmd(i18n.T("移除封面"), "", after(func() { ed.Engine.SetCover("") }))
+	}
+	hasDB := false
+	if a.doc != nil {
+		store, _, _, _ := a.owningDatabaseFor(a.doc)
+		hasDB = store != nil
+	}
+	if !hasDB {
+		if strings.TrimSpace(ed.Doc.Frontmatter) == "" {
+			cmd(i18n.T("添加元数据"), "", ed.EditFrontmatter)
+		} else {
+			cmd(i18n.T("编辑元数据"), "", ed.EditFrontmatter)
+			cmd(i18n.T("移除元数据"), "", after(func() { ed.Engine.SetFrontmatter("") }))
+		}
 	}
 	cmd(i18n.T("章节上移"), "", after(func() { ed.MoveSectionAtCaret(-1) }))
 	cmd(i18n.T("章节下移"), "", after(func() { ed.MoveSectionAtCaret(1) }))
@@ -842,6 +932,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	cmd(i18n.T("在下方新建段落"), a.keyLabel("newline"), after(func() { ed.Engine.Insert(model.NewBlock("paragraph", "")) }))
 	cmd(i18n.T("插入链接"), "", ed.EditLink)
 	cmd(i18n.T("下划线"), a.keyLabel("underline"), after(func() { ed.Wrap("_") }))
+	cmd(i18n.T("清除样式"), a.keyLabel("clear-format"), after(ed.ClearFormatting))
 	cmd(i18n.T("插入表格"), "", after(func() { ed.Engine.Insert(model.Table(3, 3)) }))
 	cmd(i18n.T("插入双栏"), "", after(func() { ed.Engine.Insert(model.Columns()) }))
 	cmd(i18n.T("插入折叠块"), "", after(func() { ed.InsertToggle() }))

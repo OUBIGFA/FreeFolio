@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
@@ -21,6 +22,7 @@ const (
 	tabSpaces     = "spaces"
 	tabShortcuts  = "shortcuts"
 	tabAI         = "ai"
+	tabAgents     = "local-agents"
 	tabResources  = "resources"
 	tabWriting    = "writing"
 	tabFiles      = "files"
@@ -39,6 +41,7 @@ func (a *App) openSettings(tab string) {
 	if tab == tabAI {
 		a.loadChatGPTSession(a.prefs.AI.Active, false)
 	}
+	a.refreshAgentSkillsCache()
 }
 
 // moreMenu keeps document actions at hand. Library and settings lead to
@@ -48,17 +51,19 @@ func (a *App) moreMenu(c *ui.Context) {
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		noDoc := a.doc == nil || a.doc.loadErr != nil
 		noText := noDoc || a.doc.isPDF()
+		isMDZ := a.doc != nil && a.doc.isMDZ()
+		isDB := a.doc != nil && a.doc.isDatabase()
 		if a.menuKey(m.Item(i18n.T("专注模式")), "focus").Checked(a.focus).Chosen() {
 			a.toggleFocus()
 		}
-		if a.menuKey(m.Item(i18n.T("目录")), "outline").Checked(a.outlineOpen()).Disabled(noDoc || a.doc.source).Chosen() {
+		if a.menuKey(m.Item(i18n.T("目录")), "outline").Checked(a.outlineOpen()).Disabled(noDoc || a.doc.source || isDB || (isMDZ && !a.doc.mdz.hasActivePage())).Chosen() {
 			a.toggleOutline()
 		}
 		mode := i18n.T("Markdown 源码")
 		if a.doc != nil && a.doc.source {
 			mode = i18n.T("返回富文本编辑")
 		}
-		if a.menuKey(m.Item(mode), "source").Disabled(noText).Chosen() {
+		if a.menuKey(m.Item(mode), "source").Disabled(noText || isMDZ || isDB).Chosen() {
 			a.toggleSource()
 		}
 		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(a.doc))
@@ -66,21 +71,30 @@ func (a *App) moreMenu(c *ui.Context) {
 			a.addSplitPane()
 		}
 		m.Separator()
-		if a.menuKey(m.Item(i18n.T("版本历史")), "history").Disabled(noText).Chosen() {
+		if a.menuKey(m.Item(i18n.T("版本历史")), "history").Disabled(noText || isMDZ).Chosen() {
 			a.openVersions()
 		}
 		m.Submenu(i18n.T("导出"), func(sub *ui.Menu) {
-			if sub.Item(i18n.T("导出 Markdown 文件")).Disabled(noText).Chosen() {
+			if isDB {
+				if sub.Item(i18n.T("导出 CSV 文件")).Chosen() {
+					_, _ = a.exportDatabaseCSV(a.doc)
+				}
+			}
+			if sub.Item(i18n.T("导出 Markdown 文件")).Disabled(noText || isMDZ || isDB).Chosen() {
 				a.exportMarkdown()
 			}
-			if a.menuKey(sub.Item(i18n.T("导出 PDF")), "export-pdf").Disabled(noText).Chosen() {
+			if a.menuKey(sub.Item(i18n.T("导出 PDF")), "export-pdf").Disabled(noText || isMDZ || isDB).Chosen() {
 				a.exportPDF()
 			}
-			if sub.Item(i18n.T("导出 HTML 网页")).Disabled(noText).Chosen() {
+			if sub.Item(i18n.T("导出 HTML 网页")).Disabled(noText || isMDZ || isDB).Chosen() {
 				a.exportHTML()
 			}
-		}).Disabled(noText)
-		if m.Item(i18n.T("打印")).Disabled(noText).Chosen() {
+			if sub.Item(i18n.T("导出 MDZip (.mdz)")).Disabled(noText || isMDZ || isDB).Chosen() {
+				a.exportMDZ()
+			}
+		}).Disabled(noText || isMDZ)
+		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(a.doc))
+		if m.Item(i18n.T("打印")).Disabled(noText || isMDZ || isDB).Chosen() {
 			a.printDoc()
 		}
 		if m.Item(i18n.T("在文件管理器中显示文档")).Disabled(noDoc).Chosen() {
@@ -117,6 +131,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabFiles, i18n.T("文件浏览"), "files"},
 		{tabSpaces, i18n.T("空间"), "layers"},
 		{tabAI, i18n.T("OneBot"), "ask"},
+		{tabAgents, i18n.T("本地 Agent 接入"), "code"},
 		{tabResources, i18n.T("可选资源"), "folder"},
 		{tabCloud, i18n.T("云端同步"), "cloud"},
 		{tabGit, i18n.T("GitHub 同步"), "refresh"},
@@ -234,6 +249,8 @@ func (a *App) settingsView(c *ui.Context) {
 								a.settingsGitSync(c)
 							case tabAI:
 								a.settingsAI(c)
+							case tabAgents:
+								a.settingsLocalAgents(c, func() { settingsSeparator(c) }, func(key, label, note string, control func()) { settingRow(c, key, label, note, control) })
 							case tabResources:
 								a.settingsResources(c)
 							case tabAbout:
@@ -480,6 +497,17 @@ func (a *App) settingsAppearance(c *ui.Context) {
 		})
 		settingsSeparator(c)
 		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), i18n.T("不使用空间的自定义主题色，统一显示为浅灰色"), &a.prefs.GrayFolderIcons, a.savePrefs)
+	})
+	settingsGroup(c, "sidebar-density", func() {
+		settingRow(c, "density", i18n.T("侧边栏行高"), "", func() {
+			at := slices.Index(prefs.SidebarDensities, a.prefs.SidebarDensity)
+			before := at
+			segmentedChoice(c, &at, i18n.T("紧凑"), i18n.T("标准"), i18n.T("舒适"))
+			if at != before && at >= 0 {
+				a.prefs.SidebarDensity = prefs.SidebarDensities[at]
+				a.savePrefs()
+			}
+		})
 	})
 	settingsSection(c, i18n.T("文档"))
 	settingsGroup(c, "appearance", func() {

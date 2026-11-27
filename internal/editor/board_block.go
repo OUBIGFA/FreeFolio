@@ -58,7 +58,7 @@ func isWhiteboardEmbed(b *document.Block) bool {
 // text: an inline or embedded whiteboard. Copy, cut and delete take it whole
 // (ArcMD 14e92c1).
 func isAtomicVisualBlock(b *document.Block) bool {
-	return isWhiteboardEmbed(b) || isWhiteboardBlock(b)
+	return isWhiteboardEmbed(b) || isWhiteboardBlock(b) || isDatabaseBlock(b)
 }
 
 // isAtomicOrHiddenImage adds pictures whose description is hidden, which

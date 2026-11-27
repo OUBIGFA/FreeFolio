@@ -138,3 +138,55 @@ func TestReplaceDocumentAndMapText(t *testing.T) {
 		t.Errorf("undo: %q", headings(e.Doc))
 	}
 }
+
+func TestReplaceDocumentPreservesImportSource(t *testing.T) {
+	orig := New()
+	orig.Blocks[0].Runs = []Run{{Text: "item"}}
+	orig.ImportSource = "* item\n"
+	e := NewEngine(orig)
+	v0 := e.Version()
+
+	updated := orig.Clone()
+	updated.ImportSource = "- item\n"
+	e.ReplaceDocument(updated)
+	if e.Version() == v0 {
+		t.Fatal("ReplaceDocument did not record an edit when only ImportSource changed")
+	}
+	if e.Doc.ImportSource != "- item\n" {
+		t.Fatalf("ImportSource = %q, want %q", e.Doc.ImportSource, "- item\n")
+	}
+	e.Undo()
+	if e.Doc.ImportSource != "* item\n" {
+		t.Fatalf("after Undo ImportSource = %q, want %q", e.Doc.ImportSource, "* item\n")
+	}
+	e.Redo()
+	if e.Doc.ImportSource != "- item\n" {
+		t.Fatalf("after Redo ImportSource = %q, want %q", e.Doc.ImportSource, "- item\n")
+	}
+}
+
+func TestSetFrontmatterUndoRedo(t *testing.T) {
+	e := NewEngine(New())
+	v0 := e.Version()
+	e.SetFrontmatter("status: todo\npriority: high\r\n")
+	if e.Doc.Frontmatter != "status: todo\npriority: high" {
+		t.Fatalf("Frontmatter = %q", e.Doc.Frontmatter)
+	}
+	if e.Version() == v0 {
+		t.Fatal("SetFrontmatter did not advance version")
+	}
+	v1 := e.Version()
+	// Setting identical content should be a no-op.
+	e.SetFrontmatter("status: todo\npriority: high")
+	if e.Version() != v1 {
+		t.Fatal("unchanged SetFrontmatter advanced version")
+	}
+	e.Undo()
+	if e.Doc.Frontmatter != "" {
+		t.Fatalf("after Undo Frontmatter = %q, want empty", e.Doc.Frontmatter)
+	}
+	e.Redo()
+	if e.Doc.Frontmatter != "status: todo\npriority: high" {
+		t.Fatalf("after Redo Frontmatter = %q", e.Doc.Frontmatter)
+	}
+}

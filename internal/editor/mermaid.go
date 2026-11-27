@@ -26,6 +26,7 @@ const (
 
 	defaultMermaidFlowchart = "flowchart LR\n    A[开始] --> B{条件判断}\n    B -- 通过 --> C[执行]\n    B -. 拒绝 .-> D[结束]"
 	defaultMermaidSequence  = "sequenceDiagram\n    participant U as 客户端\n    participant S as 服务端\n    U->>+S: 请求数据\n    S-->>-U: 返回结果"
+	defaultMermaidState     = "stateDiagram-v2\n    [*] --> 待处理\n    待处理 --> 处理中: 开始\n    处理中 --> 已完成: 成功\n    处理中 --> 失败: 异常\n    已完成 --> [*]\n    失败 --> [*]"
 )
 
 type mermaidShape struct {
@@ -95,6 +96,9 @@ func (e *Editor) InsertMermaidFlowchart() { e.insertMermaidBlock(defaultMermaidF
 
 // InsertMermaidSequence inserts a starter Mermaid sequence diagram at the caret.
 func (e *Editor) InsertMermaidSequence() { e.insertMermaidBlock(defaultMermaidSequence) }
+
+// InsertMermaidState inserts a starter Mermaid state diagram at the caret.
+func (e *Editor) InsertMermaidState() { e.insertMermaidBlock(defaultMermaidState) }
 
 func (e *Editor) insertMermaidBlock(src string) {
 	if e.ReadOnly {
@@ -222,13 +226,15 @@ func (e *Editor) mermaidRow(r *row, textH, gap float32) (total float32, wellOff 
 			if !r.mermaidHidden {
 				availW = max(24, r.rect.W-2*mermaidPadX)
 			}
-			scale := float32(1)
-			if diag.W > availW {
+			z := e.zoomFactor()
+			scale := z
+			if diag.W*scale > availW {
 				scale = availW / diag.W
 			}
 			if !r.mermaidHidden {
-				if diag.H*scale > mermaidMaxH {
-					scale = min(scale, mermaidMaxH/diag.H)
+				maxH := mermaidMaxH * z
+				if diag.H*scale > maxH {
+					scale = min(scale, maxH/diag.H)
 				}
 			} else if e.printing && e.printPageH > 0 && e.printPageH < 1e6 {
 				// Fit a printed diagram onto a single A4 page, while interactive
@@ -463,7 +469,7 @@ func (e *Editor) paintMermaid(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme)
 	}
 	if r.mermaid == nil {
 		if !e.printing {
-			msg := i18n.T("输入 Mermaid 流程图、时序图、甘特图或饼图")
+			msg := i18n.T("输入 Mermaid 流程图、时序图、状态图、甘特图或饼图")
 			if strings.EqualFold(strings.TrimSpace(r.leaf.Block.Language), "echarts") {
 				msg = i18n.T("输入 ECharts 图表配置（JSON）")
 			}
@@ -541,6 +547,8 @@ func diagramTitle(kind string) string {
 	switch kind {
 	case "sequence":
 		return i18n.T("时序图")
+	case "state":
+		return i18n.T("状态图")
 	case "gantt":
 		return i18n.T("甘特图")
 	case "pie", "chart":
@@ -702,6 +710,9 @@ func (e *Editor) paintMermaidShape(p *ui.Painter, s mermaid.ShapeOp, ox, oy floa
 		} else {
 			p.Stroke(r, border, rad, strokeW)
 		}
+		if s.DividerY > 0 && s.DividerY < h {
+			p.Line(x, y+s.DividerY, x+w, y+s.DividerY, 1, border)
+		}
 
 	case mermaid.ShapeStadium:
 		rad := min(w, h) / 2
@@ -807,6 +818,26 @@ func (e *Editor) paintMermaidShape(p *ui.Painter, s mermaid.ShapeOp, ox, oy floa
 		p.Line(cx-headR*1.5, armY, cx+headR*1.5, armY, strokeW, border)
 		p.Line(cx, hipY, cx-headR*1.2, y+h-1, strokeW, border)
 		p.Line(cx, hipY, cx+headR*1.2, y+h-1, strokeW, border)
+
+	case mermaid.ShapeStartState:
+		rad := min(w, h) / 2
+		var path ui.Path
+		path.Circle(x+w/2, y+h/2, rad)
+		p.FillPath(&path, t.Text.Alpha(0.85))
+
+	case mermaid.ShapeEndState:
+		cx, cy := x+w/2, y+h/2
+		rad := min(w, h) / 2
+		ink := t.Text.Alpha(0.85)
+		var outer, inner ui.Path
+		outer.Circle(cx, cy, rad)
+		p.FillPath(&outer, t.Background)
+		p.StrokePath(&outer, 1.5, ink)
+		inner.Circle(cx, cy, rad*0.52)
+		p.FillPath(&inner, ink)
+
+	case mermaid.ShapeBar:
+		p.Fill(r, t.Text.Alpha(0.85), min(3, min(w, h)/2))
 	}
 }
 

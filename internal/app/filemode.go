@@ -56,6 +56,15 @@ func (a *App) openLooseFile(full string) bool {
 	if f == nil {
 		f = &fileSession{locations: &space.Space{ID: space.ExternalID, Name: i18n.T("文件浏览")}, previous: a.doc, split: a.split, readOnly: map[string]bool{}}
 	}
+	if a.files != nil && a.split != nil {
+		for i, pane := range a.split.panes {
+			if pane.doc != nil && pane.doc.fullPath() == full {
+				a.focusPane(i, true)
+				a.palette.open = false
+				return true
+			}
+		}
+	}
 	name := f.locations.AddExternal(full)
 	text, err := readFile(f.locations, name)
 	if err != nil {
@@ -84,6 +93,8 @@ func (a *App) openLooseFile(full string) bool {
 	}
 	old := a.doc
 	a.doc = openDocument(f.locations, name, text, false)
+	a.syncSplit()
+	a.palette.open = false
 	a.retireClosedDocuments(old)
 	a.restoreFilePlace(a.doc)
 	readOnly, seen := f.readOnly[name]
@@ -126,14 +137,24 @@ func (a *App) leaveFileMode() bool {
 	if a.files == nil {
 		return true
 	}
-	if !a.flushCurrent() {
+	if !a.flush() {
 		return false
+	}
+	var closed []*document
+	if a.split != nil {
+		for _, p := range a.split.panes {
+			if p.doc != nil {
+				a.noteFilePlace(p.doc)
+				closed = append(closed, p.doc)
+			}
+		}
 	}
 	a.noteFilePlace(a.doc)
 	old := a.doc
 	a.doc, a.split = a.files.previous, a.files.split
 	a.files = nil
-	a.retireClosedDocuments(old)
+	a.palette.open = false
+	a.retireClosedDocuments(append(closed, old)...)
 	return true
 }
 
@@ -160,6 +181,22 @@ func (a *App) closeFileTab(rel string) {
 	}
 	if i < 0 {
 		return
+	}
+	if a.split != nil {
+		for i, p := range a.split.panes {
+			if p.doc != nil && p.doc.rel == rel && p.doc.space == f.locations {
+				a.focusPane(i, false)
+				if !a.flushCurrent() {
+					return
+				}
+				a.noteFilePlace(p.doc)
+				a.closePane(i)
+				if a.split != nil && slices.Contains(a.split.panes, p) {
+					return
+				}
+				break
+			}
+		}
 	}
 	shown := a.fileTabShown() == rel
 	if shown && !a.flushCurrent() {
@@ -322,8 +359,10 @@ func (a *App) fileView(c *ui.Context) {
 	t := spaceTheme(c.Theme(), a.look)
 	c.SetTheme(t)
 	a.syncWatches()
-	if d := a.doc; d != nil && a.autosaveEnabled() {
-		d.autosaveWith(c, a.asyncPost())
+	if a.autosaveEnabled() {
+		for _, d := range a.visibleDocuments() {
+			d.autosaveWith(c, a.asyncPost())
+		}
 	}
 	for _, n := range a.notices {
 		c.Toast(n)
@@ -345,6 +384,20 @@ func (a *App) fileView(c *ui.Context) {
 			a.stepFileTab(1)
 		case c.Shortcut(ui.Ctrl|ui.Shift, ui.KeyTab):
 			a.stepFileTab(-1)
+		case a.pressed(c, "split-add"):
+			a.addSplitPane()
+		case a.pressed(c, "split-close"):
+			if a.split != nil {
+				a.closePane(a.split.active)
+			}
+		case a.pressed(c, "split-next"):
+			a.cyclePane()
+		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
+			a.stepPageZoom(1)
+		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
+			a.stepPageZoom(-1)
+		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
+			a.resetPageZoom()
 		case a.pressed(c, "source"):
 			a.toggleSource()
 		case a.pressed(c, "full-width"):
@@ -381,7 +434,9 @@ func (a *App) fileView(c *ui.Context) {
 			}
 			a.qa.shown = body.Animate("qa-width", target, motion)
 			a.qa.resizing = a.qa.resizing || a.qa.dragging || a.qa.shown != target
-			if d := a.doc; d != nil {
+			if a.split != nil {
+				ui.Column(c.Key("file-split")).Grow(1).MinWidth(0).MinHeight(0).Children(func() { a.splitView(c) })
+			} else if d := a.doc; d != nil {
 				ui.Themed(c.Key("file-paper"), documentTheme(a.paperDark)).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() { a.documentContent(c, d, w-a.qa.shown) })
 			} else {
 				ui.Column(c.Key("file-empty-pane")).Grow(1).MinWidth(0).Children(func() { a.fileEmpty(c) })
@@ -389,6 +444,9 @@ func (a *App) fileView(c *ui.Context) {
 			a.qaPanel(c, 0)
 		})
 	})
+	a.paletteView(c)
+	a.unsavedPromptView(c)
+	a.databasePeekModal(c)
 	a.settingsView(c)
 	a.chatGPTWelcomeView(c)
 	a.pdfExportView(c)
@@ -627,7 +685,13 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		d := a.doc
 		noDoc := d == nil || d.loadErr != nil
-		noText := noDoc || d.isPDF()
+		noText := noDoc || d.isPDF() || d.isMDZ() || d.isDatabase()
+		if !noDoc && !d.isPDF() && !d.isMDZ() && !d.isDatabase() {
+			m.Submenu(i18n.T("更多格式"), d.ed.FormattingMenu).Disabled(d.ed.ReadOnly || d.source)
+			if m.Item(i18n.T("锁定文档（只读）")).Checked(d.ed.ReadOnly).Disabled(d.ed.Locked).Chosen() {
+				d.ed.SetReadOnly(!d.ed.ReadOnly)
+			}
+		}
 		if m.Item(i18n.T("另存为")).Disabled(noText).Chosen() {
 			a.chooseSaveAs()
 		}
@@ -635,6 +699,13 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 			a.toggleSource()
 		}
 		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(d))
+		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(d))
+		if m.Item(i18n.T("导出 MDZip (.mdz)")).Disabled(noDoc || d.isPDF() || d.isMDZ() || d.isDatabase() || d.isWhiteboard()).Chosen() {
+			a.exportMDZ()
+		}
+		if m.Item(i18n.T("清理不存在的文件")).Chosen() {
+			a.cleanMissingFileTabs()
+		}
 		if m.Item(i18n.T("目录")).Checked(a.outlineOpen()).Disabled(noDoc || d.source).Chosen() {
 			a.toggleOutline()
 		}
@@ -670,4 +741,35 @@ func (a *App) fileEmpty(c *ui.Context) {
 			a.chooseExternalFiles()
 		}
 	})
+}
+
+// cleanMissingFileTabs drops only stale references. Dirty editors remain open
+// so the user can recover their text with Save As.
+func (a *App) cleanMissingFileTabs() {
+	f := a.files
+	if f == nil {
+		return
+	}
+	removed, skipped := 0, 0
+	for _, rel := range slices.Clone(f.order) {
+		if !vault.Files(f.locations.ExternalFiles).Missing(rel) {
+			continue
+		}
+		if d := a.residentDocument(f.locations.ID, rel); d != nil {
+			d.pollAsyncSave()
+			if d.saving || d.dirty() {
+				skipped++
+				continue
+			}
+			a.replaceReferences(d, nil)
+		}
+		delete(f.locations.ExternalFiles, rel)
+		delete(f.readOnly, rel)
+		f.order = slices.DeleteFunc(f.order, func(name string) bool { return name == rel })
+		removed++
+	}
+	if a.doc == nil && len(f.order) > 0 {
+		a.showFileTab(f.order[0])
+	}
+	a.notify("已清理 %d 个失效引用，跳过 %d 个未保存文件", removed, skipped)
 }

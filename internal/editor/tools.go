@@ -33,7 +33,7 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 			e.Engine.Insert(document.Columns())
 		case "rule":
 			e.Engine.Insert(document.NewBlock("rule", ""))
-		case "image":
+		case "image", "db-link", "db-new":
 			// The host picks the images and inserts it at the caret.
 		case "whiteboard":
 			// The host creates the editable image before inserting its reference.
@@ -43,6 +43,8 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 			e.InsertMermaidFlowchart()
 		case "mermaid-seq":
 			e.InsertMermaidSequence()
+		case "mermaid-state":
+			e.InsertMermaidState()
 		case "toggle":
 			e.Engine.SetKind("toggle", 0)
 			e.Engine.OpenToggle(e.Engine.LeafAt(e.Caret).Block.ID)
@@ -63,6 +65,15 @@ func (e *Editor) insertItemAfter(prepare func(), item insertion) {
 	}
 	if item.kind == "whiteboard" {
 		e.InsertWhiteboard()
+	}
+	if item.kind == "db-link" && e.listDatabases != nil {
+		e.dbPickerOpen = true
+		e.dbPickerQuery = ""
+	}
+	if item.kind == "db-new" && e.createDatabase != nil {
+		if targetRel, viewID, snapMD, err := e.createDatabase(i18n.T("未命名数据库")); err == nil && targetRel != "" {
+			e.InsertDatabaseEmbed(targetRel, viewID, snapMD, dbDefaultInlineH)
+		}
 	}
 }
 
@@ -112,105 +123,114 @@ func (e *Editor) actionButtons(c *ui.Context) {
 // block offers. What the selection bar or a shortcut already does (bold
 // and the other marks, undo and redo) is not repeated here.
 func (e *Editor) moreMenu(c *ui.Context, leaf document.Leaf) {
-	toolButton(c, "more", iconFormat, i18n.T("更多格式"), false).Menu(func(m *ui.Menu) {
-		style := e.Engine.CurrentStyle()
-		m.Submenu(i18n.T("文字"), func(sub *ui.Menu) {
-			if sub.Item(i18n.T("上标")).Checked(style.Script == "sup").Chosen() {
-				e.SetScript("sup")
-			}
-			if sub.Item(i18n.T("下标")).Checked(style.Script == "sub").Chosen() {
-				e.SetScript("sub")
-			}
-			if sub.Item(i18n.T("键盘按键")).Checked(style.Kbd).Chosen() {
-				e.Wrap("<kbd>")
-			}
-			sub.Separator()
-			menuAction(sub, i18n.T("清除格式"), e.ClearFormat)
-		})
-		m.Submenu(i18n.T("编辑"), func(sub *ui.Menu) {
-			if sub.Item(i18n.T("查找")).Shortcut(e.binding("find").Mods, e.binding("find").Key).Chosen() {
-				e.OpenFind(false)
-			}
-			if sub.Item(i18n.T("查找和替换")).Shortcut(e.binding("replace").Mods, e.binding("replace").Key).Chosen() {
-				e.OpenFind(true)
-			}
-		})
-		m.Submenu(i18n.T("手绘标注"), func(sub *ui.Menu) {
-			for _, name := range document.Annotations {
-				if sub.Item(i18n.T(AnnotationNames[name])).Checked(style.Annotation == name).Chosen() {
-					e.Annotate(name, style.AnnotationColor)
-				}
-			}
-			sub.Separator()
-			if sub.Item(i18n.T("移除标注")).Disabled(style.Annotation == "").Chosen() {
-				e.Annotate("", "")
-			}
-		})
-		m.Submenu(i18n.T("段落"), func(sub *ui.Menu) {
-			for _, a := range []struct{ name, value string }{{i18n.T("左对齐"), "left"}, {i18n.T("居中"), "center"}, {i18n.T("右对齐"), "right"}} {
-				on := leaf.Block.Align == a.value || a.value == "left" && leaf.Block.Align == ""
-				if sub.Item(a.name).Radio(on).Chosen() {
-					e.Engine.Align(a.value)
-					e.RequestFocus = true
-				}
-			}
-			sub.Separator()
-			menuAction(sub, i18n.T("增加缩进"), func() { e.Engine.Indent(1) })
-			menuAction(sub, i18n.T("减少缩进"), func() { e.Engine.Indent(-1) })
-		})
-		m.Submenu(i18n.T("插入"), func(sub *ui.Menu) {
-			menuAction(sub, i18n.T("行内公式"), e.InsertInlineMath)
-			menuAction(sub, i18n.T("流程图"), e.InsertMermaidFlowchart)
-			menuAction(sub, i18n.T("时序图"), e.InsertMermaidSequence)
-			menuAction(sub, i18n.T("脚注"), func() { e.InsertFootnote(); e.RequestFocus, e.reveal = true, true })
-			menuAction(sub, i18n.T("笔记属性"), e.AddProperty)
-			sub.Separator()
-			menuAction(sub, i18n.T("跳转脚注 / 返回正文"), func() { e.FollowFootnote() })
-		})
-		switch leaf.Block.Kind {
-		case "callout":
-			m.Separator()
-			m.Submenu(i18n.T("高亮块颜色"), func(sub *ui.Menu) {
-				for _, tone := range document.CalloutColors {
-					if sub.Item(CalloutName(tone)).Radio(leaf.Block.Color == tone).Chosen() {
-						e.Engine.SetColor(leaf.Block.ID, tone)
-						e.RequestFocus = true
-					}
-				}
-			})
-		case "code":
-			m.Separator()
-			if !isMermaidBlock(leaf.Block) {
-				if m.Item(i18n.T("自动换行")).Checked(!e.isCodeNoWrap(leaf.Block)).Chosen() {
-					e.ToggleCodeWrap(leaf.Block.ID)
-					e.RequestFocus = true
-				}
-			}
-			menuAction(m, i18n.T("复制代码"), func() { e.copyBlock(leaf.Block.ID) })
-		case "cell":
-			m.Separator()
-			m.Submenu(i18n.T("表格"), func(sub *ui.Menu) {
-				if table, row, col, ok := e.Doc.CellAt(leaf.Block.ID); ok {
-					sub.Submenu(i18n.T("单元格背景颜色"), func(fill *ui.Menu) {
-						for _, name := range append([]string{""}, document.TextHighlights...) {
-							label := i18n.T("无")
-							if name != "" {
-								label = ColorName(name, true)
-							}
-							if fill.Item(label).Radio(leaf.Block.Background == name).Chosen() {
-								e.Engine.SetCellBackground(table.ID, document.CellRange{Row0: row, Col0: col, Row1: row, Col1: col}, name)
-							}
-						}
-					})
-					if cols, rows := document.Span(leaf.Block); cols > 1 || rows > 1 {
-						menuAction(sub, i18n.T("拆分单元格"), func() { e.Engine.SplitCell(leaf.Block.ID) })
-					}
-					sub.Separator()
-				}
-				e.tableLineItems(sub, leaf.Block)
-			})
+	toolButton(c, "more", iconFormat, i18n.T("更多格式"), false).Menu(e.FormattingMenu)
+}
+
+// FormattingMenu exposes the same caret actions in compact host menus.
+func (e *Editor) FormattingMenu(m *ui.Menu) {
+	if e.ReadOnly {
+		return
+	}
+	leaf := e.Engine.LeafAt(e.Caret)
+
+	style := e.Engine.CurrentStyle()
+	m.Submenu(i18n.T("文字"), func(sub *ui.Menu) {
+		if sub.Item(i18n.T("上标")).Checked(style.Script == "sup").Chosen() {
+			e.SetScript("sup")
+		}
+		if sub.Item(i18n.T("下标")).Checked(style.Script == "sub").Chosen() {
+			e.SetScript("sub")
+		}
+		if sub.Item(i18n.T("键盘按键")).Checked(style.Kbd).Chosen() {
+			e.Wrap("<kbd>")
+		}
+		sub.Separator()
+		menuAction(sub, i18n.T("清除格式"), e.ClearFormat)
+	})
+	m.Submenu(i18n.T("编辑"), func(sub *ui.Menu) {
+		if sub.Item(i18n.T("查找")).Shortcut(e.binding("find").Mods, e.binding("find").Key).Chosen() {
+			e.OpenFind(false)
+		}
+		if sub.Item(i18n.T("查找和替换")).Shortcut(e.binding("replace").Mods, e.binding("replace").Key).Chosen() {
+			e.OpenFind(true)
 		}
 	})
+	m.Submenu(i18n.T("手绘标注"), func(sub *ui.Menu) {
+		for _, name := range document.Annotations {
+			if sub.Item(i18n.T(AnnotationNames[name])).Checked(style.Annotation == name).Chosen() {
+				e.Annotate(name, style.AnnotationColor)
+			}
+		}
+		sub.Separator()
+		if sub.Item(i18n.T("移除标注")).Disabled(style.Annotation == "").Chosen() {
+			e.Annotate("", "")
+		}
+	})
+	m.Submenu(i18n.T("段落"), func(sub *ui.Menu) {
+		for _, a := range []struct{ name, value string }{{i18n.T("左对齐"), "left"}, {i18n.T("居中"), "center"}, {i18n.T("右对齐"), "right"}} {
+			on := leaf.Block.Align == a.value || a.value == "left" && leaf.Block.Align == ""
+			if sub.Item(a.name).Radio(on).Chosen() {
+				e.Engine.Align(a.value)
+				e.RequestFocus = true
+			}
+		}
+		sub.Separator()
+		menuAction(sub, i18n.T("增加缩进"), func() { e.Engine.Indent(1) })
+		menuAction(sub, i18n.T("减少缩进"), func() { e.Engine.Indent(-1) })
+	})
+	m.Submenu(i18n.T("插入"), func(sub *ui.Menu) {
+		menuAction(sub, i18n.T("行内公式"), e.InsertInlineMath)
+		menuAction(sub, i18n.T("流程图"), e.InsertMermaidFlowchart)
+		menuAction(sub, i18n.T("时序图"), e.InsertMermaidSequence)
+		menuAction(sub, i18n.T("状态图"), e.InsertMermaidState)
+		menuAction(sub, i18n.T("脚注"), func() { e.InsertFootnote(); e.RequestFocus, e.reveal = true, true })
+		menuAction(sub, i18n.T("笔记属性"), e.AddProperty)
+		sub.Separator()
+		menuAction(sub, i18n.T("跳转脚注 / 返回正文"), func() { e.FollowFootnote() })
+	})
+	switch leaf.Block.Kind {
+	case "callout":
+		m.Separator()
+		m.Submenu(i18n.T("高亮块颜色"), func(sub *ui.Menu) {
+			for _, tone := range document.CalloutColors {
+				if sub.Item(CalloutName(tone)).Radio(leaf.Block.Color == tone).Chosen() {
+					e.Engine.SetColor(leaf.Block.ID, tone)
+					e.RequestFocus = true
+				}
+			}
+		})
+	case "code":
+		m.Separator()
+		if !isMermaidBlock(leaf.Block) {
+			if m.Item(i18n.T("自动换行")).Checked(!e.isCodeNoWrap(leaf.Block)).Chosen() {
+				e.ToggleCodeWrap(leaf.Block.ID)
+				e.RequestFocus = true
+			}
+		}
+		menuAction(m, i18n.T("复制代码"), func() { e.copyBlock(leaf.Block.ID) })
+	case "cell":
+		m.Separator()
+		m.Submenu(i18n.T("表格"), func(sub *ui.Menu) {
+			if table, row, col, ok := e.Doc.CellAt(leaf.Block.ID); ok {
+				sub.Submenu(i18n.T("单元格背景颜色"), func(fill *ui.Menu) {
+					for _, name := range append([]string{""}, document.TextHighlights...) {
+						label := i18n.T("无")
+						if name != "" {
+							label = ColorName(name, true)
+						}
+						if fill.Item(label).Radio(leaf.Block.Background == name).Chosen() {
+							e.Engine.SetCellBackground(table.ID, document.CellRange{Row0: row, Col0: col, Row1: row, Col1: col}, name)
+						}
+					}
+				})
+				if cols, rows := document.Span(leaf.Block); cols > 1 || rows > 1 {
+					menuAction(sub, i18n.T("拆分单元格"), func() { e.Engine.SplitCell(leaf.Block.ID) })
+				}
+				sub.Separator()
+			}
+			e.tableLineItems(sub, leaf.Block)
+		})
+	}
 }
 
 // calloutEmoji are the icons a callout can take.

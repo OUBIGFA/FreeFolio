@@ -168,7 +168,7 @@ func (a *App) labelBookmark(spaceID, rel, id, label string) {
 // bookmarkable is the open document when bookmarks work in it: loaded and
 // shown as rich text.
 func (a *App) bookmarkable() *document {
-	if d := a.doc; d != nil && d.loadErr == nil && !d.source && !d.isPDF() {
+	if d := a.doc; d != nil && d.loadErr == nil && !d.source && !d.isPDF() && !d.isMDZ() && !d.isDatabase() {
 		return d
 	}
 	return nil

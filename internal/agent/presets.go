@@ -94,7 +94,7 @@ func IsLocal(base string) bool {
 	if err != nil {
 		return false
 	}
-	host := u.Hostname()
+	host := strings.ToLower(u.Hostname())
 	if host == "localhost" {
 		return true
 	}

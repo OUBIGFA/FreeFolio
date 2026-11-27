@@ -470,7 +470,7 @@ func (a *App) relinkAttachments(sp *space.Space, moves map[string]string) {
 			continue
 		}
 		resident[d.rel] = true
-		if d.loadErr != nil || d.source || d.ed.ReadOnly {
+		if d.loadErr != nil || d.source || d.ed.ReadOnly || d.isMDZ() || d.isDatabase() {
 			continue
 		}
 		if moved := attachmentRelocations(sp, d.rel, d.ed.ImageURLs(), moves); len(moved) > 0 {
@@ -526,7 +526,7 @@ func (a *App) relinkAttachments(sp *space.Space, moves map[string]string) {
 	scan := func() {
 		docs, _ := vault.List(snapshot.Root)
 		for _, info := range docs {
-			if resident[info.Path] {
+			if resident[info.Path] || vault.IsMDZ(info.Path) || vault.IsDatabase(info.Path) {
 				continue
 			}
 			text, err := readFile(&snapshot, info.Path)

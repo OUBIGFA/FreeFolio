@@ -144,10 +144,7 @@ func (a *App) externalChanged(sp *space.Space, rel, full string, events []mygo.F
 			a.withDocument(d, a.checkDisk)
 		}
 	}
-	delete(a.pageTrees, sp.ID)
-	if sp == a.state.ActiveSpace() {
-		a.refreshTree()
-	}
+	a.refreshExternalTree(sp)
 }
 
 // filesChanged follows changes to the folder of the space with the ID:
@@ -226,6 +223,10 @@ func (a *App) filesChanged(id string, events []mygo.FileEvent) {
 	if attachmentsMoved {
 		a.relinkAttachments(sp, moves)
 	}
+	if len(events) > 0 {
+		a.invalidatePageDBCache(id)
+		a.refreshOpenDatabases(id)
+	}
 
 }
 
@@ -266,7 +267,7 @@ func (a *App) checkDisk() {
 		return
 	}
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
+		if !errors.Is(err, os.ErrNotExist) && !(d.space.IsExternal() && vault.Files(d.space.ExternalFiles).Missing(d.rel)) {
 			return
 		}
 		if d.loadErr != nil || !d.dirty() {
@@ -293,6 +294,12 @@ func (a *App) checkDisk() {
 func (a *App) replaceDoc(text string) {
 	old := a.doc
 	d := openDocument(old.space, old.rel, text, old.source)
+	if old.isMDZ() && d.isMDZ() {
+		d.mdz.preserveFrom(old.mdz)
+	}
+	if old.isDatabase() && d.isDatabase() {
+		d.dbView.SetActiveView(old.dbView.Store.Database().ActiveView)
+	}
 	d.ed.Scroll = old.ed.Scroll
 	a.replaceReferences(old, d)
 }
@@ -332,7 +339,11 @@ func (a *App) keepMine() {
 		a.notify("保存 %s 失败；%v", d.title(), err)
 		return
 	}
-	a.refreshTree()
+	if d.space.IsExternal() {
+		a.refreshExternalTree(d.space)
+	} else {
+		a.refreshTree()
+	}
 }
 
 // conflictBar sits over a document whose file changed or went elsewhere

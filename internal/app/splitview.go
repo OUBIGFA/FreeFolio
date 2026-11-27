@@ -19,7 +19,9 @@ func (a *App) splitView(c *ui.Context) {
 	a.syncSplit()
 	s := a.split
 	bar := a.titleBar(c)
-	if a.folded() {
+	if a.files != nil {
+		// The file browser already owns the title bar above its split panes
+	} else if a.folded() {
 		ui.Row(c.Key("split-window-bar")).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left+4).AlignItems(ui.Center).DragWindow().Children(func() {
 			show := func() {
 				if iconButton(c, "sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
@@ -147,17 +149,12 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 	bar := ui.Row(c.Key("pane-toolbar")).Height(36).PaddingX(5).Gap(2).MinWidth(0).AlignItems(ui.Center)
 	full := s.active == index || bar.Hovered()
 	bar.Children(func() {
-		if d != nil && width >= 260 {
+		if a.files == nil && d != nil && width >= 260 {
 			if iconButton(c, "back", iconBack, fmt.Sprintf(i18n.T("分屏 %d 后退"), index+1), i18n.T("后退"), pane.at <= 0).Size(26, 26).Clicked() {
 				run(func() { a.goHistory(-1) })
 			}
 			if iconButton(c, "forward", iconForward, fmt.Sprintf(i18n.T("分屏 %d 前进"), index+1), i18n.T("前进"), pane.at+1 >= len(pane.history)).Size(26, 26).Clicked() {
 				run(func() { a.goHistory(1) })
-			}
-			if full && width >= 380 {
-				if iconButton(c, "reload", iconReload, fmt.Sprintf(i18n.T("分屏 %d 重新载入"), index+1), i18n.T("重新载入"), false).Size(26, 26).Clicked() {
-					run(a.reload)
-				}
 			}
 		}
 		address := ui.Row(c.Key("pane-address")).Grow(1).MinWidth(0).Height(28).PaddingX(6).Gap(6).Radius(6).AlignItems(ui.Center).
@@ -423,7 +420,7 @@ func (a *App) splitSidebarRow(c *ui.Context, sp *space.Space) {
 	if s == nil || len(s.panes) < 2 {
 		return
 	}
-	row := ui.Row(c.Key("split-row")).Height(rowHeight).Padding(4).Gap(4).Radius(10).Margin(2, 0, 4, 0)
+	row := ui.Row(c.Key("split-row")).Height(a.sidebarRowHeight()).Padding(4).Gap(4).Radius(a.sidebarRowRadius()).Margin(2, 0, 4, 0)
 	if a.split == s {
 		row.Background(glass(c.Theme()))
 	} else if row.Hovered() {

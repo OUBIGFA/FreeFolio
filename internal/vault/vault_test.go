@@ -57,7 +57,7 @@ func TestHasDocument(t *testing.T) {
 
 func TestListSkipsHiddenAndNonMarkdown(t *testing.T) {
 	root := t.TempDir()
-	for _, p := range []string{"b.md", "A.md", "notes/z.MD", "notes/deep/y.md", ".git/c.md", ".hidden.md", "img.png", "node_modules/x.md"} {
+	for _, p := range []string{"b.md", "A.md", "notes/z.MD", "notes/deep/y.md", "pack.mdz", ".git/c.md", ".hidden.md", "img.png", "node_modules/x.md"} {
 		full := filepath.Join(root, filepath.FromSlash(p))
 		os.MkdirAll(filepath.Dir(full), 0o755)
 		os.WriteFile(full, []byte("x"), 0o644)
@@ -70,9 +70,15 @@ func TestListSkipsHiddenAndNonMarkdown(t *testing.T) {
 	for _, d := range docs {
 		paths = append(paths, d.Path)
 	}
-	want := []string{"A.md", "b.md", "notes/z.MD", "notes/deep/y.md"}
+	want := []string{"A.md", "b.md", "pack.mdz", "notes/z.MD", "notes/deep/y.md"}
 	if !slices.Equal(paths, want) {
 		t.Errorf("List = %q, want %q", paths, want)
+	}
+	if !IsMDZ("pack.mdz") || !IsMDZ("dir/PACK.MDZ") || IsMDZ(".mdz") || IsMDZ("note.md") {
+		t.Errorf("IsMDZ classification unexpected")
+	}
+	if !IsDocument("pack.mdz") {
+		t.Errorf("IsDocument(pack.mdz) = false, want true")
 	}
 }
 
@@ -166,5 +172,139 @@ func TestNativeDocumentsAndExclusiveCreation(t *testing.T) {
 	}
 	if IsMarkdown(renamed) || !IsDocument(renamed) {
 		t.Fatal("native format classification")
+	}
+}
+
+func TestDatabaseDocuments(t *testing.T) {
+	root := t.TempDir()
+	rel, err := CreateFile(root, "Projects", "Roadmap", ExtDatabase, "# Roadmap\n")
+	if err != nil || rel != "Projects/Roadmap.db.md" {
+		t.Fatalf("CreateFile = %q, %v", rel, err)
+	}
+	if FileExt(rel) != ".db.md" {
+		t.Fatalf("FileExt(%q) = %q, want .db.md", rel, FileExt(rel))
+	}
+	if !IsDatabase(rel) || !IsDocument(rel) || IsMarkdown(rel) || Title(rel) != "Roadmap" {
+		t.Fatalf("classification/Title failed for %q", rel)
+	}
+	if IsDatabase(".db.md") || IsDocument(".db.md") || IsMarkdown(".db.md") {
+		t.Fatal("bare .db.md should not be classified as a document")
+	}
+	docs, err := List(root)
+	if err != nil || len(docs) != 1 || docs[0].Path != rel {
+		t.Fatalf("List = %+v, %v", docs, err)
+	}
+	renamed, err := Rename(root, rel, "Backlog")
+	if err != nil || renamed != "Projects/Backlog.db.md" {
+		t.Fatalf("Rename = %q, %v", renamed, err)
+	}
+	if !IsDatabase(renamed) {
+		t.Fatalf("renamed file lost database classification: %q", renamed)
+	}
+}
+
+func TestSanitizeName(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"CON", "_CON"},
+		{"con", "_con"},
+		{"PRN", "_PRN"},
+		{"aux.txt", "_aux.txt"},
+		{"NUL.tar.gz", "_NUL.tar.gz"},
+		{"lpt1.md", "_lpt1.md"},
+		{"COM0", "_COM0"},
+		{"com9.arcmd", "_com9.arcmd"},
+		{"COM\u00b9", "_COM\u00b9"},
+		{"com\u00b2.md", "_com\u00b2.md"},
+		{"lpt\u00b3.txt", "_lpt\u00b3.txt"},
+		{"CON.", "_CON"},
+		{"CON .md", "_CON .md"},
+		{"Note .", "Note"},
+		{"Note . .   ", "Note"},
+		{"  ...  ", ""},
+		{" . . ", ""},
+		{"hello\x00\n\tworld", "helloworld"},
+		{"Idea: one/two", "Idea- one-two"},
+		{"Connect.md", "Connect.md"},
+	}
+	for _, tc := range cases {
+		if got := SanitizeName(tc.in); got != tc.want {
+			t.Errorf("SanitizeName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestListStatAndTreeModified(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	if err := Write(outside, "Secret.md", "outside"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(root, "Alpha.md", "hello world"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(root, "Folder/Nested.arcmd", `{"version":1}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "Empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	hasLinks := true
+	if err := os.Symlink(filepath.Join(root, "Alpha.md"), filepath.Join(root, "Alias.md")); err != nil {
+		hasLinks = false
+	} else {
+		_ = os.Symlink(outside, filepath.Join(root, "EscapeDir"))
+		_ = os.Symlink(filepath.Join(outside, "Secret.md"), filepath.Join(root, "Escape.md"))
+	}
+
+	stats, err := ListStat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]DocStat{}
+	for _, s := range stats {
+		byPath[s.Path] = s
+		full := filepath.Join(root, filepath.FromSlash(s.Path))
+		fi, err := os.Stat(full)
+		if err != nil {
+			t.Fatalf("Stat(%s): %v", s.Path, err)
+		}
+		if s.Size != fi.Size() || !s.Modified.Equal(fi.ModTime()) {
+			t.Fatalf("ListStat(%s) = (size=%d, mod=%v), want (size=%d, mod=%v)", s.Path, s.Size, s.Modified, fi.Size(), fi.ModTime())
+		}
+	}
+	if _, ok := byPath["Alpha.md"]; !ok {
+		t.Fatal("ListStat missed Alpha.md")
+	}
+	if _, ok := byPath["Folder/Nested.arcmd"]; !ok {
+		t.Fatal("ListStat missed Folder/Nested.arcmd")
+	}
+	if _, ok := byPath["Escape.md"]; ok {
+		t.Fatal("ListStat exposed outside symlink")
+	}
+	if hasLinks {
+		if _, ok := byPath["Alias.md"]; !ok {
+			t.Fatal("ListStat missed internal symlink Alias.md")
+		}
+	}
+
+	nodes, err := Tree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaNode := Find(nodes, "Alpha.md")
+	nestedNode := Find(nodes, "Folder/Nested.arcmd")
+	folderNode := Find(nodes, "Folder")
+	emptyNode := Find(nodes, "Empty")
+	if alphaNode == nil || nestedNode == nil || folderNode == nil || emptyNode == nil {
+		t.Fatalf("Tree missing expected nodes: %+v", nodes)
+	}
+	if alphaNode.Modified.IsZero() || nestedNode.Modified.IsZero() || folderNode.Modified.IsZero() || emptyNode.Modified.IsZero() {
+		t.Fatalf("Tree left zero Modified times: alpha=%v nested=%v folder=%v empty=%v",
+			alphaNode.Modified, nestedNode.Modified, folderNode.Modified, emptyNode.Modified)
+	}
+	if folderNode.Modified.Before(nestedNode.Modified) {
+		t.Fatalf("folder Modified %v older than child %v", folderNode.Modified, nestedNode.Modified)
 	}
 }

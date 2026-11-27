@@ -4,7 +4,9 @@ import (
 	"image"
 	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor/dbview"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
@@ -77,7 +79,22 @@ func (a *App) toggleOutline() {
 		a.doc.pdf.ToggleOutline()
 		return
 	}
-	if a.doc != nil && a.doc.loadErr == nil && !a.doc.source {
+	if a.doc.isMDZ() {
+		m := a.doc.mdz
+		if m.hasActivePage() {
+			if len(m.pages) > 1 && m.sidebarOpen && !a.focus {
+				m.sidebarOpen = false
+				m.pendingOutline = true
+				a.setOutline(true)
+				return
+			}
+			if ed := m.activeEditor(); ed != nil {
+				ed.ToggleOutline()
+			}
+		}
+		return
+	}
+	if a.doc != nil && a.doc.loadErr == nil && !a.doc.source && !a.doc.isDatabase() {
 		a.doc.ed.ToggleOutline()
 	}
 }
@@ -86,6 +103,12 @@ func (a *App) toggleOutline() {
 func (a *App) outlineOpen() bool {
 	if a.doc.isPDF() {
 		return a.doc.pdf.SidebarOpen
+	}
+	if a.doc != nil && a.doc.isMDZ() {
+		if ed := a.doc.mdz.activeEditor(); ed != nil {
+			return ed.OutlineOpen()
+		}
+		return false
 	}
 	return a.doc != nil && a.doc.ed.OutlineOpen()
 }
@@ -112,6 +135,10 @@ func (a *App) focusView(c *ui.Context) {
 				words.Opacity(words.Animate("shown", b2f(show), 150*time.Millisecond))
 			}
 			ui.Spacer(c)
+			if a.showPageZoomButton(a.doc) {
+				zb := a.pageZoomButton(c, a.doc)
+				zb.Opacity(zb.Animate("shown", b2f(show || zb.Focused()), 150*time.Millisecond))
+			}
 			exit := iconButton(c, "focus-exit", iconMinimize, i18n.T("退出专注模式"), a.withKey(i18n.T("退出专注模式"), "focus"), false)
 			exit.Opacity(exit.Animate("shown", b2f(show || exit.Focused()), 150*time.Millisecond))
 			if exit.Clicked() {
@@ -121,7 +148,7 @@ func (a *App) focusView(c *ui.Context) {
 		card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(10).
 			Shadow(0, 1, 4, 0, cardShadow(t)).Border(1, t.Border.Alpha(0.35)).Clip()
 		card.Children(func() {
-			if a.doc == nil || a.doc.loadErr != nil || a.doc.source {
+			if a.doc == nil || a.doc.loadErr != nil {
 				ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 					ui.Text(c, i18n.T("专注模式下没有可编辑的文档")).TextColor(c.Theme().TextMuted)
 					if ui.Button(c.Key("focus-leave"), i18n.T("退出专注模式")).Clicked() {
@@ -130,10 +157,21 @@ func (a *App) focusView(c *ui.Context) {
 				})
 				return
 			}
+			if a.doc.source {
+				w, _ := c.Size()
+				a.sourceView(c, a.doc, w-18)
+				return
+			}
 			w, _ := c.Size()
 			ui.Column(c.Key("page")).Grow(1).MinHeight(0).Children(func() {
 				a.conflictBar(c)
-				editor.View(c.Key(a.doc.viewKey()), a.doc.ed, a.editorOptions(c, w-18, true))
+				if a.doc.isMDZ() {
+					a.mdzView(c, a.doc, w-18, true)
+				} else if a.doc.isDatabase() {
+					a.databaseWorkspace(c, a.doc, w-18)
+				} else {
+					editor.View(c.Key(a.doc.viewKey()), a.doc.ed, a.editorOptions(c, w-18, true))
+				}
 			})
 		})
 	})
@@ -157,12 +195,54 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		switch {
 		case a.activateDocument(d):
 			fn()
+		case a.dbPeek.open && a.dbPeek.doc == d:
+			a.withDocument(d, fn)
 		case a.inWindow(d):
 			// A document in its own window acts as the document.
 			a.withDocument(d, fn)
 		}
 	}
+	hasDB := false
+	if d != nil {
+		store, _, _, _ := a.owningDatabaseFor(d)
+		hasDB = store != nil
+	}
 	options := editor.Options{
+		Zoom:            a.pageZoom(),
+		OnZoom:          a.setPageZoom,
+		HideFrontmatter: hasDB,
+		LoadDatabase: func(target string) (*database.Store, dbview.Options, uint64, error) {
+			return a.loadDatabaseFor(d, target)
+		},
+		OpenDatabase: func(target, viewID string, split bool) { a.openDatabaseFrom(d, target, viewID, split) },
+		ListDatabases: func() []database.SpaceDBInfo {
+			if d.space == nil || d.space.IsExternal() || d.space.Root == "" {
+				return nil
+			}
+			dbs := a.databaseCatalogFor(d.space)
+			for i := range dbs {
+				if res := a.residentDocument(d.space.ID, dbs[i].RelPath); res != nil && res.loadErr == nil && res.isDatabase() {
+					liveDB := res.dbView.Store.Database()
+					if liveDB != nil {
+						dbs[i].Title = liveDB.Title
+						dbs[i].Icon = liveDB.Icon
+						views := make([]database.SpaceDBViewInfo, 0, len(liveDB.Views))
+						for _, v := range liveDB.Views {
+							views = append(views, database.SpaceDBViewInfo{
+								ID:   v.ID,
+								Name: v.Name,
+								Type: v.Type,
+							})
+						}
+						dbs[i].Views = views
+					}
+				}
+			}
+			return dbs
+		},
+		CreateDatabase:   func(title string) (string, string, string, error) { return a.createEmbeddedDatabaseFor(d, title) },
+		DatabaseSnapshot: func(target, viewID string) string { return a.databaseSnapshotFor(d, target, viewID) },
+
 		CreateWhiteboard: func() { a.insertWhiteboard(d) },
 		OpenWhiteboard:   func(url string) { a.openBoardEmbed(d, url) },
 		BoardOptions:     a.boardOptions(c, d),

@@ -24,6 +24,7 @@ type Node struct {
 	// Modified is when the file last changed; for a folder, the latest of
 	// what it holds, or the folder's own time when empty.
 	Modified time.Time
+	Missing  bool // An explicitly registered external file is no longer present.
 }
 
 // Title returns a file's name without its extension, or a folder's name.
@@ -210,8 +211,8 @@ func Rename(root, rel, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !fi.IsDir() && !(IsMarkdown(rel) && IsMarkdown(name)) && !strings.EqualFold(path.Ext(name), path.Ext(rel)) {
-		name += path.Ext(rel)
+	if !fi.IsDir() && !(IsMarkdown(rel) && IsMarkdown(name)) && !strings.EqualFold(FileExt(name), FileExt(rel)) {
+		name += FileExt(rel)
 	}
 	to := path.Join(path.Dir(rel), name)
 	if to == rel {

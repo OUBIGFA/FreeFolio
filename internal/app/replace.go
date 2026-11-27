@@ -75,6 +75,12 @@ const replaceLimit = 500
 func (a *App) openReplaceAll() {
 	a.replace.open = true
 	if d := a.doc; d != nil && d.loadErr == nil {
+		if d.source && d.sourceInit {
+			if sel := runeSlice(d.preview, d.sourceSelStart, d.sourceSelEnd); sel != "" && !strings.ContainsAny(sel, "\n\r") && utf8.RuneCountInString(sel) <= 80 {
+				a.replace.find = sel
+			}
+			return
+		}
 		if sel := d.ed.Selection().Range; sel.Start != sel.End {
 			if text, _ := d.ed.TextForRange(sel); !strings.ContainsAny(text, "\n ") && utf8.RuneCountInString(text) <= 80 {
 				if a.replace.opts.Regex {
@@ -156,7 +162,7 @@ func (a *App) replaceEverywhere() {
 			n += k
 			return out
 		}
-		if vault.IsReadOnly(h.Path) {
+		if vault.IsReadOnly(h.Path) || vault.IsDatabase(h.Path) {
 			skipped++
 			continue
 		}
@@ -177,7 +183,7 @@ func (a *App) replaceEverywhere() {
 			continue
 		}
 		d := openDocument(sp, h.Path, before, false)
-		if d.loadErr != nil || !a.mapDocumentText(d, change) {
+		if d.isDatabase() || d.isMDZ() || d.loadErr != nil || !a.mapDocumentText(d, change) {
 			continue
 		}
 		if err := d.save(); err != nil {
@@ -217,6 +223,9 @@ func (a *App) undoReplace(files []replacedFile, edited []*document) {
 			a.boardChanged(d)
 		} else {
 			d.ed.Undo()
+			if d.source {
+				d.refreshSourceFromModel()
+			}
 		}
 	}
 	kept := 0

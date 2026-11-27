@@ -86,7 +86,10 @@ func (d *document) qaPage() *spacefs.Page {
 	if d.board != nil {
 		return sceneQAPage(d.rel, d.board.Scene)
 	}
-	return pageOfDocument(d.rel, d.ed.Committed())
+	if d.isDatabase() {
+		return pageOfDatabaseStore(d.rel, d.dbView.Store)
+	}
+	return pageOfDocument(d.rel, d.committedForRead())
 }
 
 func (a *App) mapDocumentText(d *document, fn func(string) string) bool {

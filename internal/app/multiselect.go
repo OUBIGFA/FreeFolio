@@ -737,7 +737,9 @@ func (a *App) trashGroup(group []string) {
 			continue
 		}
 		kept, ok := a.keepDeleted(sp.ID, sp.Name, sp.Root, rel)
+		a.releasePDFHandles(sp, rel)
 		if err := a.trashItem(p); err != nil {
+			a.reopenResidentPDFs(sp, rel)
 			if ok {
 				a.bin.Forget(kept)
 			}

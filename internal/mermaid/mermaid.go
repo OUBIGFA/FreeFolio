@@ -1,5 +1,5 @@
 // Package mermaid parses and lays out a core subset of Mermaid diagrams
-// (flowchart/graph, sequenceDiagram, gantt and pie) and ECharts options
+// (flowchart/graph, sequenceDiagram, stateDiagram, gantt and pie) and ECharts options
 // (pie, bar, line and scatter series) into pure vector primitives without any
 // UI toolkit dependency.
 package mermaid
@@ -65,6 +65,9 @@ const (
 	ShapePentagon
 	// ShapePolygon fills Points, as pie slices and chart areas are drawn.
 	ShapePolygon
+	ShapeStartState
+	ShapeEndState
+	ShapeBar
 )
 
 // EdgeKind selects solid, dashed, or thick stroke styling.
@@ -99,9 +102,10 @@ type ShapeOp struct {
 	Dashed bool
 	Fill   [4]uint8 // Optional RGBA tint (Fill[3] > 0); zero uses theme role colors.
 	// Stroke is a chart mark's outline; zero draws none.
-	Stroke [4]uint8
-	Tone   uint8
-	Points [][2]float32
+	Stroke   [4]uint8
+	Tone     uint8
+	Points   [][2]float32
+	DividerY float32 // Divider offset for a titled state box.
 }
 
 // PathOp describes an open polyline or smooth curve with optional endpoints.
@@ -135,7 +139,7 @@ type LabelOp struct {
 
 // Diagram holds the measured size and drawing primitives of a parsed diagram.
 type Diagram struct {
-	Kind   string // "flowchart", "sequence", "gantt", "pie" or "chart"
+	Kind   string // "flowchart", "sequence", "state", "gantt", "pie" or "chart"
 	W      float32
 	H      float32
 	Shapes []ShapeOp
@@ -167,6 +171,8 @@ func ParseAndLayout(src string, measure MeasureFunc) (Diagram, error) {
 		return layoutGantt(lines, measure)
 	case "pie":
 		return layoutMermaidPie(lines, measure)
+	case "statediagram-v2", "statediagram":
+		return layoutStateDiagram(lines, measure)
 	default:
 		return Diagram{}, fmt.Errorf("unsupported diagram %q", fields[0])
 	}
@@ -190,9 +196,19 @@ func defaultMeasure(text string, size float32, _ bool) (float32, float32) {
 }
 
 func preprocessLines(src string) []string {
-	// Normalize Windows line endings and strip optional %%{init:...}%% blocks.
+	// Normalize Windows line endings, strip optional leading YAML frontmatter,
+	// and strip optional %%{init:...}%% blocks.
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	src = strings.ReplaceAll(src, "\r", "\n")
+	if trimmed := strings.TrimLeft(src, " \t\n"); strings.HasPrefix(trimmed, "---\n") {
+		rest := trimmed[4:]
+		if end := strings.Index(rest, "\n---"); end >= 0 {
+			after := rest[end+4:]
+			if after == "" || after[0] == '\n' {
+				src = strings.TrimPrefix(after, "\n")
+			}
+		}
+	}
 	for {
 		start := strings.Index(src, "%%{")
 		if start < 0 {

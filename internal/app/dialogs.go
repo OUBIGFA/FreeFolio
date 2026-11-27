@@ -219,6 +219,9 @@ func (a *App) removeSpace(id string) {
 	if a.state.ActiveSpace() != nil && a.state.ActiveSpace().ID == id {
 		a.suspendSplit()
 	}
+	if sp := a.state.Get(id); sp != nil {
+		a.releasePDFHandles(sp, "")
+	}
 	for _, d := range a.residentDocuments() {
 		if d.space.ID == id {
 			a.replaceReferences(d, nil)
@@ -228,8 +231,13 @@ func (a *App) removeSpace(id string) {
 		delete(a.sessions, id)
 		a.saveState()
 		a.refreshTree()
-		if sp := a.state.ActiveSpace(); sp != nil && sp.LastOpen != "" {
-			a.open(sp.LastOpen)
+		if sp := a.state.ActiveSpace(); sp != nil {
+			a.restoreSpaceSplit(sp)
+			if session := a.session(sp.ID); a.doc == nil && session.splitShown && session.split != nil {
+				a.restoreSplit(session.split, session.split.active)
+			} else if sp.LastOpen != "" {
+				a.open(sp.LastOpen)
+			}
 		}
 	}
 }

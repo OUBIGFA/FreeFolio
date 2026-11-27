@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"path"
 	"regexp"
 	"slices"
@@ -14,10 +15,13 @@ import (
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor/dbview"
 	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/mdz"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
@@ -282,6 +286,44 @@ func QAPage(name, content string) (*spacefs.Page, error) {
 	if vault.IsPDF(name) {
 		return pdfQAPage(name, content)
 	}
+	if vault.IsMDZ(name) {
+		arc, err := mdz.OpenBytes([]byte(content))
+		if arc == nil {
+			return nil, err
+		}
+		defer arc.Close()
+		var order []string
+		if ep := arc.EntryPoint(); ep != "" {
+			order = append(order, ep)
+		}
+		for _, p := range arc.MarkdownPages() {
+			if p != arc.EntryPoint() {
+				order = append(order, p)
+			}
+		}
+		cnt := min(len(order), 200)
+		var parts []spacefs.Part
+		for i := range cnt {
+			pagePath := order[i]
+			md, err := arc.ReadMarkdown(pagePath)
+			if err != nil {
+				continue
+			}
+			txt := strings.TrimSpace(md)
+			head := "## " + pagePath
+			if txt != "" {
+				head += "\n" + txt
+			}
+			parts = append(parts, spacefs.Part{
+				Block: "mdz:" + pagePath,
+				Text:  head,
+			})
+		}
+		return spacefs.PageOf(name, parts), nil
+	}
+	if vault.IsDatabase(name) {
+		return pageOfDatabaseMarkdown(name, content), nil
+	}
 	if vault.IsWhiteboard(name) {
 		return whiteboardQAPage(name, content)
 	}
@@ -319,6 +361,144 @@ func pageOfDocument(name string, doc *model.Document) *spacefs.Page {
 	return page
 }
 
+var dbSnapshotLinkRe = regexp.MustCompile(`\[[^\]]*\]\(([^()\n]+)\)`)
+
+func pageOfDatabaseMarkdown(name, content string) *spacefs.Page {
+	db, err := database.DecodeDatabaseMarkdown(content)
+	if err != nil {
+		ex := extractDatabaseSearchText(name, content)
+		return spacefs.PageOf(name, []spacefs.Part{{Block: "db:header", Text: ex.Text}})
+	}
+	var hdr strings.Builder
+	title := strings.TrimSpace(db.Title)
+	if title == "" {
+		title = vault.Title(name)
+	}
+	hdr.WriteString("# ")
+	hdr.WriteString(title)
+	if desc := strings.TrimSpace(db.Description); desc != "" {
+		hdr.WriteString("\n\n")
+		hdr.WriteString(desc)
+	}
+	if len(db.Properties) > 0 {
+		hdr.WriteString("\n\nProperties:")
+		for _, p := range db.Properties {
+			if p.Name != "" {
+				hdr.WriteByte(' ')
+				hdr.WriteString(p.Name)
+				hdr.WriteString("(")
+				hdr.WriteString(string(p.Type))
+				hdr.WriteString(")")
+			}
+		}
+	}
+
+	parts := []spacefs.Part{{Block: "db:header", Text: hdr.String()}}
+	const snapStart = "<!-- arcmd-db:snapshot:start -->"
+	const snapEnd = "<!-- arcmd-db:snapshot:end -->"
+	if sIdx := strings.Index(content, snapStart); sIdx >= 0 {
+		rest := content[sIdx+len(snapStart):]
+		if eIdx := strings.Index(rest, snapEnd); eIdx >= 0 {
+			rest = rest[:eIdx]
+		}
+		headerAdded := false
+		for _, line := range strings.Split(strings.ReplaceAll(rest, "\r\n", "\n"), "\n") {
+			tr := strings.TrimSpace(line)
+			if !strings.HasPrefix(tr, "|") {
+				continue
+			}
+			inner := strings.Trim(tr, "| ")
+			if strings.Trim(inner, "-:| ") == "" {
+				continue
+			}
+			if !headerAdded {
+				parts[0].Text += "\n\n" + tr
+				headerAdded = true
+				continue
+			}
+			recKey := ""
+			if m := dbSnapshotLinkRe.FindStringSubmatch(tr); m != nil {
+				recKey = strings.TrimSpace(m[1])
+				if u, uerr := url.PathUnescape(recKey); uerr == nil {
+					recKey = u
+				}
+			}
+			parts = append(parts, spacefs.Part{Block: "rec:" + recKey, Text: tr})
+		}
+	} else {
+		for _, rec := range db.InlineRows {
+			if rec == nil {
+				continue
+			}
+			var cols []string
+			cols = append(cols, rec.Title)
+			for _, p := range db.Properties {
+				if p.Type == database.PropTitle {
+					continue
+				}
+				cols = append(cols, database.FormatValue(p, rec.ValueFor(p)))
+			}
+			parts = append(parts, spacefs.Part{Block: "rec:" + rec.ID, Text: "| " + strings.Join(cols, " | ") + " |"})
+		}
+	}
+	return spacefs.PageOf(name, parts)
+}
+
+func pageOfDatabaseStore(name string, store *database.Store) *spacefs.Page {
+	if store == nil || store.Database() == nil {
+		return spacefs.PageOf(name, nil)
+	}
+	db := store.Database()
+	res := store.Query("", database.QueryOptions{Now: time.Now()})
+	docDir := path.Dir(name)
+	if docDir == "." {
+		docDir = ""
+	}
+	var hdr strings.Builder
+	hdr.WriteString("# ")
+	hdr.WriteString(db.Title)
+	if desc := strings.TrimSpace(db.Description); desc != "" {
+		hdr.WriteString("\n\n")
+		hdr.WriteString(desc)
+	}
+	var colNames []string
+	for _, p := range db.Properties {
+		colNames = append(colNames, p.Name)
+	}
+	hdr.WriteString("\n\n| ")
+	hdr.WriteString(strings.Join(colNames, " | "))
+	hdr.WriteString(" |")
+
+	parts := []spacefs.Part{{Block: "db:header", Text: hdr.String()}}
+	rows := res.Rows
+	if len(rows) == 0 && len(res.Groups) > 0 {
+		for _, g := range res.Groups {
+			rows = append(rows, g.Rows...)
+		}
+	}
+	for _, rec := range rows {
+		if rec == nil {
+			continue
+		}
+		var cells []string
+		for _, p := range db.Properties {
+			if p.Type == database.PropTitle {
+				title := rec.Title
+				if rec.Path != "" {
+					cells = append(cells, fmt.Sprintf("[%s](%s)", title, rec.Path))
+				} else {
+					cells = append(cells, title)
+				}
+				continue
+			}
+			cells = append(cells, database.FormatValue(p, rec.ValueFor(p)))
+		}
+		_ = docDir
+		parts = append(parts, spacefs.Part{Block: "rec:" + rec.ID, Text: "| " + strings.Join(cells, " | ") + " |"})
+	}
+	return spacefs.PageOf(name, parts)
+}
+
 // qaSpace is the space's read-only view, with the unsaved text of its
 // open documents.
 func (a *App) qaSpace(spaceID string) *spacefs.FS {
@@ -344,6 +524,10 @@ func (a *App) qaSpace(spaceID string) *spacefs.FS {
 	}
 	live := map[string]*spacefs.Page{}
 	for _, d := range a.residentDocuments() {
+		if d.space == sp && d.loadErr == nil && d.isDatabase() {
+			live[d.rel] = pageOfDatabaseStore(d.rel, d.dbView.Store)
+			continue
+		}
 		if d.space == sp && d.loadErr == nil && d.dirty() {
 			live[d.rel] = d.qaPage()
 		}
@@ -1115,7 +1299,26 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 		a.doc.board.RevealElement(at.Block)
 		return
 	}
+	if a.doc.isMDZ() {
+		if pagePath, ok := strings.CutPrefix(at.Block, "mdz:"); ok {
+			a.doc.mdz.openPage(pagePath, true, "")
+		}
+		a.doc.mdz.requestFocus = true
+		return
+	}
+	if a.doc.isDatabase() {
+		if key, ok := strings.CutPrefix(at.Block, "rec:"); ok {
+			if rec := findDatabaseRecordByKey(a.doc.dbView.Store, c.Path, key); rec != nil {
+				a.openRecordPeek(a.doc, a.doc.dbView.Store, a.doc.space, rec, dbview.OpenSidePeek)
+			}
+		}
+		return
+	}
 	blocks := a.doc.ed.Doc.Blocks
+	if at.Block == "__frontmatter__" && len(blocks) > 0 {
+		a.doc.ed.RevealBlock(blocks[0].ID)
+		return
+	}
 	id := ""
 	for _, b := range blocks {
 		if at.Block != "" && b.ID == at.Block {
@@ -1130,6 +1333,30 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 	if id != "" {
 		a.doc.ed.RevealBlock(id)
 	}
+}
+
+func findDatabaseRecordByKey(store *database.Store, dbRel, recKey string) *database.Record {
+	if store == nil || strings.TrimSpace(recKey) == "" {
+		return nil
+	}
+	key := strings.TrimSpace(recKey)
+	if u, err := url.PathUnescape(key); err == nil {
+		key = u
+	}
+	if rec := store.Record(key); rec != nil {
+		return rec
+	}
+	clean := strings.TrimPrefix(path.Clean(strings.ReplaceAll(key, `\`, "/")), "./")
+	if rec := store.RecordByPath(clean); rec != nil {
+		return rec
+	}
+	if dir := path.Dir(dbRel); dir != "" && dir != "." {
+		joined := path.Clean(path.Join(dir, clean))
+		if rec := store.RecordByPath(joined); rec != nil {
+			return rec
+		}
+	}
+	return nil
 }
 
 // qaStepMeta breaks a tool call into structured UI parts for the timeline.

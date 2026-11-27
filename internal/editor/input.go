@@ -10,8 +10,64 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func (e *Editor) handleZoomInput(ev ui.InputEvent) bool {
+	if e.onZoom == nil || e.printing || e.HasZoomModal() {
+		return false
+	}
+	if ev.Kind == ui.InputZoom {
+		if ev.Scale > 0 && !math.IsNaN(float64(ev.Scale)) && !math.IsInf(float64(ev.Scale), 0) {
+			next := clampPageZoom(e.zoomFactor() * ev.Scale)
+			if next != e.zoomFactor() {
+				e.onZoom(next)
+			}
+		}
+		return true
+	}
+	if ev.Kind == ui.InputScroll && ev.Mods&(ui.Cmd|ui.Ctrl) != 0 {
+		delta := -ev.DY
+		if delta == 0 {
+			delta = ev.DX
+		}
+		if delta == 0 {
+			return true
+		}
+		if e.zoomWheelAccum != 0 && (delta > 0) != (e.zoomWheelAccum > 0) {
+			e.zoomWheelAccum = 0
+		}
+		e.zoomWheelAccum += delta
+		const notch = float32(24)
+		steps := 0
+		switch {
+		case e.zoomWheelAccum >= notch:
+			steps = 1
+			e.zoomWheelAccum = 0
+		case e.zoomWheelAccum <= -notch:
+			steps = -1
+			e.zoomWheelAccum = 0
+		}
+		if steps != 0 {
+			curPct := int(math.Round(float64(e.zoomFactor()) * 100))
+			var targetPct int
+			if steps > 0 {
+				targetPct = ((curPct / 10) + 1) * 10
+			} else {
+				targetPct = ((curPct - 1) / 10) * 10
+			}
+			next := clampPageZoom(float32(targetPct) / 100)
+			if next != e.zoomFactor() {
+				e.onZoom(next)
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string), open func(string)) bool {
 	e.lastInput = ev.Time
+	if e.handleZoomInput(ev) {
+		return true
+	}
 	e.sync()
 	if e.blockPointer(ev) {
 		return true
@@ -38,6 +94,21 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 		if ev.Button != 0 {
 			return false
 		}
+		if left, right := e.contentSpanAt(ev.Y); ev.X < left || ev.X > right {
+			if e.clickInlineMathPopover(ev.X, ev.Y) {
+				e.blurStage = blurIdle
+				return true
+			}
+			if ev.X < left && ev.Mods == 0 && len(e.handles) > 0 && ev.Y >= e.indexedHandle(0).top-8 && ev.Y <= e.contentEnd {
+				e.blocks.marqueeArm = true
+				e.blocks.marquee = false
+				e.blocks.x0, e.blocks.y0 = ev.X, ev.Y
+				return true
+			}
+			e.blur()
+			return true
+		}
+		e.blurStage = blurIdle
 		e.pendingLink = linkSpan{}
 		e.UnmarkText()
 		e.clearBlocks()
@@ -45,7 +116,7 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 		if !ok {
 			return false
 		}
-		if ev.Mods&ui.Cmd != 0 {
+		if ev.Mods&ui.Cmd != 0 || e.ReadOnly && e.directLinks {
 			if span, ok := e.linkAtPoint(ev.X, ev.Y, false); ok && open != nil {
 				open(span.url)
 				return true
@@ -139,6 +210,28 @@ func (e *Editor) input(ev ui.InputEvent, read func() string, write func(string),
 	return false
 }
 
+// ClearFormatting strips inline formatting (including links, colors,
+// highlights and hand-drawn annotations) from the active text selection,
+// multi-block selection, or typing style at a collapsed caret.
+func (e *Editor) ClearFormatting() {
+	if e.ReadOnly {
+		e.refused = true
+		return
+	}
+	e.UnmarkText()
+	if len(e.blocks.ids) > 0 {
+		e.Engine.ClearBlocksFormatting(e.BlockSelection())
+	} else {
+		e.Engine.ClearFormatting()
+	}
+	e.annotatePanel = false
+	e.markPop.open = false
+	e.drawIn = annotationReveal{}
+	e.sync()
+	e.reveal = true
+	e.RequestFocus = true
+}
+
 func (e *Editor) command(command string, read func() string, write func(string)) bool {
 	// Copy leaves the page where the reader scrolled, even when the
 	// selected text is now offscreen.
@@ -210,6 +303,8 @@ func (e *Editor) command(command string, read func() string, write func(string))
 		e.Wrap("_")
 	case "strikethrough":
 		e.Wrap("~~")
+	case "clearFormatting":
+		e.ClearFormatting()
 	case "delete":
 		e.delete(-1, false, false)
 	default:
@@ -308,6 +403,9 @@ func (e *Editor) key(ev ui.InputEvent, read func() string, write func(string)) b
 	case "code":
 		e.Wrap("`")
 		e.reveal = true
+		return true
+	case "clear-format":
+		e.ClearFormatting()
 		return true
 	case "newline":
 		e.Engine.Insert(document.NewBlock("paragraph", ""))
@@ -628,7 +726,7 @@ func (e *Editor) selectAll() {
 	last := e.Engine.LeafAt(sel.End)
 	if first.Block.ID == last.Block.ID && first.Start < first.End {
 		b := first.Block
-		editable := !(b.Kind == "image" && !e.captionVisible(b)) && !(e.ReadOnly && (b.Kind == "math" || isMermaidBlock(b)))
+		editable := !isDatabaseBlock(b) && !(b.Kind == "image" && !e.captionVisible(b)) && !(e.ReadOnly && (b.Kind == "math" || isMermaidBlock(b)))
 		if editable {
 			candidates = append(candidates, ui.TextInputRange{Start: first.Start, End: first.End})
 		}

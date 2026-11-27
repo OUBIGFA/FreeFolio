@@ -299,7 +299,7 @@ func redactAPIError(e *APIError, secrets ...string) {
 			}
 		}
 		if len(*field) > 500 {
-			*field = (*field)[:500] + "…"
+			*field = truncateUTF8(*field, 500) + "…"
 		}
 	}
 }
@@ -314,6 +314,9 @@ func readChatStream(ctx context.Context, r io.Reader, onDelta func(Delta)) (Resp
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 8<<20)
 	for sc.Scan() {
+		if err := ctx.Err(); err != nil {
+			return Response{}, err
+		}
 		line := sc.Text()
 		data, ok := strings.CutPrefix(line, "data:")
 		if !ok {
@@ -352,6 +355,8 @@ func readChatStream(ctx context.Context, r io.Reader, onDelta func(Delta)) (Resp
 				i := len(calls)
 				if tc.Index != nil {
 					i = *tc.Index
+				} else if tc.ID == "" && tc.Function.Name == "" && len(calls) > 0 {
+					i = len(calls) - 1
 				}
 				call := calls[i]
 				if call == nil {

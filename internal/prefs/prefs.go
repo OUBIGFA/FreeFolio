@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -42,7 +43,8 @@ import (
 // Version 19 adds ComfyUI local directory and server URL preferences;
 // empty values leave managed ComfyUI unconfigured, so version 18 migrates
 // unchanged.
-const CurrentVersion = 19
+// Version 20 adds page zoom, sidebar density and source preview layout; zero preserves defaults.
+const CurrentVersion = 20
 
 // ComfyUIPrefs configures an optional local ComfyUI installation or running
 // server URL reused by FreeFolio for GPU-accelerated workflows.
@@ -51,8 +53,17 @@ type ComfyUIPrefs struct {
 	URL string `json:"url,omitempty"`
 }
 
+// Page zoom bounds and discrete keyboard/menu step (10%).
+const (
+	MinPageZoom     float32 = 0.50
+	MaxPageZoom     float32 = 2.00
+	DefaultPageZoom float32 = 1.00
+	PageZoomStep    float32 = 0.10
+)
+
 // Prefs are the preferences.
 type Prefs struct {
+	PageZoom             float32      `json:"pageZoom,omitempty"`
 	ResourceDir          string       `json:"resourceDir,omitempty"`
 	ComfyUI              ComfyUIPrefs `json:"comfyUI,omitzero"`
 	BodyFont             string       `json:"bodyFont,omitempty"`
@@ -109,9 +120,12 @@ type Prefs struct {
 	// the system.
 	Language string `json:"language,omitempty"`
 	// Font is the body text's typeface, one of Fonts ("" the system's);
-	// Page the text column's width, one of Pages ("" the standard 820).
-	Font string `json:"font,omitempty"`
-	Page string `json:"page,omitempty"`
+	// Page the text column's width, one of Pages ("" the standard 820);
+	// SidebarDensity the sidebar file tree row density, one of SidebarDensities
+	// ("" the standard 32 DIP row height).
+	Font           string `json:"font,omitempty"`
+	Page           string `json:"page,omitempty"`
+	SidebarDensity string `json:"sidebarDensity,omitempty"`
 	// Typewriter keeps the line being written in the middle of the page.
 	Typewriter bool `json:"typewriter,omitempty"`
 	// DrawAnnotations lets the hand-drawn marks in view draw themselves,
@@ -122,7 +136,8 @@ type Prefs struct {
 	NoDim bool `json:"noDim,omitempty"`
 	// OutlineClosed collapses the outline right of the page, which is open
 	// by default.
-	OutlineClosed bool `json:"outlineClosed,omitempty"`
+	OutlineClosed      bool `json:"outlineClosed,omitempty"`
+	SourceSplitSwapped bool `json:"sourceSplitSwapped,omitempty"`
 	// Keys rebind commands, by their IDs, to shortcuts written as
 	// "Cmd+Shift+K"; a command left out keeps its default.
 	Keys map[string]string `json:"keys,omitempty"`
@@ -229,11 +244,68 @@ func (p *Prefs) ReadingLine() float32 {
 	return 26.0 / 16
 }
 
-// Fonts are the typefaces body text may be set in, and Pages the widths
-// of the text column, by the names prefs.json keeps them under.
+// NormalizePageZoom clamps zoom to [MinPageZoom, MaxPageZoom] rounded to whole
+// percents, returning DefaultPageZoom for invalid or non-positive values.
+func NormalizePageZoom(z float32) float32 {
+	if math.IsNaN(float64(z)) || math.IsInf(float64(z), 0) || z <= 0 {
+		return DefaultPageZoom
+	}
+	pct := math.Round(float64(z) * 100)
+	if pct < float64(MinPageZoom*100) {
+		pct = float64(MinPageZoom * 100)
+	}
+	if pct > float64(MaxPageZoom*100) {
+		pct = float64(MaxPageZoom * 100)
+	}
+	return float32(pct / 100)
+}
+
+// StepPageZoom moves cur up (delta > 0) or down (delta < 0) in PageZoomStep
+// (10%) stops within [MinPageZoom, MaxPageZoom].
+func StepPageZoom(cur float32, delta int) float32 {
+	z := NormalizePageZoom(cur)
+	if delta == 0 {
+		return z
+	}
+	pct := int(math.Round(float64(z) * 100))
+	step := int(math.Round(float64(PageZoomStep) * 100))
+	minPct := int(math.Round(float64(MinPageZoom) * 100))
+	maxPct := int(math.Round(float64(MaxPageZoom) * 100))
+	if delta > 0 {
+		next := ((pct / step) + 1) * step
+		if delta > 1 {
+			next += (delta - 1) * step
+		}
+		if next > maxPct {
+			next = maxPct
+		}
+		return float32(next) / 100
+	}
+	next := ((pct - 1) / step) * step
+	if delta < -1 {
+		next += (delta + 1) * step
+	}
+	if next < minPct {
+		next = minPct
+	}
+	return float32(next) / 100
+}
+
+// Zoom returns the document page zoom factor (1.0 when unset).
+func (p *Prefs) Zoom() float32 {
+	if p == nil {
+		return DefaultPageZoom
+	}
+	return NormalizePageZoom(p.PageZoom)
+}
+
+// Fonts are the typefaces body text may be set in, Pages the widths
+// of the text column, and SidebarDensities the sidebar row densities,
+// by the names prefs.json keeps them under.
 var (
-	Fonts = []string{"", "serif", "kai", "mono"}
-	Pages = []string{"narrow", "", "wide", "full"}
+	Fonts            = []string{"", "serif", "kai", "mono"}
+	Pages            = []string{"narrow", "", "wide", "full"}
+	SidebarDensities = []string{"compact", "", "comfortable"}
 )
 
 // fontFamilies are the family lists of Fonts: the first a system has sets
@@ -269,6 +341,22 @@ func (p *Prefs) Column() float32 {
 // FullWidth reports whether the text column spans the page (ArcMD 8e9fecf).
 func (p *Prefs) FullWidth() bool { return p.Page == "full" }
 
+// SidebarRowHeight returns the sidebar file tree row height in DIPs:
+// 28 compact, 32 standard (default), 40 comfortable.
+func (p *Prefs) SidebarRowHeight() float32 {
+	if p == nil {
+		return 32
+	}
+	switch p.SidebarDensity {
+	case "compact":
+		return 28
+	case "comfortable":
+		return 40
+	default:
+		return 32
+	}
+}
+
 func (p *Prefs) normalizeReading() {
 	if p.Language != "zh-Hans" && p.Language != "en" {
 		p.Language = ""
@@ -279,10 +367,21 @@ func (p *Prefs) normalizeReading() {
 	if p.Page != "narrow" && p.Page != "wide" && p.Page != "full" {
 		p.Page = ""
 	}
+	if p.SidebarDensity != "compact" && p.SidebarDensity != "comfortable" {
+		p.SidebarDensity = ""
+	}
 	if !(p.FontSize >= 12 && p.FontSize <= 28) {
 		p.FontSize = 0
 	}
 	if !(p.LineHeight >= 1.2 && p.LineHeight <= 2.2) {
 		p.LineHeight = 0
+	}
+	if p.PageZoom != 0 {
+		z := NormalizePageZoom(p.PageZoom)
+		if z == DefaultPageZoom {
+			p.PageZoom = 0
+		} else {
+			p.PageZoom = z
+		}
 	}
 }

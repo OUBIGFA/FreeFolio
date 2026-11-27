@@ -155,6 +155,10 @@ func (a *App) beginSplit() bool {
 	}
 	s := &splitGroup{panes: []*splitPane{{doc: a.doc, history: slices.Clone(a.history), at: a.at, factor: 1, shownFactor: 1, shownReady: true}}}
 	a.split = s
+	if a.files != nil {
+		a.focus = false
+		return true
+	}
 	session := a.session(a.state.ActiveSpace().ID)
 	session.split = s
 	session.splitRestored = true
@@ -212,6 +216,9 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 	}
 	text, err := readFile(sp, rel)
 	if err != nil {
+		if a.noteMissingExternal(sp, rel, err) {
+			return
+		}
 		a.notify("打开 %s 失败；%v", vault.Title(rel), err)
 		return
 	}
@@ -265,7 +272,7 @@ func (a *App) closePane(index int) {
 	a.selectSplitActive()
 	if len(s.panes) < 2 {
 		a.split = nil
-		if sp := a.state.ActiveSpace(); sp != nil {
+		if sp := a.state.ActiveSpace(); a.files == nil && sp != nil {
 			a.session(sp.ID).split = nil
 		}
 	} else {
@@ -285,6 +292,26 @@ func (a *App) selectSplitActive() {
 }
 
 func (a *App) separateSplit() {
+	if a.files != nil && a.split != nil {
+		a.syncSplit()
+		current := a.doc
+		var leaving []*document
+		for _, pane := range a.split.panes {
+			if pane.doc != nil && pane.doc != current {
+				leaving = append(leaving, pane.doc)
+			}
+		}
+		if !a.leaveDocs(leaving, a.separateSplit) {
+			return
+		}
+		a.split = nil
+		a.palette.open = false
+		a.retireClosedDocuments(leaving...)
+		if current != nil {
+			current.requestFocus()
+		}
+		return
+	}
 	s := a.split
 	if s == nil {
 		return
@@ -350,8 +377,16 @@ func (a *App) residentDocuments() []*document {
 		}
 	}
 	add(a.doc)
+	if a.files != nil && a.split != nil {
+		for _, p := range a.split.panes {
+			add(p.doc)
+		}
+	}
 	if a.files != nil {
 		add(a.files.previous)
+	}
+	if a.dbPeek.open && a.dbPeek.doc != nil {
+		add(a.dbPeek.doc)
 	}
 	for _, s := range a.sessions {
 		add(s.doc)
@@ -409,7 +444,6 @@ func (a *App) withDocument(d *document, fn func()) {
 	a.doc = d
 	a.documentContext++
 	fn()
-	a.documentContext--
 	replacement := a.doc
 	for _, s := range a.sessions {
 		if s.doc == d {
@@ -442,9 +476,16 @@ func (a *App) withDocument(d *document, fn func()) {
 			parent.boardOverlay = replacement
 		}
 	}
+	if a.dbPeek.doc == d {
+		a.dbPeek.doc = replacement
+	}
+	if a.dbPeek.dbDoc == d {
+		a.dbPeek.dbDoc = replacement
+	}
 	if selected != d {
 		a.doc = selected
 	}
+	a.documentContext--
 	if a.documentContext == 0 && replacement != d {
 		a.retireClosedDocuments(d)
 	}
@@ -502,6 +543,10 @@ func (a *App) fillPane(pane *splitPane, id, rel string) bool {
 		return false
 	}
 	index := slices.Index(s.panes, pane)
+	if a.files != nil && id == a.files.locations.ID && index >= 0 {
+		a.focusPane(index, false)
+		return a.showFileTab(rel)
+	}
 	if index < 0 || a.state.Get(id) == nil {
 		return false
 	}
@@ -544,11 +589,32 @@ func (a *App) replaceReferences(old, replacement *document) {
 			parent.boardOverlay = replacement
 		}
 	}
+	if a.files != nil && a.split != nil {
+		for _, p := range a.split.panes {
+			if p.doc == old {
+				p.doc = replacement
+			}
+		}
+	}
 	if a.files != nil && old != nil && a.files.previous == old {
 		a.files.previous = replacement
 	}
 	if a.doc == old {
 		a.doc = replacement
+	}
+	if old != nil {
+		if replacement == nil {
+			if a.dbPeek.doc == old || a.dbPeek.dbDoc == old {
+				a.closeRecordPeek()
+			}
+		} else {
+			if a.dbPeek.doc == old {
+				a.dbPeek.doc = replacement
+			}
+			if a.dbPeek.dbDoc == old {
+				a.dbPeek.dbDoc = replacement
+			}
+		}
 	}
 	for _, w := range a.windows {
 		if w.doc == old && old != nil {
@@ -585,6 +651,7 @@ func (a *App) followSplitPaths(fromID, from, toID, to string) {
 		if d.space.ID == fromID && within(d.rel, from) {
 			d.space = a.state.Get(toID)
 			d.rel = to + d.rel[len(from):]
+			d.syncMovedPath()
 		}
 	}
 	rewrite := func(h []place) {
@@ -610,7 +677,18 @@ func (a *App) grouped(sp *space.Space, rel string) bool {
 	if inPins(sp, rel) {
 		return false
 	}
-	if s := a.session(sp.ID).split; s != nil {
+	session := a.session(sp.ID)
+	if session.splitDeferred {
+		if sp.Split != nil && len(sp.Split.Panes) >= 2 && len(sp.Split.Panes) <= splitLimit {
+			for _, ref := range sp.Split.Panes {
+				if ref.Space == sp.ID && ref.Path == rel {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if s := session.split; s != nil {
 		for _, p := range s.panes {
 			if p.doc != nil && p.doc.space == sp && p.doc.rel == rel {
 				return true

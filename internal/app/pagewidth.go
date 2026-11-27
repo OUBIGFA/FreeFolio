@@ -31,7 +31,7 @@ func pageWidthLabel(page string) string {
 // canAdjustPageWidth reports whether d lays its text out in the column:
 // a rich text page, not a whiteboard, PDF or Markdown source.
 func canAdjustPageWidth(d *document) bool {
-	return d != nil && d.loadErr == nil && !d.source && d.board == nil && d.boardOverlay == nil && !d.isPDF()
+	return d != nil && d.loadErr == nil && !d.source && d.board == nil && d.boardOverlay == nil && !d.isPDF() && !d.isDatabase() && (!d.isMDZ() || d.mdz.hasActivePage())
 }
 
 func (a *App) setPageWidth(page string) {

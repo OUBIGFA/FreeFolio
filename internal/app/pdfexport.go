@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
+	"github.com/OUBIGFA/FreeFolio/internal/editor/dbview"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/pdf"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
@@ -39,7 +41,7 @@ func (a *App) printDoc()  { a.startPDF(true) }
 
 func (a *App) startPDF(printing bool) {
 	d := a.doc
-	if d == nil || d.loadErr != nil || d.isPDF() || a.pdfExport != nil {
+	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() || d.isDatabase() || a.pdfExport != nil {
 		return
 	}
 	d.ed.UnmarkText()
@@ -69,7 +71,7 @@ func (a *App) startPDF(printing bool) {
 		w.RegisterFontData(pdf.FontMathItalic, false, true, it)
 		w.RegisterFontData(pdf.FontMathItalic, true, true, boldIt)
 	}
-	a.pdfExport = &pdfExport{source: source, title: d.title(), ed: editor.FromDocument(d.ed.Committed()), file: file,
+	a.pdfExport = &pdfExport{source: source, title: d.title(), ed: editor.FromDocument(d.committedForRead()), file: file,
 		writer: w, open: true, printing: printing, next: a.now.Add(time.Millisecond)}
 	if d.board != nil {
 		a.pdfExport.board = d.board.Scene.Clone()
@@ -155,6 +157,10 @@ func (a *App) pdfExportView(c *ui.Context) {
 				}
 				return job.source.rawImage(url)
 			},
+			LoadDatabase: func(target string) (*database.Store, dbview.Options, uint64, error) {
+				return a.loadDatabaseFor(job.source, target)
+			},
+			DatabaseSnapshot: func(target, viewID string) string { return a.databaseSnapshotFor(job.source, target, viewID) },
 		}
 		ui.Render(func(c *ui.Context) { job.tops = job.ed.Paginate(job.opts, paperHeight-2*paperMargin) }, 1, 1, 1)
 		job.writer.ReservePages(len(job.tops))
@@ -267,9 +273,28 @@ func (a *App) finishPDF(job *pdfExport) {
 		return
 	}
 	a.notify("已导出 %s（%d 页）", rel, len(job.tops))
-	if a.win != nil {
-		if file, err := resolveFile(job.source.space, rel); err == nil {
-			mygo.Shell.ShowItemInFolder(file)
+	if full, rErr := resolveFile(job.source.space, rel); rErr == nil {
+		if sp := a.state.ActiveSpace(); sp != nil && !sp.IsExternal() && sp.Root != "" {
+			if job.source.space.ID == sp.ID || isInsideDir(sp.Root, full) {
+				a.refreshTree()
+			}
+		}
+		if a.win != nil {
+			mygo.Shell.ShowItemInFolder(full)
 		}
 	}
+}
+
+func isInsideDir(root, full string) bool {
+	if r, err := filepath.Rel(root, full); err == nil && filepath.IsLocal(r) {
+		return true
+	}
+	rRoot, err1 := filepath.EvalSymlinks(root)
+	rFull, err2 := filepath.EvalSymlinks(full)
+	if err1 == nil && err2 == nil {
+		if r, err := filepath.Rel(rRoot, rFull); err == nil && filepath.IsLocal(r) {
+			return true
+		}
+	}
+	return false
 }

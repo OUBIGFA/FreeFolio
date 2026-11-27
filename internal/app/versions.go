@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/history"
@@ -24,6 +25,8 @@ import (
 
 // versionsState is the history window's.
 type versionsState struct {
+	dbText string
+
 	loading   bool
 	preview   *editor.Editor
 	marks     map[string]bool
@@ -86,7 +89,7 @@ func (d *document) shownPath() string {
 // openVersions shows the history of the open document.
 func (a *App) openVersions() {
 	d := a.doc
-	if d == nil || d.loadErr != nil || d.isPDF() {
+	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() {
 		a.notify("这篇文档还没有版本历史")
 		return
 	}
@@ -126,13 +129,18 @@ func (a *App) selectVersion(i int) {
 	}
 	v.shown, v.doc, v.diff, v.err = ver.File, nil, nil, nil
 	v.board = nil
+	v.dbText = ""
 	v.preview = nil
 	v.loading = true
 	d := v.for_
 	root, rel := d.space.Root, d.rel
 	base := d.ed.Committed().Clone()
 	isBoard := d.board != nil
+	isDB := d.isDatabase()
 	current := base.PlainText()
+	if isDB {
+		current = extractDatabaseSearchText(d.rel, d.text()).Text
+	}
 	if isBoard {
 		current = d.board.Scene.PlainText()
 	}
@@ -143,7 +151,14 @@ func (a *App) selectVersion(i int) {
 		var diff []history.Line
 		var marks map[string]bool
 		if err == nil {
-			if isBoard {
+			if isDB {
+				var db *database.Database
+				db, err = database.DecodeDatabaseMarkdown(text)
+				if err == nil {
+					doc = editor.ImportMarkdown(database.RenderGFMSnapshot(parentDir(rel), db, nil))
+					diff = history.Diff(strings.Split(current, "\n"), strings.Split(extractDatabaseSearchText(rel, text).Text, "\n"))
+				}
+			} else if isBoard {
 				scene, err = whiteboard.Decode(text)
 				if err == nil {
 					doc = model.New()
@@ -171,6 +186,9 @@ func (a *App) selectVersion(i int) {
 				return
 			}
 			v.doc, v.diff, v.marks = doc, diff, marks
+			if isDB {
+				v.dbText = text
+			}
 			if scene != nil {
 				v.board = editor.NewBoard(scene)
 			} else {
@@ -203,8 +221,27 @@ func (a *App) restoreVersion() {
 		return
 	}
 	at := v.versions[v.sel].Time
+	if v.dbText != "" && a.doc.isDatabase() {
+		db, err := database.DecodeDatabaseMarkdown(v.dbText)
+		if err == nil {
+			err = a.doc.dbView.Store.RestoreSchema(db)
+		}
+		if err != nil {
+			a.notify("恢复数据库版本失败；%v", err)
+			return
+		}
+		a.doc.dbDirtySnapshot = true
+		v.open = false
+		a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
+		return
+	}
 	a.doc.ed.Engine.ReplaceDocument(v.doc)
-	a.doc.ed.RequestFocus = true
+	if a.doc.source {
+		a.doc.refreshSourceFromModel()
+		a.doc.sourceFocusPending = true
+	} else {
+		a.doc.ed.RequestFocus = true
+	}
 	v.open = false
 	a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
 }

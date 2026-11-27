@@ -54,6 +54,136 @@ func TestInlineMathUTF16EditingAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestInlineMathDigitStartAndAdjacentLiteralDollarRoundTrip(t *testing.T) {
+	// Issue #91: digit-starting inline formulas ($1$, $0$, $1 \le i \le n$)
+	// followed by $a_i$, plus adjacent escaped/code '$' and spaced \(...\)/$$...$$.
+	cases := []struct {
+		name      string
+		src       string
+		wantCount int
+		wantNoEsc bool
+	}{
+		{
+			name:      "digit-range-then-ai",
+			src:       `设 $1 \le i \le n$，则 $a_i$ 满足条件。`,
+			wantCount: 2,
+			wantNoEsc: true,
+		},
+		{
+			name:      "digit-only-and-ai",
+			src:       `取 $0$、$1$ 与 $a_i$`,
+			wantCount: 3,
+			wantNoEsc: true,
+		},
+		{
+			name:      "digit-coeff",
+			src:       `系数 $2a_i + 1$ 为正`,
+			wantCount: 1,
+			wantNoEsc: true,
+		},
+		{
+			name:      "escaped-dollar-before-ai",
+			src:       `花费 \$5，$a_i$ 成立`,
+			wantCount: 1,
+		},
+		{
+			name:      "code-dollar-before-ai",
+			src:       "符号 `$`，$a_i$ 成立",
+			wantCount: 1,
+		},
+		{
+			name:      "code-backslash-before-ai",
+			src:       "符号 `\\`$a_i$ 成立",
+			wantCount: 1,
+		},
+		{
+			name:      "unclosed-dollar-prev-line-soft",
+			src:       "unclosed $foo\nnext line $a_i$",
+			wantCount: 1,
+		},
+		{
+			name:      "unclosed-dollar-prev-line-hard",
+			src:       "unclosed $foo  \nnext line $a_i$",
+			wantCount: 1,
+		},
+		{
+			name:      "spaced-paren-and-inline-double-dollar",
+			src:       `前缀 \( a_i \) 与 $$ b_j $$ 后缀`,
+			wantCount: 2,
+		},
+		{
+			name:      "heading-digit-and-ai",
+			src:       `## $1 \le i \le n$ 与 $a_i$`,
+			wantCount: 2,
+			wantNoEsc: true,
+		},
+	}
+
+	countObjects := func(ed *Editor) int {
+		total := 0
+		for _, r := range ed.rows {
+			if r.layout != nil {
+				total += len(r.layout.objects)
+			}
+		}
+		return total
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, _ := newTester(tc.src)
+			if got := countObjects(e); got != tc.wantCount {
+				t.Fatalf("initial render objects = %d, want %d; runs=%+v", got, tc.wantCount, e.Doc.Blocks[0].Runs)
+			}
+			// Edit end of paragraph to force re-serialization (not raw ImportSource reuse),
+			// then re-import and verify formulas still render without corrupting into $a_i\$.
+			e.SetSelection(e.Len(), e.Len())
+			e.ReplaceText(nil, "!")
+			exported := ExportMarkdown(e.Doc)
+			if strings.Contains(exported, `$a_i\$`) || strings.Contains(exported, `a_i\$`) {
+				t.Fatalf("exported Markdown corrupted closing dollar into \\$: %q", exported)
+			}
+			if tc.wantNoEsc && strings.Contains(exported, `\$`) {
+				t.Fatalf("unexpected escaped dollar in exported Markdown: %q", exported)
+			}
+			reopened, _ := newTester(exported)
+			if got := countObjects(reopened); got != tc.wantCount {
+				t.Fatalf("reopened render objects = %d, want %d; exported=%q runs=%+v", got, tc.wantCount, exported, reopened.Doc.Blocks[0].Runs)
+			}
+		})
+	}
+
+	// Link URL containing '$' must stay untouched while math in link/prose still works.
+	linkSrc := `见 [链接](https://example.com/$a$/$b$) 与 $1 \le i \le n$ 和 $a_i$`
+	e, _ := newTester(linkSrc)
+	if got := len(e.rows[0].layout.objects); got != 2 {
+		t.Fatalf("link case objects = %d, want 2; runs=%+v", got, e.Doc.Blocks[0].Runs)
+	}
+	foundLink := false
+	for _, r := range e.Doc.Blocks[0].Runs {
+		if r.Style.Link == "https://example.com/$a$/$b$" {
+			foundLink = true
+			break
+		}
+	}
+	if !foundLink {
+		t.Fatalf("link destination corrupted: %+v", e.Doc.Blocks[0].Runs)
+	}
+
+	// GFM table cells with digit-starting math and $a_i$.
+	tableSrc := "| 序号 | 公式 |\n| --- | --- |\n| $1$ | $1 \\le i \\le n$，$a_i$ |\n"
+	te, _ := newTester(tableSrc)
+	row := te.Doc.Blocks[0].Children[1]
+	c0 := row.Children[0]
+	c1 := row.Children[1]
+	if got := len(inlineTokensInBlock(c0, c0.Text())); got != 1 {
+		t.Fatalf("table cell 0 tokens = %d, want 1; runs=%+v", got, c0.Runs)
+	}
+	if got := len(inlineTokensInBlock(c1, c1.Text())); got != 2 {
+		t.Fatalf("table cell 1 tokens = %d, want 2; runs=%+v", got, c1.Runs)
+	}
+}
+
 func TestClipboardMarkdownHTMLAndLiteralPaste(t *testing.T) {
 	for _, source := range []string{"# Title", "- one\n- two", "| a | b |\n|---|---|\n| 1 | 2 |", "```go\nx := 1\n```"} {
 		e, tt := newTester("")
@@ -364,5 +494,105 @@ func TestFootnoteHoverPreview(t *testing.T) {
 	tt.Frame()
 	if tt.HasText("Proof note body.") {
 		t.Fatal("preview stayed after the pointer left")
+	}
+}
+
+func TestReadOnlyDirectLinksAndCustomNotice(t *testing.T) {
+	e := New("[Jump](guide/setup.md)")
+	e.ReadOnly = true
+	var opened string
+	tt := ui.NewTester(func(c *ui.Context) {
+		View(c, e, Options{
+			Width:          820,
+			Theme:          c.Theme(),
+			DirectLinks:    true,
+			ReadOnlyNotice: "MDZip archive is read-only",
+			OpenLink:       func(u string) { opened = u },
+		})
+	}, 820, 600)
+	tt.Frame()
+
+	b, ok := tt.Find("文档")
+	if !ok {
+		t.Fatal("missing editor surface")
+	}
+	r := e.rows[0]
+	rects := r.layout.SelectionRects(ui.TextInputRange{Start: 0, End: r.leaf.End - r.leaf.Start})
+	if len(rects) == 0 {
+		t.Fatal("missing link rect")
+	}
+	cx := b.X + r.x + rects[0].X + rects[0].W/2
+	cy := b.Y + r.y + rects[0].Y + rects[0].H/2
+	tt.ClickAt(cx, cy)
+	tt.Frame()
+	if opened != "guide/setup.md" {
+		t.Fatalf("single click with DirectLinks=true opened %q, want guide/setup.md", opened)
+	}
+	if e.readOnlyNotice != "MDZip archive is read-only" {
+		t.Fatalf("readOnlyNotice = %q", e.readOnlyNotice)
+	}
+}
+
+func TestOverlayBlocksEditorHover(t *testing.T) {
+	e := New("# Heading\n\nFirst paragraph\n\nSecond paragraph")
+	overlayOpen := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		View(c, e, Options{Width: 800, Theme: c.Theme()})
+		if overlayOpen {
+			ui.Overlay(c, func() {
+				ui.Box(c.Key("test-overlay")).Absolute().Left(500).Top(0).Size(260, 400).
+					Background(c.Theme().Surface).Children(func() {
+					ui.Text(c, "Overlay Menu")
+				})
+			})
+		}
+	}, 800, 600)
+	tt.Frame()
+
+	b, ok := tt.Find("文档")
+	if !ok {
+		t.Fatal("missing editor surface")
+	}
+	targetLeaf := e.Doc.Leaves()[2]
+	r, _, ok := e.BoundsForRange(ui.TextInputRange{Start: targetLeaf.Start, End: targetLeaf.Start})
+	if !ok {
+		t.Fatal("missing bounds for target paragraph")
+	}
+	px := b.X + 560
+	py := b.Y + r.Y + r.H/2
+
+	// Unoccluded hover over the paragraph updates pointerInside and hoverID.
+	tt.Move(px, py)
+	tt.Frame()
+	if !e.pointerInside || e.hoverID != targetLeaf.Owner {
+		t.Fatalf("expected hover on %q, got inside=%v hoverID=%q", targetLeaf.Owner, e.pointerInside, e.hoverID)
+	}
+
+	// Opening an overlay covering the pointer at the same Y blocks editor hover.
+	overlayOpen = true
+	tt.Frame()
+	tt.Move(px+4, py)
+	tt.Frame()
+	if e.pointerInside || e.hoverID != "" {
+		t.Fatalf("overlay failed to block editor hover: inside=%v hoverID=%q", e.pointerInside, e.hoverID)
+	}
+
+	// Moving onto the sibling "添加图标" header button keeps pointerInside true
+	// and does not flicker/unmount the button.
+	overlayOpen = false
+	tt.Frame()
+	tt.Move(b.X+e.padding+10, b.Y+16)
+	tt.Frame()
+	addIcon, ok := tt.Find("添加图标")
+	if !ok {
+		t.Fatal("expected 添加图标 button when pointer is near top of page")
+	}
+	tt.Move(addIcon.X+addIcon.W/2, addIcon.Y+addIcon.H/2)
+	tt.Frame()
+	if !e.pointerInside {
+		t.Fatal("pointerInside became false when hovering sibling header button")
+	}
+	if _, ok := tt.Find("添加图标"); !ok {
+		t.Fatal("添加图标 button unmounted while hovered")
 	}
 }

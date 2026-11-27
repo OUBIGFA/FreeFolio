@@ -19,6 +19,7 @@ func (e *Editor) Paginate(o Options, height float32) []float32 {
 	e.printPageH = height
 	e.ready = false
 	e.mathEditing, e.mermaidEditing, e.inlineEditing = "", "", ""
+	e.loadDatabase, e.databaseSnapshot = o.LoadDatabase, o.DatabaseSnapshot
 	e.page = pageOf(o.Page, o.Theme)
 	e.layout(o)
 	end := e.contentEnd + 24
@@ -29,7 +30,7 @@ func (e *Editor) Paginate(o Options, height float32) []float32 {
 		cuts = append(cuts, h.top-4)
 	}
 	for _, r := range e.rows {
-		if r.layout == nil || r.leaf.Block.ID != r.leaf.Owner || r.picture != nil || r.board != nil || r.math != nil || (r.mermaid != nil && r.mermaidHidden) {
+		if r.dbEmbed || r.layout == nil || r.leaf.Block.ID != r.leaf.Owner || r.picture != nil || r.board != nil || r.math != nil || (r.mermaid != nil && r.mermaidHidden) {
 			continue
 		}
 		for _, l := range r.layout.Lines()[1:] {
@@ -80,7 +81,7 @@ type PrintText struct {
 func (e *Editor) PageText(top, bottom float32) []PrintText {
 	var out []PrintText
 	for _, row := range e.rows {
-		if row.layout == nil || row.picture != nil || row.board != nil || row.mathHidden || row.mermaidHidden || row.rect.Y+row.rect.H <= top || row.rect.Y >= bottom {
+		if row.dbEmbed || row.layout == nil || row.picture != nil || row.board != nil || row.mathHidden || row.mermaidHidden || row.rect.Y+row.rect.H <= top || row.rect.Y >= bottom {
 			continue
 		}
 		text := row.leaf.Block.Text()

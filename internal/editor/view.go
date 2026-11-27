@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	"github.com/OUBIGFA/FreeFolio/internal/document"
+	"github.com/OUBIGFA/FreeFolio/internal/editor/dbview"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/mermaid"
 	"github.com/OUBIGFA/FreeFolio/internal/tex"
@@ -25,6 +27,8 @@ type layoutPageKey struct {
 	noteKey                      string
 	codeNoWrap                   bool
 	noWideTables                 bool
+	zoom                         float32
+	fullWidth                    bool
 }
 
 func sameLayoutPageKey(a, b layoutPageKey) bool {
@@ -33,11 +37,19 @@ func sameLayoutPageKey(a, b layoutPageKey) bool {
 		a.lineHeight == b.lineHeight &&
 		a.fontFamily == b.fontFamily &&
 		a.column == b.column &&
+		a.zoom == b.zoom &&
+		a.fullWidth == b.fullWidth &&
 		a.noteKey == b.noteKey &&
 		a.codeNoWrap == b.codeNoWrap &&
 		a.noWideTables == b.noWideTables &&
 		samePage(a.page, b.page)
 }
+
+const (
+	blurIdle uint8 = iota
+	blurClear
+	blurHold
+)
 
 type Editor struct {
 	// Locked keeps the editor read-only for good: documents FreeFolio only
@@ -87,6 +99,7 @@ type Editor struct {
 	// embedEdit is the address of an embed that cannot show, as it is
 	// edited in its notice: the block's id and the draft (images.go).
 	embedEdit                                      struct{ id, draft string }
+	blurStage                                      uint8
 	imageViewer                                    imageViewer
 	width, height, viewport, padding, rightPadding float32
 	cacheRevision                                  uint64
@@ -141,6 +154,7 @@ type Editor struct {
 	laidBlank                 bool
 	dropFiles                 func([]string, int)
 	fileOver                  float32
+	fileDragInside            bool
 	slashOpen                 bool
 	slashQuery                string
 	slashIndex                int
@@ -161,34 +175,41 @@ type Editor struct {
 	noteOriginID              string
 	noteOriginOffset          int
 	readingSize, readingLine  float32
+	pageZoom                  float32
+	onZoom                    func(float32)
+	zoomWheelAccum            float32
 	fontFamily                string
 	openLink                  func(string)
 	// openVideo is the host's, and video the one playing (video.go).
-	openVideo     func(string) (*ui.VideoPlayer, error)
-	video         videoState
-	outline       []outlineItem
-	outlineState  outlineState
-	pointer       ui.Point
-	pointerInside bool
-	copiedID      string
-	copiedAt      time.Time
-	page          Page
-	laidPage      layoutPageKey
-	colorOpen     bool
-	colorID       string
-	langOpen      bool
-	langID        string
-	langAt        ui.Rect
-	colorAt       ui.Rect
-	words         int
-	wordsRevision uint64
-	wordsReady    bool
-	wordCache     map[string]cachedWordCount
-	accessDoc     *document.Document
-	accessRev     uint64
-	accessStart   int
-	accessEnd     int
-	accessVal     string
+	openVideo                                    func(string) (*ui.VideoPlayer, error)
+	video                                        videoState
+	outline                                      []outlineItem
+	outlineState                                 outlineState
+	pointer                                      ui.Point
+	pointerInside                                bool
+	copiedID                                     string
+	copiedAt                                     time.Time
+	page                                         Page
+	laidPage                                     layoutPageKey
+	colorOpen                                    bool
+	colorID                                      string
+	langOpen                                     bool
+	langID                                       string
+	langAt                                       ui.Rect
+	colorAt                                      ui.Rect
+	words                                        int
+	wordsRevision                                uint64
+	wordsReady                                   bool
+	wordCache                                    map[string]cachedWordCount
+	accessDoc                                    *document.Document
+	accessRev                                    uint64
+	accessStart                                  int
+	accessEnd                                    int
+	accessVal                                    string
+	directLinks, disableFind, hideReadOnlyNotice bool
+	readOnlyNotice                               string
+	hideFrontmatter                              bool
+	laidFM                                       frontmatterLayoutKey
 	// wiki completes the [[link]] being typed (wikilinks.go).
 	wiki wikiState
 	// footerH is the height the host's footer took the last frame.
@@ -241,12 +262,24 @@ type Editor struct {
 	// codeOpen are the long code blocks opened from their fold; codeTall
 	// those whose text, as laid out or estimated, stands taller than the
 	// fold (codefold.go).
-	codeOpen      map[string]bool
-	codeTall      map[string]bool
-	codeScrollX   map[string]float32
-	codeBarDrag   string
-	codeBarGrab   float32
-	mermaidViewer mermaidViewer
+	codeOpen         map[string]bool
+	codeTall         map[string]bool
+	codeScrollX      map[string]float32
+	codeBarDrag      string
+	codeBarGrab      float32
+	mermaidViewer    mermaidViewer
+	dbHeights        map[string]float32
+	dbDragID         string
+	dbDragStartH     float32
+	dbStates         map[string]*dbview.State
+	dbSyncedView     map[string]string
+	dbPickerOpen     bool
+	dbPickerQuery    string
+	loadDatabase     func(string) (*database.Store, dbview.Options, uint64, error)
+	openDatabase     func(string, string, bool)
+	listDatabases    func() []database.SpaceDBInfo
+	createDatabase   func(string) (string, string, string, error)
+	databaseSnapshot func(string, string) string
 	// bookmarks are the host's marks on the page (bookmarks.go).
 	bookmarks bookmarkState
 	// reserved are keys the host takes, which the page leaves alone.
@@ -332,6 +365,10 @@ type row struct {
 	mermaidErr    string
 	mermaidError  *ui.TextLayout
 	yApplied      float64
+	dbEmbed       bool
+	dbRect        ui.Rect
+	dbPrintTitle  string
+	dbPrintRows   [][]string
 }
 
 // decoration is what the page draws behind its text: the fill of a code
@@ -369,6 +406,7 @@ type decoration struct {
 	foldable, folded bool
 	lines            int
 	yApplied         float64
+	dbEmbed          bool
 }
 
 // hovered reports whether the pointer is over r, with slack around it for
@@ -424,9 +462,14 @@ func (e *Editor) paintLanguage(p *ui.Painter, r ui.Rect, d decoration, t *ui.The
 	p.Icon(iconChevron, ui.Rect{X: r.X + 6 + w, Y: r.Y + 4, W: 14, H: 14}, e.page.Placeholder)
 }
 
-// calloutIconRect is a callout's icon, which picks its color.
+// calloutIconRect is a callout's icon at 100% zoom, which picks its color.
 func calloutIconRect(d decoration) ui.Rect {
 	return ui.Rect{X: d.rect.X + 16, Y: d.rect.Y + 17, W: 24, H: 24}
+}
+
+func (e *Editor) calloutIconBox(d decoration) ui.Rect {
+	z := e.zoomFactor()
+	return ui.Rect{X: d.rect.X + 16*z, Y: d.rect.Y + 17*z, W: 24 * z, H: 24 * z}
 }
 
 // calloutHue is the color of a callout's tone.
@@ -565,6 +608,9 @@ type Options struct {
 	// letting them extend into the page's margins.
 	NoWideTables         bool
 	FontSize, LineHeight float32
+	Zoom                 float32
+	OnZoom               func(float32)
+	FullWidth            bool
 	// Column is the text column's width, 0 for 820 and FullColumn for the
 	// page's. Code keeps its monospace.
 	FontFamily   string
@@ -644,6 +690,19 @@ type Options struct {
 	// Reserved are keys the host handles, which the page does not take
 	// even where it would, as ⌃⌘↑ would move the caret.
 	Reserved []Combo
+	// Reader behavior flags (used by BookView's embedded read-only chapter editors).
+	DirectLinks        bool
+	DisableFind        bool
+	HideReadOnlyNotice bool
+	ReadOnlyNotice     string
+	HideFrontmatter    bool
+	CompactMargins     bool
+	// Database Linked View embed integration callbacks.
+	LoadDatabase     func(target string) (*database.Store, dbview.Options, uint64, error)
+	OpenDatabase     func(target, viewID string, split bool)
+	ListDatabases    func() []database.SpaceDBInfo
+	CreateDatabase   func(title string) (targetRel, viewID, snapshotMD string, err error)
+	DatabaseSnapshot func(target, viewID string) string
 }
 
 func New(markdown string) *Editor { return FromOwnedDocument(ImportMarkdown(markdown)) }
@@ -734,10 +793,18 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.cropImage = o.CropImage
 	e.dropFiles, e.pasteImage = o.DropFiles, o.PasteImage
 	e.typewriter, e.dim, e.bindings = o.Typewriter, o.Dim, o.Bindings
+	e.onZoom = o.OnZoom
 	if !e.openReveal.checked {
 		e.openReveal = openReveal{checked: true, pending: o.DrawAnnotations && hasAnnotations(e.Doc.Blocks)}
 	}
 	e.openWiki, e.openTag, e.openLink = o.OpenWiki, o.OpenTag, o.OpenLink
+	e.directLinks, e.disableFind, e.hideReadOnlyNotice, e.hideFrontmatter = o.DirectLinks, o.DisableFind, o.HideReadOnlyNotice, o.HideFrontmatter
+	e.readOnlyNotice = o.ReadOnlyNotice
+	e.loadDatabase = o.LoadDatabase
+	e.openDatabase = o.OpenDatabase
+	e.listDatabases = o.ListDatabases
+	e.createDatabase = o.CreateDatabase
+	e.databaseSnapshot = o.DatabaseSnapshot
 	e.header.pickCover = o.PickCover
 	e.bookmarks.marks, e.bookmarks.toggle, e.bookmarks.label, e.bookmarks.key = o.Bookmarks, o.ToggleBookmark, o.LabelBookmark, o.BookmarkKey
 	e.reserved = o.Reserved
@@ -764,6 +831,10 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 	e.watchComplete(c.Now(), o.EmojiSuggest, o.WikiSuggest)
 	var surface ui.Element
 	pane.Children(func() {
+		if e.viewport > 0 {
+			height := e.scrollContentHeight(o.Footer != nil)
+			e.outlineState.scrollMax = max(0, max(height, e.viewport)-e.viewport)
+		}
 		e.stepJump(c)
 		e.stepScrollGlide(c)
 		e.stepScrollTrip(c)
@@ -810,17 +881,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 		e.stepSelectionDrag(c, scroll)
 		scroll.TrackScroll(&e.Scroll)
 		scroll.Children(func() {
-			height := e.height
-			if o.Footer != nil {
-				height = max(height, e.footerTop()+e.footerH+pageBottom)
-			}
-			if e.typewriter {
-				// Room for the last line to come to the middle.
-				height += e.viewport / 2
-			}
-			// The trailing space has no ink. Whole-DIP bounds keep full and
-			// incremental layouts from clamping scroll at different float tails.
-			height = float32(math.Round(float64(height)))
+			height := e.scrollContentHeight(o.Footer != nil)
 			// The surface and what is placed over it scroll together in one
 			// box: placed elements stay where the scroll's content was laid
 			// out, not where it scrolled to.
@@ -832,22 +893,47 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					HandleTextInput(e).Role(ui.RoleTextField).Label(i18n.T("文档")).FocusRing(false)
 				accessTextValue(surface.Access, e.accessText)
 				if e.RequestFocus {
+					e.blurStage = blurIdle
 					// The editor reveals the caret explicitly. Returning focus from
 					// a table control must not scroll to an older offscreen caret.
 					surface.Focus(ui.FocusOptions{PreventScroll: true})
 					e.lastInput = c.Now()
 					e.RequestFocus = false
 				}
-				e.focused = surface.Focused()
-				px, py, inside := surface.PointerPosition()
+				switch e.blurStage {
+				case blurHold:
+					if surface.Focused() {
+						// Hold focus on a 0x0 non-text sink for one frame so any
+						// dismissed overlay (selection bar, slash menu, etc.) prunes
+						// without restoreFocus snapping focus back to the surface.
+						ui.Box(c.Key("blur-sink")).Absolute().Size(0, 0).Opacity(0).PassThrough().
+							FocusRing(false).AccessHidden(true).Focus(ui.FocusOptions{PreventScroll: true})
+						e.blurStage = blurClear
+						c.After(0)
+					} else {
+						e.blurStage = blurIdle
+					}
+				case blurClear:
+					ui.Box(c.Key("blur-sink")).Hidden(true)
+					e.blurStage = blurIdle
+				}
+				if e.blocks.marqueeArm && !e.blocks.marquee {
+					e.focused = e.focused && surface.Focused()
+				} else {
+					e.focused = surface.Focused()
+				}
+				px, py, geomInside := surface.PointerPosition()
+				inside := geomInside && content.Hovered()
 				e.pointer, e.pointerInside = ui.Point{X: px, Y: py}, inside
 				e.fileOver = -1
+				e.fileDragInside = false
 				if o.DropFiles != nil {
 					// A file drag keeps the pointer's position up to date, so
 					// the frame after the drop still has where it landed.
 					at, line := e.fileDropAt(py)
 					if surface.FileDragOver() {
 						e.fileOver = line
+						e.fileDragInside = geomInside
 					}
 					if files := surface.DroppedFiles(); len(files) > 0 {
 						o.DropFiles(files, at)
@@ -869,6 +955,12 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 				case e.codeBarDrag != "", e.blocks.marquee:
 					surface.Cursor(ui.CursorDefault)
 				case e.dragging || !inside:
+				case !e.ReadOnly && inside && !e.inInlineMathPopover(px, py) && e.inSideMargin(px, py):
+					if cursor, ok := e.hoverCursor(c.Modifiers(), px, py); ok {
+						surface.Cursor(cursor)
+					} else {
+						surface.Cursor(ui.CursorDefault)
+					}
 				default:
 					if _, ok := e.hoveredGap(); ok {
 						// A click here adds a paragraph rather than placing the caret.
@@ -885,6 +977,9 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					if o.EditWithAI != nil && !e.ReadOnly {
 						menuAction(menu, i18n.T("用 OneBot 修改"), func() { o.EditWithAI("") })
 						menu.Separator()
+					}
+					if !e.ReadOnly {
+						menuAction(menu, i18n.T("清除格式"), e.ClearFormatting)
 					}
 					menuAction(menu, i18n.T("加粗"), func() { e.Wrap("**") })
 					menuAction(menu, i18n.T("斜体"), func() { e.Wrap("*") })
@@ -907,10 +1002,17 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 					e.headerControls(c)
 					e.tableWidthControls(c)
 				}
-				e.propertiesView(c)
+				if !o.HideFrontmatter {
+					if e.header.fmVisible || e.header.fmEditing {
+						e.frontmatterControls(c)
+					} else {
+						e.propertiesView(c)
+					}
+				}
 				e.imageControls(c, o)
 				e.whiteboardControls(c, o)
 				e.videoControls(c)
+				e.databaseControls(c, o)
 				e.bookmarkMarks(c)
 				if o.Footer != nil {
 					footer := ui.Column(c.Key("page-footer")).Absolute().Left(e.padding).Top(e.footerTop()).Width(e.bodyWidth())
@@ -932,6 +1034,7 @@ func View(c *ui.Context, e *Editor, o Options) ui.Element {
 		e.wikiMenu(c, surface)
 		e.completeMenu(c, surface)
 		e.headerPopups(c, surface)
+		e.databasePickerControl(c, surface, o)
 	}
 	e.imagePreview(c)
 	e.mermaidPreview(c)
@@ -967,13 +1070,44 @@ func (e *Editor) surfaceBounds(surface ui.Element) ui.Rect {
 	return b
 }
 
+func clampPageZoom(z float32) float32 {
+	if math.IsNaN(float64(z)) || math.IsInf(float64(z), 0) || z <= 0 {
+		return 1
+	}
+	if z < 0.5 {
+		return 0.5
+	}
+	if z > 2.0 {
+		return 2.0
+	}
+	return float32(math.Round(float64(z)*100)) / 100
+}
+
+func (e *Editor) zoomFactor() float32 {
+	if e.printing || e.mapTablePreview || e.pageZoom <= 0 {
+		return 1
+	}
+	return clampPageZoom(e.pageZoom)
+}
+
+// HasZoomModal reports whether an overlay or active embedded surface with its
+// own zoom controls (image lightbox, Mermaid viewer, or interactive embedded
+// PDF/book/whiteboard) is open.
+func (e *Editor) HasZoomModal() bool {
+	return e.imageViewer.open || e.mermaidViewer.open || e.activeBoard != ""
+}
+
 func (e *Editor) layout(o Options) {
 	e.collectNotes()
 	e.historyHighlights = o.HighlightBlocks
 	e.readingSize, e.readingLine, e.fontFamily = o.FontSize, o.LineHeight, o.FontFamily
+	e.pageZoom = clampPageZoom(o.Zoom)
+	z := e.zoomFactor()
 	defer func() { e.laidInline = e.inlineEditing }()
 	pageKey := layoutPageKey{
 		has:          true,
+		zoom:         z,
+		fullWidth:    o.FullWidth,
 		page:         e.page,
 		fontSize:     o.FontSize,
 		lineHeight:   o.LineHeight,
@@ -986,8 +1120,9 @@ func (e *Editor) layout(o Options) {
 	e.openFoldAtCaret()
 	finishResize := e.resizePending && (!o.Resizing || e.resizeBatch)
 	refreshResize := e.resizePending && e.resizeScroll != e.Scroll.Y
+	zoomChanged := e.laidPage.has && e.laidPage.zoom != pageKey.zoom
 	anchor := resizeAnchor{}
-	if e.resizePending || o.Resizing {
+	if e.resizePending || o.Resizing || zoomChanged {
 		anchor = e.resizeAnchor()
 	}
 	pageSame := sameLayoutPageKey(e.laidPage, pageKey)
@@ -995,7 +1130,8 @@ func (e *Editor) layout(o Options) {
 	if e.find.open {
 		findKey = e.find.query
 	}
-	same := !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidHTML == e.htmlEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing && e.laidProps == e.propsKey()
+	fmKey := e.frontmatterLayoutState(o)
+	same := e.laidFM == fmKey && !finishResize && !refreshResize && e.ready && e.width == o.Width && e.cacheTheme == *o.Theme && pageSame && e.laidMath == e.mathEditing && e.laidMermaid == e.mermaidEditing && e.laidHTML == e.htmlEditing && e.laidFindKey == findKey && e.laidInline == e.inlineEditing && e.laidProps == e.propsKey()
 	if same && e.cacheRevision == e.Revision() {
 		return
 	}
@@ -1029,10 +1165,17 @@ func (e *Editor) layout(o Options) {
 	e.laidMermaid = e.mermaidEditing
 	e.laidHTML = e.htmlEditing
 	e.laidFindKey = findKey
+	e.laidFM = fmKey
 	e.laidProps = e.propsKey()
 	// The text column is 820 wide unless the reader picked another, or
 	// spans the page with only its margins (FullColumn).
-	e.column = pageColumn(o.Width, o.Column)
+	col := o.Column
+	if o.FullWidth {
+		col = FullColumn
+	} else if col != FullColumn && z > 1 {
+		col = columnWidth(col) * z
+	}
+	e.column = pageColumn(o.Width, col)
 	e.padding, e.rightPadding = pagePadding(o.Width, e.column, e.printing)
 	width := e.bodyWidth()
 	clear(e.rows)
@@ -1092,14 +1235,16 @@ func (e *Editor) layout(o Options) {
 			// The fold triangle sits just left of the block, 20
 			// left of the text; the handle further out.
 			fx := e.padding - 22
+			tri := float32(16)
 			if isList(b.Kind) {
-				fx += float32(b.Indent) * 24
+				fx += float32(b.Indent) * 24 * z
 			}
 			if b.Kind == "toggle" {
 				// A toggle's triangle is its marker, always shown.
-				fx = e.padding + float32(b.Indent)*20 - 1
+				fx = e.padding + float32(b.Indent)*20*z - z
+				tri = 16 * z
 			}
-			e.foldButtons = append(e.foldButtons, foldButton{id: b.ID, rect: ui.Rect{X: fx, Y: hy + 4, W: 16, H: 16}, folded: b.Folded, always: b.Kind == "toggle"})
+			e.foldButtons = append(e.foldButtons, foldButton{id: b.ID, rect: ui.Rect{X: fx, Y: hy + 12 - tri/2, W: tri, H: tri}, folded: b.Folded, always: b.Kind == "toggle"})
 			if fx-hx < 26 {
 				hx = fx - 28
 			}
@@ -1189,14 +1334,17 @@ func (e *Editor) layout(o Options) {
 
 func (e *Editor) layoutOptions() Options {
 	return Options{
-		Theme:      &e.cacheTheme,
-		Page:       e.page,
-		Width:      e.width,
-		FontSize:   e.readingSize,
-		LineHeight: e.readingLine,
-		FontFamily: e.fontFamily,
-		Column:     e.laidPage.column,
-		CodeNoWrap: e.codeNoWrap,
+		Theme:            &e.cacheTheme,
+		Page:             e.page,
+		Width:            e.width,
+		FontSize:         e.readingSize,
+		LineHeight:       e.readingLine,
+		FontFamily:       e.fontFamily,
+		Column:           e.laidPage.column,
+		CodeNoWrap:       e.codeNoWrap,
+		Zoom:             e.pageZoom,
+		LoadDatabase:     e.loadDatabase,
+		DatabaseSnapshot: e.databaseSnapshot,
 	}
 }
 
@@ -1264,7 +1412,7 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		cached, ok := e.cache[b.ID]
 		sameShape := ok && cached.key == key && slices.Equal(cached.runs, b.Runs)
 		active := virtualize && (b.ID == caretID || b.ID == anchorID || b.ID == revealID || b.ID == e.dragID || b.ID == e.mathEditing || b.ID == e.mermaidEditing || b.ID == e.htmlEditing || strings.HasPrefix(e.inlineEditing, b.ID+":"))
-		deferShape := virtualize && !active && leaf.Owner == b.ID && canDeferKind(b.Kind)
+		deferShape := virtualize && !active && leaf.Owner == b.ID && canDeferKind(b.Kind) && !isDatabaseBlock(b)
 
 		var laid *textLayout
 		var h float32
@@ -1322,6 +1470,8 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 					} else if b.Kind == "code" {
 						d.label, d.id = b.Language, b.ID
 						fit.mark(&d, b)
+					} else if isDatabaseBlock(b) {
+						d.kind, d.id, d.dbEmbed = "database", b.ID, true
 					} else if b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
 						d.label = i18n.T("HTML 注释")
 					}
@@ -1349,7 +1499,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 		bottom += fit.lane
 		total := top + h + bottom
 		row := row{leafRevision: e.Revision(), leaf: leaf, layout: laid, rect: ui.Rect{X: x, Y: y, W: w, H: total}, x: x + left, y: y + top, number: number, size: font.Size, tableHeader: header, foldH: fit.foldH}
-		if b.Kind == "image" {
+		if isDatabaseBlock(b) {
+			total = e.layoutDatabaseBlock(&row, o, gap)
+		} else if b.Kind == "image" {
 			total = e.layoutImage(&row, o)
 		}
 		if b.Kind == "rule" {
@@ -1388,6 +1540,9 @@ func (e *Editor) blockLayouter(o Options, leafOf func(string) document.Leaf, hid
 			} else if b.Kind == "code" {
 				d.label, d.id = b.Language, b.ID
 				fit.mark(&d, b)
+			} else if isDatabaseBlock(b) {
+				d.kind, d.id, d.dbEmbed = "database", b.ID, true
+				d.rect = row.dbRect
 			} else if b.Kind == "raw" && isHTMLCommentBlock(b.Text()) {
 				d.label = i18n.T("HTML 注释")
 			}
@@ -1418,6 +1573,9 @@ func (e *Editor) indexedRow(i int) *row {
 				for k := range f.actions {
 					f.actions[k].bounds.Y += dy
 				}
+			}
+			if r.dbRect.W > 0 {
+				r.dbRect.Y += dy
 			}
 			r.yApplied = off
 		}
@@ -1468,6 +1626,10 @@ func (e *Editor) BoundsForRange(r ui.TextInputRange) (ui.Rect, ui.TextInputRange
 		rect := ui.Rect{X: row.rect.X + (row.rect.W-mw)/2, Y: row.rect.Y + row.mermaidTop, W: 2, H: 20}
 		return rect, ui.TextInputRange{Start: row.leaf.Start, End: row.leaf.Start}, true
 	}
+	if row.dbEmbed {
+		rect := ui.Rect{X: row.dbRect.X, Y: row.dbRect.Y, W: 2, H: 20}
+		return rect, ui.TextInputRange{Start: row.leaf.Start, End: row.leaf.Start}, true
+	}
 	rect := row.layout.Caret(local)
 	rect.X += row.x
 	rect.Y += row.y
@@ -1482,7 +1644,7 @@ func (e *Editor) IndexForPoint(point ui.Point) (int, bool) {
 		return 0, false
 	}
 	best := e.ensureRow(e.rowSpace.nearest(point))
-	if (best.picture != nil && !e.captionVisible(best.leaf.Block)) || best.mermaidHidden {
+	if (best.picture != nil && !e.captionVisible(best.leaf.Block)) || best.mermaidHidden || best.dbEmbed {
 		return best.leaf.Start, true
 	}
 	px := point.X - best.x
@@ -1513,6 +1675,20 @@ func (e *Editor) decorationOffset(d decoration) (dx, dy float32) {
 		}
 	}
 	return dx, dy
+}
+
+func (e *Editor) scrollContentHeight(hasFooter bool) float32 {
+	height := e.height
+	if hasFooter {
+		height = max(height, e.footerTop()+e.footerH+pageBottom)
+	}
+	if e.typewriter {
+		// Room for the last line to come to the middle.
+		height += e.viewport / 2
+	}
+	// The trailing space has no ink. Whole-DIP bounds keep full and
+	// incremental layouts from clamping scroll at different float tails.
+	return float32(math.Round(float64(height)))
 }
 
 func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
@@ -1592,18 +1768,19 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 				}
 				p.Fill(r, look.Fill, 8)
 				p.Stroke(r, look.Border, 8, 1)
-				icon := calloutIconRect(d)
+				icon := e.calloutIconBox(d)
 				icon.X += bounds.X + ddx
 				icon.Y += bounds.Y + ddy
-				if d.id == e.colorID && e.colorOpen || e.hovered(calloutIconRect(d), 0) {
+				if d.id == e.colorID && e.colorOpen || e.hovered(e.calloutIconBox(d), 0) {
 					p.Fill(icon, e.page.Hover, 4)
 				}
+				cz := e.zoomFactor()
 				if d.label != "" {
-					span := ui.Span{Text: d.label, Size: 18}
+					span := ui.Span{Text: d.label, Size: 18 * cz}
 					w, h := p.MeasureText(0, span)
 					p.RichText(icon.X+(icon.W-w)/2, icon.Y+(icon.H-h)/2, 0, span)
 				} else {
-					p.Icon(calloutIcon(d.tone), ui.Rect{X: icon.X + 3, Y: icon.Y + 3, W: 18, H: 18}, look.Icon)
+					p.Icon(calloutIcon(d.tone), ui.Rect{X: icon.X + 3*cz, Y: icon.Y + 3*cz, W: 18 * cz, H: 18 * cz}, look.Icon)
 				}
 			case "quote":
 				for k := 0; k <= d.depth; k++ {
@@ -1680,6 +1857,12 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 			if plan.active && e.isDraggedOwner(r.leaf.Owner, plan) != draggedOnly {
 				continue
 			}
+			if r.layout == nil {
+				if !e.printing {
+					p.AnimationFrame()
+				}
+				continue
+			}
 			dx, dy := e.visualOffset(r)
 			if r.board != nil {
 				e.paintWhiteboardBlock(p, bounds, r, t)
@@ -1701,7 +1884,7 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					} else if r.mermaidHidden && r.mermaid != nil {
 						mw, mh := r.mermaid.W*r.mermaidScale, r.mermaid.H*r.mermaidScale
 						p.Fill(ui.Rect{X: bounds.X + r.rect.X + dx + (r.rect.W-mw)/2 - 3, Y: bounds.Y + r.rect.Y + dy + r.mermaidTop - 2, W: mw + 6, H: mh + 4}, t.Selection, 4)
-					} else {
+					} else if !r.dbEmbed {
 						local := ui.TextInputRange{Start: max(0, selection.Start-r.leaf.Start), End: min(r.leaf.End, selection.End) - r.leaf.Start}
 						for _, rect := range r.layout.SelectionRects(local) {
 							rect.X += bounds.X + r.x + dx - scrollX - 1.5
@@ -1720,6 +1903,9 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 					return
 				}
 				if e.paintMermaid(p, bounds, r, t) {
+					return
+				}
+				if e.paintDatabaseRow(p, bounds, r, t) {
 					return
 				}
 				e.paintKeycaps(p, shiftedBounds, r)
@@ -1851,11 +2037,11 @@ func (e *Editor) paint(p *ui.Painter, bounds ui.Rect, t *ui.Theme, caret bool) {
 	}
 	if len(e.Doc.Blocks) == 1 && e.Doc.Blocks[0].Kind == "paragraph" && e.Len() == 0 && !e.focused {
 		// The starter below says the rest.
-		p.Text(bounds.X+e.padding, bounds.Y+pageTop+4, i18n.T("开始写作"), 16, t.TextMuted.Alpha(.8))
+		p.Text(bounds.X+e.padding, bounds.Y+e.header.titleTop+4, i18n.T("开始写作"), 16*e.zoomFactor(), t.TextMuted.Alpha(.8))
 	}
 	inlineCaretDoc, hasInlineCaret := e.paintInlineMathPopover(p, bounds, t)
 	caretMoving := false
-	if !e.ReadOnly && e.focused && len(e.blocks.ids) == 0 && selection.Start == selection.End && (e.Engine.LeafAt(e.Caret).Block.Kind != "image" || e.captionVisible(e.Engine.LeafAt(e.Caret).Block)) {
+	if !e.ReadOnly && e.focused && !e.blocks.marqueeArm && !isDatabaseBlock(e.Engine.LeafAt(e.Caret).Block) && len(e.blocks.ids) == 0 && selection.Start == selection.End && (e.Engine.LeafAt(e.Caret).Block.Kind != "image" || e.captionVisible(e.Engine.LeafAt(e.Caret).Block)) {
 		var targetDoc ui.Rect
 		hasTarget := false
 		if hasInlineCaret {
@@ -1976,10 +2162,10 @@ func (e *Editor) controlAt(x, y float32) func() bool {
 	for i := range e.decorationSpace.between(y-28, y+28) {
 		d := *e.indexedDecoration(i)
 		switch {
-		case d.kind == "callout" && d.id != "" && in(calloutIconRect(d)):
+		case d.kind == "callout" && d.id != "" && in(e.calloutIconBox(d)):
 			return func() bool {
 				e.colorOpen = !(e.colorOpen && e.colorID == d.id)
-				e.colorID, e.colorAt = d.id, calloutIconRect(d)
+				e.colorID, e.colorAt = d.id, e.calloutIconBox(d)
 				return true
 			}
 		case d.kind == "code" && d.foldable && in(e.codeFoldButton(d)):
@@ -2078,7 +2264,7 @@ func (e *Editor) paintHint(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) {
 		return
 	}
 	line := r.layout.Caret(0)
-	span := ui.Span{Text: hint, Size: size, Color: e.page.Placeholder}
+	span := ui.Span{Text: hint, Size: size * e.zoomFactor(), Color: e.page.Placeholder}
 	if b.Kind == "heading" {
 		span.Weight = 500
 	}
@@ -2094,22 +2280,25 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 	if kind != "bullet" && kind != "numbered" && kind != "task" {
 		return
 	}
+	z := e.zoomFactor()
 	dx, dy := e.visualOffset(r)
 	line := r.layout.Caret(0)
-	cy := bounds.Y + r.y + dy + line.Y + max(line.H, 26)/2
+	cy := bounds.Y + r.y + dy + line.Y + max(line.H, 26*z)/2
 	x := bounds.X + r.x + dx
 	pg := e.page
 	switch kind {
 	case "bullet":
 		// Nested lists cycle disc, circle and square.
-		dot := ui.Rect{X: x - 20, Y: cy - 2.75, W: 5.5, H: 5.5}
+		dotSize := 5.5 * z
+		dot := ui.Rect{X: x - 20*z, Y: cy - dotSize/2, W: dotSize, H: dotSize}
 		switch r.leaf.Block.Indent % 3 {
 		case 0:
-			p.Fill(dot, pg.Marker, 2.75)
+			p.Fill(dot, pg.Marker, dotSize/2)
 		case 1:
-			p.Stroke(dot, pg.Marker, 2.75, 1)
+			p.Stroke(dot, pg.Marker, dotSize/2, max(1, z))
 		default:
-			p.Fill(ui.Rect{X: x - 19.75, Y: cy - 2.5, W: 5, H: 5}, pg.Marker, 0)
+			sq := 5 * z
+			p.Fill(ui.Rect{X: x - 19.75*z, Y: cy - sq/2, W: sq, H: sq}, pg.Marker, 0)
 		}
 	case "numbered":
 		indent := r.leaf.Block.Indent
@@ -2117,14 +2306,16 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 			indent = e.mapListIndent
 		}
 		label := listNumber(max(1, r.number), indent) + "."
-		span := ui.Span{Text: label, Size: 16, Color: pg.Marker, Features: "tnum"}
+		span := ui.Span{Text: label, Size: 16 * e.zoomFactor(), Color: pg.Marker, Features: "tnum"}
 		w, h := p.MeasureText(0, span)
-		p.RichText(x-6-w, cy-h/2, 0, span)
+		p.RichText(x-6*z-w, cy-h/2, 0, span)
 	case "task":
-		box := ui.Rect{X: x - 24, Y: cy - 8, W: 16, H: 16}
+		boxSize := 16 * z
+		box := ui.Rect{X: x - 24*z, Y: cy - boxSize/2, W: boxSize, H: boxSize}
 		if r.leaf.Block.Checked {
 			scale := float32(1)
-			revealW := float32(12)
+			iconSize := 12 * z
+			revealW := iconSize
 			if !e.printing && !e.reduceMotion && e.taskAnim != nil {
 				if at, ok := e.taskAnim[r.leaf.Block.ID]; ok {
 					if at.IsZero() {
@@ -2136,7 +2327,7 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 						u := float64(elapsed) / float64(200*time.Millisecond)
 						scale = 1 + 0.14*float32(math.Sin(math.Pi*u)*math.Exp(-1.6*u))
 						checkP := min(1, float32(u*1.45))
-						revealW = 12 * checkP
+						revealW = iconSize * checkP
 						p.AnimationFrame()
 					} else {
 						delete(e.taskAnim, r.leaf.Block.ID)
@@ -2144,10 +2335,10 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 				}
 			}
 			drawChecked := func() {
-				p.Fill(box, pg.Marker.Alpha(0.10), 4)
-				p.Stroke(box, pg.Marker, 4, 1.2)
-				iconRect := ui.Rect{X: box.X + 2, Y: box.Y + 2, W: 12, H: 12}
-				if revealW < 11.9 {
+				p.Fill(box, pg.Marker.Alpha(0.10), 4*z)
+				p.Stroke(box, pg.Marker, 4*z, max(1, 1.2*z))
+				iconRect := ui.Rect{X: box.X + 2*z, Y: box.Y + 2*z, W: iconSize, H: iconSize}
+				if revealW < iconSize-0.1 {
 					p.Clip(ui.Rect{X: iconRect.X, Y: iconRect.Y, W: max(0.5, revealW), H: iconRect.H}, 0, func() {
 						p.Icon(iconCheck, iconRect, pg.Marker)
 					})
@@ -2161,8 +2352,8 @@ func (e *Editor) paintMarker(p *ui.Painter, bounds ui.Rect, r row, t *ui.Theme) 
 				drawChecked()
 			}
 		} else {
-			p.Fill(box, t.Background, 4)
-			p.Stroke(box, pg.TaskBorder, 4, 1)
+			p.Fill(box, t.Background, 4*z)
+			p.Stroke(box, pg.TaskBorder, 4*z, max(1, z))
 		}
 	}
 }
@@ -2175,6 +2366,9 @@ func (e *Editor) paintLineNumbers(p *ui.Painter, bounds ui.Rect, d decoration) {
 		return
 	}
 	r := e.ensureRow(idx)
+	if r.layout == nil {
+		return
+	}
 	text := r.leaf.Block.Text()
 	clip := !e.printing && e.viewport > 0
 	visTop := e.Scroll.Y - 40
@@ -2239,7 +2433,7 @@ func (e *Editor) linkAt(at int) string {
 // taskBox is the task row at text index at whose checkbox spans x, if any.
 func (e *Editor) taskBox(at int, x float32) *row {
 	r := e.rowAt(at)
-	if r == nil || r.leaf.Block.Kind != "task" || x > r.x || x < r.x-28 {
+	if r == nil || r.leaf.Block.Kind != "task" || x > r.x || x < r.x-max(float32(28), 28*e.zoomFactor()) {
 		return nil
 	}
 	return r
@@ -2384,6 +2578,7 @@ func (e *Editor) structuralPointer(ev ui.InputEvent) bool {
 		return false
 	}
 	if ev.Kind == ui.InputPointerDown && ev.Button == 0 {
+		e.commitFrontmatterEdit()
 		e.closeHeader()
 		if e.hoverControl(ev.X, ev.Y) {
 			return true
@@ -2535,6 +2730,75 @@ func blockLabel(b *document.Block) string {
 }
 
 func (e *Editor) Focused() bool { return e.focused }
+
+// contentSpanAt returns the horizontal bounds of editable content at y in
+// surface coordinates: the standard prose column, widened for any wide table
+// spanning past the column margins at that vertical position.
+func (e *Editor) contentSpanAt(y float32) (left, right float32) {
+	left = e.padding
+	right = e.padding + e.bodyWidth()
+	for i := range e.decorationSpace.between(y-2, y+2) {
+		d := *e.indexedDecoration(i)
+		if d.kind == "table" && y >= d.rect.Y && y <= d.rect.Y+d.rect.H {
+			left = min(left, d.rect.X)
+			right = max(right, d.rect.X+d.rect.W)
+		}
+	}
+	return left, right
+}
+
+// inSideMargin reports whether (x, y) lies in the left or right page margin
+// outside the editable content column at y.
+func (e *Editor) inSideMargin(x, y float32) bool {
+	left, right := e.contentSpanAt(y)
+	return x < left || x > right
+}
+
+// inInlineMathPopover reports whether (x, y) lies inside the active inline
+// math editor popover.
+func (e *Editor) inInlineMathPopover(x, y float32) bool {
+	pop := e.inlinePopRect
+	return e.inlinePopLayout != nil && pop.W > 0 &&
+		x >= pop.X && x <= pop.X+pop.W && y >= pop.Y && y <= pop.Y+pop.H
+}
+
+// blur exits active editing on the writing surface, hiding the caret and
+// dismissing transient block, formula, and menu states.
+func (e *Editor) blur() {
+	e.UnmarkText()
+	if e.Anchor != e.Caret {
+		e.SetSelection(e.Caret, e.Caret)
+	}
+	e.clearBlocks()
+	e.blocks.marquee, e.blocks.marqueeArm = false, false
+	e.dragging = false
+	e.pendingLink = linkSpan{}
+	e.inlineEditing = ""
+	e.inlineMath = inlineMathEdit{}
+	e.inlinePopRect = ui.Rect{}
+	e.inlinePopLayout = nil
+	e.mathEditing = ""
+	e.mermaidEditing = ""
+	e.slashOpen = false
+	e.wiki.open = false
+	e.complete.open = false
+	e.menuOpen, e.menuID, e.menuSub = false, "", ""
+	e.colorOpen, e.langOpen = false, false
+	e.linkOpen = false
+	e.markPop = markPopover{}
+	e.annotatePanel = false
+	e.tableSel = tableSelection{}
+	e.cellFillOpen = false
+	e.closeHeader()
+	e.commitFrontmatterEdit()
+	if e.imageCaptionID != "" {
+		e.imageCaptionID = ""
+		e.ready = false
+	}
+	e.focused = false
+	e.RequestFocus = false
+	e.blurStage = blurHold
+}
 
 // listNumber writes n as nested ordered lists count: 1, a, i by depth.
 func listNumber(n, indent int) string {

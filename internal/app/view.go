@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ func (a *App) View(c *ui.Context) {
 	defer a.importGuideView(c)
 	c.Root().Font(a.interfaceFont())
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
+	a.applyPendingDatabasePeekMode()
 	a.frame++
 	a.rowFocus, a.rowFocusNow = a.rowFocusNow, rowFocus{}
 	a.launchTick(c)
@@ -118,6 +120,10 @@ func (a *App) View(c *ui.Context) {
 		c.Toast(n)
 	}
 	a.notices = a.notices[:0]
+	for _, n := range a.deferredNotices {
+		c.Toast(fmt.Sprintf(i18n.T(n.format), n.args...))
+	}
+	a.deferredNotices = a.deferredNotices[:0]
 	for _, u := range a.undos {
 		c.AddToast(u)
 	}
@@ -213,6 +219,7 @@ func (a *App) View(c *ui.Context) {
 	a.dragOverlayView(c)
 	a.previewView(c)
 	a.paletteView(c)
+	a.newModalView(c)
 	a.updateToast(c)
 	a.settingsView(c)
 	a.chatGPTWelcomeView(c)
@@ -222,6 +229,7 @@ func (a *App) View(c *ui.Context) {
 	a.versionsView(c)
 	a.pdfExportView(c)
 	a.pdfPagesView(c)
+	a.databasePeekModal(c)
 	a.tourView(c)
 	a.mainWindowButtons(c)
 	if a.captureSplits() {
@@ -405,6 +413,8 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.newDoc(a.currentDir())
 	case a.pressed(c, "new-board"):
 		a.newWhiteboard(a.currentDir())
+	case a.pressed(c, "new-database"):
+		a.newDatabase(a.currentDir())
 	case a.pressed(c, "new-folder"):
 		a.newFolder(a.currentDir())
 	case a.pressed(c, "daily"):
@@ -441,6 +451,12 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.toggleOutline()
 	case a.pressed(c, "full-width"):
 		a.toggleFullWidth()
+	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
+		a.stepPageZoom(1)
+	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
+		a.stepPageZoom(-1)
+	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
+		a.resetPageZoom()
 	case a.pressed(c, "bookmark"):
 		a.toggleBookmarkAtCaret()
 	case a.pressed(c, "bookmarks"):
@@ -660,7 +676,13 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 	}
 	page.Children(func() {
 		a.conflictBarFor(c, d)
-		a.documentMapWorkspace(c, d, cardWidth)
+		if d.isMDZ() {
+			a.mdzView(c, d, cardWidth, false)
+		} else if d.isDatabase() {
+			a.databaseWorkspace(c, d, cardWidth)
+		} else {
+			a.documentMapWorkspace(c, d, cardWidth)
+		}
 	})
 }
 
@@ -870,29 +892,7 @@ const sourceApplyDelay = 300 * time.Millisecond
 // mode, the space's and the file browser's alike: the same text column,
 // size and line height, set in monospace. A page source mode cannot edit,
 // read-only or .arcmd, shows its Markdown read-only.
-func (a *App) sourceView(c *ui.Context, d *document, width float32) {
-	pad := editor.TextPadding(width, a.prefs.Column())
-	ta := ui.TextAreaBase(c.Key(d.viewKey()+":source"), &d.preview).Grow(1).MinHeight(0).Padding(48, pad, 160, pad).ReadOnly(!d.sourceEditable()).
-		Font("monospace").FontSize(a.prefs.ReadingSize()).LineHeight(a.prefs.ReadingLine()).
-		TrackScroll(&d.previewScroll).Label(i18n.T("Markdown 源码编辑区"))
-	// Typed source goes into the editor once typing pauses, so each
-	// keystroke does not parse the whole page again; saving and leaving
-	// apply it at once.
-	if ta.Changed() {
-		d.sourceEdited = c.Now()
-	}
-	if d.preview != d.sourceApplied && d.sourceEditable() {
-		if wait := sourceApplyDelay - c.Now().Sub(d.sourceEdited); wait > 0 {
-			c.After(wait)
-		} else {
-			d.applySource()
-		}
-	}
-	d.placePreviewCaret(ta)
-}
 
-// placePreviewCaret puts the caret at the block the rich text had on
-// entering source mode, then notes where the source scrolled from.
 func (d *document) placePreviewCaret(ta ui.Element) {
 	if d.previewCaretPending {
 		d.previewCaretPending = false

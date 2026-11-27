@@ -76,6 +76,9 @@ func (a *App) openInWindow(sp *space.Space, rel string) {
 	} else {
 		text, err := readFile(sp, rel)
 		if err != nil {
+			if a.noteMissingExternal(sp, rel, err) {
+				return
+			}
 			a.notify("无法打开 %s；%v", vault.Title(rel), err)
 			return
 		}
@@ -173,6 +176,19 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		ui.Text(c, i18n.T("文档已关闭")).TextColor(t.TextMuted).Padding(80, 24)
 		return
 	}
+	if a.canZoomPage(d) {
+		switch {
+		case a.pressed(c, "zoom-in"):
+			a.stepPageZoom(1)
+		case a.pressed(c, "zoom-out"):
+			a.stepPageZoom(-1)
+		case a.pressed(c, "zoom-reset"):
+			a.resetPageZoom()
+		}
+	}
+	if a.pressed(c, "source") {
+		a.withDocument(d, a.toggleSource)
+	}
 	bar := c.TitleBar()
 	ui.Column(c.Key("window-doc")).Fill().Children(func() {
 		top := ui.Row(c.Key("window-bar")).Height(max(44, bar.Height)).PaddingX(12).Gap(8).AlignItems(ui.Center).DragWindow()
@@ -188,7 +204,8 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 				a.formatCorner(c, d)
 				d.ed.Corner(c)
 			} else if d.loadErr == nil {
-				d.ed.Corner(c)
+				a.documentCorner(c, d)
+				d.ed.WordButton(c)
 			}
 			if iconButton(c, "window-main", iconWindowBack, i18n.T("在主窗口中打开"), i18n.T("在主窗口中打开"), false).Clicked() {
 				a.backToMain(w)
@@ -206,10 +223,26 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 			editor.PDFView(c.Key(d.viewKey()), d.pdf, a.pdfOptionsFor(c, d))
 			return
 		}
+		if d.isMDZ() {
+			width, _ := c.Size()
+			a.mdzView(c, d, width, false)
+			return
+		}
+		if d.isDatabase() {
+			width, _ := c.Size()
+			a.databaseWorkspace(c, d, width)
+			return
+		}
+		if d.source {
+			width, _ := c.Size()
+			a.sourceView(c, d, width)
+			return
+		}
 		width, _ := c.Size()
 		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
 	})
 	// The window's own document asks here, where the user closed it.
+	a.databasePeekModal(c)
 	if a.unsaved.open && len(a.unsaved.docs) == 1 && a.unsaved.docs[0] == d {
 		a.unsavedPromptView(c)
 	}

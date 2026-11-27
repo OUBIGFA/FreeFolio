@@ -235,8 +235,9 @@ func (e *Editor) layoutImage(r *row, o Options) float32 {
 		iw, ih = f.resource.Width, f.resource.Height
 	}
 	if iw > 0 && ih > 0 {
-		scale := min(float32(1), w/float32(max(1, iw)))
-		preferred := b.ImageWidth
+		z := e.zoomFactor()
+		scale := min(z, w/float32(max(1, iw)))
+		preferred := b.ImageWidth * z
 		if e.imageResize.id == b.ID {
 			preferred = e.imageResize.width
 		}
@@ -457,7 +458,7 @@ func (e *Editor) paintFileDropPreview(p *ui.Painter, bounds ui.Rect, t *ui.Theme
 		p.TextLayout(hint, slot.X+(slot.W-hw)/2, slot.Y+(slot.H-hh)/2, t.Accent.Alpha(0.85))
 	}
 
-	if !e.pointerInside {
+	if !e.pointerInside && !e.fileDragInside {
 		return
 	}
 	card := ui.Rect{

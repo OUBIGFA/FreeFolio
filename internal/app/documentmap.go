@@ -26,7 +26,7 @@ func (a *App) toggleDocumentMap(d *document) {
 }
 
 func (a *App) toggleActiveDocumentMap() {
-	if a.doc == nil || a.doc.loadErr != nil || a.doc.source {
+	if a.doc == nil || a.doc.loadErr != nil || a.doc.source || a.doc.isMDZ() || a.doc.isDatabase() {
 		return
 	}
 	if a.focus {
@@ -79,6 +79,13 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 		return
 	}
 	if d.mindMap == nil {
+		if store, _, _, _ := a.owningDatabaseFor(d); store != nil {
+			ui.Column(c.Key(d.viewKey() + ":propswrap")).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+				a.pagePropertiesHeader(c, d)
+				editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
+			})
+			return
+		}
 		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
 		return
 	}
@@ -102,6 +109,7 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 		wsH := ws.LayoutBounds().H
 		ws.Children(func() {
 			ui.Column(c.Key("document-body")).HeightPercent((1 - d.mapVFraction) * 100).MinWidth(0).MinHeight(0).Clip().Children(func() {
+				a.pagePropertiesHeader(c, d)
 				editor.View(c.Key(d.viewKey()), d.ed, opts)
 			})
 			divider := ui.Box(c.Key("map-divider")).Height(7).WidthPercent(100).Center().Focusable().Role(ui.RoleSplitter).
@@ -140,6 +148,7 @@ func (a *App) documentMapWorkspace(c *ui.Context, d *document, width float32) {
 	colors := mapBranchPalette(d, opts.Theme.Dark)
 	ui.Row(c.Key("document-workspace")).Grow(1).MinWidth(0).MinHeight(0).AlignItems(ui.Stretch).Clip().Children(func() {
 		ui.Column(c.Key("document-body")).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() {
+			a.pagePropertiesHeader(c, d)
 			editor.View(c.Key(d.viewKey()), d.ed, opts)
 		})
 		divider := ui.Box(c.Key("map-divider")).Width(7).HeightPercent(100).Center().Focusable().Role(ui.RoleSplitter).
@@ -177,6 +186,14 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 	if d == nil || d.loadErr != nil {
 		return
 	}
+	if d.isMDZ() {
+		a.mdzCorner(c, d)
+		return
+	}
+	if d.isDatabase() {
+		a.databaseCorner(c, d)
+		return
+	}
 	if d.isPDF() {
 		a.pdfCorner(c, d)
 		return
@@ -200,6 +217,9 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 		}
 		return
 	}
+	if a.showPageZoomButton(d) {
+		a.pageZoomButton(c, d)
+	}
 	// Left of the mind map: rich text and Markdown source, either way. The
 	// eye shows the page rendered; struck through, its source.
 	icon := iconEye
@@ -213,6 +233,12 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 	if src.Clicked() {
 		d.toggleMode()
 	}
+	if !a.inWindow(d) && (a.files != nil || a.doc == d) {
+		if iconButton(c, "title-split", iconSplit, i18n.T("添加分屏"), a.withKey(i18n.T("添加分屏"), "split-add"), a.split != nil && len(a.split.panes) >= splitLimit).Clicked() {
+			a.activateDocument(d)
+			a.addSplitPane()
+		}
+	}
 	if !d.source {
 		b := iconButton(c, "document-map", iconListTree, i18n.T("思维导图"), a.withKey(i18n.T("思维导图"), "mindmap"), false)
 		if d.mindMap != nil {
@@ -225,7 +251,11 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 		if b.Clicked() {
 			a.toggleDocumentMap(d)
 		}
-		a.pageWidthButton(c, d)
-		d.ed.ActionsCorner(c)
+		if a.files == nil || a.winW >= 1000 {
+			if a.files != nil || a.winW >= 1000 && (a.folded() || a.winW-a.sidebarW() >= 900) {
+				a.pageWidthButton(c, d)
+			}
+			d.ed.ActionsCorner(c)
+		}
 	}
 }

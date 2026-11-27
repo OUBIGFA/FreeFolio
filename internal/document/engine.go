@@ -887,6 +887,12 @@ func (e *Engine) ClearFormat() {
 	e.applyFormat(reset)
 }
 
+// clearInlineStyle also serves rectangular table selections without removing links.
+func clearInlineStyle(s *Style) { *s = Style{NoMath: s.NoMath, Link: s.Link} }
+
+// ClearFormatting uses the same link-preserving contract as ClearFormat.
+func (e *Engine) ClearFormatting() { e.ClearFormat() }
+
 func (e *Engine) applyFormat(change func(*Style)) {
 	if e.ReadOnly {
 		return

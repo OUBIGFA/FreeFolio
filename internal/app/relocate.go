@@ -46,6 +46,14 @@ func (a *App) moveWithResources(src *space.Space, rel string, dst *space.Space, 
 	if err != nil {
 		return "", false, err
 	}
+	a.releasePDFHandles(src, rel)
+	defer func() {
+		if err != nil {
+			a.reopenResidentPDFs(src, rel)
+		} else {
+			a.reopenResidentPDFs(dst, to)
+		}
+	}()
 	if src.ID == dst.ID {
 		to, err = vault.Move(sourceRoot, sourcePath, dir)
 	} else {
@@ -293,7 +301,7 @@ func (a *App) movingDocuments(sp *space.Space, rel string) ([]*movingDocument, e
 }
 
 func imageDocument(rel, text string) (*model.Document, error) {
-	if vault.IsSource(rel) || vault.IsConverted(rel) {
+	if vault.IsSource(rel) || vault.IsConverted(rel) || vault.IsPDF(rel) || vault.IsMDZ(rel) || vault.IsDatabase(rel) {
 		// Their pictures are not links FreeFolio keeps: nothing to move.
 		doc := model.New()
 		doc.Blocks = nil

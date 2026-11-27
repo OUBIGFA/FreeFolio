@@ -5,10 +5,55 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/database"
 	"github.com/OUBIGFA/FreeFolio/internal/history"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestDatabaseVersionRestorePreservesRecordsAndUndo(t *testing.T) {
+	a, tt := newTestApp(t)
+	db, rel := seedAppDatabase(t, a, "Roadmap")
+	record := "# Alpha\n\nKeep the current record body\n"
+	if err := vault.Write(root(a), "Roadmap/alpha.md", record); err != nil {
+		t.Fatal(err)
+	}
+	older := db.Clone()
+	older.Title = "Older roadmap"
+	raw, err := database.EncodeDatabaseMarkdown(older, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := history.SaveMilestone(root(a), rel, raw, "Older schema", time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshTree()
+	a.open(rel)
+	a.openVersions()
+	settle(tt)
+	if a.versions.dbText != raw {
+		t.Fatal("database version was not loaded for preview")
+	}
+	if err := tt.Click("恢复此版本"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if a.versions.open || a.doc.dbView.Store.Database().Title != older.Title {
+		t.Fatal("restore did not apply the older schema")
+	}
+	if got, err := vault.Read(root(a), "Roadmap/alpha.md"); err != nil || got != record {
+		t.Fatalf("restoring schema changed record contents: %q %v", got, err)
+	}
+	if err := tt.Click("撤销"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if a.doc.dbView.Store.Database().Title != db.Title {
+		t.Fatal("database restore could not be undone from the toolbar")
+	}
+}
 
 func TestVersionGraphemeDiffAndMilestones(t *testing.T) {
 	a, tt := newTestApp(t)

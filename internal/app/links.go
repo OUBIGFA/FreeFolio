@@ -284,7 +284,7 @@ func (a *App) settledFooter(c *ui.Context, d *document) *pageFooterCache {
 func (a *App) liveTyping(c *ui.Context) time.Duration {
 	var wait time.Duration
 	for _, d := range a.residentDocuments() {
-		if d.loadErr != nil || d.ed.ByteLen() < footerLong {
+		if d.isDatabase() || d.isMDZ() || d.loadErr != nil || d.ed.ByteLen() < footerLong {
 			continue
 		}
 		rev := d.ed.Revision()
@@ -322,7 +322,7 @@ func (a *App) pageFooter(c *ui.Context) {
 }
 
 func (a *App) pageFooterFor(c *ui.Context, d *document) {
-	if d == nil {
+	if d == nil || d.isDatabase() || d.isMDZ() {
 		return
 	}
 	t := c.Theme()
@@ -408,7 +408,7 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 func (a *App) iconTitle(spaceID, rel string) string {
 	title := vault.Title(rel)
 	icon := ""
-	if d := a.residentDocument(spaceID, rel); d != nil && d.loadErr == nil {
+	if d := a.residentDocument(spaceID, rel); d != nil && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() {
 		icon = d.ed.Doc.Icon
 	} else {
 		icon = a.search.index.Icon(spaceID, rel)
@@ -434,7 +434,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 	resident := map[place]bool{}
 	for _, d := range a.residentDocuments() {
 		resident[place{d.space.ID, d.rel}] = true
-		if allowed[d.space.ID] && d.loadErr == nil && wiki.LinksTo(d.plainText(), from) && a.mapDocumentText(d, rename) {
+		if allowed[d.space.ID] && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() && wiki.LinksTo(d.plainText(), from) && a.mapDocumentText(d, rename) {
 			changed++
 		}
 	}
@@ -446,7 +446,7 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 		return true
 	})
 	for _, file := range files {
-		if resident[file] || !vault.IsText(file.rel) {
+		if resident[file] || vault.IsDatabase(file.rel) || vault.IsMDZ(file.rel) || !vault.IsText(file.rel) {
 			continue
 		}
 		sp := a.state.Get(file.space)

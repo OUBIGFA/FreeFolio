@@ -113,6 +113,9 @@ func writeShape(b *strings.Builder, s ShapeOp, st Style) {
 		writeRect(b, x, y, w, h, s.Radius, attrs, s.Dashed)
 	case ShapeRound:
 		writeRect(b, x, y, w, h, max(s.Radius, 6), attrs, s.Dashed)
+		if s.DividerY > 0 && s.DividerY < h {
+			fmt.Fprintf(b, `<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="1.00"/>`, x, y+s.DividerY, x+w, y+s.DividerY, stroke)
+		}
 	case ShapeStadium:
 		writeRect(b, x, y, w, h, min(w, h)/2, attrs, false)
 	case ShapeCircle:
@@ -173,6 +176,19 @@ func writeShape(b *strings.Builder, s ShapeOp, st Style) {
 			cx, hipY, cx-headR*1.2, y+h-1,
 			cx, hipY, cx+headR*1.2, y+h-1,
 			stroke, width)
+	case ShapeStartState:
+		fmt.Fprintf(b, `<circle cx="%.2f" cy="%.2f" r="%.2f" fill="%s" fill-opacity="0.85" stroke="none"/>`,
+			x+w/2, y+h/2, min(w, h)/2, st.Label(LabelOp{}))
+	case ShapeEndState:
+		cx, cy, r := x+w/2, y+h/2, min(w, h)/2
+		fmt.Fprintf(b, `<circle cx="%.2f" cy="%.2f" r="%.2f" fill="%s" stroke="%s" stroke-opacity="0.85" stroke-width="1.50"/>`,
+			cx, cy, r, st.Paper, st.Label(LabelOp{}))
+		fmt.Fprintf(b, `<circle cx="%.2f" cy="%.2f" r="%.2f" fill="%s" fill-opacity="0.85" stroke="none"/>`,
+			cx, cy, r*0.52, st.Label(LabelOp{}))
+	case ShapeBar:
+		rad := min(float32(3), min(w, h)/2)
+		fmt.Fprintf(b, `<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" rx="%.2f" fill="%s" fill-opacity="0.85" stroke="none"/>`,
+			x, y, w, h, rad, st.Label(LabelOp{}))
 	}
 }
 

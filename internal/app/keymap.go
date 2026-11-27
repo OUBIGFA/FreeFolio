@@ -30,12 +30,20 @@ func ctrlCmd() ui.Modifiers {
 	return ui.Ctrl | ui.Alt
 }
 
+func zoomInDefaults() []editor.Combo {
+	if ui.Cmd == ui.Super {
+		return []editor.Combo{combo(ui.Cmd, ui.KeyEqual), combo(ui.Cmd|ui.Shift, ui.KeyEqual)}
+	}
+	return []editor.Combo{combo(ui.Cmd, ui.KeyEqual)}
+}
+
 // bindings are the commands that can be rebound, in the order the
 // settings list them.
 var bindings = []binding{
 	{id: "palette", label: "命令栏", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyK), combo(ui.Cmd, ui.KeyL), combo(ui.Cmd, ui.KeyP)}},
 	{id: "new-doc", label: "新建文档", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyN)}},
 	{id: "new-board", label: "新建白板", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyB)}},
+	{id: "new-database", label: "新建数据库", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyG)}},
 	{id: "new-folder", label: "新建文件夹", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyN)}},
 	{id: "daily", label: "今日笔记", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyT)}},
 	{id: "replace-all", label: "在所有文档中查找和替换", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyR)}},
@@ -57,6 +65,9 @@ var bindings = []binding{
 	{id: "mindmap", label: "思维导图", defaults: []editor.Combo{combo(ctrlCmd(), ui.KeyM)}},
 	{id: "outline", label: "展开/收起目录", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyO)}},
 	{id: "full-width", label: "切换全宽显示", defaults: []editor.Combo{combo(ui.Cmd|ui.Alt, ui.KeyP)}},
+	{id: "zoom-in", label: "放大页面", defaults: zoomInDefaults()},
+	{id: "zoom-out", label: "缩小页面", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyMinus)}},
+	{id: "zoom-reset", label: "重置页面缩放", defaults: []editor.Combo{combo(ui.Cmd, ui.Key0)}},
 	{id: "bookmark", label: "添加/移除书签", defaults: []editor.Combo{combo(ui.Cmd, ui.KeyD)}},
 	{id: "bookmarks", label: "书签列表", defaults: []editor.Combo{combo(ui.Cmd|ui.Shift, ui.KeyD)}},
 	{id: "prev-bookmark", label: "上一个书签", defaults: []editor.Combo{combo(ctrlCmd(), ui.KeyUp)}},
@@ -69,6 +80,7 @@ var bindings = []binding{
 	{id: "underline", label: "下划线", editor: true},
 	{id: "strike", label: "删除线", editor: true},
 	{id: "code", label: "行内代码", editor: true},
+	{id: "clear-format", label: "清除样式", editor: true},
 	{id: "find", label: "查找", editor: true},
 	{id: "replace", label: "查找和替换", editor: true},
 	{id: "newline", label: "在下方新建段落", editor: true},
@@ -272,8 +284,11 @@ func (a *App) resetKeys(id string) {
 func reservedCombos() []editor.Combo {
 	out := []editor.Combo{combo(ui.Cmd, ui.KeyZ), combo(ui.Cmd|ui.Shift, ui.KeyZ), combo(ui.Cmd, ui.KeyC),
 		combo(ui.Cmd, ui.KeyV), combo(ui.Cmd, ui.KeyX), combo(ui.Cmd, ui.KeyA), combo(ui.Cmd, ui.KeyQ), combo(ui.Cmd, ui.KeyW)}
-	for _, k := range []ui.Key{ui.Key0, ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
-		out = append(out, combo(ui.Cmd, k), combo(ui.Ctrl, k), combo(ui.Cmd|ui.Alt, k))
+	for _, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
+		out = append(out, combo(ui.Cmd, k), combo(ui.Ctrl, k))
+	}
+	for _, k := range []ui.Key{ui.Key0, ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6} {
+		out = append(out, combo(ui.Cmd|ui.Alt, k))
 	}
 	for _, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4} {
 		out = append(out, combo(ui.Ctrl|ui.Shift, k))

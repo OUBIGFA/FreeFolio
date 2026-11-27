@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
@@ -27,7 +26,6 @@ const (
 	paperWidth  = 794
 	paperHeight = 1123
 	paperMargin = 48
-	paperScale  = 2
 )
 
 // createNumbered writes data as a new file named title and ext in the
@@ -64,16 +62,10 @@ func createNumbered(root, dir, title, ext string, data []byte) (string, error) {
 
 // sanitizeName makes a title a file name.
 func sanitizeName(title string) string {
-	name := strings.Map(func(r rune) rune {
-		if r < 32 || strings.ContainsRune(`/\:*?"<>|`, r) {
-			return '-'
-		}
-		return r
-	}, strings.TrimSpace(title))
-	if name == "" || name == "." || name == ".." {
-		return i18n.T("文档")
+	if name := vault.SanitizeName(title); name != "" {
+		return name
 	}
-	return name
+	return i18n.T("文档")
 }
 
 // htmlPage is a document exported as a web page: semantic HTML in a page
@@ -143,11 +135,11 @@ func htmlLang() string {
 // when the name is taken, never replacing a file.
 func (a *App) exportHTML() {
 	d := a.doc
-	if d == nil || d.loadErr != nil || d.isPDF() {
+	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() || d.isDatabase() {
 		return
 	}
 	d.ed.UnmarkText()
-	doc := d.ed.Committed()
+	doc := a.documentForExport(d)
 	page := htmlPage(docName(d.title()), editor.ExportHTMLPage(doc, editor.HTMLTheme{
 		Light: editor.HTMLStyle{Theme: documentTheme(false), Page: pageStyle(false)},
 		Dark:  editor.HTMLStyle{Theme: documentTheme(true), Page: pageStyle(true)},

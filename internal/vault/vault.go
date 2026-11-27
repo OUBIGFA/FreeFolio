@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
@@ -28,29 +30,29 @@ var Extensions = []string{".md", ".markdown", ".mdx"}
 // whiteboards, PDFs and the formats of package formats: the files a space
 // lists and opens.
 func IsDocument(name string) bool {
-	return IsText(name) || IsPDF(name) || IsSource(name) || IsConverted(name)
+	return IsText(name) || IsDatabase(name) || IsMDZ(name) || IsPDF(name) || IsSource(name) || IsConverted(name)
 }
 
 // IsSource is a plain-text file of another format (code, configuration,
 // data) that FreeFolio edits as text and writes back as typed. Native
 // documents, Markdown and whiteboards are not source files.
 func IsSource(name string) bool {
-	return !IsText(name) && !IsPDF(name) && formats.IsSource(name)
+	return !IsText(name) && !IsMDZ(name) && !IsPDF(name) && formats.IsSource(name)
 }
 
 // IsConverted is a file FreeFolio reads through a converter and shows
 // read-only; it is never written.
 func IsConverted(name string) bool {
-	return !IsText(name) && !IsPDF(name) && formats.IsConverted(name)
+	return !IsText(name) && !IsMDZ(name) && !IsPDF(name) && formats.IsConverted(name)
 }
 
 // IsReadOnly reports whether FreeFolio never writes the document's file.
-func IsReadOnly(name string) bool { return IsPDF(name) || IsConverted(name) }
+func IsReadOnly(name string) bool { return IsPDF(name) || IsMDZ(name) || IsConverted(name) }
 
 // IsText is a document whose file is text FreeFolio reads and writes: every
 // document but a PDF, which is only read.
 func IsText(name string) bool {
-	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name) || IsWhiteboard(name)
+	return strings.EqualFold(path.Ext(name), ".arcmd") || IsMarkdown(name) || IsDatabase(name) || IsWhiteboard(name)
 }
 
 // IsPDF reports whether name is a PDF document (ArcMD fcb7cd3).
@@ -67,7 +69,11 @@ func IsWhiteboard(name string) bool {
 
 // IsMarkdown reports whether name has one of Extensions.
 func IsMarkdown(name string) bool {
-	return slices.Contains(Extensions, strings.ToLower(path.Ext(name)))
+	base := path.Base(filepath.ToSlash(name))
+	if len(base) >= len(ExtDatabase) && strings.EqualFold(base[len(base)-len(ExtDatabase):], ExtDatabase) {
+		return false
+	}
+	return slices.Contains(Extensions, strings.ToLower(path.Ext(base)))
 }
 
 // Doc is a Markdown file of the vault.
@@ -93,7 +99,7 @@ func Title(rel string) string {
 	if strings.HasSuffix(strings.ToLower(base), ".excalidraw.svg") {
 		return base[:len(base)-len(".excalidraw.svg")]
 	}
-	return strings.TrimSuffix(base, path.Ext(base))
+	return strings.TrimSuffix(base, FileExt(base))
 }
 
 // ErrOutside reports a path that leaves the root.
@@ -269,7 +275,7 @@ func walkDocuments(root string, visit func(rel string) bool) error {
 
 // CreateFile atomically chooses an unused document name and writes its content.
 func CreateFile(root, dir, title, extension, text string) (string, error) {
-	if extension != ".arcmd" && extension != ".md" && extension != ".excalidraw" && extension != ".excalidraw.svg" {
+	if extension != ".arcmd" && extension != ".md" && extension != ".excalidraw" && extension != ".excalidraw.svg" && extension != ExtDatabase {
 		return "", errors.New("vault: unsupported document extension")
 	}
 	title = sanitize(title)
@@ -354,14 +360,7 @@ func Create(root, dir, title string) (string, error) {
 
 // sanitize makes title a file name that every platform accepts.
 func sanitize(title string) string {
-	title = strings.Map(func(r rune) rune {
-		switch {
-		case r < 32 || strings.ContainsRune(`/\:*?"<>|`, r):
-			return '-'
-		}
-		return r
-	}, title)
-	return strings.Trim(strings.TrimSpace(title), ".")
+	return SanitizeName(title)
 }
 
 // ImportFile copies the regular file at src into the folder dir ("" for
@@ -381,7 +380,7 @@ func ImportFile(src, root, dir string) (string, error) {
 		return "", err
 	}
 	base := filepath.Base(src)
-	ext := filepath.Ext(base)
+	ext := FileExt(base)
 	stem := strings.TrimSuffix(base, ext)
 	for i := 1; i < 1000; i++ {
 		name := base
@@ -400,4 +399,101 @@ func ImportFile(src, root, dir string) (string, error) {
 		return rel, err
 	}
 	return "", errors.New("vault: too many files with that name")
+}
+
+// Structured document formats retain their complete compound suffix.
+const (
+	ExtDatabase      = ".db.md"
+	ExtMDZ           = ".mdz"
+	ExtWhiteboard    = ".excalidraw.svg"
+	ExtWhiteboardRaw = ".excalidraw"
+	ExtPDF           = ".pdf"
+)
+
+func FileExt(name string) string {
+	base := path.Base(filepath.ToSlash(name))
+	if len(base) > len(ExtWhiteboard) && strings.EqualFold(base[len(base)-len(ExtWhiteboard):], ExtWhiteboard) {
+		return base[len(base)-len(ExtWhiteboard):]
+	}
+	if len(base) > len(ExtDatabase) && strings.EqualFold(base[len(base)-len(ExtDatabase):], ExtDatabase) {
+		return base[len(base)-len(ExtDatabase):]
+	}
+	return path.Ext(base)
+}
+
+func IsDatabase(name string) bool {
+	base := path.Base(filepath.ToSlash(name))
+	return len(base) > len(ExtDatabase) && strings.EqualFold(FileExt(base), ExtDatabase)
+}
+
+func IsMDZ(name string) bool {
+	base := path.Base(filepath.ToSlash(name))
+	ext := strings.ToLower(FileExt(base))
+	return len(base) > len(ext) && ext == ExtMDZ
+}
+
+func SanitizeName(title string) string {
+	title = strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20:
+			return -1
+		case strings.ContainsRune(`/\:*?"<>|`, r):
+			return '-'
+		}
+		return r
+	}, title)
+	title = strings.TrimFunc(title, func(r rune) bool {
+		return unicode.IsSpace(r) || r == '.'
+	})
+	if title == "" {
+		return ""
+	}
+	stem := title
+	if dot := strings.IndexByte(title, '.'); dot >= 0 {
+		stem = title[:dot]
+	}
+	stem = strings.TrimRightFunc(stem, unicode.IsSpace)
+	if isWindowsReservedName(stem) {
+		return "_" + title
+	}
+	return title
+}
+
+func isWindowsReservedName(stem string) bool {
+	switch strings.ToUpper(stem) {
+	case "CON", "PRN", "AUX", "NUL",
+		"COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+		"LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+		"COM\u00b9", "COM\u00b2", "COM\u00b3",
+		"LPT\u00b9", "LPT\u00b2", "LPT\u00b3":
+		return true
+	}
+	return false
+}
+
+// DocStat describes one indexed file with its current filesystem metadata.
+type DocStat struct {
+	Doc
+	Size     int64
+	Modified time.Time
+}
+
+// ListStat shares List's path filtering and reports readable file metadata.
+func ListStat(root string) ([]DocStat, error) {
+	docs, err := List(root)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]DocStat, 0, len(docs))
+	for _, doc := range docs {
+		full, err := Resolve(root, doc.Path)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(full)
+		if err == nil && info.Mode().IsRegular() {
+			result = append(result, DocStat{Doc: doc, Size: info.Size(), Modified: info.ModTime()})
+		}
+	}
+	return result, nil
 }

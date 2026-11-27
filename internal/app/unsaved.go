@@ -45,8 +45,14 @@ func (a *App) discardEdits(d *document) {
 	}
 	d.waitAsyncSave()
 	clean := openDocument(d.space, d.rel, d.diskText, d.source)
+	if d.isDatabase() && clean.isDatabase() {
+		clean.dbView.SetActiveView(d.dbView.Store.Database().ActiveView)
+	}
 	if d.ed != nil && clean.ed != nil {
 		clean.ed.Scroll = d.ed.Scroll
+		if d.source {
+			clean.previewScroll = d.previewScroll
+		}
 	}
 	a.replaceReferences(d, clean)
 	d.close()

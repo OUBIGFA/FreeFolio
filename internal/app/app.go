@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/OUBIGFA/FreeFolio/internal/agentmcp"
 	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
 	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
@@ -83,6 +84,7 @@ type spaceSession struct {
 	split         *splitGroup
 	splitShown    bool
 	splitRestored bool
+	splitDeferred bool
 }
 
 type startupDocPrefetch struct {
@@ -92,6 +94,18 @@ type startupDocPrefetch struct {
 
 // App is FreeFolio's state.
 type App struct {
+	controlRead map[place]string
+
+	dbCatalog map[string]*databaseCatalog
+	dbLoads   map[string]*databaseLoad
+
+	copied          []place
+	recentCopies    []*place
+	pendingDupUndo  *place
+	openAfterRename string
+
+	deferredNotices []deferredNotice
+
 	boardImages  []*boardImageWindow
 	imports      noteImportState
 	quick        quickNoteState
@@ -208,7 +222,8 @@ type App struct {
 	// renameSpace is the ID of the space holding the item being renamed.
 	renameSpace string
 
-	palette palette
+	palette  palette
+	newModal newModalState
 	// qa is the panel of questions about the space (qa.go).
 	qa        qaState
 	resources resourceState
@@ -351,6 +366,22 @@ type App struct {
 	cachedEditorBindings map[string]editor.Combo
 	cachedReserved       []editor.Combo
 	cachedBookmarkKey    string
+
+	dbPeek            dbPeekState
+	pageDBCache       map[string]*pageDBEntry
+	embedDBs          map[string]*embedDBEntry
+	dbViewListCache   map[string]*sidebarDBMeta
+	dbThumbCache      map[string]cachedImage
+	dbThumbOrder      []string
+	dbViewRename      sidebarDBViewRename
+	pagePropsExpanded map[string]bool
+
+	agentIPC           *agentIPCServer
+	agentHomeDir       string
+	agentSkillTargets  []agentmcp.SkillTarget
+	agentBinCmd        string
+	agentSkillsChecked bool
+	controlExec        func(func() (any, error)) (any, error)
 }
 
 // trashItem moves the file or folder at p to the system's trash.
@@ -629,8 +660,8 @@ func (a *App) Run() error {
 			a.appMenu(),
 			{Role: mygo.RoleFileMenu},
 			{Role: mygo.RoleEditMenu},
-			{Role: mygo.RoleFormatMenu},
-			{Role: mygo.RoleViewMenu},
+			a.formatMenu(),
+			a.viewMenu(),
 			{Role: mygo.RoleWindow, Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleMinimize},
 				{Role: mygo.RoleZoom},
@@ -689,6 +720,9 @@ func (a *App) Run() error {
 			a.stopComfyUI()
 		})
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
+		if err := a.startAgentIPC(); err != nil {
+			a.notify("本地 Agent 接口启动失败；%v", err)
+		}
 		a.win.OnClose(func(event *mygo.CloseEvent) {
 			a.finishLaunch()
 			// Hidden in the tray, the window keeps its documents in memory:
@@ -726,6 +760,7 @@ func (a *App) Run() error {
 	})
 	defer a.stopComfyUI()
 	defer a.waitGitShutdown()
+	defer a.stopAgentIPC()
 	return mygo.App.Run()
 }
 
@@ -800,9 +835,52 @@ func (a *App) appMenu() *mygo.MenuItem {
 	}}
 }
 
+// formatMenu is the Format menu without MyGo's default alignment items: the
+// editor does not handle alignLeft/alignCenter/alignRight commands, and
+// macOS's RoleAlignCenter binds Cmd+| (Shift+Cmd+\), which would otherwise
+// intercept Clear Formatting in NSMenu before key events reach the window.
+func (a *App) formatMenu() *mygo.MenuItem {
+	return &mygo.MenuItem{
+		Role: mygo.RoleFormatMenu,
+		Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleBold},
+			{Role: mygo.RoleItalic},
+			{Role: mygo.RoleUnderline},
+			{Role: mygo.RoleStrikethrough},
+		},
+	}
+}
+
+// viewMenu is the View menu without MyGo's webview reload and zoom roles:
+// native UI windows ignore those roles in performRole, yet their NSMenu
+// key equivalents (Cmd+R, Shift+Cmd+R, Cmd+0, Cmd++ / hidden Cmd+=, and
+// Cmd+-) would otherwise intercept ArcMD's reload, global replace, and
+// zoom shortcuts before key events reach the window.
+func (a *App) viewMenu() *mygo.MenuItem {
+	return &mygo.MenuItem{
+		Role: mygo.RoleViewMenu,
+		Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleToggleDevTools},
+			mygo.Separator(),
+			{Role: mygo.RoleToggleFullScreen},
+		},
+	}
+}
+
+type deferredNotice struct {
+	format string
+	args   []any
+}
+
 // notify queues a message for the user.
 func (a *App) notify(format string, args ...any) {
 	a.notices = append(a.notices, fmt.Sprintf(i18n.T(format), args...))
+}
+
+// notifyDeferred queues a message whose translation is resolved when the UI
+// renders its toast, after Run has detected the OS preferred language.
+func (a *App) notifyDeferred(format string, args ...any) {
+	a.deferredNotices = append(a.deferredNotices, deferredNotice{format: format, args: args})
 }
 
 // savePrefs writes prefs.json, telling the user when it fails.
@@ -942,6 +1020,7 @@ func (a *App) session(id string) *spaceSession {
 // refreshTree reads the active space's folder again, at once: what follows
 // a file operation looks for its result in the tree.
 func (a *App) refreshTree() {
+	a.invalidatePageDBCache("")
 	sp := a.state.ActiveSpace()
 	if sp == nil {
 		a.treeFor = ""
@@ -1156,6 +1235,9 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		text, err = readFile(sp, rel)
 	}
 	if err != nil {
+		if a.noteMissingExternal(sp, rel, err) {
+			return false
+		}
 		if errors.Is(err, os.ErrNotExist) {
 			if sp.IsExternal() {
 				a.notify("文件已被移动或删除：%s", sp.ExternalFiles[rel])
@@ -1202,6 +1284,12 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		if !resident.dirty() && resident.diskText != text {
 			replacement := a.openDocumentForView(sp, rel, text, resident.source)
 			replacement.ed.Scroll = resident.ed.Scroll
+			if resident.isMDZ() && replacement.isMDZ() {
+				replacement.mdz.preserveFrom(resident.mdz)
+			}
+			if resident.isDatabase() && replacement.isDatabase() {
+				replacement.dbView.SetActiveView(resident.dbView.Store.Database().ActiveView)
+			}
 			a.replaceReferences(resident, replacement)
 			resident = replacement
 		}
@@ -1214,6 +1302,24 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		preferSource := cached != nil && cached.rel == rel && cached.source
 		a.doc = a.openDocumentForView(sp, rel, text, preferSource)
 	}
+	if a.doc.isDatabase() {
+		if (prev == nil || prev.space != sp || prev.rel != rel) && !sp.IsExternal() {
+			sp.SetExpanded(rel, true)
+		}
+		a.refreshOpenDatabases(sp.ID)
+	}
+	if a.dbPeek.open && a.dbPeek.dbDoc != nil && a.dbPeek.dbDoc != a.doc {
+		stillOpen := false
+		for _, r := range a.residentDocuments() {
+			if r == a.dbPeek.dbDoc {
+				stillOpen = true
+				break
+			}
+		}
+		if !stillOpen {
+			a.closeRecordPeek()
+		}
+	}
 	var oldSession *document
 	if activeSp := a.state.ActiveSpace(); activeSp != nil && a.documentContext == 0 {
 		if s := a.sessions[activeSp.ID]; s != nil {
@@ -1224,6 +1330,12 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 	a.retireClosedDocuments(prev, oldSession)
 	if a.paneNavigation {
 		a.doc.requestFocus()
+		if a.doc.isMDZ() {
+			a.doc.mdz.requestFocus = true
+		}
+		if a.doc.isDatabase() {
+			a.doc.dbView.RequestFocus = true
+		}
 	}
 	if a.search.async {
 		// The backlinks below the document read the index.
@@ -1261,8 +1373,19 @@ func (a *App) noteReading() bool {
 // reveal opens the folders holding rel in the sidebar.
 func (a *App) reveal(rel string) {
 	sp := a.state.ActiveSpace()
-	changed := false
+	if sp == nil {
+		return
+	}
+	var dirs []string
 	for dir := path.Dir(rel); dir != "." && dir != "/"; dir = path.Dir(dir) {
+		dirs = append(dirs, dir)
+	}
+	changed := false
+	for i := len(dirs) - 1; i >= 0; i-- {
+		dir := dirs[i]
+		if a.isFoldedDBDir(sp, dir) && !sp.IsExpanded(dir) {
+			break
+		}
 		if !sp.IsExpanded(dir) {
 			sp.SetExpanded(dir, true)
 			changed = true
@@ -1338,7 +1461,11 @@ func (a *App) reload() {
 		a.notify("重新载入 %s 失败；%v", vault.Title(rel), err)
 		return
 	}
-	a.replaceReferences(a.doc, openDocument(a.doc.space, rel, text, source))
+	next := openDocument(a.doc.space, rel, text, source)
+	if a.doc.isMDZ() && next.isMDZ() {
+		next.mdz.preserveFrom(a.doc.mdz)
+	}
+	a.replaceReferences(a.doc, next)
 	a.refreshTree()
 }
 
@@ -1416,7 +1543,7 @@ func isUntitled(name string) bool {
 // by hand keeps its name. A title taken by another file is numbered.
 func (a *App) followTitle() {
 	d := a.doc
-	if d == nil || d.space.IsExternal() || d.loadErr != nil || d.conflict || d.missing || !vault.IsText(d.rel) || d.dirty() {
+	if d == nil || d.isMDZ() || d.isDatabase() || d.source && d.sourceComposing || d.space.IsExternal() || d.loadErr != nil || d.conflict || d.missing || !vault.IsText(d.rel) || d.dirty() {
 		return
 	}
 	if _, composing := d.ed.MarkedRange(); composing {
@@ -1426,7 +1553,7 @@ func (a *App) followTitle() {
 	if !isUntitled(name) && name != d.named {
 		return
 	}
-	title := docTitle(d.ed.Doc)
+	title := docTitle(d.committedForRead())
 	if title == "" || title == name || title == d.namedFor && name == d.named {
 		return // nothing to do, or done for this title already
 	}
@@ -1456,7 +1583,11 @@ func (a *App) followTitle() {
 				a.relink(name, vault.Title(to), sources)
 			}
 		}
-		d.ed.RequestFocus = focus
+		if d.source {
+			d.sourceFocusPending = true
+		} else {
+			d.ed.RequestFocus = focus
+		}
 		return
 	}
 }
@@ -1536,8 +1667,10 @@ func (a *App) commitRename() {
 		rel = renaming.rel
 	}
 	sources := a.renameSources(sp, rel)
+	a.releasePDFHandles(sp, rel)
 	to, err := renameFile(sp, rel, name)
 	if err != nil {
+		a.reopenResidentPDFs(sp, rel)
 		a.notify("重命名 %s 失败；%v", path.Base(rel), err)
 		return
 	}
@@ -1546,6 +1679,8 @@ func (a *App) commitRename() {
 		if vault.IsDocument(rel) {
 			a.relink(vault.Title(rel), vault.Title(to), sources)
 		}
+	} else {
+		a.reopenResidentPDFs(sp, rel)
 	}
 }
 
@@ -1585,6 +1720,7 @@ func (a *App) moved(sp *space.Space, from, to string) {
 		}
 		if a.doc != nil && a.doc.space == sp && a.doc.rel == from {
 			a.doc.rel = to
+			a.doc.syncMovedPath()
 		}
 		a.files.marks.Renamed(sp.ID, from, to)
 		return
@@ -1596,6 +1732,7 @@ func (a *App) moved(sp *space.Space, from, to string) {
 	}
 	a.followOpen(sp.ID, from, sp.ID, to)
 	a.followSplitPaths(sp.ID, from, sp.ID, to)
+	a.followDatabaseRecordMove(sp, from, to)
 	a.saveState()
 	a.refreshTree()
 }
@@ -1632,6 +1769,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 	a.doc = nil
 	a.renaming = ""
 	a.syncTree()
+	a.restoreSpaceSplit(next)
 	a.pager.swipe = 0
 	a.pagerSettle(a.spaceIndex(id), from)
 	delete(a.pageTrees, id) // the active space reads its own
@@ -1761,7 +1899,9 @@ func (a *App) trash(rel string) {
 		return
 	}
 	kept, ok := a.keepDeleted(sp.ID, sp.Name, sp.Root, rel)
+	a.releasePDFHandles(sp, rel)
 	if err := a.trashItem(p); err != nil {
+		a.reopenResidentPDFs(sp, rel)
 		if ok {
 			a.bin.Forget(kept)
 		}
@@ -1856,7 +1996,7 @@ func writeNative(root, rel, markdown string) error {
 }
 
 func (a *App) exportMarkdown() {
-	if a.doc == nil || a.doc.loadErr != nil || a.doc.isPDF() {
+	if a.doc == nil || a.doc.loadErr != nil || a.doc.isPDF() || a.doc.isMDZ() || a.doc.isDatabase() {
 		return
 	}
 	if a.doc.board != nil {
@@ -1869,7 +2009,7 @@ func (a *App) exportMarkdown() {
 		a.notify("导出失败；%v", err)
 		return
 	}
-	rel, err := vault.CreateFile(root, path.Dir(name), a.doc.title()+" Export", ".md", a.doc.text())
+	rel, err := vault.CreateFile(root, path.Dir(name), a.doc.title()+" Export", ".md", editor.ExportMarkdown(a.documentForExport(a.doc)))
 	if err != nil {
 		a.notify("导出失败；%v", err)
 		return

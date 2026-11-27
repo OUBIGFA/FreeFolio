@@ -42,9 +42,8 @@ func root(a *App) string { return a.state.ActiveSpace().Root }
 func focusDocument(a *App, tt *ui.Tester) {
 	tt.Frame()
 	anchor, caret := a.doc.ed.Positions()
-	if r, ok := tt.Find("文档"); ok {
-		tt.ClickAt(r.X+8, r.Y+8)
-	}
+	a.doc.ed.RequestFocus = true // Margin clicks intentionally blur the editor
+	tt.Frame()
 	a.doc.ed.SetSelection(anchor, caret)
 	tt.Frame()
 	tt.Advance(350 * time.Millisecond)

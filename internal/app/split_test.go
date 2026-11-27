@@ -551,8 +551,8 @@ func TestSplitAddFromMoreMenu(t *testing.T) {
 	a.refreshTree()
 	a.open("Left.arcmd")
 	settle(tt)
-	if _, ok := tt.Find("添加分屏"); ok {
-		t.Fatal("the split button is still in the toolbar")
+	if _, ok := tt.Find("添加分屏"); !ok {
+		t.Fatal("the split shortcut is missing from the toolbar")
 	}
 	if err := tt.Click("更多"); err != nil {
 		t.Fatal(err)

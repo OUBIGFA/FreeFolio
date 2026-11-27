@@ -28,11 +28,14 @@ func (e *Engine) SetCoverY(y float64) {
 	e.Edit(func() { e.Doc.CoverY = y })
 }
 
-// SetFrontmatter replaces the document's own YAML frontmatter lines (those
-// FreeFolio does not read into the icon, cover and goal) as one step of the
-// history, as editing the note's properties does.
+// SetFrontmatter updates the document's preserved user YAML frontmatter as
+// one step of the history.
 func (e *Engine) SetFrontmatter(fm string) {
-	e.Edit(func() { e.Doc.Frontmatter = strings.TrimRight(fm, "\r\n") })
+	trimmed := strings.TrimRight(fm, "\r\n")
+	if trimmed == e.Doc.Frontmatter {
+		return
+	}
+	e.Edit(func() { e.Doc.Frontmatter = trimmed })
 }
 
 // ReplaceDocument puts the blocks, icon and cover of doc in place of the
@@ -42,7 +45,7 @@ func (e *Engine) ReplaceDocument(doc *Document) {
 	fresh := doc.Clone()
 	e.Edit(func() {
 		e.Doc.Blocks, e.Doc.Icon, e.Doc.Cover, e.Doc.CoverY = fresh.Blocks, fresh.Icon, fresh.Cover, fresh.CoverY
-		e.Doc.Goal, e.Doc.Frontmatter = fresh.Goal, fresh.Frontmatter
+		e.Doc.Goal, e.Doc.Frontmatter, e.Doc.ImportSource = fresh.Goal, fresh.Frontmatter, fresh.ImportSource
 		if len(e.Doc.Blocks) == 0 {
 			e.Doc.Blocks = []*Block{NewBlock("paragraph", "")}
 		}

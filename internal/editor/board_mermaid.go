@@ -36,7 +36,7 @@ func MermaidBoard(src string, at whiteboard.Point) (*whiteboard.Scene, error) {
 			kind = "round"
 		case mermaid.ShapeCylinder:
 			kind = "cylinder"
-		case mermaid.ShapeCircle:
+		case mermaid.ShapeCircle, mermaid.ShapeStartState, mermaid.ShapeEndState:
 			kind = "circle"
 		case mermaid.ShapeDiamond:
 			kind = "diamond"
@@ -48,11 +48,21 @@ func MermaidBoard(src string, at whiteboard.Point) (*whiteboard.Scene, error) {
 			kind = "actor"
 		}
 		es := whiteboard.DiagramShape(kind, x, y, w, h)
+		if sh.Kind == mermaid.ShapeEndState {
+			inner := whiteboard.NewElement(whiteboard.KindEllipse, x+w*.24, y+h*.24, w*.52, h*.52)
+			es = append(es, inner)
+		}
 		for _, e := range es {
 			e.FillColor = "#a5d8ff"
 			e.FillStyle = whiteboard.FillHachure
 			if sh.Role == mermaid.RoleNote {
 				e.FillColor = "#ffdf6b"
+			}
+			if sh.Kind == mermaid.ShapeStartState || sh.Kind == mermaid.ShapeEndState || sh.Kind == mermaid.ShapeBar {
+				e.FillColor, e.StrokeColor, e.FillStyle, e.Roughness = "#343a40", "#343a40", whiteboard.FillSolid, 0
+				if sh.Kind == mermaid.ShapeEndState && e == es[0] {
+					e.FillColor = "transparent"
+				}
 			}
 			if sh.Dashed {
 				e.StrokeStyle = whiteboard.StrokeDashed
@@ -99,7 +109,7 @@ func MermaidBoard(src string, at whiteboard.Point) (*whiteboard.Scene, error) {
 		}
 		s.Elements = append(s.Elements, e)
 		edges = append(edges, e)
-		if d.Kind == "flowchart" {
+		if d.Kind == "flowchart" || d.Kind == "state" {
 			for i, p := range []whiteboard.Point{{float64(first[0]), float64(first[1])}, {float64(last[0]), float64(last[1])}} {
 				for _, n := range nodes {
 					if whiteboard.HitTest(n, p, 18) {

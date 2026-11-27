@@ -63,6 +63,9 @@ var insertions = []insertion{
 	{name: "流程图", kind: "mermaid-flow", search: "mermaid flowchart graph diagram liuchengtu lct", icon: iconWorkflow, group: 1, tint: "teal", md: "```mermaid"},
 	{name: "时序图", kind: "mermaid-seq", search: "mermaid sequence diagram shixutu sxt", icon: iconSequence, group: 1, tint: "teal"},
 	{name: "白板", kind: "whiteboard", search: "whiteboard excalidraw canvas baiban bb", icon: iconWorkflow, group: 1, tint: "teal"},
+	{name: "状态图", kind: "mermaid-state", search: "mermaid state statediagram diagram zhuangtaitu ztt", icon: iconState, group: 1, tint: "teal"},
+	{name: "关联数据库视图", kind: "db-link", search: "database linked view db guanlianshitu glst shujuku sjk", icon: iconDatabase, group: 1, tint: "blue", md: "<!-- arcmd-db:view -->"},
+	{name: "内嵌数据库", kind: "db-new", search: "database embed inline db neiqianshujuku nqsjk", icon: iconDatabase, group: 1, tint: "teal"},
 	{name: "链接到文档", kind: "wiki", search: "wiki link backlink shuanglian sl lianjie wendang", icon: iconLink, group: 1, tint: "blue", md: "[["},
 }
 
@@ -88,7 +91,7 @@ func (e *Editor) slashEntries() []slashEntry {
 			}
 		}
 		for _, it := range insertions {
-			if it.group == 1 && (e.attach != nil || it.kind != "image") {
+			if it.group == 1 && (e.attach != nil || it.kind != "image") && (e.listDatabases != nil || it.kind != "db-link") && (e.createDatabase != nil || it.kind != "db-new") {
 				out = append(out, slashEntry{it, false})
 			}
 		}
@@ -96,7 +99,7 @@ func (e *Editor) slashEntries() []slashEntry {
 	}
 	ranked := [4][]slashEntry{}
 	for _, it := range insertions {
-		if e.attach == nil && it.kind == "image" {
+		if (e.attach == nil && it.kind == "image") || (e.listDatabases == nil && it.kind == "db-link") || (e.createDatabase == nil && it.kind == "db-new") {
 			continue
 		}
 		words := strings.Fields(strings.ToLower(it.label() + " " + it.search))
@@ -429,7 +432,7 @@ func turnItems(b *document.Block) []insertion {
 	}
 	for _, it := range insertions {
 		switch {
-		case it.kind == "rule" || it.kind == "table" || it.kind == "columns" || it.kind == "image" || it.kind == "mermaid-flow" || it.kind == "mermaid-seq" || it.kind == "whiteboard":
+		case it.kind == "rule" || it.kind == "table" || it.kind == "columns" || it.kind == "image" || it.kind == "mermaid-flow" || it.kind == "mermaid-seq" || it.kind == "whiteboard" || it.kind == "mermaid-state" || it.kind == "db-link" || it.kind == "db-new":
 		case b.Kind == "code" && it.kind == "callout":
 		case b.Kind == "callout" && (it.kind == "code" || it.kind == "quote"):
 		default:
@@ -689,7 +692,7 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 	last, _, _ := e.BoundsForRange(ui.TextInputRange{Start: sel.End, End: sel.End})
 	bounds := surface.Bounds()
 	// The marks and menus, then the separator and "more" menu (61).
-	width, height := float32(390+61), float32(42)
+	width, height := float32(422+61), float32(42)
 	ai := o.EditWithAI != nil && !e.ReadOnly
 	if ai {
 		width += 52
@@ -788,6 +791,14 @@ func (e *Editor) selectionBar(c *ui.Context, surface ui.Element, o Options) {
 			mark("float:`", iconCode, i18n.T("行内代码 (⌘E)\nMarkdown：`代码`"), "`", style.Code)
 			sep()
 			e.annotateSplit(c)
+			clearTip := i18n.T("清除格式")
+			if combo := e.binding("clear-format"); combo.Valid() {
+				clearTip = fmt.Sprintf("%s (%s)", clearTip, combo.Label())
+			}
+			clearBtn := markButton(c, e.page, "float:clear", iconRemoveFormatting, clearTip, false).Label(i18n.T("清除格式"))
+			if clearBtn.Clicked() {
+				e.ClearFormatting()
+			}
 			sep()
 			drop("float:more", i18n.T("更多操作"), iconFormat, func(m *ui.Menu) { e.selectionMoreItems(m, style) })
 		})

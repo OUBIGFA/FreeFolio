@@ -271,7 +271,11 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 					t.Errorf("%d tabs: active tab %+v is outside strip %+v", i+1, last, strip)
 				}
 				// Short groups center their combined bounds, not each tab separately.
-				if i < 3 && math.Abs(float64((first.X+last.X+last.W)/2-720)) > 1 {
+				actions, _ := tt.Find("Markdown 源码")
+				openButton, _ := tt.Find("打开文件")
+				groupWidth := last.X + last.W - first.X
+				canCenter := 720+groupWidth/2+6+openButton.W <= actions.X-12
+				if i < 3 && canCenter && math.Abs(float64((first.X+last.X+last.W)/2-720)) > 1 {
 					t.Errorf("%d tabs: group is not centered: first=%+v last=%+v", i+1, first, last)
 				}
 				if i == 8 {

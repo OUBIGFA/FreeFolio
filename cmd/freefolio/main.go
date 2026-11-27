@@ -49,8 +49,8 @@ func main() {
 	if home := os.Getenv("FREEFOLIO_HOME"); home != "" {
 		cfg = app.Config{ConfigDir: filepath.Join(home, "config"), DocumentsDir: filepath.Join(home, "spaces")}
 	}
-	if len(os.Args) > 1 && os.Args[1] == "ask" {
-		os.Exit(ask(os.Args[2:], cfg, os.Stdout, os.Stderr))
+	if code, handled := dispatchCLI(os.Args[1:], cfg, os.Stdin, os.Stdout, os.Stderr); handled {
+		os.Exit(code)
 	}
 	// Claim the single-instance lock before reading configuration or space trees
 	// so a second launch exits immediately instead of warming disk caches twice.

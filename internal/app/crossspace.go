@@ -169,6 +169,9 @@ func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 	if follow && a.state.ActiveSpace() != dst {
 		a.followTo(dst)
 	}
+	if a.library.open && a.library.page == libSpaces {
+		a.loadLibrary()
+	}
 	if !src.IsExternal() {
 		a.offerUndo(i18n.T("已移到空间「")+dst.Name+"」", path.Base(to), func() { a.moveAcross(toID, to, fromID, parentDir(rel)) })
 	}
@@ -182,6 +185,8 @@ func (a *App) followTo(sp *space.Space) {
 		a.session(cur.ID).doc = nil
 	}
 	a.state.SetActive(sp.ID)
+	a.restoreSpaceSplit(sp)
+	a.session(sp.ID).splitShown = false
 	sp.LastOpen = a.doc.rel
 	a.saveState()
 	a.renaming = ""

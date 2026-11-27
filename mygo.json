@@ -33,6 +33,14 @@
       "name": "Legacy Markdown Document",
       "mimeType": "application/x-arcmd",
       "role": "Editor"
+    },
+    {
+      "ext": [
+        "mdz"
+      ],
+      "name": "MDZip Document",
+      "mimeType": "application/vnd.mdzip",
+      "role": "Viewer"
     }
   ],
   "macos": {

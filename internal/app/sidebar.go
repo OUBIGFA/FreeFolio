@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -29,6 +30,56 @@ const (
 	rowGlyphGap    = 6
 	rowIconStart   = rowLeading + rowChevronSize + rowGlyphGap
 )
+
+func (a *App) sidebarDensity() string {
+	if a.prefs == nil {
+		return ""
+	}
+	return a.prefs.SidebarDensity
+}
+
+func (a *App) sidebarRowHeight() float32 {
+	if a.prefs == nil {
+		return 32
+	}
+	return a.prefs.SidebarRowHeight()
+}
+
+func (a *App) sidebarRowFontSize() float32 {
+	switch a.sidebarDensity() {
+	case "compact":
+		return 13
+	case "comfortable":
+		return 14
+	default:
+		return 13.5
+	}
+}
+
+func (a *App) sidebarRowRadius() float32 {
+	switch a.sidebarDensity() {
+	case "compact":
+		return 7
+	case "comfortable":
+		return 10
+	default:
+		return 8
+	}
+}
+
+func (a *App) sidebarRowInsetY() float32 {
+	if a.sidebarDensity() == "compact" {
+		return 1.5
+	}
+	return 2
+}
+
+func (a *App) sidebarRowIconSize() float32 {
+	if a.sidebarDensity() == "compact" {
+		return 15
+	}
+	return 16
+}
 
 // The toggle depicts the same edge that it opens or closes.
 func (a *App) sidebarIcon() *ui.SVG {
@@ -214,6 +265,11 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 		// from just under it.
 		ui.Column(c.Key("column")).Grow(1).MinHeight(0).PaddingX(rowInset).Children(func() {
 			nodes, err := a.treeOf(sp)
+			if sp.IsExternal() {
+				if missing := countMissingNodes(nodes); missing > 0 {
+					a.externalMissingBar(c, sp, missing, live)
+				}
+			}
 			pins := pinnedNodes(sp, nodes)
 			if header {
 				ui.Column(c.Key("header-pad")).Margin(8, 0, 0, 0).Children(func() { a.spaceHeader(c, sp, live, len(pins) > 0) })
@@ -280,7 +336,7 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 							a.dragSlot(c, 0, pinRoot, a.slot.index, a.slot.self)
 							a.slot.emitted = true
 						}
-						if !a.rowWin.skip(n.Path, rowHeight) {
+						if !a.rowWin.skip(n.Path, a.sidebarRowHeight()) {
 							a.nodeRow(c, sp, n, 0, pinRoot, i, live, prev)
 						}
 						switch {
@@ -288,11 +344,17 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 						case sp.PinsCollapsed:
 							// Folded, a pinned folder shows only the open
 							// document it holds, not the rest of its body.
-							if doc, parent, index := a.openPeek(sp, n); doc != nil && !a.rowWin.skip(doc.Path, rowHeight) {
+							if doc, parent, index := a.openPeek(sp, n); doc != nil && !a.rowWin.skip(doc.Path, a.sidebarRowHeight()) {
 								a.nodeRow(c, sp, doc, 1, parent, index, live, prev)
 							}
 						default:
 							a.folderContent(c, sp, n, 1, live, prev)
+						}
+						if vault.IsDatabase(n.Path) {
+							a.databaseViewTree(c, sp, n, 1, live)
+							if mdir := a.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
+								a.databaseManagedFolderContent(c, sp, mdir, 1, live, prev)
+							}
 						}
 					}
 					if slotHere && !a.slot.emitted {
@@ -344,6 +406,46 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 // their rows.
 var sectionMove = ui.ElementTransition{Animation: &listAnim, Position: true, Colors: true}
 
+// externalMissingBar appears directly under the External Space header only
+// when one or more registered external files no longer exist on disk.
+func (a *App) externalMissingBar(c *ui.Context, sp *space.Space, missing int, live bool) {
+	t := c.Theme()
+	bar := ui.Row(c.Key("external-missing-bar")).Height(30).Margin(4, 0, 2, 0).Padding(0, 5, 0, 10).Gap(6).
+		Radius(8).AlignItems(ui.Center).Background(hoverFill(t))
+	bar.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Stroke(r, separator(t), 8, 1)
+	})
+	bar.Children(func() {
+		ui.Icon(c, iconAlert).FontSize(13).TextColor(t.TextMuted).Shrink(0)
+		label := fmt.Sprintf(i18n.T("%d 个文件已不存在"), missing)
+		if missing == 1 {
+			label = i18n.T("1 个文件已不存在")
+		}
+		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+		btn := ui.Box(c.Key("external-clean-btn")).Height(22).PaddingX(8).Radius(6).Shrink(0).Center()
+		if live {
+			btn.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
+				Label(i18n.T("清理不存在的文件")).Tooltip(i18n.T("仅从外部空间移除，不删除磁盘文件"))
+		}
+		fill := glass(t)
+		if live && btn.Hovered() {
+			fill = glassHover(t)
+		}
+		btn.Background(fill).Draw(func(p *ui.Painter, r ui.Rect) {
+			if !t.Dark {
+				p.Shadow(r, 6, 0, 1, 2, 0, black.Alpha(0.06))
+			}
+			p.Stroke(r, separator(t), 6, 1)
+		})
+		btn.Children(func() {
+			ui.Text(c, i18n.T("清理")).FontSize(11.5).FontWeight(500).TextColor(t.Text).SingleLine()
+		})
+		if live && btn.Clicked() {
+			a.cleanMissingExternal(sp)
+		}
+	})
+}
+
 // divider is the seam between the pinned section and the rest: it keeps a
 // hairline when pinned items or a drag are present, and stays a quiet 6-DIP
 // gap otherwise so a space without pins is not split arbitrarily.
@@ -374,7 +476,9 @@ func (a *App) divider(c *ui.Context, live, shown, stroked bool) {
 // a dashed row saying "拖到此处置顶", lit while the drop would land there.
 func (a *App) pinPlaceholder(c *ui.Context, active bool) {
 	t := c.Theme()
-	row := ui.Row(c.Key("pin-placeholder")).Height(rowHeight).Radius(10).Gap(6).Center().
+	rh, rad, insetY := a.sidebarRowHeight(), a.sidebarRowRadius(), a.sidebarRowInsetY()
+	_ = rad
+	row := ui.Row(c.Key("pin-placeholder")).Height(rh).Radius(rad).Gap(6).Center().
 		Transition(ui.ElementTransition{Animation: &listAnim, Position: true, Enter: &ui.Motion{Scale: 0.98}})
 	a.rows = append(a.rows, rowFrame{placeholder: true, parent: pinRoot, r: row.Bounds()})
 	border := t.TextMuted.Alpha(0.3)
@@ -383,7 +487,7 @@ func (a *App) pinPlaceholder(c *ui.Context, active bool) {
 		row.Background(hoverFill(t))
 	}
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.StrokeDashed(ui.Rect{X: r.X + 0.5, Y: r.Y + 2.5, W: r.W - 1, H: r.H - 5}, border, 10, 1)
+		p.StrokeDashed(ui.Rect{X: r.X + 0.5, Y: r.Y + insetY + 0.5, W: r.W - 1, H: max(0, r.H-2*insetY-1)}, border, rad, 1)
 	})
 	row.Children(func() {
 		ui.Icon(c, iconPin).FontSize(11).TextColor(t.TextMuted)
@@ -395,7 +499,9 @@ func (a *App) pinPlaceholder(c *ui.Context, active bool) {
 // the list while a row is lifted onto the floating drag card.
 func (a *App) dragSlot(c *ui.Context, depth int, parent string, index int, self bool) {
 	t := c.Theme()
-	row := ui.Box(c.Key("drag-slot")).Height(rowHeight).Background(ui.Transparent)
+	rh, rad, insetY := a.sidebarRowHeight(), a.sidebarRowRadius(), a.sidebarRowInsetY()
+	_ = rad
+	row := ui.Box(c.Key("drag-slot")).Height(rh).Background(ui.Transparent)
 	var enter *ui.Motion
 	if !a.slot.fromList {
 		enter = &ui.Motion{Scale: 0.97}
@@ -418,7 +524,7 @@ func (a *App) dragSlot(c *ui.Context, depth int, parent string, index int, self 
 	inset := float32(depth * rowIndent)
 	fill, border := dashedSlotColors(t, 1)
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
-		fr := ui.Rect{X: r.X + inset + 0.5, Y: r.Y + 2.5, W: max(0, r.W-inset-1), H: max(0, r.H-5)}
+		fr := ui.Rect{X: r.X + inset + 0.5, Y: r.Y + insetY + 0.5, W: max(0, r.W-inset-1), H: max(0, r.H-2*insetY-1)}
 		if fill.A > 0 {
 			p.Fill(fr, fill, controlRadius)
 		}
@@ -504,12 +610,29 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 				ui.Text(c, sp.Name).FontSize(15).FontWeight(600).TextColor(ink).SingleLine().MinWidth(0)
 			})
 		}
-		more := iconButton(c, "space-more", iconEllipsis, i18n.T("空间菜单"), i18n.T("空间菜单"), false).Size(24, 24)
+		more := iconButton(c, "space-more", iconEllipsis, i18n.T("空间菜单"), i18n.T("空间菜单"), false).Size(24, 24).Shrink(0)
 		if !lit {
 			more.Opacity(0)
 		}
 		if live {
 			more.Menu(func(m *ui.Menu) { a.listMenu(m, sp) })
+		}
+		addLabel, addTip := i18n.T("快速新建"), i18n.T("新建文档、数据库或白板")
+		if sp.IsExternal() {
+			addLabel, addTip = i18n.T("在外部空间打开文件"), i18n.T("只添加选中的文件，保留原位置")
+		}
+		add := iconButton(c, "space-new", iconPlus, addLabel, addTip, false).Size(24, 24).Shrink(0).Margin(0, 0, 0, 2)
+		if !live {
+			add.Opacity(0)
+		} else if !lit && !add.Hovered() && !a.newModal.open {
+			add.Opacity(0.55)
+		}
+		if live && add.Clicked() {
+			if sp.IsExternal() {
+				a.chooseExternalFiles()
+			} else {
+				a.openNewModal("")
+			}
 		}
 	})
 	if !live {
@@ -565,11 +688,16 @@ func (a *App) nodes(c *ui.Context, sp *space.Space, nodes []*vault.Node, depth i
 			a.dragSlot(c, depth, parent, a.slot.index, a.slot.self)
 			a.slot.emitted = true
 		}
-		if !a.rowWin.skip(n.Path, rowHeight) {
+		if !a.rowWin.skip(n.Path, a.sidebarRowHeight()) {
 			a.nodeRow(c, sp, n, depth, parent, i, live, prev)
 		}
 		if n.Dir {
 			a.folderContent(c, sp, n, depth+1, live, prev)
+		} else if vault.IsDatabase(n.Path) {
+			a.databaseViewTree(c, sp, n, depth+1, live)
+			if mdir := a.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
+				a.databaseManagedFolderContent(c, sp, mdir, depth+1, live, prev)
+			}
 		}
 	}
 	if slotHere && !a.slot.emitted {
@@ -579,9 +707,58 @@ func (a *App) nodes(c *ui.Context, sp *space.Space, nodes []*vault.Node, depth i
 }
 
 // holdsOpen reports whether the open document is rel of the space sp or
-// inside it.
+// inside it (including a database's folded managed folder).
 func (a *App) holdsOpen(sp *space.Space, rel string) bool {
-	return a.doc != nil && a.doc.space == sp && under(a.doc.rel, rel)
+	if a.doc == nil || a.doc.space != sp {
+		return false
+	}
+	if under(a.doc.rel, rel) {
+		return true
+	}
+	if vault.IsDatabase(rel) {
+		mdir := strings.TrimSuffix(rel, vault.ExtDatabase)
+		return mdir != "" && !sp.IsPinned(mdir) && under(a.doc.rel, mdir)
+	}
+	return false
+}
+
+// databaseManagedFolderContent renders a database's folded backing folder:
+// when collapsed it peeks only the active open record (Arc FolderPeek); when
+// expanded it shows a collapsible header row so the user can fold the raw data
+// files away in one click without collapsing the database's views.
+func (a *App) databaseManagedFolderContent(c *ui.Context, sp *space.Space, mdir *vault.Node, depth int, live bool, prev []rowFrame) {
+	if mdir == nil || sp.IsPinned(mdir.Path) {
+		return
+	}
+	if !sp.IsExpanded(mdir.Path) {
+		if doc, parent, index := a.openPeek(sp, mdir); doc != nil && !a.rowWin.skip(doc.Path, a.sidebarRowHeight()) {
+			a.nodeRow(c, sp, doc, depth, parent, index, live, prev)
+		}
+		return
+	}
+	t := c.Theme()
+	indent := float32(depth * rowIndent)
+	count := docCount(mdir)
+	hdr := ui.Row(c.Key("db-files-hdr:"+sp.ID+"/"+mdir.Path)).Height(28).
+		Margin(2, 0, 0, indent).Padding(0, 8, 0, 10).Radius(8).Gap(6).
+		AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
+		Role(ui.RoleButton).Label(i18n.T("收起数据文件")).Tooltip(i18n.T("收起数据文件")).
+		Transition(ui.ElementTransition{Animation: &listAnim, Position: true, Enter: &ui.Motion{Y: -6}, Exit: &ui.Motion{}})
+	if live && hdr.Hovered() {
+		hdr.Background(hoverFill(t))
+	}
+	hdr.Children(func() {
+		ui.Icon(c, iconChevronDown).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, i18n.T("数据文件")).FontSize(12).FontWeight(500).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+		if count > 0 {
+			ui.Text(c, fmt.Sprint(count)).FontSize(11).FontWeight(500).TextColor(t.TextMuted).NoWrap()
+		}
+	})
+	if live && hdr.Clicked() {
+		sp.SetExpanded(mdir.Path, false)
+		a.saveState()
+	}
+	a.folderBody(c, sp, mdir, depth+1, live, prev)
 }
 
 // openPeek is the open document inside the folder n with the folder it sits
@@ -665,12 +842,19 @@ func docCount(n *vault.Node) int {
 // the divider to pin or unpin, or onto the favorites.
 func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, parent string, index int, live bool, prev []rowFrame) {
 	t := c.Theme()
+	rh, rad, insetY := a.sidebarRowHeight(), a.sidebarRowRadius(), a.sidebarRowInsetY()
+	_ = rad
+	fontSize, iconSize := a.sidebarRowFontSize(), a.sidebarRowIconSize()
+	_ = fontSize
+	_ = iconSize
 	chosen := !n.Dir && a.doc != nil && a.doc.space == sp && a.doc.rel == n.Path
 	highlighted := a.rowHighlighted(sp, n.Path, chosen)
 	open := n.Dir && sp.IsExpanded(n.Path)
 	renaming := live && a.renameSpace == sp.ID && a.renaming == n.Path
 	pinned := !n.Dir && inPins(sp, n.Path)
 	opened := pinned && a.isOpen(sp, n.Path)
+	missing := !n.Dir && sp.IsExternal() && n.Missing
+	dim := pinned && !opened || missing
 	inset := float32(depth * rowIndent)
 
 	row := ui.Row(c.Key("node:" + n.Path))
@@ -703,7 +887,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				cardW = a.sidebarW() - 2*rowInset - inset
 			}
 			gx := min(max(px-cardX, 8), max(8, cardW-8))
-			gy := min(max(py-cardY, 4), rowHeight-4)
+			gy := min(max(py-cardY, 4), rh-4)
 			a.dragGrab = dragGrab{
 				active:     true,
 				space:      sp.ID,
@@ -712,7 +896,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				dir:        n.Dir,
 				openFolder: open,
 				holdsOpen:  a.holdsOpen(sp, n.Path),
-				dim:        pinned && !opened,
+				dim:        dim,
 				title:      n.Title(),
 				grabX:      gx,
 				grabY:      gy,
@@ -727,7 +911,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			a.dragGrab.count = len(a.dragGroup(sp.ID, n.Path))
 			a.dragGrab.openFolder = open
 			a.dragGrab.holdsOpen = a.holdsOpen(sp, n.Path)
-			a.dragGrab.dim = pinned && !opened
+			a.dragGrab.dim = dim
 		}
 		// Keep the source node alive with zero layout footprint so MyGo's
 		// drag stays active while the floating card owns all visuals.
@@ -739,7 +923,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	if n.Dir {
 		leading = inset + rowLeading
 	}
-	row.Height(rowHeight).PaddingStart(leading).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).
+	row.Height(rh).PaddingStart(leading).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTreeItem).Level(depth + 1).Selected(highlighted).Label(n.Title())
 	if n.Dir {
 		row.Expanded(open)
@@ -753,7 +937,11 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		}
 	}
 	if sp.IsExternal() {
-		row.Tooltip(sp.ExternalFiles[n.Path])
+		tip := sp.ExternalFiles[n.Path]
+		if n.Missing {
+			tip = i18n.T("文件已不存在") + " · " + tip
+		}
+		row.Tooltip(tip)
 	}
 
 	justLanded := live && a.dragGrab.active && !a.dragGrab.consumed && a.dragGrab.space == sp.ID && a.dragGrab.rel == n.Path
@@ -767,7 +955,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				dir:        n.Dir,
 				openFolder: open,
 				holdsOpen:  a.holdsOpen(sp, n.Path),
-				dim:        pinned && !opened,
+				dim:        dim,
 				title:      n.Title(),
 				fromX:      a.dragGrab.x,
 				fromY:      a.dragGrab.y,
@@ -838,17 +1026,17 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			if tr.W <= 0 && len(a.rows) >= 2 {
 				above := a.rows[len(a.rows)-2].r
 				if above.W > 0 {
-					tr = ui.Rect{X: above.X, Y: above.Y + above.H + rowGap, W: above.W, H: rowHeight}
+					tr = ui.Rect{X: above.X, Y: above.Y + above.H + rowGap, W: above.W, H: rh}
 				}
 			}
 			if tr.W <= 0 {
-				tr = ui.Rect{X: row.Bounds().X, Y: a.dragSettle.fromY, W: a.sidebarW() - 2*rowInset, H: rowHeight}
+				tr = ui.Rect{X: row.Bounds().X, Y: a.dragSettle.fromY, W: a.sidebarW() - 2*rowInset, H: rh}
 			}
 			a.dragSettle.toRect = ui.Rect{X: tr.X + inset, Y: tr.Y, W: tr.W - inset, H: tr.H}
 			a.dragSettle.hasTarget = true
 			a.dragSettle.openFolder = open
 			a.dragSettle.holdsOpen = a.holdsOpen(sp, n.Path)
-			a.dragSettle.dim = pinned && !opened
+			a.dragSettle.dim = dim
 		}
 	}
 
@@ -875,7 +1063,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		switch {
 		case n.Dir && !open:
 			a.hoverRow(previewFolder, sp, n.Path, row.Bounds())
-		case !n.Dir && a.overClosed != (place{sp.ID, n.Path}):
+		case !n.Dir && !n.Missing && a.overClosed != (place{sp.ID, n.Path}):
 			// Not while the pointer is on the row's minus, about to click it.
 			a.hoverRow(previewDoc, sp, n.Path, row.Bounds())
 		}
@@ -900,28 +1088,27 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	row.Draw(func(p *ui.Painter, r ui.Rect) {
 		if settling {
 			sfill, sborder := dashedSlotColors(t, slotFade)
-			sfr := ui.Rect{X: r.X + inset + 0.5, Y: r.Y + 2.5, W: max(0, r.W-inset-1), H: max(0, r.H-5)}
+			sfr := ui.Rect{X: r.X + inset + 0.5, Y: r.Y + insetY + 0.5, W: max(0, r.W-inset-1), H: max(0, r.H-2*insetY-1)}
 			if sfill.A > 0 {
-				p.Fill(sfr, scaleAlpha(sfill, slotFade), 10)
+				p.Fill(sfr, scaleAlpha(sfill, slotFade), rad)
 			}
-			p.StrokeDashed(sfr, scaleAlpha(sborder, slotFade), 10, 1)
+			p.StrokeDashed(sfr, scaleAlpha(sborder, slotFade), rad, 1)
 			return
 		}
-		fr := ui.Rect{X: r.X + inset, Y: r.Y + 2, W: r.W - inset, H: r.H - 4}
+		fr := ui.Rect{X: r.X + inset, Y: r.Y + insetY, W: r.W - inset, H: max(0, r.H-2*insetY)}
 		if lifted {
-			p.Shadow(fr, 10, 0, 1, 3, 0, black.Alpha(0.06))
+			p.Shadow(fr, rad, 0, 1, 3, 0, black.Alpha(0.06))
 		}
 		if fill.A > 0 {
 			p.Fill(fr, fill, controlRadius)
 		}
 		if into {
-			p.Stroke(fr, t.Text.Alpha(0.3), 10, 1.5)
+			p.Stroke(fr, t.Text.Alpha(0.3), rad, 1.5)
 		}
 	})
 	closed := false
 	if !settling {
 		row.Children(func() {
-			dim := pinned && !opened
 			if n.Dir {
 				chevron, folder := iconChevronRight, iconFolder
 				if open {
@@ -948,10 +1135,50 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				// A closed folder tells how many documents it holds.
 				ui.Text(c, fmt.Sprint(docCount(n))).FontSize(11).FontWeight(500).TextColor(t.TextMuted)
 			}
+			if !n.Dir && vault.IsDatabase(n.Path) {
+				viewsOpen := sp.IsExpanded(n.Path)
+				mdir := a.managedFolderFor(sp, n)
+				if mdir != nil && sp.IsPinned(mdir.Path) {
+					mdir = nil
+				}
+				mdirOpen := mdir != nil && sp.IsExpanded(mdir.Path)
+				dbOpen := viewsOpen || mdirOpen
+				if hovered || dbOpen || chosen || a.holdsOpen(sp, n.Path) {
+					glyph := iconChevronRight
+					tip := i18n.T("展开视图")
+					if dbOpen {
+						glyph = iconChevronDown
+						if viewsOpen {
+							tip = i18n.T("收起视图")
+						} else {
+							tip = i18n.T("收起数据文件")
+						}
+					}
+					fb := ui.Box(c.Key("db-views-fold")).Size(20, 20).Radius(5).Shrink(0).Center().Cursor(ui.CursorPointer).
+						Focusable().Role(ui.RoleButton).Label(tip).Tooltip(tip)
+					if fb.Hovered() {
+						fb.Background(hoverFill(t))
+					}
+					fb.Children(func() { ui.Icon(c, glyph).FontSize(12).TextColor(t.TextMuted) })
+					if fb.Clicked() {
+						if dbOpen {
+							sp.SetExpanded(n.Path, false)
+							if mdir != nil {
+								sp.SetExpanded(mdir.Path, false)
+							}
+						} else {
+							sp.SetExpanded(n.Path, true)
+						}
+						a.saveState()
+						closed = true
+					}
+				}
+			}
 			switch {
 			case minus:
 				// The button takes the dot's place while hovered, as Arc's.
-				b := ui.Box(c.Key("close-open")).Size(24, 24).Radius(6).Shrink(0).Cursor(ui.CursorPointer).
+				closeSize := min(float32(24), rh-6)
+				b := ui.Box(c.Key("close-open")).Size(closeSize, closeSize).Radius(6).Shrink(0).Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleButton).Label(i18n.T("关闭并保持置顶")).Tooltip(i18n.T("关闭并保持置顶"))
 				if b.Hovered() {
 					b.Background(hoverFill(t))
@@ -969,6 +1196,8 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 				}
 			case chosen && a.doc.dirty():
 				ui.Box(c).Size(6, 6).Radius(3).Background(t.Accent).Tooltip(i18n.T("已修改"))
+			case missing:
+				ui.Icon(c, iconAlert).FontSize(12).TextColor(t.TextMuted.Alpha(0.75)).Shrink(0)
 			}
 			if into {
 				intoBadge(c)
@@ -1035,6 +1264,9 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("新建白板")).Chosen() {
 			a.newWhiteboard(n.Path)
 		}
+		if a.menuKey(m.Item(i18n.T("新建数据库")), "new-database").Chosen() {
+			a.newDatabase(n.Path)
+		}
 		a.templateMenu(m, n.Path)
 		if m.Item(i18n.T("在其中新建文件夹")).Chosen() {
 			a.newFolder(n.Path)
@@ -1077,6 +1309,9 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		}
 		if m.Item(i18n.T("在新窗口中打开")).Chosen() {
 			a.openInWindow(sp, n.Path)
+		}
+		if vault.IsDatabase(n.Path) {
+			a.databaseNodeMenu(m, sp, n)
 		}
 		if inPins(sp, n.Path) && a.isOpen(sp, n.Path) {
 			if m.Item(i18n.T("关闭并保持置顶")).Chosen() {
@@ -1158,6 +1393,9 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 			a.chooseExternalFiles()
 		}
 		a.sortMenu(m, sp)
+		if m.Item(a.externalCleanMenuLabel(sp)).Disabled(len(sp.ExternalFiles) == 0).Chosen() {
+			a.cleanMissingExternal(sp)
+		}
 		return
 	}
 	if m.Item(i18n.T("新建文档")).Shortcut(ui.Cmd, ui.KeyN).Chosen() {
@@ -1165,6 +1403,9 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	}
 	if m.Item(i18n.T("新建白板")).Shortcut(ui.Cmd|ui.Alt, ui.KeyB).Chosen() {
 		a.newWhiteboard("")
+	}
+	if a.menuKey(m.Item(i18n.T("新建数据库")), "new-database").Chosen() {
+		a.newDatabase("")
 	}
 	a.templateMenu(m, "")
 	a.sortMenu(m, sp)
@@ -1267,7 +1508,11 @@ func (a *App) spaceBar(c *ui.Context) {
 					b.ContextMenu(func(m *ui.Menu) {
 						a.spaceEditMenu(m, s)
 						m.Separator()
-						if m.Item(i18n.T("在文件管理器中显示")).Disabled(s.IsExternal()).Chosen() {
+						if s.IsExternal() {
+							if m.Item(a.externalCleanMenuLabel(s)).Disabled(len(s.ExternalFiles) == 0).Chosen() {
+								a.cleanMissingExternal(s)
+							}
+						} else if m.Item(i18n.T("在文件管理器中显示")).Chosen() {
 							revealDir(s.Root)
 						}
 						m.Separator()

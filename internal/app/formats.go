@@ -303,10 +303,11 @@ func (a *App) syncFormatPlugins() {
 // openFilters are the open dialog's filters: every document FreeFolio
 // opens, then Markdown and PDF on their own.
 func openFilters() []mygo.FileFilter {
-	all := append([]string{"md", "markdown", "mdx", "arcmd", "excalidraw", "pdf"}, formats.Extensions()...)
+	all := append([]string{"md", "markdown", "mdx", "arcmd", "excalidraw", "pdf", "mdz"}, formats.Extensions()...)
 	return []mygo.FileFilter{
 		{Name: i18n.T("所有支持的文件"), Extensions: all},
 		{Name: "Markdown", Extensions: []string{"md", "markdown", "mdx"}},
+		{Name: "MDZip", Extensions: []string{"mdz"}},
 		{Name: "PDF", Extensions: []string{"pdf"}},
 	}
 }

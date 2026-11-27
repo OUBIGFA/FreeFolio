@@ -18,22 +18,23 @@ func lucide(body string) *ui.SVG {
 
 // Icons of the floating format bar and menus.
 var (
-	iconBold          = solar.Must("text-bold")
-	iconItalic        = solar.Must("text-italic")
-	iconUnderline     = solar.Must("text-underline")
-	iconStrike        = solar.Must("text-cross")
-	iconCode          = solar.Must("code")
-	iconLink          = solar.Must("link")
-	iconPlus          = solar.Must("add")
-	iconFormat        = solar.Must("pen-new-round") // a pen in a circle: the More Formats menu
-	iconSparkles      = solar.Must("sparkles")
-	iconChevron       = solar.Must("alt-arrow-down")
-	iconChevronUp     = solar.Must("alt-arrow-up")
-	iconChevronRight  = solar.Must("alt-arrow-right")
-	iconChevronsRight = solar.Must("double-alt-arrow-right")
-	iconOutline       = solar.Must("text-align-left")
-	iconAlignLeft     = solar.Must("text-align-left")
-	iconAlignCenter   = solar.Must("text-align-center")
+	iconBold             = solar.Must("text-bold")
+	iconItalic           = solar.Must("text-italic")
+	iconUnderline        = solar.Must("text-underline")
+	iconStrike           = solar.Must("text-cross")
+	iconCode             = solar.Must("code")
+	iconLink             = solar.Must("link")
+	iconPlus             = solar.Must("add")
+	iconFormat           = solar.Must("pen-new-round") // a pen in a circle: the More Formats menu
+	iconSparkles         = solar.Must("sparkles")
+	iconChevron          = solar.Must("alt-arrow-down")
+	iconChevronUp        = solar.Must("alt-arrow-up")
+	iconChevronRight     = solar.Must("alt-arrow-right")
+	iconChevronsRight    = solar.Must("double-alt-arrow-right")
+	iconOutline          = solar.Must("text-align-left")
+	iconAlignLeft        = solar.Must("text-align-left")
+	iconAlignCenter      = solar.Must("text-align-center")
+	iconRemoveFormatting = solar.Must("eraser")
 	// The read-only toggle: Lucide's lock and lock-open.
 	iconLocked     = solar.Must("lock")
 	iconUnlocked   = solar.Must("lock-unlocked")
@@ -106,6 +107,7 @@ var (
 	iconWorkflow      = solar.Must("workflow")
 	iconSequence      = lucide(`<path d="M6 4v16"/><path d="M18 4v16"/><path d="M6 9h12"/><path d="m14 6 4 3-4 3"/><path d="M18 15H6"/><path d="m10 12-4 3 4 3"/>`)
 	iconPencil        = solar.Must("pen")
+	iconState         = lucide(`<circle cx="12" cy="4.5" r="2.5"/><path d="m10.2 6.3-3.9 3.9"/><circle cx="4.5" cy="12" r="2.5"/><path d="M7 12h10"/><circle cx="19.5" cy="12" r="2.5"/><path d="m13.8 17.7 3.9-3.9"/><circle cx="12" cy="19.5" r="2.5"/>`)
 )
 
 var iconMaximize = solar.Must("maximize")
@@ -121,3 +123,8 @@ var iconMapCollapse = solar.Must("chevrons-down-up")
 var iconMapExpand = solar.Must("chevrons-up-down")
 
 var iconMinusLine = solar.Must("minus")
+
+var iconDatabase = solar.Must("database")
+var iconRefreshCW = solar.Must("restart")
+
+var iconFileCode = solar.Must("code-square")

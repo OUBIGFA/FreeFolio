@@ -17,6 +17,13 @@ cmd/freefolio ──▶ internal/app ──▶ internal/space    spaces and spac
 The domain packages never import MyGo, so they test without a window and can
 serve a future CLI or plugin host.
 
+`internal/database` provides the `.db.md` engine; its nine native views live in
+`internal/editor/dbview`. `internal/mdz` owns bounded archive reading/writing.
+`internal/agentmcp` serves stdio MCP and `cmd/freefolio/control.go` provides the
+CLI. Local control reaches active windows through authenticated loopback IPC,
+or serializes headless writes with an OS file lock. See
+[database, archives and local agents](upstream-2026-11.md).
+
 `internal/mindmap` computes the native document map. `internal/cloudsync` owns
 WebDAV/S3 transport, credentials, per-file baselines and guarded synchronization;
 `internal/app/cloudsync.go` provides the native settings and marshals active-edit
@@ -70,6 +77,10 @@ Each Space remembers one group of up to four panes. `splitGroup` owns each
 pane's document, navigation history and size share; `App.doc/history/at` are
 aliases for the focused pane so existing commands target it. Rendering uses
 explicit document pointers, never temporary swaps of the active document.
+
+The file browser has its own transient split group. Its title-bar split button
+sits before the document mind map; returning to spaces restores the suspended
+space group without persisting loose file paths into the space configuration.
 Each editor retains its own caret, selection, scroll, composition and undo.
 A document already visible is focused instead of receiving a second writer.
 

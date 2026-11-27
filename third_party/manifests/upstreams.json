@@ -605,6 +605,13 @@
       "sourceUrl": "https://github.com/s1dashu/quiet-md",
       "revision": "dfdf6da369eb0432a7f6c9024ca4f5c7605de4da",
       "scope": "Six selected workflows implemented in Go and MyGo: font browsing and verified optional fonts, guarded unused attachment cleanup, formatted history preview, Markdown/SiYuan copy migration with reports, native global quick notes, and block-level merge integrated with existing WebDAV/S3 synchronization. No GPUI runtime, commercial Nucleo icons, branding, GitHub transport or mobile shell copied."
+    },
+    {
+      "name": "ArcMD",
+      "sourceUrl": "https://github.com/Ciao1019/ArcMD",
+      "revision": "e62e05a30d8b58512a2b5a41973d38fb0637e8e0",
+      "tag": "v0.5.1",
+      "scope": "v0.3.0-v0.5.1 selective native integration: virtualized outline jumps; inline math and TeX syntax; spreadsheet clipboard import; PDF handle lifecycle; filesystem fallback and reserved names; missing external references; UTF-8 and citation paths; overlay hit testing; bounded ZIP extraction. Page zoom, enhanced Markdown source with split preview, Mermaid state diagrams, MDZip archives, the database engine and all nine native views, authenticated local CLI/MCP with live undo. Adapted database UI under internal/editor/dbview. Preserves FreeFolio whiteboard AI, linked clear formatting, source safety, separate configuration, local-agent write guards and file-browser split controls. Excludes EPUB, WebView, upstream app-directory migration, branding and release workflow."
     }
   ],
   "maintainerCodeReuse": [

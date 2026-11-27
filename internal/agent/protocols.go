@@ -518,7 +518,12 @@ func readSSE(r io.Reader, consume func(map[string]any) error) error {
 	if err := sc.Err(); err != nil {
 		return err
 	}
-	return flush()
+	err := flush()
+	var syntax *json.SyntaxError
+	if errors.As(err, &syntax) && strings.Contains(syntax.Error(), "unexpected end") {
+		return fmt.Errorf("%w: %v", ErrStreamCut, err)
+	}
+	return err
 }
 
 type nativeStream struct {

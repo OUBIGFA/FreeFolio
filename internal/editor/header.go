@@ -2,6 +2,7 @@ package editor
 
 import (
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
@@ -46,6 +47,17 @@ type headerState struct {
 	// the part shown so far (Document.CoverY), saved or dropped at the end.
 	moving  bool
 	movingY float64
+
+	fmRect         ui.Rect
+	fmLayout       *ui.TextLayout
+	fmBarH         float32
+	fmBodyY        float32
+	fmVisible      bool
+	fmCollapsed    bool
+	fmEditing      bool
+	fmDraft        string
+	fmFocusPending bool
+	fmCopiedAt     time.Time
 }
 
 // layoutHeader lays the cover and the icon out and returns where the
@@ -80,7 +92,17 @@ func (e *Editor) layoutHeader(o Options) float32 {
 		h.iconRect = ui.Rect{X: e.padding - 4, Y: top, W: iconSize + 8, H: iconSize + 8}
 		y = top + iconSize + 24
 	}
-	y = e.layoutProperties(o, y)
+	if o.HideFrontmatter {
+		e.header.fmRect = ui.Rect{}
+		e.header.fmLayout = nil
+	}
+	if !o.HideFrontmatter {
+		if e.header.fmVisible || e.header.fmEditing {
+			y = e.layoutFrontmatter(o, y)
+		} else {
+			y = e.layoutProperties(o, y)
+		}
+	}
 	h.titleTop = y
 	return y
 }
@@ -150,6 +172,7 @@ func (e *Editor) paintHeader(p *ui.Painter, bounds ui.Rect) {
 		w, th := p.MeasureText(0, span)
 		p.RichText(r.X+(r.W-w)/2, r.Y+(r.H-th)/2, 0, span)
 	}
+	e.paintFrontmatter(p, bounds)
 }
 
 // headerShown reports whether the pointer is at the top of the page, where
@@ -216,17 +239,23 @@ func (e *Editor) headerControls(c *ui.Context) {
 			}
 		})
 	}
-	if e.Doc.Icon != "" && e.Doc.Cover != "" {
+	hasFM := strings.TrimSpace(e.Doc.Frontmatter) != "" || h.fmEditing
+	canAddFM := !e.hideFrontmatter && !hasFM
+	if e.Doc.Icon != "" && e.Doc.Cover != "" && !canAddFM && e.hideFrontmatter {
 		return
 	}
 	top := float32(12)
+	left := e.padding - 8
 	switch {
+	case e.Doc.Cover != "" && e.Doc.Icon != "":
+		left = h.iconRect.X + h.iconRect.W + 8
+		top = h.coverRect.H + 8
 	case e.Doc.Cover != "":
 		top = h.coverRect.H + 8
 	case e.Doc.Icon != "":
 		top = h.iconRect.Y - 36
 	}
-	ui.Row(c.Key("header-add")).Absolute().Left(e.padding - 8).Top(max(4, top)).Gap(4).Children(func() {
+	ui.Row(c.Key("header-add")).Absolute().Left(left).Top(max(4, top)).Gap(4).Children(func() {
 		if e.Doc.Icon == "" && e.headerButton(c, "icon-add", iconSmile, i18n.T("添加图标"), false).Clicked() {
 			e.Engine.SetPageIcon(pageEmoji[0])
 			h.iconOpen, h.coverOpen = true, false
@@ -234,6 +263,13 @@ func (e *Editor) headerControls(c *ui.Context) {
 		if e.Doc.Cover == "" && e.headerButton(c, "cover-add", iconImage, i18n.T("添加封面"), false).Clicked() {
 			e.Engine.SetCover("gradient:" + document.CoverGradients[0])
 			h.coverOpen, h.iconOpen = true, false
+		}
+		if !e.hideFrontmatter && hasFM && e.headerButton(c, "frontmatter-source", iconFileCode, i18n.T("元数据源码"), false).Clicked() {
+			h.fmVisible = !h.fmVisible
+			e.ready = false
+		}
+		if canAddFM && e.headerButton(c, "frontmatter-add", iconFileCode, i18n.T("添加元数据"), false).Clicked() {
+			e.startFrontmatterEdit()
 		}
 	})
 }
@@ -348,8 +384,9 @@ func coverName(name string) string {
 
 // closeHeader puts the header's pickers away.
 func (e *Editor) closeHeader() bool {
-	open := e.header.iconOpen || e.header.coverOpen || e.header.moving
+	open := e.header.iconOpen || e.header.coverOpen || e.header.moving || e.header.fmEditing
 	e.header.iconOpen, e.header.coverOpen, e.header.moving = false, false, false
+	e.header.fmEditing, e.header.fmFocusPending = false, false
 	return open
 }
 
