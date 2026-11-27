@@ -250,6 +250,8 @@ func aiTypeName(typ string) string {
 		return i18n.T("图片")
 	case whiteboard.AITypeVideo:
 		return i18n.T("视频")
+	case whiteboard.AITypeAudio:
+		return i18n.T("音频")
 	}
 	return i18n.T("文本")
 }
@@ -455,6 +457,16 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		}
 		l := b.aiLayout(e, n)
 		id := e.ID
+		if status, failed := b.aiStatus(e, n); failed {
+			fh := max(float32(18), float32(aiFooter)*z)
+			if ui.ButtonBase(c.Key("ai-error-"+id)).Absolute().Left(x).Top(y+h-fh).Size(w, fh).Focusable().Label(i18n.T("查看完整错误")).Tooltip(i18n.T("点击查看完整错误")).Clicked() {
+				s.errorOpen = true
+				s.errorFocus = true
+				s.errorTitle = cmpOr(n.Title, i18n.T(aiRoleNames[n.Role]))
+				s.errorText = fmt.Sprintf(i18n.T("节点：%s\n模型：%s\n%s"), s.errorTitle, n.Model, status)
+				s.panel = false
+			}
+		}
 		disabled := b.ReadOnly || e.Locked
 		if l.headerRun.W > 0 && b.Zoom >= 0.2 {
 			hr := l.headerRun
@@ -638,6 +650,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 // aiInlineParams are a role's common settings on its card; the rest are in
 // the node's full settings.
 func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
+	n = b.Scene.AIInputNode(n)
 	if n.Connection == "comfyui-media" {
 		b.aiLocalMediaParams(c, o, id, n, true, disabled)
 		return
@@ -687,7 +700,7 @@ func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whit
 			k, _ := strconv.Atoi(v)
 			set(func(p *whiteboard.AIParams) { p.Count = k })
 		}
-		if nativeSize {
+		if nativeSize || strings.HasPrefix(n.Connection, "comfyui") {
 			return
 		}
 		if v, ok := aiInlineSelect(c, key("quality"), i18n.T("质量"), p.Quality, []string{"", "low", "medium", "high"}, translated("质量", "低", "中", "高"), disabled); ok {

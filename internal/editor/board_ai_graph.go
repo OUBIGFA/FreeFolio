@@ -697,23 +697,16 @@ func (b *Board) pickAINode(role whiteboard.AIRole, o BoardOptions) {
 		return
 	}
 	b.edit(o, func() {
-		e := b.newAINode(role, pk.at, o)
+		at := b.viewCenter()
+		e := b.newAINode(role, at, o)
 		n := b.aiNode(e)
-		l := b.aiLayout(e, n)
 		if pk.from != "" {
 			sl, _ := whiteboard.AIFindInputByType(n, pk.typ)
-			for i, s := range l.slots {
-				if s.Name == sl.Name {
-					e.Y = pk.at[1] - (aiInputPoint(e, l, i)[1] - e.Y)
-				}
-			}
-			e.X = pk.at[0]
 			b.setAILink(e.ID, sl.Name, pk.from)
 		} else {
-			e.X = pk.at[0] - e.W
-			e.Y = pk.at[1] - (aiOutputPoint(e, l)[1] - e.Y)
 			b.setAILink(pk.to, pk.slot, e.ID)
 		}
+		e.X, e.Y = at[0]-e.W/2, at[1]-e.H/2
 		whiteboard.Touch(e)
 		b.selectIDs([]string{e.ID})
 	})

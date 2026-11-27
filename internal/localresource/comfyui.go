@@ -890,6 +890,19 @@ func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (stri
 			return "", err
 		}
 		if err := m.ping(ctx, base); err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			var requestErr *url.Error
+			if errors.As(err, &requestErr) {
+				dir, findErr := comfyAutoStartDirectory(base, cfg.Dir, defaultComfyDetectEnv())
+				if findErr == nil {
+					cfg.URL = ""
+					cfg.Dir = dir
+					return m.EnsureRunning(ctx, cfg)
+				}
+				return "", fmt.Errorf("cannot reach ComfyUI at %s: %w; %v", base, err, findErr)
+			}
 			return "", fmt.Errorf("cannot reach ComfyUI at %s: %w", base, err)
 		}
 		return base, nil
@@ -1182,11 +1195,53 @@ func parseComfyRequiredDefaults(req map[string][]json.RawMessage) map[string]any
 			continue
 		}
 		var meta struct {
-			Default any `json:"default"`
+			Default any               `json:"default"`
+			Options []json.RawMessage `json:"options"`
 		}
-		if len(spec) >= 2 && json.Unmarshal(spec[1], &meta) == nil && meta.Default != nil {
-			out[k] = meta.Default
-			continue
+		if len(spec) >= 2 && json.Unmarshal(spec[1], &meta) == nil {
+			var kind string
+			_ = json.Unmarshal(spec[0], &kind)
+			if kind == "COMFY_DYNAMICCOMBO_V3" && len(meta.Options) > 0 {
+				// V3 branch widgets are required dotted inputs in the prompt API.
+				type dynamicOption struct {
+					Key    string `json:"key"`
+					Inputs struct {
+						Required map[string][]json.RawMessage `json:"required"`
+					} `json:"inputs"`
+				}
+				var options []dynamicOption
+				for _, raw := range meta.Options {
+					var option dynamicOption
+					if json.Unmarshal(raw, &option) == nil {
+						options = append(options, option)
+					}
+				}
+				if len(options) > 0 {
+					chosen := options[0]
+					for _, option := range options {
+						if option.Key == meta.Default {
+							chosen = option
+							break
+						}
+					}
+					out[k] = chosen.Key
+					for sub, value := range parseComfyRequiredDefaults(chosen.Inputs.Required) {
+						out[k+"."+sub] = value
+					}
+				}
+				continue
+			}
+			if meta.Default != nil {
+				out[k] = meta.Default
+				continue
+			}
+			if kind == "COMBO" && len(meta.Options) > 0 {
+				var value any
+				if json.Unmarshal(meta.Options[0], &value) == nil {
+					out[k] = value
+				}
+				continue
+			}
 		}
 		if choices := parseComfyChoiceList(spec); len(choices) > 0 {
 			out[k] = choices[0]
@@ -1272,7 +1327,15 @@ func (m *ComfyManager) Upscale(ctx context.Context, cfg ComfyConfig, model strin
 }
 
 // Cutout runs a background removal workflow via ComfyUI's RMBG node.
-func (m *ComfyManager) Cutout(ctx context.Context, cfg ComfyConfig, model string, input []byte) ([]byte, error) {
+func (m *ComfyManager) Cutout(ctx context.Context, cfg ComfyConfig, model string, input []byte, options ...ComfyOptions) ([]byte, error) {
+	opts := firstComfyOptions(options)
+	sensitivity := 1.0
+	if opts.Sensitivity != nil {
+		sensitivity = *opts.Sensitivity
+	}
+	if math.IsNaN(sensitivity) || math.IsInf(sensitivity, 0) || sensitivity < 0 || sensitivity > 1 || opts.MaskBlur < 0 || opts.MaskBlur > 64 || opts.MaskOffset < -64 || opts.MaskOffset > 64 {
+		return nil, errors.New("invalid matting sensitivity or edge settings")
+	}
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("cutout model is required")
 	}
@@ -1300,10 +1363,10 @@ func (m *ComfyManager) Cutout(ctx context.Context, cfg ComfyConfig, model string
 		"2": map[string]any{"class_type": "RMBG", "inputs": map[string]any{
 			"image":         []any{"1", 0},
 			"model":         model,
-			"sensitivity":   1.0,
+			"sensitivity":   sensitivity,
 			"process_res":   1024,
-			"mask_blur":     0,
-			"mask_offset":   0,
+			"mask_blur":     opts.MaskBlur,
+			"mask_offset":   opts.MaskOffset,
 			"background":    "Alpha",
 			"invert_output": false,
 		}},
@@ -1336,7 +1399,13 @@ func (m *ComfyManager) ensureCaps(ctx context.Context, cfg ComfyConfig) (*ComfyC
 	schemas := m.schemas
 	m.mu.Unlock()
 	if caps != nil && schemas != nil {
-		return caps, schemas, nil
+		if caps.BaseURL != "" && m.ping(ctx, caps.BaseURL) == nil {
+			return caps, schemas, nil
+		}
+		if ctx.Err() != nil {
+			return nil, nil, ctx.Err()
+		}
+		m.InvalidateCaps()
 	}
 	probed, err := m.Probe(ctx, cfg)
 	if err != nil {
@@ -1412,7 +1481,12 @@ func cloneInputsMap(src map[string]any) map[string]any {
 }
 
 // CutoutRMBG3 runs BRIA RMBG-3.0 using ComfyUI's native Fibo2 core nodes.
-func (m *ComfyManager) CutoutRMBG3(ctx context.Context, cfg ComfyConfig, subjectNote string, input []byte) ([]byte, error) {
+func (m *ComfyManager) CutoutRMBG3(ctx context.Context, cfg ComfyConfig, subjectNote string, input []byte, options ...ComfyOptions) ([]byte, error) {
+	opts := firstComfyOptions(options)
+	seed, steps, guidance, optionErr := opts.sampling(42, 4, 1)
+	if optionErr != nil {
+		return nil, optionErr
+	}
 	base, caps, schemas, uploaded, err := m.prepareCutoutUpload(ctx, cfg, input)
 	if err != nil {
 		return nil, err
@@ -1483,9 +1557,9 @@ func (m *ComfyManager) CutoutRMBG3(ctx context.Context, cfg ComfyConfig, subject
 		"positive":     []any{"7", 0},
 		"negative":     []any{"7", 1},
 		"latent_image": []any{"7", 2},
-		"seed":         42,
-		"steps":        4,
-		"cfg":          1.0,
+		"seed":         seed,
+		"steps":        steps,
+		"cfg":          guidance,
 		"sampler_name": "euler",
 		"scheduler":    "simple",
 		"denoise":      1.0,
@@ -1507,7 +1581,15 @@ func sa2vaNeeds8Bit(modelName string, vramMiB int) bool {
 }
 
 // CutoutSa2VA runs text-prompted referring segmentation via ComfyUI-Sa2VA-XJ or ComfyUI-Sa2VA.
-func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelName string, prompt string, input []byte) ([]byte, error) {
+func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelName string, prompt string, input []byte, options ...ComfyOptions) ([]byte, error) {
+	opts := firstComfyOptions(options)
+	threshold := 0.5
+	if opts.MaskThreshold != nil {
+		threshold = *opts.MaskThreshold
+	}
+	if !validUnitValue(threshold) {
+		return nil, errors.New("mask threshold must be between 0 and 1")
+	}
 	if strings.TrimSpace(modelName) == "" {
 		return nil, errors.New("Sa2VA model is required")
 	}
@@ -1530,10 +1612,10 @@ func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelNa
 	nodeInputs["segmentation_prompt"] = prompt
 	nodeInputs["use_flash_attn"] = false
 	if caps.Sa2VANode == "Sa2VANodeTpl" {
-		nodeInputs["mask_threshold"] = 0.5
+		nodeInputs["mask_threshold"] = threshold
 		nodeInputs["use_8bit_quantization"] = use8Bit
 	} else {
-		nodeInputs["threshold"] = 0.5
+		nodeInputs["threshold"] = threshold
 		nodeInputs["use_8bit"] = use8Bit
 		nodeInputs["unload"] = true
 		if _, hasDetail := nodeInputs["process_detail"]; hasDetail {
@@ -1560,6 +1642,7 @@ func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelNa
 
 // ComfyImageRequest configures text-to-image or reference-image editing via ComfyUI.
 type ComfyImageRequest struct {
+	Options     ComfyOptions
 	BaseModel   string
 	Prompt      string
 	Size        string
@@ -1669,7 +1752,12 @@ func (m *ComfyManager) UpscaleSeedVR2(ctx context.Context, cfg ComfyConfig, scal
 }
 
 // UpscaleSeedVR2Model honors the chosen variant instead of preferring 7B.
-func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig, modelID string, scale int, input []byte) ([]byte, error) {
+func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig, modelID string, scale int, input []byte, options ...ComfyOptions) ([]byte, error) {
+	opts := firstComfyOptions(options)
+	seed, steps, guidance, optionErr := opts.sampling(42, 1, 1)
+	if optionErr != nil {
+		return nil, optionErr
+	}
 	if scale == 0 {
 		scale = 4
 	}
@@ -1744,7 +1832,14 @@ func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig,
 	postInputs := cloneInputsMap(schemas["SeedVR2PostProcessing"].Required)
 	postInputs["images"] = []any{"10", 0}
 	postInputs["original_resized_images"] = []any{"3", 0}
-	postInputs["color_correction_method"] = "none"
+	colorMethod := opts.ColorCorrection
+	if colorMethod == "" {
+		colorMethod = "none"
+	}
+	if !slices.Contains([]string{"none", "lab", "wavelet", "adain"}, colorMethod) {
+		return nil, errors.New("unknown color correction method")
+	}
+	postInputs["color_correction_method"] = colorMethod
 
 	graph := map[string]any{
 		"1": map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}},
@@ -1767,9 +1862,9 @@ func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig,
 			"positive":     []any{"8", 0},
 			"negative":     []any{"8", 1},
 			"latent_image": []any{"7", 0},
-			"seed":         42,
-			"steps":        1,
-			"cfg":          1.0,
+			"seed":         seed,
+			"steps":        steps,
+			"cfg":          guidance,
 			"sampler_name": "euler",
 			"scheduler":    "simple",
 			"denoise":      1.0,
@@ -1790,6 +1885,10 @@ func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig,
 
 // GenerateZImageTurbo generates images with Z-Image-Turbo (INT8) via ComfyUI native core nodes.
 func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	seed, steps, guidance, optionErr := req.Options.sampling(randomComfySeed(), 8, 1)
+	if optionErr != nil {
+		return nil, optionErr
+	}
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
 		return nil, errors.New("prompt is required")
@@ -1843,15 +1942,18 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 			"positive":     []any{"4", 0},
 			"negative":     []any{"5", 0},
 			"latent_image": []any{"7", 0},
-			"seed":         randomComfySeed(),
-			"steps":        8,
-			"cfg":          1.0,
+			"seed":         seed,
+			"steps":        steps,
+			"cfg":          guidance,
 			"sampler_name": "res_multistep",
 			"scheduler":    "simple",
 			"denoise":      1.0,
 		}},
 		"9":  map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"6", 0}}},
 		"10": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"9", 0}, "filename_prefix": "freefolio_zimage"}},
+	}
+	if negative := req.Options.negative(""); negative != "" {
+		graph["5"] = map[string]any{"class_type": "CLIPTextEncode", "inputs": map[string]any{"clip": []any{"3", 0}, "text": negative}}
 	}
 	graph["2"].(map[string]any)["inputs"].(map[string]any)["model"] = attachLoRAChain(graph, loras)
 	return m.runImagesWorkflow(ctx, base, graph)
@@ -1865,10 +1967,17 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 
 // GenerateQwenImage21 keeps ordinary and distilled sampling paths distinct.
 func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	seed, steps, guidance, optionErr := req.Options.sampling(randomComfySeed(), 25, 1)
+	if optionErr != nil {
+		return nil, optionErr
+	}
 	if req.BaseModel == "" {
 		req.BaseModel = "qwen-image-2.1-turbo-int8"
 	}
 	turbo := req.BaseModel == "qwen-image-2.1-turbo-int8"
+	if turbo && req.Options.Steps != 0 && req.Options.Steps != 8 {
+		return nil, errors.New("Qwen Turbo uses its fixed 8-step sigma schedule")
+	}
 	if !turbo && req.BaseModel != "qwen-image-2.1-int8" {
 		return nil, errors.New("unknown Qwen Image 2.1 base model")
 	}
@@ -1960,7 +2069,7 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 	encInputs := cloneInputsMap(schemas["TextEncodeQwenImage21"].Required)
 	encInputs["clip"] = []any{"3", 0}
 	encInputs["prompt"] = prompt
-	encInputs["negative_prompt"] = ""
+	encInputs["negative_prompt"] = req.Options.negative("")
 	encInputs["resolution"] = 1024
 
 	graph := map[string]any{
@@ -1996,10 +2105,10 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 		latentRef = []any{"6", 0}
 	}
 
-	graph["7"] = map[string]any{"class_type": "CFGGuider", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "cfg": 1.0}}
+	graph["7"] = map[string]any{"class_type": "CFGGuider", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "cfg": guidance}}
 	graph["8"] = map[string]any{"class_type": "ManualSigmas", "inputs": map[string]any{"sigmas": "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"}}
 	graph["9"] = map[string]any{"class_type": "KSamplerSelect", "inputs": map[string]any{"sampler_name": "euler"}}
-	graph["10"] = map[string]any{"class_type": "RandomNoise", "inputs": map[string]any{"noise_seed": randomComfySeed()}}
+	graph["10"] = map[string]any{"class_type": "RandomNoise", "inputs": map[string]any{"noise_seed": seed}}
 	graph["11"] = map[string]any{"class_type": "SamplerCustomAdvanced", "inputs": map[string]any{
 		"noise":        []any{"10", 0},
 		"guider":       []any{"7", 0},
@@ -2011,7 +2120,7 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 		for _, id := range []string{"7", "8", "9", "10"} {
 			delete(graph, id)
 		}
-		graph["11"] = map[string]any{"class_type": "KSampler", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "latent_image": latentRef, "seed": randomComfySeed(), "steps": 25, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}}
+		graph["11"] = map[string]any{"class_type": "KSampler", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "latent_image": latentRef, "seed": seed, "steps": steps, "cfg": guidance, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}}
 	}
 	graph["12"] = map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"11", 0}, "vae": []any{"4", 0}}}
 	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_qwen21"}}

@@ -234,8 +234,10 @@ func (b *Board) AddAnnotatedReference(sourceID, rel string, width, height int, g
 	}
 	var inputID, generatorID string
 	b.edit(o, func() {
-		w, h := whiteboard.AINodeSize(whiteboard.AIImageInput)
-		at := whiteboard.Point{source.X + source.W + 100 + w/2, source.Y + h/2}
+		at := b.viewCenter()
+		if generate {
+			at[0] -= 230
+		}
 		input := b.newAINode(whiteboard.AIImageInput, at, o)
 		inputID = input.ID
 		fileID := digest([]byte(rel))
@@ -338,6 +340,18 @@ func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bo
 	}
 	e := b.Scene.ElementByID(id)
 	st := boardChromeFor(o.Theme)
+	if b.canConvertNodeToImage(e, o) {
+		var button ui.Element
+		if flat {
+			button = boardFlatButton(c, "node-to-image", i18n.T("转为图片"), false, st).Height(26)
+		} else {
+			button = ui.Button(c.Key("node-to-image"), i18n.T("转为图片")).Height(28)
+		}
+		if button.Clicked() {
+			b.convertNodeToImage(id, o)
+			return
+		}
+	}
 	if rel := b.DisplayedAIImage(id); rel != "" && o.AI.SaveImage != nil {
 		var button ui.Element
 		if flat {

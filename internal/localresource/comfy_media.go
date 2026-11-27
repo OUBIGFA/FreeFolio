@@ -11,9 +11,12 @@ import (
 )
 
 type ComfyMediaRequest struct {
-	Model, Prompt, Lyrics, Speaker, Language string
-	Seconds                                  int
-	Image                                    []byte
+	Model, Prompt, Lyrics, Speaker, Language  string
+	Seconds                                   int
+	BPM, FPS                                  int
+	KeyScale, TimeSignature, VoiceStyle, Size string
+	Options                                   ComfyOptions
+	Image                                     []byte
 }
 
 func mediaNode(kind string, inputs map[string]any) any {
@@ -80,8 +83,17 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 	}
 	g := map[string]any{}
 	file := func(i int) string { return path.Base(pack.Files[i].RelPath) }
-	seed := randomComfySeed()
+	seed, _, _, err := req.Options.sampling(randomComfySeed(), 8, 1)
+	if err != nil {
+		return nil, err
+	}
 	sample := func(model, positive, negative, latent []any, steps int, cfg float64, sampler string) any {
+		if req.Options.Steps != 0 {
+			steps = req.Options.Steps
+		}
+		if req.Options.Guidance != nil {
+			cfg = *req.Options.Guidance
+		}
 		return mediaNode("KSampler", map[string]any{"model": model, "positive": positive, "negative": negative, "latent_image": latent, "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler, "scheduler": "simple", "denoise": 1.0})
 	}
 	saveAudio := func(ref []any) {
@@ -109,7 +121,11 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 			lyrics = "[Instrumental]"
 			language = "unknown"
 		}
-		g["text"] = mediaNode("TextEncodeAceStepAudio1.5", map[string]any{"clip": mediaRef("clip", 0), "tags": req.Prompt, "lyrics": lyrics, "seed": seed, "bpm": 120, "duration": seconds, "timesignature": "4", "language": language, "keyscale": "C major", "generate_audio_codes": true, "cfg_scale": 2.0, "temperature": .85, "top_p": .9, "top_k": 0, "min_p": 0.0})
+		bpm, key, meter, err := musicMetadata(req.BPM, req.KeyScale, req.TimeSignature)
+		if err != nil {
+			return nil, err
+		}
+		g["text"] = mediaNode("TextEncodeAceStepAudio1.5", map[string]any{"clip": mediaRef("clip", 0), "tags": req.Prompt, "lyrics": lyrics, "seed": seed, "bpm": bpm, "duration": seconds, "timesignature": meter, "language": language, "keyscale": key, "generate_audio_codes": true, "cfg_scale": 2.0, "temperature": .85, "top_p": .9, "top_k": 0, "min_p": 0.0})
 		g["negative"] = mediaNode("ConditioningZeroOut", map[string]any{"conditioning": mediaRef("text", 0)})
 		g["latent"] = mediaNode("EmptyAceStep1.5LatentAudio", map[string]any{"seconds": seconds, "batch_size": 1})
 		g["sample"] = sample(mediaRef("sampling", 0), mediaRef("text", 0), mediaRef("negative", 0), mediaRef("latent", 0), 8, 1, "euler")
@@ -126,7 +142,7 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		g["model"] = mediaNode("CheckpointLoaderSimple", map[string]any{"ckpt_name": file(0)})
 		g["clip"] = mediaNode("CLIPLoader", map[string]any{"clip_name": file(1), "type": "stable_audio", "device": "default"})
 		g["text"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": req.Prompt})
-		g["negative"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": ""})
+		g["negative"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": req.Options.negative("")})
 		g["latent"] = mediaNode("EmptyLatentAudio", map[string]any{"seconds": seconds, "batch_size": 1})
 		g["sample"] = sample(mediaRef("model", 0), mediaRef("text", 0), mediaRef("negative", 0), mediaRef("latent", 0), 8, 1, "lcm")
 		g["decode"] = mediaNode("VAEDecodeAudio", map[string]any{"samples": mediaRef("sample", 0), "vae": mediaRef("model", 2)})
@@ -146,7 +162,7 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		if language == "en" {
 			language = "English"
 		}
-		g["speech"] = mediaNode("AILab_Qwen3TTSCustomVoice", map[string]any{"text": req.Prompt, "speaker": speaker, "model_size": "1.7B", "language": language, "instruct": "", "unload_models": true, "seed": seed})
+		g["speech"] = mediaNode("AILab_Qwen3TTSCustomVoice", map[string]any{"text": req.Prompt, "speaker": speaker, "model_size": "1.7B", "language": language, "instruct": req.VoiceStyle, "unload_models": true, "seed": seed})
 		saveAudio(mediaRef("speech", 0))
 	case "video-wan":
 		seconds := req.Seconds
@@ -161,8 +177,13 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		g["clip"] = mediaNode("CLIPLoader", map[string]any{"clip_name": file(1), "type": "wan", "device": "default"})
 		g["vae"] = mediaNode("VAELoader", map[string]any{"vae_name": file(2)})
 		g["text"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": req.Prompt})
-		g["negative"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": "blurry, distorted, static, subtitles, watermark"})
-		latent := map[string]any{"vae": mediaRef("vae", 0), "width": 832, "height": 480, "length": seconds*24 + 1, "batch_size": 1}
+		g["negative"] = mediaNode("CLIPTextEncode", map[string]any{"clip": mediaRef("clip", 0), "text": req.Options.negative("blurry, distorted, static, subtitles, watermark")})
+		width, height, fps, err := localVideoGeometry(req.Size, req.FPS)
+		if err != nil {
+			return nil, err
+		}
+		frames := ((seconds*fps+3)/4)*4 + 1
+		latent := map[string]any{"vae": mediaRef("vae", 0), "width": width, "height": height, "length": frames, "batch_size": 1}
 		if len(req.Image) > 0 {
 			name, _, _, err := m.encodeAndUploadPNG(ctx, base, req.Image)
 			if err != nil {
@@ -174,7 +195,7 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		g["latent"] = mediaNode("Wan22ImageToVideoLatent", latent)
 		g["sample"] = sample(mediaRef("sampling", 0), mediaRef("text", 0), mediaRef("negative", 0), mediaRef("latent", 0), 20, 5, "uni_pc")
 		g["decode"] = mediaNode("VAEDecodeTiled", map[string]any{"samples": mediaRef("sample", 0), "vae": mediaRef("vae", 0), "tile_size": 256, "overlap": 64, "temporal_size": 32, "temporal_overlap": 8})
-		g["video"] = mediaNode("CreateVideo", map[string]any{"images": mediaRef("decode", 0), "fps": 24.0})
+		g["video"] = mediaNode("CreateVideo", map[string]any{"images": mediaRef("decode", 0), "fps": float64(fps)})
 		g["save"] = mediaNode("SaveVideo", map[string]any{"video": mediaRef("video", 0), "filename_prefix": "freefolio/video", "format": "mp4", "format.codec": "h264"})
 	default:
 		return nil, errors.New("media workflow is not configured")

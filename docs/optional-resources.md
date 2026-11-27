@@ -123,3 +123,7 @@ Qwen 图片修复流程还需将图片连到最后一个节点的「输入图片
 普通版使用 25 步采样，Turbo 使用 8 步采样，模型与 LoRA 不跨版本混用。当前接入 Turbo 的 Restore、Consistency、Consistency 2000、FUSAL Anime Turbo E6、Character Swap、MosaicMate；普通版接入 FUSAL Anime V3、WarmBlood Anime 与 WarmBlood Real。旧 Detail Enhancer 已从菜单移除，旧白板选择它时会提示重新选择。
 
 Character Swap 将原图连到参考图 1，目标角色图连到参考图 2。Consistency、MosaicMate 至少需要一张参考图。FUSAL 会额外下载对应文本编码器，显示体积不计入 LoRA 本身；FUSAL 必须单独使用，Restore 与 Consistency 也不能叠加。Turbo E6 与 WarmBlood 项目标为实验版。
+
+模型的可调参数、默认值和运行范围见[白板模型参数](ai-model-parameters.md)。选中节点，点击「全部设置」后调整。
+
+本机 ComfyUI 服务地址无法连接时，FreeFolio 会尝试从已选目录或 ComfyUI Desktop 登记信息启动引擎；没有可用安装时提示选择目录。远程服务地址需由远程主机启动。

@@ -236,7 +236,7 @@ func TestBoardAIConvertImageToReferenceNode(t *testing.T) {
 	o := f.options(t)
 	b := NewBoard(whiteboard.NewScene())
 	data := testPNG(t)
-	if err := b.InsertImage(data, whiteboard.Point{240, 270}); err != nil {
+	if err := b.insertImage(data, whiteboard.Point{240, 270}, false); err != nil {
 		t.Fatal(err)
 	}
 	picture := b.Scene.ElementByID(b.SelectedIDs()[0])
@@ -315,7 +315,7 @@ func TestBoardAIImageConversionMenuAndPermissions(t *testing.T) {
 	f := &fakeAI{}
 	o := f.options(t)
 	b := NewBoard(whiteboard.NewScene())
-	if err := b.InsertImage(testPNG(t), whiteboard.Point{260, 280}); err != nil {
+	if err := b.insertImage(testPNG(t), whiteboard.Point{260, 280}, false); err != nil {
 		t.Fatal(err)
 	}
 	picture := b.Scene.ElementByID(b.SelectedIDs()[0])
@@ -465,7 +465,8 @@ func TestBoardAIOutputDragPickerAndPanel(t *testing.T) {
 	if _, ok := tt.Find("运行节点"); !ok {
 		t.Fatal("full settings missing")
 	}
-	b.ai.panel = false
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
 	// A link dragged from the output onto empty canvas offers nodes.
 	x, y := slotAt(b, e.ID, "")
 	drag(tt, x, y, x+260, y+40)
@@ -486,10 +487,12 @@ func TestBoardAIOutputDragPickerAndPanel(t *testing.T) {
 		t.Fatal("picked node not linked into its prompt")
 	}
 	noArrows(t, b)
-	// The new node's slot sits where the link was dropped.
-	if px, py := slotAt(b, image.ID, "prompt"); px < x+250 || px > x+270 || py < y+30 || py > y+50 {
-		t.Fatalf("slot at %v,%v", px, py)
+	// Creating from a loose cable uses the current viewport center, preserving the link.
+	center := b.viewCenter()
+	if image.X+image.W/2 != center[0] || image.Y+image.H/2 != center[1] {
+		t.Fatal("picked node is not centered")
 	}
+
 	// Typing in the card is one undo step.
 	b.selectIDs([]string{e.ID})
 	b.ai.focusInstruction = true
@@ -849,7 +852,7 @@ func TestBoardAIImageInputReplacePreservesLinksAndSupportsUndo(t *testing.T) {
 	o := f.options(t)
 	b := NewBoard(whiteboard.NewScene())
 	first := testPNG(t)
-	if err := b.InsertImage(first, whiteboard.Point{240, 270}); err != nil {
+	if err := b.insertImage(first, whiteboard.Point{240, 270}, false); err != nil {
 		t.Fatal(err)
 	}
 	pic := b.Scene.ElementByID(b.SelectedIDs()[0])

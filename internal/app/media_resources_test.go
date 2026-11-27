@@ -70,6 +70,9 @@ func TestLocalAudioRunnerSavesAttachment(t *testing.T) {
 		}
 	}
 	data := []byte("fLaCtest-audio")
+	var submitted map[string]struct {
+		Inputs map[string]any `json:"inputs"`
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/system_stats":
@@ -81,6 +84,11 @@ func TestLocalAudioRunnerSavesAttachment(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(info)
 		case "/prompt":
+			var body struct {
+				Prompt json.RawMessage `json:"prompt"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			_ = json.Unmarshal(body.Prompt, &submitted)
 			fmt.Fprint(w, `{"prompt_id":"a"}`)
 		case "/history/a":
 			fmt.Fprint(w, `{"a":{"status":{"completed":true},"outputs":{"save":{"audio":[{"filename":"song.flac"}],"animated":[false]}}}}`)
@@ -96,7 +104,7 @@ func TestLocalAudioRunnerSavesAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := runner.Media(context.Background(), editor.BoardAIJob{Node: whiteboard.AINode{Role: whiteboard.AIAudio, Connection: "comfyui-media", Model: "ace15-turbo"}, Prompt: "piano"}, nil)
+	out, err := runner.Media(context.Background(), editor.BoardAIJob{Node: whiteboard.AINode{Role: whiteboard.AIAudio, Connection: "comfyui-media", Model: "ace15-turbo", Params: whiteboard.AIParams{BPM: 86, KeyScale: "A minor", TimeSignature: "3", Seconds: 15}}, Prompt: "piano"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +114,10 @@ func TestLocalAudioRunnerSavesAttachment(t *testing.T) {
 	if out[0].Output.Path == "" {
 		t.Fatal("audio attachment path missing")
 	}
+	if submitted["text"].Inputs["bpm"] != float64(86) || submitted["text"].Inputs["keyscale"] != "A minor" || submitted["text"].Inputs["timesignature"] != "3" || submitted["latent"].Inputs["seconds"] != float64(15) {
+		t.Fatal("saved music parameters not forwarded to ComfyUI")
+	}
+
 }
 
 func TestMediaResourcesSnapshot(t *testing.T) {

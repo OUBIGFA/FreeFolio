@@ -499,16 +499,16 @@ func (a *App) insertBoardFiles(d *document, paths []string) {
 		return files
 	}
 	done := func(files []loaded) {
-		if d.closed.Load() {
+		if d.closed.Load() || d.ed.ReadOnly {
 			return
 		}
-		for i, f := range files {
+		for _, f := range files {
 			if f.err != nil {
 				a.notify("插入图片失败；%v", f.err)
 				continue
 			}
 			before := d.board.Revision()
-			if err := d.board.InsertImage(f.data, whiteboard.Point{300 + float64(i)*25, 220 + float64(i)*25}); err != nil {
+			if err := d.board.InsertImage(f.data, d.board.ViewCenter()); err != nil {
 				a.notify("插入图片失败；%v", err)
 			} else if d.board.Revision() != before {
 				a.boardChanged(d)

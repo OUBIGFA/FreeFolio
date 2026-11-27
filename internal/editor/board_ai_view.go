@@ -419,7 +419,7 @@ func translated(values ...string) []string {
 // aiEditBuffers are the panel's text fields, kept while a node is edited so
 // typing and IME composition survive frames.
 type aiEditBuffers struct {
-	title, instruction, note, template, extra, lyrics string
+	title, instruction, note, template, extra, lyrics, voiceStyle, negative string
 }
 
 func aiPropDivider(c *ui.Context, o BoardOptions) {
@@ -453,126 +453,122 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			raw, _ := json.Marshal(n.Params.Extra)
 			extra = string(raw)
 		}
-		b.ai.buf = aiEditBuffers{n.Title, n.Instruction, n.Note, n.Params.Template, extra, n.Params.Lyrics}
+		b.ai.buf = aiEditBuffers{n.Title, n.Instruction, n.Note, n.Params.Template, extra, n.Params.Lyrics, n.Params.VoiceStyle, defaultNegativePrompt(n)}
 		s.extraErr = ""
 	}
 	id := e.ID
 	st := boardChromeFor(o.Theme)
 	edit := func(fn func(*whiteboard.AINode)) { b.editAINode(o, id, fn) }
-	panel := boardSurface(ui.Scroll(c.Key("board-ai-props")).Absolute().Top(62).Width(min(312, max(1, b.lastRect.W-24))).MaxHeight(max(44, b.lastRect.H-118)).Padding(14).Gap(8), st)
-	center, _, _, _ := b.canvasRect(e.X+e.W/2, 0, 0, 0)
-	if center > b.lastRect.W/2 {
-		panel.Left(12)
-	} else {
-		panel.Right(12)
-	}
-	panel.Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
-		boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
-		if aiRunnableRole(n.Role) {
-			b.aiRunControls(c, o, id)
-		}
-		aiPropDivider(c, o)
-		aiPropSection(c, o, "基础设置")
-		ui.Text(c, i18n.T("名称")).FontSize(12).TextColor(o.Theme.TextMuted)
-		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
-			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
-		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
-			b.aiModelField(c, o, id, n)
-		}
-		aiPropDivider(c, o)
-		switch n.Role {
-		case whiteboard.AICutout:
-			ui.Text(c, i18n.T("请连接输入图片；使用 Sa2VA 或 BRIA RMBG-3.0 时可在下方填写抠图说明")).FontSize(12).TextColor(o.Theme.TextMuted)
+	ui.PopoverBase(c.Key("board-ai-properties-popup"), s.settingsAnchor, &s.panel, func(popup ui.Element) {
+		boardSurface(popup, st).Width(min(360, max(1, b.lastRect.W-24))).MaxHeight(max(44, b.lastRect.H-72))
+		ui.Scroll(c.Key("board-ai-props")).WidthPercent(100).MaxHeight(max(44, min(720, b.lastRect.H-72))).Padding(14).Gap(8).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
+			boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
+			if aiRunnableRole(n.Role) {
+				b.aiRunControls(c, o, id)
+			}
 			aiPropDivider(c, o)
-		case whiteboard.AIUpscale:
-			ui.Text(c, i18n.T("请连接一张输入图片，本地模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
-		case whiteboard.AICompare:
-			ui.Text(c, i18n.T("连接图片 A 与图片 B，支持卷帘、并排、叠化、差异与切换对比")).FontSize(12).TextColor(o.Theme.TextMuted)
-		case whiteboard.AIImageInput:
-			ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
-		case whiteboard.AIPrompt:
-			aiPropSection(c, o, "文字内容")
-			area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
-			if s.focusInstruction {
-				area.Focus()
-				s.focusInstruction = false
+			aiPropSection(c, o, "基础设置")
+			ui.Text(c, i18n.T("名称")).FontSize(12).TextColor(o.Theme.TextMuted)
+			if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
+				edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 			}
-			if area.Changed() {
-				b.setAINodeText(o, id, b.ai.buf.instruction)
+			if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
+				b.aiModelField(c, o, id, n)
 			}
-		case whiteboard.AINote:
-			aiPropSection(c, o, "引用笔记")
-			if ui.TextInput(c.Key("board-ai-note"), &b.ai.buf.note).Placeholder(i18n.T("文档名称")).WidthPercent(100).Changed() {
-				edit(func(n *whiteboard.AINode) { n.Note = strings.Trim(strings.TrimSpace(b.ai.buf.note), "[]") })
-			}
-			if o.WikiSuggest != nil && strings.TrimSpace(b.ai.buf.note) != "" {
-				for i, name := range o.WikiSuggest(strings.Trim(b.ai.buf.note, "[]")) {
-					if i >= 5 {
-						break
-					}
-					if ui.Button(c.Key("sug-"+name), name).Clicked() {
-						b.ai.buf.note = name
-						edit(func(n *whiteboard.AINode) { n.Note = name })
+			aiPropDivider(c, o)
+			switch n.Role {
+			case whiteboard.AICutout:
+				ui.Text(c, i18n.T("请连接输入图片；使用 Sa2VA 或 BRIA RMBG-3.0 时可在下方填写抠图说明")).FontSize(12).TextColor(o.Theme.TextMuted)
+				aiPropDivider(c, o)
+			case whiteboard.AIUpscale:
+				ui.Text(c, i18n.T("请连接一张输入图片，本地模型在设置的可选资源中下载")).FontSize(12).TextColor(o.Theme.TextMuted)
+			case whiteboard.AICompare:
+				ui.Text(c, i18n.T("连接图片 A 与图片 B，支持卷帘、并排、叠化、差异与切换对比")).FontSize(12).TextColor(o.Theme.TextMuted)
+			case whiteboard.AIImageInput:
+				ui.Text(c, i18n.T("从右侧图片输出拖线到 AI 生图节点的参考图输入")).FontSize(12).TextColor(o.Theme.TextMuted)
+			case whiteboard.AIPrompt:
+				aiPropSection(c, o, "文字内容")
+				area := ui.TextArea(c.Key("board-ai-instruction"), &b.ai.buf.instruction).Placeholder(i18n.T("输入提示词或文本")).WidthPercent(100).Height(140).Label(i18n.T("文字内容"))
+				if s.focusInstruction {
+					area.Focus()
+					s.focusInstruction = false
+				}
+				if area.Changed() {
+					b.setAINodeText(o, id, b.ai.buf.instruction)
+				}
+			case whiteboard.AINote:
+				aiPropSection(c, o, "引用笔记")
+				if ui.TextInput(c.Key("board-ai-note"), &b.ai.buf.note).Placeholder(i18n.T("文档名称")).WidthPercent(100).Changed() {
+					edit(func(n *whiteboard.AINode) { n.Note = strings.Trim(strings.TrimSpace(b.ai.buf.note), "[]") })
+				}
+				if o.WikiSuggest != nil && strings.TrimSpace(b.ai.buf.note) != "" {
+					for i, name := range o.WikiSuggest(strings.Trim(b.ai.buf.note, "[]")) {
+						if i >= 5 {
+							break
+						}
+						if ui.Button(c.Key("sug-"+name), name).Clicked() {
+							b.ai.buf.note = name
+							edit(func(n *whiteboard.AINode) { n.Note = name })
+						}
 					}
 				}
+				if n.Note != "" && o.OpenWiki != nil && ui.Button(c.Key("open-note"), i18n.T("打开笔记")).Clicked() {
+					o.OpenWiki(n.Note, false)
+				}
+			case whiteboard.AIConcat:
+				aiPropSection(c, o, "拼接模板")
+				ui.Text(c, i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).TextColor(o.Theme.TextMuted)
+				if ui.TextArea(c.Key("board-ai-template"), &b.ai.buf.template).WidthPercent(100).Height(88).Changed() {
+					edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
+				}
 			}
-			if n.Note != "" && o.OpenWiki != nil && ui.Button(c.Key("open-note"), i18n.T("打开笔记")).Clicked() {
-				o.OpenWiki(n.Note, false)
+			if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout {
+				aiPropSection(c, o, "指令")
+				value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
+				if n.Role == whiteboard.AICutout {
+					placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
+				}
+				linked := b.aiPromptSource(n)
+				unsupported := !n.AcceptsPrompt()
+				if unsupported {
+					value, placeholder = new(string), i18n.T("此模型不支持提示词")
+				} else if linked != "" {
+					// The linked slot feeds the instruction, so the field is
+					// disabled and shows the source, as ComfyUI's widget inputs.
+					value, placeholder = new(string), fmt.Sprintf(i18n.T("已连接：%s"), linked)
+				}
+				area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(104).Disabled(unsupported || linked != "" || b.ReadOnly || e.Locked).Label(i18n.T("指令")).Description(placeholder)
+				if s.focusInstruction && !unsupported && linked == "" && !b.ReadOnly && !e.Locked {
+					area.Focus()
+					s.focusInstruction = false
+				}
+				if area.Changed() {
+					b.setAINodeText(o, id, b.ai.buf.instruction)
+				}
 			}
-		case whiteboard.AIConcat:
-			aiPropSection(c, o, "拼接模板")
-			ui.Text(c, i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).TextColor(o.Theme.TextMuted)
-			if ui.TextArea(c.Key("board-ai-template"), &b.ai.buf.template).WidthPercent(100).Height(88).Changed() {
-				edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
+			if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
+				aiPropDivider(c, o)
+				inputs := b.Scene.AIInputs(id)
+				aiPropSection(c, o, fmt.Sprintf(i18n.T("输入（%d）"), len(inputs)))
+				if len(inputs) == 0 && n.Role != whiteboard.AINote {
+					ui.Text(c, i18n.T("从其他节点的输出拖线到左侧输入，或从输入拖线到便签、图片、画框")).FontSize(12).TextColor(o.Theme.TextMuted)
+				}
+				for i, in := range inputs {
+					sl, _ := whiteboard.AISlotByName(n, in.Slot)
+					detail := b.aiSourceName(b.Scene.ElementByID(in.From))
+					ui.Row(c.Key(fmt.Sprint("in", i))).Padding(6, 8).Gap(6).AlignItems(ui.Center).Background(st.surfaceMuted).Border(1, st.divider).Radius(6).Children(func() {
+						ui.Box(c).Size(6, 6).Radius(3).Background(aiTypeColor(sl.Type, o.Theme.Dark)).Shrink(0)
+						ui.Text(c, aiSlotLabel(sl)).FontSize(12).FontWeight(500).TextColor(st.muted).NoWrap()
+						ui.Text(c, detail).FontSize(12).TextColor(st.text).SingleLine().Grow(1).MinWidth(0)
+						if !b.ReadOnly && boardIconButton(c, "disconnect", "close", i18n.T("断开连接"), false).Size(22, 22).Clicked() {
+							b.deleteAILink(aiLinkRef{id, in.Slot}, o)
+						}
+					})
+				}
 			}
-		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout {
-			aiPropSection(c, o, "指令")
-			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
-			if n.Role == whiteboard.AICutout {
-				placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
-			}
-			linked := b.aiPromptSource(n)
-			unsupported := !n.AcceptsPrompt()
-			if unsupported {
-				value, placeholder = new(string), i18n.T("此模型不支持提示词")
-			} else if linked != "" {
-				// The linked slot feeds the instruction, so the field is
-				// disabled and shows the source, as ComfyUI's widget inputs.
-				value, placeholder = new(string), fmt.Sprintf(i18n.T("已连接：%s"), linked)
-			}
-			area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(104).Disabled(unsupported || linked != "" || b.ReadOnly || e.Locked).Label(i18n.T("指令")).Description(placeholder)
-			if s.focusInstruction && !unsupported && linked == "" && !b.ReadOnly && !e.Locked {
-				area.Focus()
-				s.focusInstruction = false
-			}
-			if area.Changed() {
-				b.setAINodeText(o, id, b.ai.buf.instruction)
-			}
-		}
-		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput {
-			aiPropDivider(c, o)
-			inputs := b.Scene.AIInputs(id)
-			aiPropSection(c, o, fmt.Sprintf(i18n.T("输入（%d）"), len(inputs)))
-			if len(inputs) == 0 && n.Role != whiteboard.AINote {
-				ui.Text(c, i18n.T("从其他节点的输出拖线到左侧输入，或从输入拖线到便签、图片、画框")).FontSize(12).TextColor(o.Theme.TextMuted)
-			}
-			for i, in := range inputs {
-				sl, _ := whiteboard.AISlotByName(n, in.Slot)
-				detail := b.aiSourceName(b.Scene.ElementByID(in.From))
-				ui.Row(c.Key(fmt.Sprint("in", i))).Padding(6, 8).Gap(6).AlignItems(ui.Center).Background(st.surfaceMuted).Border(1, st.divider).Radius(6).Children(func() {
-					ui.Box(c).Size(6, 6).Radius(3).Background(aiTypeColor(sl.Type, o.Theme.Dark)).Shrink(0)
-					ui.Text(c, aiSlotLabel(sl)).FontSize(12).FontWeight(500).TextColor(st.muted).NoWrap()
-					ui.Text(c, detail).FontSize(12).TextColor(st.text).SingleLine().Grow(1).MinWidth(0)
-					if !b.ReadOnly && boardIconButton(c, "disconnect", "close", i18n.T("断开连接"), false).Size(22, 22).Clicked() {
-						b.deleteAILink(aiLinkRef{id, in.Slot}, o)
-					}
-				})
-			}
-		}
-		b.aiParamsFields(c, o, id, n)
-		b.aiOutputActions(c, o, id, n)
+			b.aiParamsFields(c, o, id, n)
+			b.aiOutputActions(c, o, id, n)
+		})
 	})
 }
 
@@ -600,11 +596,13 @@ func aiImageSizeChoices(o BoardOptions, n *whiteboard.AINode, compact bool) ([]s
 }
 
 func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
+	n = b.Scene.AIInputNode(n)
 	if n.Connection == "comfyui-media" {
 		aiPropSection(c, o, "生成参数")
 		b.aiLocalMediaParams(c, o, id, n, false, b.ReadOnly || b.Scene.ElementByID(id).Locked)
 		return
 	}
+	b.aiComfySamplingParams(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked)
 	set := func(fn func(*whiteboard.AIParams)) {
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { fn(&n.Params) })
 	}
@@ -653,7 +651,7 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				if nativeSize {
+				if nativeSize || strings.HasPrefix(n.Connection, "comfyui") {
 					return
 				}
 				if v := aiChoice(c, o, "quality", "质量", p.Quality, []string{"", "low", "medium", "high", "standard", "hd"}, translated("服务默认", "低", "中", "高", "标准", "高清")); v != p.Quality {
@@ -706,7 +704,7 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 	default:
 		return
 	}
-	if n.Role == whiteboard.AIText {
+	if n.Role == whiteboard.AIText || strings.HasPrefix(n.Connection, "comfyui") || n.Connection == "local" || n.Connection == "local-ncnn" {
 		return
 	}
 	// Services add options of their own; they pass through as given, as
@@ -823,8 +821,17 @@ func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, m
 			// Speech and music use different language codes; each model also
 			// has its own duration limits. Keep saved lyrics when switching.
 			node.Params.Language, node.Params.Seconds = "", 0
+			node.Params.FPS = 0
+			node.Params.Size = ""
+		}
+		if node.Connection != model.Connection || node.Model != model.Model {
+			node.Params.Steps = 0
+			node.Params.Guidance = nil
+			node.Params.NegativePrompt = nil
+			b.ai.buf.negative = ""
 		}
 		node.Connection, node.Model = model.Connection, model.Model
+		b.ai.buf.negative = defaultNegativePrompt(node)
 		node.Params.LoRAStrength = model.LoRAStrength
 		if node.Instruction == "" {
 			node.Instruction = model.Instruction
@@ -858,7 +865,12 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 		}
 		// Running is on the card; the bar holds what a card has no
 		// room for, as ComfyUI's selection toolbox.
-		if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
+		settingsButton := boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置"))
+		s.settingsAnchor = settingsButton
+		if s.edit != "" && s.edit != e.ID {
+			s.panel = false
+		}
+		if settingsButton.Clicked() {
 			s.panel = !s.panel
 		}
 		if !b.ReadOnly && aiRunnableRole(n.Role) && !b.AIRunning() {
@@ -984,6 +996,9 @@ func (b *Board) aiContextMenu(m *ui.Menu, o BoardOptions) {
 	m.Separator()
 	if len(b.selectedImagesForNodes()) > 0 && m.Item(i18n.T("转为节点")).Chosen() {
 		b.convertImagesToNodes(o)
+	}
+	if e, _ := b.selectedAINode(); b.canConvertNodeToImage(e, o) && m.Item(i18n.T("转为图片")).Chosen() {
+		b.convertNodeToImage(e.ID, o)
 	}
 	if ref := b.ai.link; ref != nil && m.Item(i18n.T("删除连线")).Chosen() {
 		b.deleteAILink(*ref, o)

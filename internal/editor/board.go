@@ -337,6 +337,12 @@ func copyBoardStyle(e, from *whiteboard.Element) {
 }
 
 func (b *Board) InsertImage(data []byte, at whiteboard.Point) error {
+	return b.insertImage(data, at, !b.options.ImageAnnotation)
+}
+
+// User image insertion creates an input node in the same undo transaction.
+// Explicit ordinary output and annotation insertion keep their image form.
+func (b *Board) insertImage(data []byte, at whiteboard.Point, node bool) error {
 	if b.ReadOnly {
 		return fmt.Errorf("whiteboard is read-only")
 	}
@@ -360,10 +366,16 @@ func (b *Board) InsertImage(data []byte, at whiteboard.Point) error {
 	scale := math.Min(1, 600/math.Max(w, h))
 	w *= scale
 	h *= scale
+	if node && b.lastRect.W > 0 && b.lastRect.H > 0 {
+		at = b.viewCenter()
+	}
 	b.edit(b.options, func() {
 		e := whiteboard.NewElement(whiteboard.KindImage, at[0]-w/2, at[1]-h/2, w, h)
 		e.FileID = id
 		e.Status = "saved"
+		if node {
+			b.makeImageNode(e)
+		}
 		b.Scene.Files[id] = &whiteboard.FileData{ID: id, MIMEType: mime, DataURL: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)}
 		b.Scene.Elements = append(b.Scene.Elements, e)
 		b.selectIDs([]string{e.ID})

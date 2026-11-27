@@ -165,13 +165,7 @@ func (a *App) boardAgentTools(d *document, deliver func(func())) []agent.Tool {
 				return "", fmt.Errorf("unknown role %q", args.Role)
 			}
 			b, o := d.board, options()
-			near := args.Near
-			if near == "" && len(args.Inputs) > 0 {
-				near = args.Inputs[len(args.Inputs)-1]
-			}
-			w, h := whiteboard.AINodeSize(role)
-			at := place(near, w, h)
-			id := b.AddAINode(role, whiteboard.Point{at[0] + w/2, at[1] + h/2}, o)
+			id := b.AddAINode(role, b.ViewCenter(), o)
 			if id == "" {
 				return "", errors.New("the whiteboard is read-only")
 			}

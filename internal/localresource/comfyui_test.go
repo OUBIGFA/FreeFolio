@@ -416,6 +416,9 @@ func TestComfyWorkflowExecutionErrorDetail(t *testing.T) {
 
 func TestComfyManagerProbeUpscaleCutoutAndCancel(t *testing.T) {
 	var interrupted atomic.Bool
+	var captured map[string]struct {
+		Inputs map[string]any `json:"inputs"`
+	}
 	var blockHistory atomic.Bool
 	out4x := comfyTestPNG(t, 16, 16, color.NRGBA{R: 10, G: 200, B: 80, A: 255})
 	outCutout := comfyTestPNG(t, 4, 4, color.NRGBA{R: 200, G: 30, B: 30, A: 120})
@@ -447,6 +450,11 @@ func TestComfyManagerProbeUpscaleCutoutAndCancel(t *testing.T) {
 		case r.URL.Path == "/upload/image":
 			_ = json.NewEncoder(w).Encode(map[string]any{"name": "freefolio_input.png", "subfolder": ""})
 		case r.URL.Path == "/prompt":
+			var body struct {
+				Prompt json.RawMessage `json:"prompt"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			_ = json.Unmarshal(body.Prompt, &captured)
 			_ = json.NewEncoder(w).Encode(map[string]any{"prompt_id": "job-1"})
 		case r.URL.Path == "/history/job-1":
 			if blockHistory.Load() {
@@ -508,6 +516,13 @@ func TestComfyManagerProbeUpscaleCutoutAndCancel(t *testing.T) {
 		t.Fatal("cutout bytes mismatch")
 	}
 
+	sensitivity := .8
+	if _, err := mgr.Cutout(context.Background(), cfg, "BEN2", in, ComfyOptions{Sensitivity: &sensitivity, MaskBlur: 3, MaskOffset: -2}); err != nil {
+		t.Fatal(err)
+	}
+	if captured["2"].Inputs["sensitivity"] != .8 || captured["2"].Inputs["mask_blur"] != float64(3) || captured["2"].Inputs["mask_offset"] != float64(-2) {
+		t.Fatal("generic matting parameters ignored")
+	}
 	blockHistory.Store(true)
 	cancelCtx, cancel := context.WithTimeout(context.Background(), 450*time.Millisecond)
 	defer cancel()
@@ -531,14 +546,10 @@ func TestComfyManagerRMBG3AndSa2VACutout(t *testing.T) {
 			})
 		case "/object_info":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"UNETLoader": map[string]any{"input": map[string]any{"required": map[string]any{"unet_name": []any{[]string{"RMBG-3.0-fp8.safetensors"}}}}},
-				"CLIPLoader": map[string]any{"input": map[string]any{"required": map[string]any{"clip_name": []any{[]string{"qwen3vl_4b_int8_convrot.safetensors"}}}}},
-				"VAELoader":  map[string]any{"input": map[string]any{"required": map[string]any{"vae_name": []any{[]string{"flux2-vae.safetensors"}}}}},
-				"TextGenerateV2": map[string]any{"input": map[string]any{"required": map[string]any{
-					"max_length":                []any{"INT", map[string]any{"default": 512}},
-					"sampling_mode":             []any{[]string{"on", "off"}, map[string]any{"default": "on"}},
-					"sampling_mode.temperature": []any{"FLOAT", map[string]any{"default": 0.7}},
-				}}},
+				"UNETLoader":         map[string]any{"input": map[string]any{"required": map[string]any{"unet_name": []any{[]string{"RMBG-3.0-fp8.safetensors"}}}}},
+				"CLIPLoader":         map[string]any{"input": map[string]any{"required": map[string]any{"clip_name": []any{[]string{"qwen3vl_4b_int8_convrot.safetensors"}}}}},
+				"VAELoader":          map[string]any{"input": map[string]any{"required": map[string]any{"vae_name": []any{[]string{"flux2-vae.safetensors"}}}}},
+				"TextGenerateV2":     map[string]any{"input": map[string]any{"required": comfyTextGenerateRequired(t)}},
 				"TextEncodeFibo2":    map[string]any{"input": map[string]any{"required": map[string]any{"prompt": []any{"STRING", map[string]any{"default": ""}}}}},
 				"KSampler":           map[string]any{},
 				"VAEDecode":          map[string]any{},
@@ -619,6 +630,25 @@ func TestComfyManagerRMBG3AndSa2VACutout(t *testing.T) {
 		t.Fatalf("expected 3 prompts, got %d", len(capturedPrompts))
 	}
 	rmbg := capturedPrompts[0]
+	for _, key := range []string{"temperature", "top_k", "top_p", "min_p", "repetition_penalty", "presence_penalty", "seed"} {
+		if _, ok := rmbg["6"]["sampling_mode."+key]; !ok {
+			t.Fatalf("TextGenerateV2 missing required input sampling_mode.%s", key)
+		}
+	}
+	if target := os.Getenv("FREEFOLIO_RMBG_GRAPH"); target != "" {
+		graph := map[string]any{}
+		for id, inputs := range rmbg {
+			values := cloneInputsMap(inputs)
+			kind := values["__class_type"]
+			delete(values, "__class_type")
+			graph[id] = map[string]any{"class_type": kind, "inputs": values}
+		}
+		data, _ := json.MarshalIndent(graph, "", "  ")
+		if err := os.WriteFile(target, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	if rmbg["2"]["unet_name"] != "RMBG-3.0-fp8.safetensors" || rmbg["6"]["prompt"] != "clear glass bottle" {
 		t.Fatalf("unexpected RMBG3 prompt graph: %+v", rmbg)
 	}
@@ -630,6 +660,22 @@ func TestComfyManagerRMBG3AndSa2VACutout(t *testing.T) {
 	if sa2b["use_8bit"] != false || sa2b["segmentation_prompt"] == "" {
 		t.Fatalf("unexpected Sa2VA 2B inputs: %+v", sa2b)
 	}
+	threshold := .72
+	seed := int64(77)
+	if _, err = mgr.CutoutSa2VA(context.Background(), cfg, "ByteDance/Sa2VA-InternVL3-2B", "person", in, ComfyOptions{MaskThreshold: &threshold}); err != nil {
+		t.Fatal(err)
+	}
+	if capturedPrompts[len(capturedPrompts)-1]["2"]["threshold"] != .72 {
+		t.Fatal("Sa2VA threshold ignored")
+	}
+	if _, err = mgr.CutoutRMBG3(context.Background(), cfg, "glass", in, ComfyOptions{Seed: &seed, Steps: 6}); err != nil {
+		t.Fatal(err)
+	}
+	last := capturedPrompts[len(capturedPrompts)-1]
+	if last["8"]["seed"] != float64(77) || last["8"]["steps"] != float64(6) {
+		t.Fatal("RMBG3 sampling settings ignored")
+	}
+
 }
 
 func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
@@ -871,4 +917,53 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 	if len(captured) != before {
 		t.Fatal("invalid request submitted a workflow")
 	}
+	fixedSeed := int64(123)
+	guidance := 3.0
+	negative := "watermark"
+	opts := ComfyOptions{Seed: &fixedSeed, Steps: 31, Guidance: &guidance, NegativePrompt: &negative}
+	for _, base := range []string{"z-image-turbo-int8", "qwen-image-2.1-int8", "qwen-image-2.1-turbo-int8"} {
+		req := ComfyImageRequest{BaseModel: base, Prompt: "test", Options: opts}
+		if base == "qwen-image-2.1-turbo-int8" {
+			req.Options.Steps = 8
+		}
+		var err error
+		if base == "z-image-turbo-int8" {
+			_, err = mgr.GenerateZImageTurbo(context.Background(), cfg, req)
+		} else {
+			_, err = mgr.GenerateQwenImage21(context.Background(), cfg, req)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		g := captured[len(captured)-1]
+		switch base {
+		case "z-image-turbo-int8":
+			if g["8"]["seed"] != float64(123) || g["8"]["steps"] != float64(31) || g["8"]["cfg"] != 3.0 || g["5"]["text"] != "watermark" {
+				t.Fatal("Z-Image parameters ignored")
+			}
+		case "qwen-image-2.1-int8":
+			if g["11"]["seed"] != float64(123) || g["11"]["steps"] != float64(31) || g["11"]["cfg"] != 3.0 || g["5"]["negative_prompt"] != "watermark" {
+				t.Fatal("Qwen parameters ignored")
+			}
+		default:
+			if g["10"]["noise_seed"] != float64(123) || g["7"]["cfg"] != 3.0 || g["5"]["negative_prompt"] != "watermark" {
+				t.Fatal("Turbo parameters ignored")
+			}
+		}
+	}
+	if _, err = mgr.UpscaleSeedVR2Model(context.Background(), cfg, "seedvr2-3b-int8", 2, in, ComfyOptions{Seed: &fixedSeed, ColorCorrection: "lab"}); err != nil {
+		t.Fatal(err)
+	}
+	g := captured[len(captured)-1]
+	if g["9"]["seed"] != float64(123) || g["11"]["color_correction_method"] != "lab" {
+		t.Fatal("SeedVR2 controls ignored")
+	}
+	before = len(captured)
+	if _, err = mgr.GenerateQwenImage21Turbo(context.Background(), cfg, ComfyImageRequest{Prompt: "test", Options: ComfyOptions{Steps: 12}}); err == nil {
+		t.Fatal("Turbo accepted incompatible steps")
+	}
+	if len(captured) != before {
+		t.Fatal("invalid Turbo configuration submitted")
+	}
+
 }

@@ -133,6 +133,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 		}
 		b.aiNodeOverlay(c, o)
 		b.aiProperties(c, o)
+		b.aiErrorDialog(c, o)
 		b.footer(c, o)
 		b.panelView(c, o)
 		if b.cropper != nil {

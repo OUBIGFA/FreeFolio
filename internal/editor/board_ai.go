@@ -183,7 +183,11 @@ type boardAIState struct {
 	link   *aiLinkRef
 	picker *aiPicker
 	// panel shows the selected node's full settings beside the board.
-	panel bool
+	panel                 bool
+	settingsAnchor        ui.Element
+	errorOpen             bool
+	errorFocus            bool
+	errorTitle, errorText string
 	// linkedOut marks elements whose output is linked, for the frame
 	// being painted.
 	linkedOut     map[string]bool
@@ -349,15 +353,7 @@ func (b *Board) convertImagesToNodes(o BoardOptions) {
 	}
 	b.edit(o, func() {
 		for _, e := range images {
-			n := &whiteboard.AINode{Role: whiteboard.AIImageInput}
-			if err := whiteboard.SetAINode(e, n); err != nil {
-				b.err = err
-				continue
-			}
-			cx, cy := e.X+e.W/2, e.Y+e.H/2
-			w, h := whiteboard.AINodeSize(n.Role)
-			e.W, e.H = max(w, e.W), max(h, e.H)
-			e.X, e.Y, e.Angle = cx-e.W/2, cy-e.H/2, 0
+			b.makeImageNode(e)
 		}
 	})
 }
@@ -389,20 +385,14 @@ func (b *Board) aiSelectionInputs() []*whiteboard.Element {
 	return out
 }
 
-// AIFromSelection makes a node to the right of the selection, fed by each
+// AIFromSelection makes a node at the viewport center, fed by each
 // selected element, as "框选即组合" asks: select, then choose what to make.
 func (b *Board) AIFromSelection(role whiteboard.AIRole, o BoardOptions) string {
 	inputs := b.aiSelectionInputs()
 	if len(inputs) == 0 || b.ReadOnly {
 		return ""
 	}
-	var ids []string
-	for _, e := range inputs {
-		ids = append(ids, e.ID)
-	}
-	box := whiteboard.SelectionBounds(b.Scene, ids)
-	w, h := whiteboard.AINodeSize(role)
-	id := b.AddAINode(role, whiteboard.Point{box.X + box.W + 120 + w/2, box.Y + h/2}, o)
+	id := b.AddAINode(role, b.viewCenter(), o)
 	node := b.Scene.ElementByID(id)
 	if node == nil {
 		return ""
@@ -455,7 +445,27 @@ func (b *Board) insertAITemplate(key string, o BoardOptions) {
 			continue
 		}
 		b.History.Begin(b.Scene)
-		x := at[0] - float64(len(t.steps))*200
+		width := float64(0)
+		for _, step := range t.steps {
+			switch step.role {
+			case "":
+				width += 300
+			case "frame":
+				width += 420
+			default:
+				w, _ := whiteboard.AINodeSize(step.role)
+				width += w + 120
+			}
+		}
+		if len(t.steps) > 0 {
+			last := t.steps[len(t.steps)-1]
+			if last.role == "" || last.role == "frame" {
+				width -= 80
+			} else {
+				width -= 120
+			}
+		}
+		x := at[0] - width/2
 		var prev *whiteboard.Element
 		var last string
 		for _, step := range t.steps {
@@ -1050,7 +1060,7 @@ func (b *Board) placeAIOutput(id string, o BoardOptions) {
 		return
 	}
 	at := whiteboard.Point{node.X + node.W + 100 + 150, node.Y + node.H/2}
-	if err := b.InsertImage(data, at); err != nil {
+	if err := b.insertImage(data, at, false); err != nil {
 		b.err = err
 		return
 	}

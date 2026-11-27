@@ -363,7 +363,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				return nil, errors.New(i18n.T("模型与节点类型不匹配"))
 			}
 			p := job.Node.Params
-			req := localresource.ComfyMediaRequest{Model: job.Node.Model, Prompt: job.Prompt, Lyrics: p.Lyrics, Speaker: p.Speaker, Language: p.Language, Seconds: p.Seconds}
+			req := localresource.ComfyMediaRequest{Model: job.Node.Model, Prompt: job.Prompt, Lyrics: p.Lyrics, Speaker: p.Speaker, Language: p.Language, Seconds: p.Seconds, BPM: p.BPM, KeyScale: p.KeyScale, TimeSignature: p.TimeSignature, VoiceStyle: p.VoiceStyle, Size: p.Size, FPS: p.FPS, Options: boardComfyOptions(p)}
 			if len(job.Images) > 1 {
 				return nil, errors.New(i18n.T("请只连接一张首帧图片"))
 			}
@@ -402,17 +402,17 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 				}
-				data, err = comfyMgr.CutoutRMBG3(ctx, comfyCfg, job.Prompt, job.Images[0].Data)
+				data, err = comfyMgr.CutoutRMBG3(ctx, comfyCfg, job.Prompt, job.Images[0].Data, boardComfyOptions(job.Node.Params))
 			case "comfyui-sa2va":
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 				}
-				data, err = comfyMgr.CutoutSa2VA(ctx, comfyCfg, job.Node.Model, job.Prompt, job.Images[0].Data)
+				data, err = comfyMgr.CutoutSa2VA(ctx, comfyCfg, job.Node.Model, job.Prompt, job.Images[0].Data, boardComfyOptions(job.Node.Params))
 			case "comfyui":
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 				}
-				data, err = comfyMgr.Cutout(ctx, comfyCfg, job.Node.Model, job.Images[0].Data)
+				data, err = comfyMgr.Cutout(ctx, comfyCfg, job.Node.Model, job.Images[0].Data, boardComfyOptions(job.Node.Params))
 			default:
 				model, ok := localresource.Model(job.Node.Model)
 				engine, supported := localresource.Runtime()
@@ -457,7 +457,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 				}
-				data, err = comfyMgr.UpscaleSeedVR2Model(ctx, comfyCfg, job.Node.Model, job.Node.Params.Scale, job.Images[0].Data)
+				data, err = comfyMgr.UpscaleSeedVR2Model(ctx, comfyCfg, job.Node.Model, job.Node.Params.Scale, job.Images[0].Data, boardComfyOptions(job.Node.Params))
 			case "comfyui":
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
@@ -491,6 +491,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				Size:        p.Size,
 				AspectRatio: p.AspectRatio,
 				Count:       p.Count,
+				Options:     boardComfyOptions(p),
 			}
 			if pack, ok := localresource.ComfyPackByModel(job.Node.Model); ok && pack.BaseModel != "" {
 				req.BaseModel = pack.BaseModel
@@ -692,4 +693,9 @@ func (a *App) chatImageTool(d *document) *agent.Tool {
 			return "saved: " + strings.Join(refs, " "), nil
 		},
 	}
+}
+
+// Keep the saved controls identical across native image and media requests.
+func boardComfyOptions(p whiteboard.AIParams) localresource.ComfyOptions {
+	return localresource.ComfyOptions{Seed: p.Seed, Steps: p.Steps, Guidance: p.Guidance, NegativePrompt: p.NegativePrompt, ColorCorrection: p.ColorCorrection, MaskThreshold: p.MaskThreshold, Sensitivity: p.Sensitivity, MaskBlur: p.MaskBlur, MaskOffset: p.MaskOffset}
 }

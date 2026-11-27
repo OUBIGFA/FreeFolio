@@ -62,15 +62,29 @@ const MaxAIOutputs = 30
 // AIParams are a node's generation options. Zero values are the service's
 // defaults.
 type AIParams struct {
-	Size        string `json:"size,omitempty"`
-	AspectRatio string `json:"aspectRatio,omitempty"`
-	Quality     string `json:"quality,omitempty"`
-	Count       int    `json:"count,omitempty"`
-	Seconds     int    `json:"seconds,omitempty"`
-	Lyrics      string `json:"lyrics,omitempty"`
-	Speaker     string `json:"speaker,omitempty"`
-	Language    string `json:"language,omitempty"`
-	Scale       int    `json:"scale,omitempty"`
+	Size            string   `json:"size,omitempty"`
+	AspectRatio     string   `json:"aspectRatio,omitempty"`
+	Quality         string   `json:"quality,omitempty"`
+	Count           int      `json:"count,omitempty"`
+	Seconds         int      `json:"seconds,omitempty"`
+	Lyrics          string   `json:"lyrics,omitempty"`
+	Speaker         string   `json:"speaker,omitempty"`
+	Language        string   `json:"language,omitempty"`
+	Scale           int      `json:"scale,omitempty"`
+	BPM             int      `json:"bpm,omitempty"`
+	KeyScale        string   `json:"keyScale,omitempty"`
+	TimeSignature   string   `json:"timeSignature,omitempty"`
+	VoiceStyle      string   `json:"voiceStyle,omitempty"`
+	FPS             int      `json:"fps,omitempty"`
+	Seed            *int64   `json:"seed,omitempty"`
+	Steps           int      `json:"steps,omitempty"`
+	Guidance        *float64 `json:"guidance,omitempty"`
+	NegativePrompt  *string  `json:"negativePrompt,omitempty"`
+	ColorCorrection string   `json:"colorCorrection,omitempty"`
+	MaskThreshold   *float64 `json:"maskThreshold,omitempty"`
+	Sensitivity     *float64 `json:"sensitivity,omitempty"`
+	MaskBlur        int      `json:"maskBlur,omitempty"`
+	MaskOffset      int      `json:"maskOffset,omitempty"`
 	// LoRAStrength is optional so existing boards use the catalog default;
 	// an explicit zero disables the adapter without changing its selection.
 	LoRAStrength *float64 `json:"loraStrength,omitempty"`
