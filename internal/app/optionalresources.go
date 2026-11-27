@@ -99,7 +99,7 @@ func (a *App) probeComfyUI() {
 	mgr := a.comfyManager()
 	cfg := a.comfyConfig()
 	a.backgroundResult(func() func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 		defer cancel()
 		caps, err := mgr.Probe(ctx, cfg)
 		return func() {
@@ -144,6 +144,8 @@ func (a *App) setResourceDirectory(dir string) {
 	a.resources.dir = ""
 	a.resources.confirm = ""
 	a.resources.err = nil
+	a.resources.comfyCaps = nil
+	a.stopComfyUI()
 }
 
 func (a *App) chooseResourceDirectory() {

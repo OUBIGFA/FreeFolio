@@ -15,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,25 +33,35 @@ type ComfyConfig struct {
 
 // ComfyLayout describes a detected local ComfyUI installation.
 type ComfyLayout struct {
-	Root   string
-	MainPy string
-	Python string
+	Root            string
+	MainPy          string
+	Python          string
+	BaseDir         string
+	InputDir        string
+	OutputDir       string
+	UserDir         string
+	ExtraModelPaths []string
+	IsolatedPython  bool
+	Source          string
 }
 
 // ComfyCapabilities records the GPU device and models exposed by ComfyUI.
 type ComfyCapabilities struct {
-	BaseURL       string
-	Device        string
-	VRAMMiB       int
-	UpscaleModels []string
-	CutoutModels  []string
-	CutoutNode    string
-	RMBG3Native   bool
-	RMBG3Models   []string
-	TextEncoders  []string
-	VAEModels     []string
-	Sa2VANode     string
-	Sa2VAModels   []string
+	BaseURL        string
+	Device         string
+	VRAMMiB        int
+	Version        string
+	ResolvedRoot   string
+	ResolvedPython string
+	UpscaleModels  []string
+	CutoutModels   []string
+	CutoutNode     string
+	RMBG3Native    bool
+	RMBG3Models    []string
+	TextEncoders   []string
+	VAEModels      []string
+	Sa2VANode      string
+	Sa2VAModels    []string
 }
 
 type comfyNodeSchema struct {
@@ -85,15 +97,19 @@ func (b *tailBuffer) String() string {
 // ComfyManager manages an optional on-demand local ComfyUI process and
 // executes workflows over ComfyUI's native HTTP API.
 type ComfyManager struct {
-	mu          sync.Mutex
-	cmd         *exec.Cmd
-	waitCh      chan error
-	baseURL     string
-	dir         string
-	resourceDir string
-	client      *http.Client
-	caps        *ComfyCapabilities
-	schemas     map[string]comfyNodeSchema
+	startMu        sync.Mutex
+	mu             sync.Mutex
+	cmd            *exec.Cmd
+	waitCh         chan error
+	procGroup      *processGroup
+	baseURL        string
+	dir            string
+	resourceDir    string
+	resolvedRoot   string
+	resolvedPython string
+	client         *http.Client
+	caps           *ComfyCapabilities
+	schemas        map[string]comfyNodeSchema
 }
 
 // NewComfyManager constructs a ComfyManager with sensible HTTP timeouts.
@@ -110,8 +126,401 @@ func (m *ComfyManager) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
-// DetectComfyLayout validates a ComfyUI root directory and locates main.py and Python.
+type comfyDetectEnv struct {
+	userConfigDir string
+	localAppData  string
+	goos          string
+	lookPath      func(string) (string, error)
+}
+
+func defaultComfyDetectEnv() comfyDetectEnv {
+	cfgDir, _ := os.UserConfigDir()
+	return comfyDetectEnv{
+		userConfigDir: cfgDir,
+		localAppData:  os.Getenv("LOCALAPPDATA"),
+		goos:          runtime.GOOS,
+		lookPath:      exec.LookPath,
+	}
+}
+
+type comfyDesktopV2Install struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	SourceID          string `json:"sourceId"`
+	RemoteURL         string `json:"remoteUrl"`
+	Status            string `json:"status"`
+	InstallPath       string `json:"installPath"`
+	Adopted           bool   `json:"adopted"`
+	AdoptedBaseDir    string `json:"adoptedBaseDir"`
+	AdoptedPythonPath string `json:"adoptedPythonPath"`
+	InputDir          string `json:"inputDir"`
+	OutputDir         string `json:"outputDir"`
+	LastLaunchedAt    int64  `json:"lastLaunchedAt"`
+}
+
+type comfyDesktopV2Settings struct {
+	InstallDir          string `json:"installDir"`
+	AutoLaunchOnStartup string `json:"autoLaunchOnStartup"`
+}
+
+type comfyDesktopV2Meta struct {
+	cfgDir      string
+	hasInstalls bool
+	installs    []comfyDesktopV2Install
+	settings    comfyDesktopV2Settings
+}
+
+type comfyLegacyDesktopMeta struct {
+	basePath        string
+	extraModelsYAML string
+}
+
+func loadComfyDesktopV2Meta(userConfigDir string) comfyDesktopV2Meta {
+	if strings.TrimSpace(userConfigDir) == "" {
+		return comfyDesktopV2Meta{}
+	}
+	cfgDir := filepath.Join(userConfigDir, "Comfy Desktop")
+	meta := comfyDesktopV2Meta{cfgDir: cfgDir}
+	if raw, err := os.ReadFile(filepath.Join(cfgDir, "installations.json")); err == nil {
+		var installs []comfyDesktopV2Install
+		if json.Unmarshal(raw, &installs) == nil {
+			meta.hasInstalls = true
+			meta.installs = installs
+		}
+	}
+	if raw, err := os.ReadFile(filepath.Join(cfgDir, "settings.json")); err == nil {
+		_ = json.Unmarshal(raw, &meta.settings)
+	}
+	return meta
+}
+
+func loadComfyLegacyDesktopMeta(userConfigDir string) comfyLegacyDesktopMeta {
+	if strings.TrimSpace(userConfigDir) == "" {
+		return comfyLegacyDesktopMeta{}
+	}
+	cfgDir := filepath.Join(userConfigDir, "ComfyUI")
+	var meta comfyLegacyDesktopMeta
+	if raw, err := os.ReadFile(filepath.Join(cfgDir, "config.json")); err == nil {
+		var cfg struct {
+			BasePath string `json:"basePath"`
+		}
+		if json.Unmarshal(raw, &cfg) == nil {
+			meta.basePath = strings.TrimSpace(cfg.BasePath)
+		}
+	}
+	yamlPath := filepath.Join(cfgDir, "extra_models_config.yaml")
+	if isRegularFile(yamlPath) {
+		meta.extraModelsYAML = yamlPath
+	}
+	return meta
+}
+
+func normalizeComparePath(p, goos string) string {
+	p = filepath.Clean(p)
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if goos == "windows" {
+		p = strings.ToLower(p)
+	}
+	return p
+}
+
+func samePath(a, b, goos string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return false
+	}
+	return normalizeComparePath(a, goos) == normalizeComparePath(b, goos)
+}
+
+func isSubpath(child, parent, goos string) bool {
+	if strings.TrimSpace(child) == "" || strings.TrimSpace(parent) == "" {
+		return false
+	}
+	c := normalizeComparePath(child, goos)
+	p := normalizeComparePath(parent, goos)
+	if c == p {
+		return true
+	}
+	rel, err := filepath.Rel(p, c)
+	if err != nil || rel == "" || rel == "." {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func isRegularFile(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+func isExistingDir(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func isWindowsStorePythonStub(path, goos string) bool {
+	if goos != "windows" {
+		return false
+	}
+	low := strings.ToLower(filepath.Clean(path))
+	if strings.Contains(low, `\microsoft\windowsapps\`) {
+		return true
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return true
+	}
+	if !info.Mode().IsRegular() || info.Size() == 0 {
+		return true
+	}
+	return false
+}
+
+func isRegularExecutable(path, goos string) bool {
+	if !isRegularFile(path) {
+		return false
+	}
+	return !isWindowsStorePythonStub(path, goos)
+}
+
+func findDedicatedPython(goos string, roots ...string) string {
+	var seen []string
+	relCandidates := []string{
+		filepath.Join("python_embeded", "python.exe"),
+		filepath.Join("python_embedded", "python.exe"),
+		filepath.Join("python", "python.exe"),
+		filepath.Join(".venv", "Scripts", "python.exe"),
+		filepath.Join("venv", "Scripts", "python.exe"),
+		filepath.Join("env", "Scripts", "python.exe"),
+		filepath.Join(".venv", "bin", "python"),
+		filepath.Join(".venv", "bin", "python3"),
+		filepath.Join("venv", "bin", "python"),
+		filepath.Join("venv", "bin", "python3"),
+		filepath.Join("env", "bin", "python"),
+		filepath.Join("env", "bin", "python3"),
+		filepath.Join("python", "bin", "python3"),
+		filepath.Join("python", "bin", "python"),
+	}
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		if abs, err := filepath.Abs(root); err == nil {
+			root = abs
+		}
+		dup := false
+		for _, prev := range seen {
+			if samePath(prev, root, goos) {
+				dup = true
+				break
+			}
+		}
+		if dup {
+			continue
+		}
+		seen = append(seen, root)
+		for _, rel := range relCandidates {
+			cand := filepath.Join(root, rel)
+			if isRegularExecutable(cand, goos) {
+				return cand
+			}
+		}
+	}
+	return ""
+}
+
+func findFallbackPython(env comfyDetectEnv) string {
+	look := env.lookPath
+	if look == nil {
+		look = exec.LookPath
+	}
+	for _, bin := range []string{"python3", "python"} {
+		if found, err := look(bin); err == nil && isRegularExecutable(found, env.goos) {
+			return found
+		}
+	}
+	return ""
+}
+
+func findMainPyInDir(dir string) string {
+	for _, cand := range []string{
+		filepath.Join(dir, "main.py"),
+		filepath.Join(dir, "ComfyUI", "main.py"),
+		filepath.Join(dir, "ComfyUI_windows_portable", "ComfyUI", "main.py"),
+	} {
+		if isRegularFile(cand) {
+			return cand
+		}
+	}
+	return ""
+}
+
+func findLegacyEmbeddedMainPy(dir string) string {
+	for _, cand := range []string{
+		filepath.Join(dir, "resources", "ComfyUI", "main.py"),
+		filepath.Join(dir, "Contents", "Resources", "ComfyUI", "main.py"),
+		filepath.Join(dir, "Resources", "ComfyUI", "main.py"),
+	} {
+		if isRegularFile(cand) {
+			return cand
+		}
+	}
+	return ""
+}
+
+func hasComfyDesktopV2Markers(dir string) bool {
+	markers := []string{
+		filepath.Join(dir, "Comfy Desktop.exe"),
+		filepath.Join(dir, "Comfy Desktop", "Comfy Desktop.exe"),
+		filepath.Join(dir, "Contents", "MacOS", "Comfy Desktop"),
+		filepath.Join(dir, "resources", "bootstrap-python"),
+	}
+	for _, m := range markers {
+		if _, err := os.Stat(m); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveDesktopV2Install(inst comfyDesktopV2Install, cfgDir, goos string) (ComfyLayout, bool) {
+	if strings.EqualFold(strings.TrimSpace(inst.SourceID), "cloud") || strings.TrimSpace(inst.RemoteURL) != "" {
+		return ComfyLayout{}, false
+	}
+	if inst.Status != "" && !strings.EqualFold(strings.TrimSpace(inst.Status), "installed") {
+		return ComfyLayout{}, false
+	}
+	installPath := strings.TrimSpace(inst.InstallPath)
+	if installPath == "" {
+		return ComfyLayout{}, false
+	}
+	var mainPy string
+	for _, cand := range []string{
+		filepath.Join(installPath, "ComfyUI", "main.py"),
+		filepath.Join(installPath, "main.py"),
+	} {
+		if isRegularFile(cand) {
+			mainPy = cand
+			break
+		}
+	}
+	if mainPy == "" {
+		return ComfyLayout{}, false
+	}
+	mainDir := filepath.Dir(mainPy)
+	py := strings.TrimSpace(inst.AdoptedPythonPath)
+	if !isRegularExecutable(py, goos) {
+		py = findDedicatedPython(goos, installPath, mainDir, inst.AdoptedBaseDir, filepath.Dir(installPath))
+	}
+	if py == "" {
+		return ComfyLayout{}, false
+	}
+	layout := ComfyLayout{
+		Root:           mainDir,
+		MainPy:         mainPy,
+		Python:         py,
+		IsolatedPython: true,
+		Source:         "comfy-desktop",
+	}
+	if isExistingDir(inst.AdoptedBaseDir) {
+		layout.BaseDir = filepath.Clean(inst.AdoptedBaseDir)
+	} else if isExistingDir(filepath.Join(installPath, "user")) {
+		layout.BaseDir = filepath.Clean(installPath)
+	}
+	if isExistingDir(inst.InputDir) {
+		layout.InputDir = filepath.Clean(inst.InputDir)
+	} else if layout.BaseDir != "" && isExistingDir(filepath.Join(layout.BaseDir, "input")) {
+		layout.InputDir = filepath.Join(layout.BaseDir, "input")
+	}
+	if isExistingDir(inst.OutputDir) {
+		layout.OutputDir = filepath.Clean(inst.OutputDir)
+	} else if layout.BaseDir != "" && isExistingDir(filepath.Join(layout.BaseDir, "output")) {
+		layout.OutputDir = filepath.Join(layout.BaseDir, "output")
+	}
+	if layout.BaseDir != "" && isExistingDir(filepath.Join(layout.BaseDir, "user")) {
+		layout.UserDir = filepath.Join(layout.BaseDir, "user")
+	}
+	if inst.ID != "" && cfgDir != "" {
+		instYAML := filepath.Join(cfgDir, "instance-model-paths", inst.ID+".yaml")
+		if isRegularFile(instYAML) {
+			layout.ExtraModelPaths = append(layout.ExtraModelPaths, instYAML)
+		}
+	}
+	return layout, true
+}
+
+func selectBestDesktopV2Install(meta comfyDesktopV2Meta, filter func(comfyDesktopV2Install) bool, goos string) (ComfyLayout, bool) {
+	type candidate struct {
+		inst   comfyDesktopV2Install
+		layout ComfyLayout
+		index  int
+	}
+	var cands []candidate
+	for i, inst := range meta.installs {
+		if filter != nil && !filter(inst) {
+			continue
+		}
+		if layout, ok := resolveDesktopV2Install(inst, meta.cfgDir, goos); ok {
+			cands = append(cands, candidate{inst: inst, layout: layout, index: i})
+		}
+	}
+	if len(cands) == 0 {
+		return ComfyLayout{}, false
+	}
+	slices.SortStableFunc(cands, func(a, b candidate) int {
+		aPref := meta.settings.AutoLaunchOnStartup != "" && a.inst.ID == meta.settings.AutoLaunchOnStartup
+		bPref := meta.settings.AutoLaunchOnStartup != "" && b.inst.ID == meta.settings.AutoLaunchOnStartup
+		if aPref != bPref {
+			if aPref {
+				return -1
+			}
+			return 1
+		}
+		if a.inst.LastLaunchedAt != b.inst.LastLaunchedAt {
+			if a.inst.LastLaunchedAt > b.inst.LastLaunchedAt {
+				return -1
+			}
+			return 1
+		}
+		return a.index - b.index
+	})
+	return cands[0].layout, true
+}
+
+func applyLegacyDesktopPaths(layout *ComfyLayout, legacy comfyLegacyDesktopMeta) {
+	if isExistingDir(legacy.basePath) {
+		base := filepath.Clean(legacy.basePath)
+		layout.BaseDir = base
+		if isExistingDir(filepath.Join(base, "input")) {
+			layout.InputDir = filepath.Join(base, "input")
+		}
+		if isExistingDir(filepath.Join(base, "output")) {
+			layout.OutputDir = filepath.Join(base, "output")
+		}
+		if isExistingDir(filepath.Join(base, "user")) {
+			layout.UserDir = filepath.Join(base, "user")
+		}
+	}
+	if legacy.extraModelsYAML != "" {
+		layout.ExtraModelPaths = append(layout.ExtraModelPaths, legacy.extraModelsYAML)
+	}
+}
+
+// DetectComfyLayout validates a ComfyUI root directory (portable, venv/source,
+// third-party pack, or ComfyUI Desktop) and locates main.py, Python, and data paths.
 func DetectComfyLayout(dir string) (ComfyLayout, error) {
+	return detectComfyLayout(dir, defaultComfyDetectEnv())
+}
+
+func detectComfyLayout(dir string, env comfyDetectEnv) (ComfyLayout, error) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return ComfyLayout{}, errors.New("ComfyUI directory is empty")
@@ -120,54 +529,132 @@ func DetectComfyLayout(dir string) (ComfyLayout, error) {
 	if err != nil {
 		return ComfyLayout{}, err
 	}
-	var mainPy string
-	for _, cand := range []string{
-		filepath.Join(abs, "main.py"),
-		filepath.Join(abs, "ComfyUI", "main.py"),
-	} {
-		if info, err := os.Stat(cand); err == nil && info.Mode().IsRegular() {
-			mainPy = cand
-			break
+	info, err := os.Stat(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ComfyLayout{}, fmt.Errorf("ComfyUI directory does not exist: %s", abs)
+		}
+		return ComfyLayout{}, err
+	}
+	if info.Mode().IsRegular() {
+		abs = filepath.Dir(abs)
+	} else if !info.IsDir() {
+		return ComfyLayout{}, fmt.Errorf("ComfyUI path is not a directory: %s", abs)
+	}
+
+	v2Meta := loadComfyDesktopV2Meta(env.userConfigDir)
+	legacyMeta := loadComfyLegacyDesktopMeta(env.userConfigDir)
+
+	// 1. Direct match against Comfy Desktop v2 managed or adopted installations.
+	if layout, ok := selectBestDesktopV2Install(v2Meta, func(inst comfyDesktopV2Install) bool {
+		if inst.InstallPath != "" {
+			if isSubpath(abs, inst.InstallPath, env.goos) || samePath(abs, filepath.Dir(inst.InstallPath), env.goos) {
+				return true
+			}
+		}
+		if v2Meta.settings.InstallDir != "" && samePath(abs, v2Meta.settings.InstallDir, env.goos) {
+			return true
+		}
+		if inst.AdoptedBaseDir != "" && samePath(abs, inst.AdoptedBaseDir, env.goos) {
+			return true
+		}
+		return false
+	}, env.goos); ok {
+		return layout, nil
+	}
+
+	// 2. Comfy Desktop v2 Electron shell directory (e.g. AppData\Local\Programs\ComfyUI).
+	if hasComfyDesktopV2Markers(abs) {
+		if layout, ok := selectBestDesktopV2Install(v2Meta, nil, env.goos); ok {
+			return layout, nil
+		}
+		if v2Meta.hasInstalls {
+			return ComfyLayout{}, fmt.Errorf("Comfy Desktop detected at %s, but no valid local ComfyUI installation was found", abs)
 		}
 	}
-	if mainPy == "" {
-		return ComfyLayout{}, fmt.Errorf("main.py not found in %s", abs)
-	}
-	mainDir := filepath.Dir(mainPy)
-	parentDir := filepath.Dir(abs)
-	var pythonPath string
-	candidates := []string{
-		filepath.Join(abs, "python_embeded", "python.exe"),
-		filepath.Join(parentDir, "python_embeded", "python.exe"),
-		filepath.Join(abs, ".venv", "Scripts", "python.exe"),
-		filepath.Join(abs, "venv", "Scripts", "python.exe"),
-		filepath.Join(mainDir, ".venv", "Scripts", "python.exe"),
-		filepath.Join(mainDir, "venv", "Scripts", "python.exe"),
-		filepath.Join(abs, ".venv", "bin", "python"),
-		filepath.Join(abs, ".venv", "bin", "python3"),
-		filepath.Join(abs, "venv", "bin", "python"),
-		filepath.Join(abs, "venv", "bin", "python3"),
-		filepath.Join(mainDir, ".venv", "bin", "python"),
-		filepath.Join(mainDir, ".venv", "bin", "python3"),
-	}
-	for _, cand := range candidates {
-		if info, err := os.Stat(cand); err == nil && info.Mode().IsRegular() {
-			pythonPath = cand
-			break
+
+	// 3. Legacy ComfyUI Desktop Electron directory (resources/ComfyUI/main.py).
+	if mainPy := findLegacyEmbeddedMainPy(abs); mainPy != "" {
+		mainDir := filepath.Dir(mainPy)
+		py := findDedicatedPython(env.goos, abs, mainDir, legacyMeta.basePath)
+		isolated := py != ""
+		if py == "" {
+			py = findFallbackPython(env)
 		}
+		if py == "" {
+			return ComfyLayout{}, fmt.Errorf("python executable not found for ComfyUI Desktop at %s", abs)
+		}
+		layout := ComfyLayout{
+			Root:           mainDir,
+			MainPy:         mainPy,
+			Python:         py,
+			IsolatedPython: isolated,
+			Source:         "comfyui-desktop",
+		}
+		applyLegacyDesktopPaths(&layout, legacyMeta)
+		return layout, nil
 	}
-	if pythonPath == "" {
-		for _, bin := range []string{"python3", "python"} {
-			if found, err := exec.LookPath(bin); err == nil {
-				pythonPath = found
-				break
+
+	// 4. Standard / portable / third-party integrated pack / source venv layout.
+	if mainPy := findMainPyInDir(abs); mainPy != "" {
+		mainDir := filepath.Dir(mainPy)
+		py := findDedicatedPython(env.goos, abs, mainDir, filepath.Dir(abs), filepath.Dir(mainDir))
+		isolated := py != ""
+		if py == "" {
+			py = findFallbackPython(env)
+		}
+		if py == "" {
+			return ComfyLayout{}, fmt.Errorf("python executable not found for %s", abs)
+		}
+		source := "venv"
+		if strings.Contains(strings.ToLower(py), "python_embed") {
+			source = "portable"
+		} else if !isolated {
+			source = "system-python"
+		}
+		return ComfyLayout{
+			Root:           mainDir,
+			MainPy:         mainPy,
+			Python:         py,
+			IsolatedPython: isolated,
+			Source:         source,
+		}, nil
+	}
+
+	// 5. Legacy ComfyUI Desktop basePath (user pointed to their _data folder).
+	if legacyMeta.basePath != "" && samePath(abs, legacyMeta.basePath, env.goos) {
+		var appCandidates []string
+		if env.goos == "windows" && env.localAppData != "" {
+			appCandidates = append(appCandidates, filepath.Join(env.localAppData, "Programs", "ComfyUI"))
+		} else if env.goos == "darwin" {
+			appCandidates = append(appCandidates, "/Applications/ComfyUI.app")
+		}
+		for _, appDir := range appCandidates {
+			if mainPy := findLegacyEmbeddedMainPy(appDir); mainPy != "" {
+				py := findDedicatedPython(env.goos, abs, appDir)
+				if py != "" {
+					layout := ComfyLayout{
+						Root:           filepath.Dir(mainPy),
+						MainPy:         mainPy,
+						Python:         py,
+						IsolatedPython: true,
+						Source:         "comfyui-desktop",
+					}
+					applyLegacyDesktopPaths(&layout, legacyMeta)
+					return layout, nil
+				}
 			}
 		}
 	}
-	if pythonPath == "" {
-		return ComfyLayout{}, fmt.Errorf("python executable not found for %s", abs)
+
+	if hasComfyDesktopV2Markers(abs) {
+		return ComfyLayout{}, fmt.Errorf("Comfy Desktop detected at %s, but no local ComfyUI installation was found", abs)
 	}
-	return ComfyLayout{Root: mainDir, MainPy: mainPy, Python: pythonPath}, nil
+	return ComfyLayout{}, fmt.Errorf("main.py not found in %s", abs)
+}
+
+func yamlSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // WriteComfyExtraModelPaths creates FreeFolio's ComfyUI model folders under
@@ -186,7 +673,7 @@ func WriteComfyExtraModelPaths(resourceDir string) (string, error) {
 	yamlPath := filepath.Join(base, "extra_model_paths.yaml")
 	var sb strings.Builder
 	sb.WriteString("freefolio:\n")
-	fmt.Fprintf(&sb, "    base_path: %s\n", filepath.ToSlash(base))
+	fmt.Fprintf(&sb, "    base_path: %s\n", yamlSingleQuote(filepath.ToSlash(base)))
 	for _, sub := range folders {
 		fmt.Fprintf(&sb, "    %s: %s\n", sub, sub)
 	}
@@ -230,20 +717,33 @@ func (m *ComfyManager) Running() bool {
 
 // Stop terminates any FreeFolio-managed ComfyUI child process.
 func (m *ComfyManager) Stop() {
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+	m.stopLocked()
+}
+
+func (m *ComfyManager) stopLocked() {
 	m.mu.Lock()
 	cmd := m.cmd
 	waitCh := m.waitCh
+	pg := m.procGroup
 	m.cmd = nil
 	m.waitCh = nil
+	m.procGroup = nil
 	m.baseURL = ""
 	m.dir = ""
+	m.resourceDir = ""
+	m.resolvedRoot = ""
+	m.resolvedPython = ""
 	m.caps = nil
 	m.schemas = nil
 	m.mu.Unlock()
-	if cmd == nil || cmd.Process == nil {
-		return
+	if pg != nil {
+		pg.Kill()
 	}
-	_ = cmd.Process.Kill()
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
 	if waitCh != nil {
 		select {
 		case <-waitCh:
@@ -271,6 +771,92 @@ func (m *ComfyManager) InvalidateCaps() {
 	m.mu.Unlock()
 }
 
+func buildComfyArgs(layout ComfyLayout, port int, freefolioYAML string, goos string) []string {
+	var args []string
+	if layout.IsolatedPython {
+		args = append(args, "-s")
+	}
+	args = append(args, layout.MainPy, "--listen", "127.0.0.1", "--port", strconv.Itoa(port), "--disable-auto-launch")
+	if layout.BaseDir != "" {
+		args = append(args, "--base-directory", layout.BaseDir)
+	}
+	if layout.UserDir != "" {
+		args = append(args, "--user-directory", layout.UserDir)
+	}
+	if layout.InputDir != "" {
+		args = append(args, "--input-directory", layout.InputDir)
+	}
+	if layout.OutputDir != "" {
+		args = append(args, "--output-directory", layout.OutputDir)
+	}
+	var seenYAML []string
+	appendYAML := func(p string) {
+		p = strings.TrimSpace(p)
+		if !isRegularFile(p) {
+			return
+		}
+		for _, prev := range seenYAML {
+			if samePath(prev, p, goos) {
+				return
+			}
+		}
+		seenYAML = append(seenYAML, p)
+		args = append(args, "--extra-model-paths-config", p)
+	}
+	for _, p := range layout.ExtraModelPaths {
+		appendYAML(p)
+	}
+	appendYAML(freefolioYAML)
+	return args
+}
+
+func setEnvVar(env []string, key, value, goos string) []string {
+	match := func(k string) bool {
+		if goos == "windows" {
+			return strings.EqualFold(k, key)
+		}
+		return k == key
+	}
+	for i, entry := range env {
+		if k, _, ok := strings.Cut(entry, "="); ok && match(k) {
+			env[i] = key + "=" + value
+			return env
+		}
+	}
+	return append(env, key+"="+value)
+}
+
+func buildComfyEnv(baseEnv []string, layout ComfyLayout, goos string) []string {
+	env := slices.Clone(baseEnv)
+	env = setEnvVar(env, "PYTHONUNBUFFERED", "1", goos)
+	env = setEnvVar(env, "PYTHONUTF8", "1", goos)
+	env = setEnvVar(env, "PYTHONIOENCODING", "utf-8", goos)
+	if layout.IsolatedPython && layout.Python != "" {
+		binDir := filepath.Dir(layout.Python)
+		binName := filepath.Base(binDir)
+		if (goos == "windows" && strings.EqualFold(binName, "Scripts")) || binName == "bin" {
+			venvRoot := filepath.Dir(binDir)
+			venvName := filepath.Base(venvRoot)
+			if isRegularFile(filepath.Join(venvRoot, "pyvenv.cfg")) || venvName == ".venv" || venvName == "venv" || venvName == "env" {
+				env = setEnvVar(env, "VIRTUAL_ENV", venvRoot, goos)
+				curPath := ""
+				for _, entry := range env {
+					if k, v, ok := strings.Cut(entry, "="); ok && (k == "PATH" || (goos == "windows" && strings.EqualFold(k, "PATH"))) {
+						curPath = v
+						break
+					}
+				}
+				if curPath == "" {
+					env = setEnvVar(env, "PATH", binDir, goos)
+				} else {
+					env = setEnvVar(env, "PATH", binDir+string(os.PathListSeparator)+curPath, goos)
+				}
+			}
+		}
+	}
+	return env
+}
+
 // EnsureRunning verifies a configured ComfyUI URL or silently starts ComfyUI
 // from cfg.Dir with FreeFolio's resource folder mounted.
 func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (string, error) {
@@ -289,6 +875,9 @@ func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (stri
 		return "", errors.New("ComfyUI path or URL is not configured")
 	}
 
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+
 	m.mu.Lock()
 	if m.cmd != nil && m.waitCh != nil && m.dir == dir && m.resourceDir == cfg.ResourceDir && m.baseURL != "" {
 		select {
@@ -302,41 +891,42 @@ func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (stri
 			if err := m.ping(ctx, existing); err == nil {
 				return existing, nil
 			}
-			m.Stop()
+			m.stopLocked()
 			m.mu.Lock()
 		}
 	}
 	m.mu.Unlock()
 
-	m.Stop()
+	m.stopLocked()
 
 	layout, err := DetectComfyLayout(dir)
 	if err != nil {
 		return "", err
 	}
-	args := []string{layout.MainPy, "--listen", "127.0.0.1"}
 	port, err := freeLoopbackPort()
 	if err != nil {
 		return "", err
 	}
-	args = append(args, "--port", strconv.Itoa(port), "--disable-auto-launch")
+	var yamlPath string
 	if strings.TrimSpace(cfg.ResourceDir) != "" {
-		yamlPath, err := WriteComfyExtraModelPaths(cfg.ResourceDir)
+		yamlPath, err = WriteComfyExtraModelPaths(cfg.ResourceDir)
 		if err != nil {
 			return "", err
 		}
-		args = append(args, "--extra-model-paths-config", yamlPath)
 	}
+	args := buildComfyArgs(layout, port, yamlPath, runtime.GOOS)
 
 	cmd := exec.Command(layout.Python, args...)
 	cmd.Dir = layout.Root
-	hideConsole(cmd)
+	cmd.Env = buildComfyEnv(os.Environ(), layout, runtime.GOOS)
+	configureComfyCmd(cmd)
 	logs := &tailBuffer{max: 8192}
 	cmd.Stdout = logs
 	cmd.Stderr = logs
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start ComfyUI: %w", err)
 	}
+	pg := attachProcessGroup(cmd)
 	waitCh := make(chan error, 1)
 	go func() {
 		waitCh <- cmd.Wait()
@@ -347,12 +937,15 @@ func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (stri
 	m.mu.Lock()
 	m.cmd = cmd
 	m.waitCh = waitCh
+	m.procGroup = pg
 	m.baseURL = base
 	m.dir = dir
 	m.resourceDir = cfg.ResourceDir
+	m.resolvedRoot = layout.Root
+	m.resolvedPython = layout.Python
 	m.mu.Unlock()
 
-	deadline := time.NewTimer(90 * time.Second)
+	deadline := time.NewTimer(120 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(400 * time.Millisecond)
 	defer ticker.Stop()
@@ -362,17 +955,17 @@ func (m *ComfyManager) EnsureRunning(ctx context.Context, cfg ComfyConfig) (stri
 		}
 		select {
 		case <-ctx.Done():
-			m.Stop()
+			m.stopLocked()
 			return "", ctx.Err()
 		case waitErr := <-waitCh:
-			m.Stop()
+			m.stopLocked()
 			detail := logs.String()
 			if detail != "" {
 				return "", fmt.Errorf("ComfyUI exited early (%v): %s", waitErr, detail)
 			}
 			return "", fmt.Errorf("ComfyUI exited early: %v", waitErr)
 		case <-deadline.C:
-			m.Stop()
+			m.stopLocked()
 			detail := logs.String()
 			if detail != "" {
 				return "", fmt.Errorf("ComfyUI startup timed out: %s", detail)
@@ -420,18 +1013,30 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	if err != nil {
 		return nil, err
 	}
-	caps := &ComfyCapabilities{BaseURL: base}
+	m.mu.Lock()
+	caps := &ComfyCapabilities{
+		BaseURL:        base,
+		ResolvedRoot:   m.resolvedRoot,
+		ResolvedPython: m.resolvedPython,
+	}
+	m.mu.Unlock()
 	if stats, err := m.getJSON(ctx, base+"/system_stats"); err == nil {
 		var parsed struct {
+			System struct {
+				ComfyUIVersion string `json:"comfyui_version"`
+			} `json:"system"`
 			Devices []struct {
 				Name      string `json:"name"`
 				VRAMTotal int64  `json:"vram_total"`
 			} `json:"devices"`
 		}
-		if json.Unmarshal(stats, &parsed) == nil && len(parsed.Devices) > 0 {
-			caps.Device = parsed.Devices[0].Name
-			if parsed.Devices[0].VRAMTotal > 0 {
-				caps.VRAMMiB = int(parsed.Devices[0].VRAMTotal / (1024 * 1024))
+		if json.Unmarshal(stats, &parsed) == nil {
+			caps.Version = strings.TrimSpace(parsed.System.ComfyUIVersion)
+			if len(parsed.Devices) > 0 {
+				caps.Device = parsed.Devices[0].Name
+				if parsed.Devices[0].VRAMTotal > 0 {
+					caps.VRAMMiB = int(parsed.Devices[0].VRAMTotal / (1024 * 1024))
+				}
 			}
 		}
 	}
@@ -1016,8 +1621,9 @@ func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph 
 			}
 			var hist map[string]struct {
 				Status struct {
-					StatusStr string `json:"status_str"`
-					Completed bool   `json:"completed"`
+					StatusStr string              `json:"status_str"`
+					Completed bool                `json:"completed"`
+					Messages  [][]json.RawMessage `json:"messages"`
 				} `json:"status"`
 				Outputs map[string]struct {
 					Images []struct {
@@ -1035,7 +1641,7 @@ func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph 
 				continue
 			}
 			if item.Status.StatusStr == "error" {
-				return nil, errors.New("ComfyUI workflow execution failed")
+				return nil, formatComfyExecutionError(item.Status.Messages)
 			}
 			for _, out := range item.Outputs {
 				if len(out.Images) == 0 {
@@ -1056,6 +1662,36 @@ func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph 
 			}
 		}
 	}
+}
+
+func formatComfyExecutionError(messages [][]json.RawMessage) error {
+	for _, entry := range messages {
+		if len(entry) < 2 {
+			continue
+		}
+		var kind string
+		if json.Unmarshal(entry[0], &kind) != nil || kind != "execution_error" {
+			continue
+		}
+		var detail struct {
+			NodeType         string `json:"node_type"`
+			ExceptionMessage string `json:"exception_message"`
+		}
+		if json.Unmarshal(entry[1], &detail) != nil {
+			continue
+		}
+		msg := strings.TrimSpace(detail.ExceptionMessage)
+		nodeType := strings.TrimSpace(detail.NodeType)
+		switch {
+		case nodeType != "" && msg != "":
+			return fmt.Errorf("ComfyUI workflow execution failed (%s): %s", nodeType, msg)
+		case msg != "":
+			return fmt.Errorf("ComfyUI workflow execution failed: %s", msg)
+		case nodeType != "":
+			return fmt.Errorf("ComfyUI workflow execution failed (%s)", nodeType)
+		}
+	}
+	return errors.New("ComfyUI workflow execution failed")
 }
 
 func (m *ComfyManager) getBytes(ctx context.Context, target string) ([]byte, error) {

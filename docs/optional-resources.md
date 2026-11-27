@@ -32,7 +32,7 @@
 
 如果本机已安装独立显卡（例如 NVIDIA 8 GB+ / 12 GB 显存）和 ComfyUI（便携版、桌面版或源码虚拟环境），可在「设置 → 可选资源 → ComfyUI 引擎（GPU 加速）」按两步开启：
 
-1. **连接 ComfyUI**：指定本地 ComfyUI 目录（或填写已运行的服务地址），点「检测并启动」。FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起，并在退出时自动结束子进程；同时通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`、`sa2va`、`vitmatte`），不污染原 ComfyUI 目录。
+1. **连接 ComfyUI**：指定本地 ComfyUI 目录（便携版、源码虚拟环境、ComfyUI Desktop 安装目录或数据目录均可，或填写已运行的服务地址），点「检测并启动」。FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起，并在退出时自动结束子进程；同时通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`、`sa2va`、`vitmatte`）并保留原有桌面端模型配置，不污染原 ComfyUI 目录。
 2. **下载 GPU 专业模型（断点可续、SHA-256 校验）**：
 
 | 模型包 | 适用显卡 | 下载位置（资源目录内） | 用途与说明 | 许可 |
