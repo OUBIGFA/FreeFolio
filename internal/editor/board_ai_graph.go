@@ -45,7 +45,7 @@ type aiCardLayout struct {
 
 func aiRunnableRole(role whiteboard.AIRole) bool {
 	switch role {
-	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout, whiteboard.AIUpscale:
+	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout, whiteboard.AIUpscale:
 		return true
 	}
 	return false
@@ -104,8 +104,11 @@ func aiSlotRows(slots []whiteboard.AISlot, out string) int {
 // some of the result.
 func aiMinHeight(n *whiteboard.AINode) float64 {
 	rows := aiSlotRows(whiteboard.AISlots(n), whiteboard.AIOutputType(n.Role))
-	linkedPrompt := n.LinkAt("prompt") != ""
+	linkedPrompt := n.AcceptsPrompt() && n.LinkAt("prompt") != ""
 	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	if n.Role == whiteboard.AIImage && n.Params.LoRAStrength != nil {
+		wh += 30
+	}
 	previewGap := float32(10)
 	if wh == 0 {
 		previewGap = 4
@@ -135,6 +138,9 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	linkedPrompt := b.Scene.AILinkSource(n, "prompt") != nil
 	top := l.slotTop + float32(aiSlotRows(l.slots, l.out))*aiSlotRow + 6
 	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	if n.Role == whiteboard.AIImage && n.Params.LoRAStrength != nil {
+		wh += 30
+	}
 	l.widgets = ui.Rect{X: aiPad, Y: top, W: innerW, H: wh}
 	if n.Role == whiteboard.AIPrompt {
 		// A text node's field is its body.
@@ -148,7 +154,7 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	}
 	outTop := top + wh + outGap
 	avail := max(0, h-aiFooter-8-outTop)
-	if n.Role == whiteboard.AIImage && len(n.Outputs) >= 2 {
+	if n.ImageHistory() && len(n.Outputs) >= 2 {
 		histH := float32(26)
 		if b.aiHistory(e, n).compare {
 			histH = 56
@@ -615,7 +621,7 @@ func (b *Board) connectAI(from, to *whiteboard.Element, content bool) error {
 	}
 	if content {
 		for _, sl := range whiteboard.AISlots(n) {
-			if !sl.Widget && n.LinkAt(sl.Name) == "" && whiteboard.AIValidConnection(typ, sl.Type) {
+			if !sl.Disabled && !sl.Widget && n.LinkAt(sl.Name) == "" && whiteboard.AIValidConnection(typ, sl.Type) {
 				b.setAILink(to.ID, sl.Name, from.ID)
 				return nil
 			}
@@ -653,14 +659,14 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
-	for _, r := range []whiteboard.AIRole{whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage, whiteboard.AICutout, whiteboard.AIUpscale} {
+	for _, r := range []whiteboard.AIRole{whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AICutout, whiteboard.AIUpscale} {
 		if t := whiteboard.AIOutputType(r); t != "" && whiteboard.AIValidConnection(t, pk.typ) {
 			out = append(out, r)
 		}

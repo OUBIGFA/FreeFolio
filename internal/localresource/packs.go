@@ -32,6 +32,12 @@ type ResourcePack struct {
 	MinVRAMGiB     int
 	Use8BitDefault bool
 	Files          []PackFile
+	// BaseModel is an optional catalog dependency downloaded with a LoRA.
+	BaseModel       string
+	Category        string
+	Trigger         string
+	Instruction     string
+	DefaultStrength float64
 }
 
 // TotalSize returns the total byte size of all files in the pack.
@@ -54,7 +60,7 @@ func hfPackFile(localPrefix, repoBase, name string, size int64, sha string) Pack
 
 // ComfyPacks defines the GPU-accelerated quantized model packs that can be
 // downloaded on demand into resourceDir/comfyui/.
-var ComfyPacks = []ResourcePack{
+var ComfyPacks = append([]ResourcePack{
 	{
 		ID:         "rmbg3-fp8",
 		Name:       "BRIA RMBG-3.0 (FP8)",
@@ -226,7 +232,7 @@ var ComfyPacks = []ResourcePack{
 			},
 		},
 	},
-}
+}, enhancementPacks...)
 
 // ComfyPack returns the resource pack matching id.
 func ComfyPack(id string) (ResourcePack, bool) {
@@ -246,6 +252,20 @@ func ComfyPackByModel(modelID string) (ResourcePack, bool) {
 		}
 	}
 	return ResourcePack{}, false
+}
+
+// PackDownload includes a LoRA's base without making removal delete that base.
+// Each catalog LoRA has one complete base pack; installed files are reused.
+func PackDownload(pack ResourcePack) (ResourcePack, error) {
+	if pack.BaseModel == "" {
+		return pack, nil
+	}
+	base, ok := ComfyPack(pack.BaseModel)
+	if !ok {
+		return ResourcePack{}, fmt.Errorf("unknown base model: %s", pack.BaseModel)
+	}
+	pack.Files = append(append([]PackFile(nil), base.Files...), pack.Files...)
+	return pack, nil
 }
 
 func resolvePackFilePath(root, rel string) (string, error) {
@@ -309,7 +329,7 @@ func PackPresent(root string, pack ResourcePack) bool {
 }
 
 // InstallPack downloads any missing verified files in pack into root/comfyui/...
-// Already verified files are skipped so interrupted pack downloads resume cleanly.
+// Verified files are skipped and interrupted weight files resume by byte range.
 func InstallPack(ctx context.Context, root string, pack ResourcePack, progress func(done, total int64)) error {
 	client := &http.Client{Timeout: 2 * time.Hour, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || req.URL.User != nil || len(via) >= 10 {
@@ -342,69 +362,12 @@ func installPack(ctx context.Context, root string, pack ResourcePack, client *ht
 		if err != nil {
 			return err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pf.URL, nil)
+		err = downloadFile(ctx, target, pf.URL, pf.Size, pf.SHA, client, func(done int64) {
+			if progress != nil {
+				progress(completed+done, total)
+			}
+		})
 		if err != nil {
-			return err
-		}
-		if req.URL.Scheme != "https" {
-			return errors.New("resources require HTTPS")
-		}
-		res, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-		if res.StatusCode != http.StatusOK {
-			res.Body.Close()
-			return fmt.Errorf("%s (%s): HTTP %d", pack.Name, filepath.Base(pf.RelPath), res.StatusCode)
-		}
-		parent := filepath.Dir(target)
-		if err := os.MkdirAll(parent, 0o700); err != nil {
-			res.Body.Close()
-			return err
-		}
-		tmp, err := os.CreateTemp(parent, ".freefolio-pack-*")
-		if err != nil {
-			res.Body.Close()
-			return err
-		}
-		tmpName := tmp.Name()
-		hash := sha256.New()
-		writers := []io.Writer{tmp, hash}
-		if progress != nil {
-			var fileReceived int64
-			writers = append(writers, progressWriter(func(n int64) {
-				fileReceived += n
-				progress(completed+fileReceived, total)
-			}))
-		}
-		n, copyErr := io.Copy(io.MultiWriter(writers...), io.LimitReader(res.Body, pf.Size+1))
-		res.Body.Close()
-		if copyErr != nil {
-			tmp.Close()
-			os.Remove(tmpName)
-			return copyErr
-		}
-		if n != pf.Size || (pf.SHA != "" && fmt.Sprintf("%x", hash.Sum(nil)) != pf.SHA) {
-			tmp.Close()
-			os.Remove(tmpName)
-			return fmt.Errorf("size or SHA-256 mismatch: %s", pf.RelPath)
-		}
-		if err := ctx.Err(); err != nil {
-			tmp.Close()
-			os.Remove(tmpName)
-			return err
-		}
-		if err := tmp.Sync(); err != nil {
-			tmp.Close()
-			os.Remove(tmpName)
-			return err
-		}
-		if err := tmp.Close(); err != nil {
-			os.Remove(tmpName)
-			return err
-		}
-		if err := publishDownload(tmpName, target); err != nil {
-			os.Remove(tmpName)
 			return err
 		}
 		completed += pf.Size
@@ -417,6 +380,22 @@ func installPack(ctx context.Context, root string, pack ResourcePack, client *ht
 func RemovePack(root string, pack ResourcePack, trash func(string) error) error {
 	var targets []string
 	for _, pf := range pack.Files {
+		// SeedVR2 variants share a VAE; removing one must leave the other
+		// installed variant usable. A standalone LoRA never owns its base.
+		shared := false
+		for _, other := range ComfyPacks {
+			if other.ID == pack.ID || !PackPresent(root, other) {
+				continue
+			}
+			for _, f := range other.Files {
+				if f.RelPath == pf.RelPath && f.SHA == pf.SHA {
+					shared = true
+				}
+			}
+		}
+		if shared {
+			continue
+		}
 		target, err := verifyPackFile(root, pf)
 		if os.IsNotExist(err) {
 			continue

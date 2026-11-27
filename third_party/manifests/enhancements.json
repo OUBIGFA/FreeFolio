@@ -1,0 +1,197 @@
+{
+  "comfyuiRevision": "a277b5bf213e8a44fa34817b7770b54f86ef4cea",
+  "models": [
+    {
+      "id": "z-detail",
+      "name": "Z-Image Detailer",
+      "source": "https://huggingface.co/styly-agents/z-image-detailer/resolve/2ab9b77bf87bb284c378ba1d1c432386e75decc9/z-image-detailer.safetensors",
+      "revision": "2ab9b77bf87bb284c378ba1d1c432386e75decc9",
+      "sha256": "d9ad99e6f53c32d48b30022f0d729f96c4b1ad6b47bb8bac1b569110b2c36350",
+      "bytes": 170127776,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/styly-agents/z-image-detailer/blob/2ab9b77bf87bb284c378ba1d1c432386e75decc9/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-realism",
+      "name": "V1 Realism",
+      "source": "https://huggingface.co/youknownothing/v1-realism-v1-adapter-ZIT-lora/resolve/fd6d52d1199ad47f73c18db58339ad01ef766fa7/v1-realism.safetensors",
+      "revision": "fd6d52d1199ad47f73c18db58339ad01ef766fa7",
+      "sha256": "1fe0487cfe69b31f6d93ec1a1a6e49f75e9ff77adc8d845380ba7352a3931190",
+      "bytes": 170128272,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/youknownothing/v1-realism-v1-adapter-ZIT-lora/blob/fd6d52d1199ad47f73c18db58339ad01ef766fa7/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "qwen-restore",
+      "name": "Qwen 2.1 Restore",
+      "source": "https://huggingface.co/ausboss/Qwen-Image-2.1-Restore-LoRA/resolve/a223f1255f4738b89b36d79c44d61740d3b3546f/qwen-image-2.1-restore.safetensors",
+      "revision": "a223f1255f4738b89b36d79c44d61740d3b3546f",
+      "sha256": "65de4f6c2468071d5aa6ffbd82c76bfee7cc8ac28fe960e91bbca4a58f43c08c",
+      "bytes": 159436584,
+      "license": "Qwen Research",
+      "modelCard": "https://huggingface.co/ausboss/Qwen-Image-2.1-Restore-LoRA/blob/a223f1255f4738b89b36d79c44d61740d3b3546f/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8"
+    },
+    {
+      "id": "qwen-detail",
+      "name": "Qwen 2.1 Detail Enhancer",
+      "source": "https://huggingface.co/reverentelusarca/elusarcas-qwen-2.1-detail-enhancer-lora/resolve/aedadc6b65a15e6b261c0ec61a4587c3e7119514/elusarcas-qwen2-1-detailer-v1.safetensors",
+      "revision": "aedadc6b65a15e6b261c0ec61a4587c3e7119514",
+      "sha256": "c1298f51eb090473f924314475952710a2f0322f1df65c0290f3e14997244f96",
+      "bytes": 79744352,
+      "license": "Author permission",
+      "modelCard": "https://huggingface.co/reverentelusarca/elusarcas-qwen-2.1-detail-enhancer-lora/blob/aedadc6b65a15e6b261c0ec61a4587c3e7119514/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8"
+    },
+    {
+      "id": "z-3d",
+      "name": "3D Render Style Redmond",
+      "source": "https://huggingface.co/artificialguybr/3DRenderStyle-REDMOND-ZIMAGE/resolve/1b12fe69069bfca5f44e8b5c37625976b84b0c87/%5BZImage.Turbo%5D3DRenderStyle_Redmond.safetensors",
+      "revision": "1b12fe69069bfca5f44e8b5c37625976b84b0c87",
+      "sha256": "696528181cf00f14156d9eabb25408af4baf57711e26417ae244ddaa84b7551f",
+      "bytes": 85094920,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/3DRenderStyle-REDMOND-ZIMAGE/blob/1b12fe69069bfca5f44e8b5c37625976b84b0c87/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-mockup",
+      "name": "Mockups Redmond",
+      "source": "https://huggingface.co/artificialguybr/MOCKUPS-REDMOND-ZIMAGE/resolve/cc7b8e5293d2cd29b9a02c4b1946ea65d26d4a7a/%5BZImage.Turbo%5DMockups_Redmond.safetensors",
+      "revision": "cc7b8e5293d2cd29b9a02c4b1946ea65d26d4a7a",
+      "sha256": "1f1b4b51b2b663863bf03f6a87c4e9355e5f1f7f070a314bcce94692c38407c8",
+      "bytes": 85094864,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/MOCKUPS-REDMOND-ZIMAGE/blob/cc7b8e5293d2cd29b9a02c4b1946ea65d26d4a7a/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-anime",
+      "name": "Elusarca Anime",
+      "source": "https://huggingface.co/reverentelusarca/elusarca-anime-style-lora-z-image-turbo/resolve/2218987fb6996131bacf9ea434dc7d97f300caa6/elusarca-anime-style.safetensors",
+      "revision": "2218987fb6996131bacf9ea434dc7d97f300caa6",
+      "sha256": "4e2edb94c3cf7573af9734e7ce171c1c3176119febfa81470acc326d671774a8",
+      "bytes": 170128320,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/reverentelusarca/elusarca-anime-style-lora-z-image-turbo/blob/2218987fb6996131bacf9ea434dc7d97f300caa6/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-pencil",
+      "name": "Pencil Sketch",
+      "source": "https://huggingface.co/Ttio2/Z-Image-Turbo-pencil-sketch/resolve/a840a0b18bbe544d25cbfff27c71e0f4c0c3bcfe/Zimage_pencil_sketch.safetensors",
+      "revision": "a840a0b18bbe544d25cbfff27c71e0f4c0c3bcfe",
+      "sha256": "cb7a5bc7a4ab723f78d9a32020fe8cdda659eaa9ce3215a5c4b03af7094380c3",
+      "bytes": 170128296,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/Ttio2/Z-Image-Turbo-pencil-sketch/blob/a840a0b18bbe544d25cbfff27c71e0f4c0c3bcfe/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-coloring",
+      "name": "ColoringBook Redmond",
+      "source": "https://huggingface.co/artificialguybr/COLORINGBOOK-REDMOND-ZIMAGE/resolve/d12e62ed089b36f1ed733e30db6ba57c6c8a32af/%5BZImage.Turbo%5DColoringBook_Redmond.safetensors",
+      "revision": "d12e62ed089b36f1ed733e30db6ba57c6c8a32af",
+      "sha256": "4b97a29800d20d863586e642df3a4591e4a1f4896f574385437a1b1e33ca4999",
+      "bytes": 85094928,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/COLORINGBOOK-REDMOND-ZIMAGE/blob/d12e62ed089b36f1ed733e30db6ba57c6c8a32af/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-storybook",
+      "name": "Linex Storybook",
+      "source": "https://huggingface.co/ABDALLALSWAITI/linex-storybook-lora/resolve/a22b9dd9e0d2f9f985166f4f5bd99d61ee5c19a9/lines_style.safetensors",
+      "revision": "a22b9dd9e0d2f9f985166f4f5bd99d61ee5c19a9",
+      "sha256": "52e0c52eea9d15c92d0da1c14a9a5ae99a7a7398ab55f4932114c333a54d9fff",
+      "bytes": 170128272,
+      "license": "CreativeML OpenRAIL-M",
+      "modelCard": "https://huggingface.co/ABDALLALSWAITI/linex-storybook-lora/blob/a22b9dd9e0d2f9f985166f4f5bd99d61ee5c19a9/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-lineart",
+      "name": "LineartAnime Redmond",
+      "source": "https://huggingface.co/artificialguybr/LineartAnime-Redmond-ZImageTurbo/resolve/c41219959040c9918f31541bb2a5a862c1c632ec/%5BZImage.Turbo%5DLineArt_Redmond.safetensors",
+      "revision": "c41219959040c9918f31541bb2a5a862c1c632ec",
+      "sha256": "53fe10c92ea9be4cd8ed9d88469782983926b88f7195bc9cde7a6561c254faf1",
+      "bytes": 85094888,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/LineartAnime-Redmond-ZImageTurbo/blob/c41219959040c9918f31541bb2a5a862c1c632ec/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-doodle",
+      "name": "Doodle Redmond",
+      "source": "https://huggingface.co/artificialguybr/Doodle-Redmond-ZIMAGE/resolve/afa4236b9ea73aca53a7f20c12f023d4e285e94c/%5BZImage.Turbo%5DDoodle_Redmond.safetensors",
+      "revision": "afa4236b9ea73aca53a7f20c12f023d4e285e94c",
+      "sha256": "9ac355cc5f2fbb5772c16bdf308f4d162a2d4585f3875f7bfc1cf0f755208ac1",
+      "bytes": 85094888,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/Doodle-Redmond-ZIMAGE/blob/afa4236b9ea73aca53a7f20c12f023d4e285e94c/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-icons",
+      "name": "Icons Redmond",
+      "source": "https://huggingface.co/artificialguybr/ICONS-REDMOND-ZIMAGETURBO/resolve/e5d780879dd11648391e12e0702cf93dfd8de5d5/%5BZImage.Turbo%5DIcons_Redmond.safetensors",
+      "revision": "e5d780879dd11648391e12e0702cf93dfd8de5d5",
+      "sha256": "f6aec2c643a195df9f61884e7b10812c2a9eb465ef27f59d301878a997222058",
+      "bytes": 85094872,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/ICONS-REDMOND-ZIMAGETURBO/blob/e5d780879dd11648391e12e0702cf93dfd8de5d5/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-pixel",
+      "name": "PixelArt Redmond",
+      "source": "https://huggingface.co/artificialguybr/PIXELART-REDMOND-ZIMAGETURBO/resolve/22dbe26dfc82c03035d313ab55e740d09571d982/%5BZImage.Turbo%5DPixelArt_Redmond.safetensors",
+      "revision": "22dbe26dfc82c03035d313ab55e740d09571d982",
+      "sha256": "767c914d816f8f4f0862eb8aa63c2b629595303d724546864671811c01461b84",
+      "bytes": 85094896,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/PIXELART-REDMOND-ZIMAGETURBO/blob/22dbe26dfc82c03035d313ab55e740d09571d982/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "z-isometric",
+      "name": "Isometric Redmond",
+      "source": "https://huggingface.co/artificialguybr/ISOMETRIC-REDMOND-ZIMAGE/resolve/b44df2e9159a58d615e5ebbf1fc87068fa293b15/%5BZImage.Turbo%5DIsometric_Redmond.safetensors",
+      "revision": "b44df2e9159a58d615e5ebbf1fc87068fa293b15",
+      "sha256": "969e3cb10094088c7a47573d2ff89e9edc1686422ce7dda7718cd3b1d930b9d3",
+      "bytes": 85094904,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/artificialguybr/ISOMETRIC-REDMOND-ZIMAGE/blob/b44df2e9159a58d615e5ebbf1fc87068fa293b15/README.md",
+      "baseModel": "z-image-turbo-int8"
+    },
+    {
+      "id": "seedvr2-3b-int8",
+      "source": "https://huggingface.co/Comfy-Org/SeedVR2/resolve/df48879708206a403d2a61acd55578c2e80fd233/diffusion_models/seedvr2_3b_int8_convrot.safetensors",
+      "revision": "df48879708206a403d2a61acd55578c2e80fd233",
+      "sha256": "c3dec8bcc5916843a8a858572970597462e1f2dc598d6dfd818f6cd40f53a157",
+      "bytes": 3458259704,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/Comfy-Org/SeedVR2/blob/df48879708206a403d2a61acd55578c2e80fd233/README.md"
+    },
+    {
+      "id": "seedvr2-shared-vae",
+      "source": "https://huggingface.co/Comfy-Org/SeedVR2/resolve/df48879708206a403d2a61acd55578c2e80fd233/vae/seedvr2_ema_vae_fp16.safetensors",
+      "revision": "df48879708206a403d2a61acd55578c2e80fd233",
+      "sha256": "20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1",
+      "bytes": 501324814,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/Comfy-Org/SeedVR2/blob/df48879708206a403d2a61acd55578c2e80fd233/README.md"
+    },
+    {
+      "id": "comfy-realesrgan-anime",
+      "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+      "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
+      "bytes": 17938799,
+      "license": "BSD-3-Clause",
+      "modelCard": "https://github.com/xinntao/Real-ESRGAN/blob/v0.2.2.4/docs/anime_model.md",
+      "digestProvenance": "SHA-256 calculated from the official release asset; the legacy release has no published digest"
+    }
+  ]
+}

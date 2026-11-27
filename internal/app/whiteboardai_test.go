@@ -83,7 +83,7 @@ func TestGeminiCatalogFeedsWhiteboardAndOneBotImages(t *testing.T) {
 	d := a.doc
 	o := a.boardOptionsWith(nil, d)
 	choices := o.AI.Models(whiteboard.AIImage)
-	if len(choices) != 1 || strings.Join(choices[0].ImageSizes, ",") != "1K,2K,4K" {
+	if len(choices) < 1 || strings.Join(choices[0].ImageSizes, ",") != "1K,2K,4K" {
 		t.Fatalf("image choices: %+v", choices)
 	}
 	id := d.board.AddAINode(whiteboard.AIImage, whiteboard.Point{0, 0}, o)
@@ -136,7 +136,7 @@ func TestWhiteboardAINodesUseOneBotConnections(t *testing.T) {
 	if o.AI == nil {
 		t.Fatal("board has no AI")
 	}
-	if models := o.AI.Models(whiteboard.AIImage); len(models) != 1 || models[0].Connection != "draw" {
+	if models := o.AI.Models(whiteboard.AIImage); len(models) < 1 || models[0].Connection != "draw" {
 		t.Fatalf("image models %+v", models)
 	}
 	if models := o.AI.Models(whiteboard.AIText); len(models) != 1 || models[0].Model != "test-model" {

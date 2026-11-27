@@ -250,6 +250,22 @@ func (b *Board) AddAnnotatedReference(sourceID, rel string, width, height int, g
 			gen := b.newAINode(whiteboard.AIImage, whiteboard.Point{input.X + input.W + 100 + 180, input.Y + 220}, o)
 			generatorID = gen.ID
 			gn := whiteboard.AINodeOf(gen)
+			// An annotation must feed an image-capable model, even when the
+			// last used preset was a text-only Z-Image LoRA.
+			if _, ok := whiteboard.AIFindInputByType(gn, whiteboard.AITypeImage); !ok {
+				gn.Connection, gn.Model = "", ""
+				gn.Params.LoRAStrength = nil
+				if o.AI != nil && o.AI.Models != nil {
+					for _, model := range o.AI.Models(whiteboard.AIImage) {
+						candidate := *gn
+						candidate.Connection, candidate.Model = model.Connection, model.Model
+						if _, ok := whiteboard.AIFindInputByType(&candidate, whiteboard.AITypeImage); ok && !model.NeedsDownload {
+							gn = &candidate
+							break
+						}
+					}
+				}
+			}
 			gn.Instruction = i18n.T("按照参考图中的标注修改图片，保留未标注的部分，并移除标注本身")
 			_ = whiteboard.SetAINode(gen, gn)
 			b.err = b.connectAI(input, gen, true)
@@ -368,7 +384,7 @@ func (b *Board) aiImageButtons(c *ui.Context, o BoardOptions, id string, flat bo
 func (b *Board) DisplayedAIImage(id string) string {
 	e := b.Scene.ElementByID(id)
 	n := b.aiNode(e)
-	if n == nil || (n.Role != whiteboard.AIImage && n.Role != whiteboard.AICutout && n.Role != whiteboard.AIUpscale) || len(n.Outputs) == 0 {
+	if n == nil || (!n.ImageHistory() && n.Role != whiteboard.AICutout && n.Role != whiteboard.AIUpscale) || len(n.Outputs) == 0 {
 		return ""
 	}
 	output := n.Outputs[b.aiHistoryCurrent(e, n)]

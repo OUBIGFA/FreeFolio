@@ -38,6 +38,8 @@ type BoardAI struct {
 	SaveImage    func(rel string)
 	// Models are the models that can run a node of the role.
 	Models func(role whiteboard.AIRole) []BoardAIModel
+	// Presets exposes ready-configured local nodes, including missing resources.
+	Presets func() []BoardAIPreset
 	// Default is the model a new node of the role starts with.
 	Default func(role whiteboard.AIRole) BoardAIModel
 	// Remember records the model last chosen for the role.
@@ -61,9 +63,19 @@ type BoardAI struct {
 type BoardAIModel struct {
 	Connection, ConnectionName, Model, Name string
 	// Local identifies a host-managed local model connection, such as Ollama.
-	Local bool
+	Local         bool
+	Category      string
+	LoRAStrength  *float64
+	Instruction   string
+	NeedsDownload bool
 	// ImageSizes overrides pixel dimensions with the provider's native options.
 	ImageSizes []string
+}
+
+// BoardAIPreset configures a node without persisting a separate graph format.
+type BoardAIPreset struct {
+	Role  whiteboard.AIRole
+	Model BoardAIModel
 }
 
 func (m BoardAIModel) label() string {
@@ -78,6 +90,9 @@ func (m BoardAIModel) label() string {
 	name := m.Name
 	if name == "" {
 		name = m.Model
+	}
+	if m.NeedsDownload {
+		name += " · " + i18n.T("未下载")
 	}
 	if m.ConnectionName == "" {
 		return source + " · " + name
@@ -190,7 +205,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIEnhance: "图片增强", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -284,14 +299,16 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
 	var model BoardAIModel
-	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIVideo || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
+	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIVideo || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
 		model = o.AI.Default(role)
 		n.Connection, n.Model = model.Connection, model.Model
+		n.Params.LoRAStrength = model.LoRAStrength
+		n.Instruction = model.Instruction
 	}
 	if role == whiteboard.AIImage {
 		n.Params.AspectRatio, n.Params.Size = "1:1", model.defaultImageSize()
 	}
-	if role == whiteboard.AIImage || role == whiteboard.AIVideo {
+	if role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIVideo {
 		n.Params.Count = 1
 	}
 	if role == whiteboard.AIUpscale {
@@ -775,6 +792,10 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask}
 	job.Node.Instruction = instruction
 	switch n.Role {
+	case whiteboard.AIEnhance:
+		if len(images) != 1 {
+			return nil, errors.New(i18n.T("请连接一张输入图片"))
+		}
 	case whiteboard.AICutout:
 		if n.Model == "" {
 			return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型"))
@@ -1136,7 +1157,7 @@ func (b *Board) Connect(o BoardOptions, fromID, toID, label string) error {
 		b.edit(o, func() {
 			for _, sl := range whiteboard.AISlots(n) {
 				named := strings.EqualFold(label, sl.Group) || label == sl.Name || label == sl.Label || label == i18n.T(sl.Label)
-				if label != "" && named && whiteboard.AIValidConnection(b.Scene.AISourceType(from), sl.Type) && !b.Scene.AICreatesCycle(from.ID, to.ID) {
+				if !sl.Disabled && label != "" && named && whiteboard.AIValidConnection(b.Scene.AISourceType(from), sl.Type) && !b.Scene.AICreatesCycle(from.ID, to.ID) {
 					b.setAILink(to.ID, sl.Name, from.ID)
 					return
 				}

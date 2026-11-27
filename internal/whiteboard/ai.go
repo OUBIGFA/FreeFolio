@@ -37,6 +37,8 @@ const (
 	AIText AIRole = "text"
 	// AIImage generates a picture, or edits one when it has picture inputs.
 	AIImage AIRole = "image"
+	// AIEnhance restores one input picture with a local image-editing model.
+	AIEnhance AIRole = "enhance"
 	// AIVideo generates a video, from a first frame when given a picture.
 	AIVideo AIRole = "video"
 	// AIConcat joins its text inputs through a template, without a model.
@@ -46,7 +48,7 @@ const (
 )
 
 // AIRoles are the supported roles stored in a scene.
-var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIEnhance, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
 
 // MaxAIOutputs bounds non-image history; image references remain available
 // for selection and comparison across runs.
@@ -61,6 +63,9 @@ type AIParams struct {
 	Count       int    `json:"count,omitempty"`
 	Seconds     int    `json:"seconds,omitempty"`
 	Scale       int    `json:"scale,omitempty"`
+	// LoRAStrength is optional so existing boards use the catalog default;
+	// an explicit zero disables the adapter without changing its selection.
+	LoRAStrength *float64 `json:"loraStrength,omitempty"`
 	// Template joins a concat node's inputs; {1}, {2}… are inputs by order
 	// and {all} is every input, one per line.
 	Template string `json:"template,omitempty"`
@@ -105,6 +110,9 @@ type AINode struct {
 	Runs        int        `json:"runs,omitempty"`
 }
 
+// ImageHistory identifies generation/edit nodes with persistent A/B history.
+func (n *AINode) ImageHistory() bool { return n.Role == AIImage || n.Role == AIEnhance }
+
 // Output is the output being shown, or nil.
 func (n *AINode) Output() *AIOutput {
 	if n == nil || len(n.Outputs) == 0 {
@@ -117,7 +125,7 @@ func (n *AINode) Output() *AIOutput {
 // Kind is the data a node supplies downstream.
 func (n *AINode) Kind() string {
 	switch n.Role {
-	case AIImage, AIImageInput, AICutout, AIUpscale, AICompare:
+	case AIImage, AIEnhance, AIImageInput, AICutout, AIUpscale, AICompare:
 		return "image"
 	case AIVideo:
 		return "video"
@@ -139,7 +147,7 @@ func (n *AINode) AddOutputs(outs []AIOutput) {
 		}
 	}
 	n.Outputs = append(n.Outputs, outs...)
-	if extra := len(n.Outputs) - MaxAIOutputs; n.Role != AIImage && extra > 0 {
+	if extra := len(n.Outputs) - MaxAIOutputs; !n.ImageHistory() && extra > 0 {
 		n.Outputs = n.Outputs[extra:]
 	}
 	n.Current = len(n.Outputs) - len(outs)
@@ -220,7 +228,7 @@ func AINodeSize(role AIRole) (float64, float64) {
 		return 340, 360
 	case AICompare:
 		return 420, 380
-	case AIImage:
+	case AIImage, AIEnhance:
 		return 380, 520
 	case AIVideo:
 		return 380, 470

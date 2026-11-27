@@ -1,6 +1,46 @@
-# 可选资源与白板抠图 / 图片放大
+# 可选资源与白板图片处理
 
-在「设置 → 可选资源」选保存位置，再点对应资源旁的「下载」。第一次下载抠图模型时会同时下载共用的 CPU 运行库；图片放大包已内置 Vulkan 引擎与两款模型，一次下载即可使用。不需要 Python 或 OneBot Key；安装和打开 FreeFolio 不会自动下载。
+在「设置 → 可选资源」选保存位置，再点资源旁的「下载」。抠图模型会附带共用运行库；Real-ESRGAN Vulkan 包含引擎和两款模型。这些资源无需另装 Python；ComfyUI 资源需先配置本机引擎。安装和打开 FreeFolio 不会自动下载资源。
+
+「硬件与保存位置」位于页面顶部，由三个标签页共用：
+
+- **模型**：本地抠图、ComfyUI 连接与生图底模。
+- **增强模型**：Real-ESRGAN Vulkan、SeedVR2 7B Sharp / 3B INT8、ComfyUI 原生 Real-ESRGAN Anime 6B。
+- **LoRA**：调整风格或细节的模型附加权重。下载时会补齐对应底模，已下载且校验一致的文件会复用。
+
+下载行显示进度条、百分比和已下载大小。点击「暂停」保留当前任务，点击「继续下载」恢复；点击「停止」结束当前任务，已下载内容仍保留。下次点击「下载」时继续，包括重新打开应用后。服务端需支持 HTTP Range；若不支持，将重下当前文件。所有权重在完整下载并通过 SHA-256 校验后才可使用。断点文件保存在资源目录内，不会被当作已安装模型。
+
+选择资源后，在白板 AI 菜单的「增强与 LoRA」中添加对应预设节点。未下载的资源会显示「未下载」。预设自动选择匹配底模；不需要安装第三方节点插件。ComfyUI 核心节点缺失时，需更新 ComfyUI 后再运行。
+
+## 增强与 LoRA 节点
+
+| 用途 | 资源 | 对应节点 |
+| --- | --- | --- |
+| 细节增强 | Z-Image Detailer | 图像生成，Z-Image Turbo |
+| 人物与写实 | V1 Realism | 图像生成，Z-Image Turbo |
+| 图片修复 | Qwen 2.1 Restore | 图片增强，接入一张图片 |
+| 创作性细节 | Qwen 2.1 Detail Enhancer | 图片增强，接入一张图片 |
+| 3D | 3D Render Style Redmond | 图像生成，Z-Image Turbo |
+| 电商样机 | Mockups Redmond | 图像生成，Z-Image Turbo |
+| 插画 | Elusarca Anime | 图像生成，Z-Image Turbo |
+| 手绘 | Pencil Sketch | 图像生成，Z-Image Turbo |
+| 线稿 | ColoringBook Redmond | 图像生成，Z-Image Turbo |
+| 绘本 | Linex Storybook | 图像生成，Z-Image Turbo |
+| 漫画 | LineartAnime Redmond | 图像生成，Z-Image Turbo |
+| 简笔 | Doodle Redmond | 图像生成，Z-Image Turbo |
+| 图标 | Icons Redmond | 图像生成，Z-Image Turbo |
+| 像素画 | PixelArt Redmond | 图像生成，Z-Image Turbo |
+| 等距插画 | Isometric Redmond | 图像生成，Z-Image Turbo |
+
+- 每个 LoRA 节点使用一款附加权重，卡片与属性面板均可调整「LoRA 强度」。0 表示关闭；切换模型时重置为该模型的初始强度。风格触发词在运行时自动加入，不改写用户保存的提示词。
+- 「图片增强」按原图比例生成约 2 MP 的新图片，长宽对齐至 32 像素。提示词可编辑或连接文字节点；未填写时使用该资源的默认增强说明。结果保留历史，可进行 A/B 对比、撤销和下游连接。
+- 放大节点选择 3B 或 7B 后使用对应 SeedVR2 权重，不自动换用另一款。删除其中一款时，保留另一款仍在使用的共用 VAE。
+- 供应商生图结果和导入图片可接到「图片增强」或「图片放大」。LoRA 只加载到匹配的本地生图模型，不会发送给供应商接口。
+- 这些模型会生成新细节，人物身份、商品文字和线条应通过原图对比核查。像素画和简笔画可将细节增强关闭，保留原有轮廓。
+
+固定下载地址、大小、SHA-256 与许可来源见[增强资源清单](../third_party/manifests/enhancements.json)。下载不需要 Hugging Face Token；模型不随安装包分发。网络与本机 ComfyUI 环境仍须可用。
+
+验证范围：自动测试覆盖原生工作流提交、模型与 LoRA 选择、强度、缺失资源拒绝、资源下载复用与回收、节点交互与界面布局。每款权重在不同显卡上的画质、耗时和显存峰值需本机运行确认。
 
 ## 本地抠图
 
@@ -33,7 +73,7 @@
 如果本机已安装独立显卡（例如 NVIDIA 8 GB+ / 12 GB 显存）和 ComfyUI（便携版、桌面版或源码虚拟环境），可在「设置 → 可选资源 → ComfyUI 引擎（GPU 加速）」按两步开启：
 
 1. **连接 ComfyUI**：指定本地 ComfyUI 目录（便携版、源码虚拟环境、ComfyUI Desktop 安装目录或数据目录均可，或填写已运行的服务地址），点「检测并启动」。FreeFolio 不内置也不复制 PyTorch/CUDA，仅在需要时于本机回环地址静默拉起，并在退出时自动结束子进程；同时通过 `--extra-model-paths-config` 挂载资源目录下的 `comfyui/`（包含 `diffusion_models`、`text_encoders`、`vae`、`upscale_models`、`checkpoints`、`rmbg`、`sa2va`、`vitmatte`）并保留原有桌面端模型配置，不污染原 ComfyUI 目录。
-2. **下载 GPU 专业模型（断点可续、SHA-256 校验）**：
+2. **下载 GPU 模型（支持断点下载，完成后校验）**：
 
 | 模型包 | 适用显卡 | 下载位置（资源目录内） | 用途与说明 | 许可 |
 | --- | --- | --- | --- | --- |

@@ -36,6 +36,8 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 			t.Fatalf("missing download action for %s", item.Name)
 		}
 	}
+	a.resources.tab = 1
+	tester.Frame()
 	if upscale, ok := localresource.UpscaleRuntime(); ok {
 		if !tester.HasText(upscale.Name) {
 			t.Fatalf("missing upscale choice %s", upscale.Name)
@@ -44,10 +46,14 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 			t.Fatalf("missing download action for %s", upscale.Name)
 		}
 	}
+	a.resources.tab = 0
+	tester.Frame()
 	if !tester.HasText("ComfyUI 引擎（GPU 加速）") {
 		t.Fatal("missing ComfyUI engine section")
 	}
 	for _, pack := range localresource.ComfyPacks {
+		a.resources.tab = pack.ResourceTab()
+		tester.Frame()
 		if !tester.HasText(pack.Name) {
 			t.Fatalf("missing ComfyUI pack %s", pack.Name)
 		}

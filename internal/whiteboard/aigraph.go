@@ -59,6 +59,7 @@ type aiSlotSpec struct {
 var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 	AICutout:  {{"image", "输入图片", AITypeImage, false, false}, {"prompt", "抠图说明", AITypeString, false, true}},
 	AIUpscale: {{"image", "输入图片", AITypeImage, false, false}},
+	AIEnhance: {{"image", "输入图片", AITypeImage, false, false}, {"prompt", "增强说明", AITypeString, false, true}},
 	AICompare: {{"a", "图片 A", AITypeImage, false, false}, {"b", "图片 B", AITypeImage, false, false}},
 	AIText:    {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
 	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
@@ -72,7 +73,7 @@ func (n *AINode) AcceptsPrompt() bool {
 	switch n.Role {
 	case AICutout:
 		return n.Connection == "comfyui-rmbg3" || n.Connection == "comfyui-sa2va"
-	case AIPrompt, AIText, AIImage, AIVideo:
+	case AIPrompt, AIText, AIImage, AIEnhance, AIVideo:
 		return true
 	}
 	return false
@@ -82,7 +83,7 @@ func (n *AINode) AcceptsPrompt() bool {
 // result is not passed on.
 func AIOutputType(role AIRole) string {
 	switch role {
-	case AIImage, AIImageInput, AICutout, AIUpscale:
+	case AIImage, AIEnhance, AIImageInput, AICutout, AIUpscale:
 		return AITypeImage
 	case AIVideo, AICompare:
 		return ""
@@ -105,8 +106,9 @@ func listIndex(name string) (string, int, bool) {
 func AISlots(n *AINode) []AISlot {
 	var out []AISlot
 	for _, sp := range aiSlotSpecs[n.Role] {
+		disabled := sp.widget && !n.AcceptsPrompt() || n.Role == AIImage && n.Connection == "comfyui-zimage" && sp.typ == AITypeImage
 		if !sp.list {
-			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget, Disabled: sp.widget && !n.AcceptsPrompt()})
+			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget, Disabled: disabled})
 			continue
 		}
 		count := 0
@@ -121,7 +123,7 @@ func AISlots(n *AINode) []AISlot {
 			if count > 1 {
 				number = i + 1
 			}
-			out = append(out, AISlot{Name: fmt.Sprintf("%s.%d", sp.group, i), Group: sp.group, Label: sp.label, Type: sp.typ, Number: number})
+			out = append(out, AISlot{Name: fmt.Sprintf("%s.%d", sp.group, i), Group: sp.group, Label: sp.label, Type: sp.typ, Number: number, Disabled: disabled})
 		}
 	}
 	return out
@@ -258,7 +260,7 @@ func (s *Scene) AISourceType(e *Element) string {
 // link names an element that is gone or the selected model disables it.
 func (s *Scene) AILinkSource(n *AINode, slot string) *Element {
 	// Keep stored links intact so switching back restores the user's graph.
-	if slot == "prompt" && !n.AcceptsPrompt() {
+	if sl, ok := AISlotByName(n, slot); ok && sl.Disabled {
 		return nil
 	}
 	e := s.ElementByID(n.LinkAt(slot))

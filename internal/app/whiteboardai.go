@@ -72,7 +72,7 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		a.ensureResourcesInspected()
 		caps := a.resources.comfyCaps
 		for _, pack := range localresource.ComfyPacks {
-			if pack.Kind == "seedvr2" && (a.resources.installed[pack.ID] || (caps != nil && caps.SeedVR2Native && len(caps.SeedVR2Models) > 0)) {
+			if pack.Kind == "seedvr2" && (a.resources.installed[pack.ID] || (caps != nil && caps.SeedVR2Native && slices.Contains(caps.SeedVR2Models, path.Base(pack.Files[0].RelPath)))) {
 				out = append(out, editor.BoardAIModel{
 					Connection:     "comfyui-seedvr2",
 					ConnectionName: "ComfyUI",
@@ -84,6 +84,21 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		if caps != nil {
 			for _, model := range caps.UpscaleModels {
 				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
+			}
+		}
+		for _, preset := range a.boardEnhancementPresets() {
+			if preset.Role != role {
+				continue
+			}
+			found := false
+			for _, m := range out {
+				if m.Connection == preset.Model.Connection && m.Model == preset.Model.Model {
+					found = true
+					break
+				}
+			}
+			if !found {
+				out = append(out, preset.Model)
 			}
 		}
 		return out
@@ -131,6 +146,11 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 			}
 		}
 	}
+	for _, preset := range a.boardEnhancementPresets() {
+		if preset.Role == role {
+			out = append(out, preset.Model)
+		}
+	}
 	return out
 }
 
@@ -152,8 +172,10 @@ func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
 			}
 		}
 	}
-	if len(models) > 0 {
-		return models[0]
+	for _, model := range models {
+		if !model.NeedsDownload {
+			return model
+		}
 	}
 	return editor.BoardAIModel{}
 }
@@ -207,7 +229,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		}
 		return readBoardBytes(f, 256<<20)
 	}
-	ai := &editor.BoardAI{Models: a.boardAIModels, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
+	ai := &editor.BoardAI{Models: a.boardAIModels, Presets: a.boardEnhancementPresets, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
 	ai.ReplaceImage = func(nodeID string) { a.pickBoardNodeImage(d, nodeID) }
 	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
 	ai.SaveImage = func(rel string) {
@@ -374,7 +396,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 				}
-				data, err = comfyMgr.UpscaleSeedVR2(ctx, comfyCfg, job.Node.Params.Scale, job.Images[0].Data)
+				data, err = comfyMgr.UpscaleSeedVR2Model(ctx, comfyCfg, job.Node.Model, job.Node.Params.Scale, job.Images[0].Data)
 			case "comfyui":
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
@@ -395,7 +417,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			}
 			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
 		}
-		if job.Node.Role == whiteboard.AIImage && (job.Node.Connection == "comfyui-zimage" || job.Node.Connection == "comfyui-qwen-image") {
+		if job.Node.ImageHistory() && (job.Node.Connection == "comfyui-zimage" || job.Node.Connection == "comfyui-qwen-image") {
 			if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 				return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 			}
@@ -406,6 +428,18 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				AspectRatio: p.AspectRatio,
 				Count:       p.Count,
 			}
+			if pack, ok := localresource.ComfyPackByModel(job.Node.Model); ok && pack.BaseModel != "" {
+				req.LoRA, req.Strength = pack.ID, pack.DefaultStrength
+				if p.LoRAStrength != nil {
+					req.Strength = *p.LoRAStrength
+				}
+				if strings.TrimSpace(req.Prompt) == "" {
+					req.Prompt = pack.Instruction
+				}
+			} else if !ok || (pack.Kind != "zimage" && pack.Kind != "qwen-image") {
+				return nil, errors.New(i18n.T("所选本地模型不可用，请重新选择"))
+			}
+			req.Enhance = job.Node.Role == whiteboard.AIEnhance
 			for _, img := range job.Images {
 				req.Images = append(req.Images, img.Data)
 			}

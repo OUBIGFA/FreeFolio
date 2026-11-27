@@ -179,55 +179,12 @@ func install(ctx context.Context, root string, item Resource, client *http.Clien
 		return errors.New("invalid resource path")
 	}
 	if existing, err := verified(root, item); err == nil {
+		if progress != nil {
+			progress(item.Size)
+		}
 		return existing.Close()
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL, nil)
-	if err != nil {
-		return err
-	}
-	if req.URL.Scheme != "https" {
-		return errors.New("resources require HTTPS")
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: HTTP %d", item.Name, res.StatusCode)
-	}
-	if err = os.MkdirAll(root, 0700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(root, ".freefolio-resource-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
-	hash := sha256.New()
-	writers := []io.Writer{tmp, hash}
-	if progress != nil {
-		var received int64
-		writers = append(writers, progressWriter(func(n int64) { received += n; progress(received) }))
-	}
-	n, err := io.Copy(io.MultiWriter(writers...), io.LimitReader(res.Body, item.Size+1))
-	if err != nil {
-		return err
-	}
-	if n != item.Size || fmt.Sprintf("%x", hash.Sum(nil)) != item.SHA {
-		return fmt.Errorf("size or SHA-256 mismatch: %s", item.File)
-	}
-	if err = ctx.Err(); err != nil {
-		return err
-	}
-	if err = tmp.Sync(); err != nil {
-		return err
-	}
-	if err = tmp.Close(); err != nil {
-		return err
-	}
-	return publishDownload(tmp.Name(), filepath.Join(root, item.File))
+	return downloadFile(ctx, filepath.Join(root, item.File), item.URL, item.Size, item.SHA, client, progress)
 }

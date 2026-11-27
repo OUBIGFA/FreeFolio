@@ -76,7 +76,7 @@ func (b *Board) aiPreviewPaths(e *whiteboard.Element, n *whiteboard.AINode) []st
 			if from == nil {
 				continue
 			}
-			if fn := b.aiNode(from); fn != nil && (fn.Role == whiteboard.AIImage || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
+			if fn := b.aiNode(from); fn != nil && (fn.ImageHistory() || fn.Role == whiteboard.AICutout || fn.Role == whiteboard.AIUpscale) {
 				if rel := b.DisplayedAIImage(from.ID); rel != "" {
 					paths = append(paths, rel)
 				}
@@ -84,7 +84,7 @@ func (b *Board) aiPreviewPaths(e *whiteboard.Element, n *whiteboard.AINode) []st
 		}
 		return paths
 	}
-	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
+	if n.ImageHistory() && len(n.Outputs) > 0 {
 		h := b.aiHistory(e, n)
 		if h.compare {
 			return []string{n.Outputs[h.a].Path, n.Outputs[h.b].Path}
@@ -164,7 +164,7 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 }
 
 func (b *Board) aiHistoryCompareHandle(c *ui.Context, e *whiteboard.Element, n *whiteboard.AINode, l aiCardLayout, x, y, z float32) {
-	if n.Role != whiteboard.AIImage || len(n.Outputs) < 2 || l.preview.H < 12 {
+	if !n.ImageHistory() || len(n.Outputs) < 2 || l.preview.H < 12 {
 		return
 	}
 	h := b.aiHistory(e, n)

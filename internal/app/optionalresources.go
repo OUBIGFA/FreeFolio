@@ -16,12 +16,15 @@ import (
 )
 
 type resourceState struct {
-	dir, busy, confirm string
-	installed          map[string]bool
-	cancel             context.CancelFunc
-	err                error
-	received           atomic.Int64
-	total              int64
+	tab                       int
+	dir, busy, confirm        string
+	installed                 map[string]bool
+	cancel                    context.CancelFunc
+	err                       error
+	received                  atomic.Int64
+	total                     int64
+	paused, pausing, stopping bool
+	resume                    func()
 
 	gpuChecked bool
 	gpuDone    bool
@@ -253,6 +256,12 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	}
 	root := a.resourceDirectory()
 	s.busy, s.confirm, s.err = item.ID, "", nil
+	s.paused, s.pausing, s.stopping = false, false, false
+	if !remove {
+		s.resume = func() { s.busy = ""; a.resourceAction(item, false) }
+	} else {
+		s.resume = nil
+	}
 	items := []localresource.Resource{item}
 	engine, supported := localresource.Runtime()
 	upscaleEngine, _ := localresource.UpscaleRuntime()
@@ -285,12 +294,7 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 			}
 		}
 		return func() {
-			s.cancel = nil
-			s.busy = ""
-			s.dir = ""
-			if !errors.Is(err, context.Canceled) {
-				s.err = err
-			}
+			a.finishResourceDownload(err)
 		}
 	})
 }
@@ -302,13 +306,29 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 	}
 	root := a.resourceDirectory()
 	s.busy, s.confirm, s.err = pack.ID, "", nil
+	s.paused, s.pausing, s.stopping = false, false, false
+	if !remove {
+		s.resume = func() { s.busy = ""; a.packAction(pack, false) }
+	} else {
+		s.resume = nil
+	}
+	download := pack
+	if !remove {
+		var err error
+		download, err = localresource.PackDownload(pack)
+		if err != nil {
+			s.busy = ""
+			s.err = err
+			return
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	if remove {
 		s.cancel = nil
 	}
 	s.received.Store(0)
-	s.total = pack.TotalSize()
+	s.total = download.TotalSize()
 	mgr := a.resources.comfy
 	a.backgroundResult(func() func() {
 		defer cancel()
@@ -316,24 +336,19 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 		if remove {
 			err = localresource.RemovePack(root, pack, a.trashItem)
 		} else {
-			err = localresource.InstallPack(ctx, root, pack, func(done, _ int64) {
+			err = localresource.InstallPack(ctx, root, download, func(done, _ int64) {
 				s.received.Store(done)
 			})
 			if err == nil {
-				_, _ = localresource.WriteComfyExtraModelPaths(root)
+				_, err = localresource.WriteComfyExtraModelPaths(root)
 			}
 		}
 		if mgr != nil {
 			mgr.InvalidateCaps()
 		}
 		return func() {
-			s.cancel = nil
-			s.busy = ""
-			s.dir = ""
 			s.comfyCaps = nil
-			if !errors.Is(err, context.Canceled) {
-				s.err = err
-			}
+			a.finishResourceDownload(err)
 		}
 	})
 }
@@ -361,15 +376,7 @@ func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, de
 	settingRow(c, item.ID, item.Name, detail, func() {
 		switch {
 		case s.busy == item.ID:
-			if s.cancel != nil {
-				ui.Text(c, fmt.Sprintf("%.0f / %.0f MiB", float64(s.received.Load())/(1<<20), float64(s.total)/(1<<20))).FontSize(12)
-				if ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
-					s.cancel()
-				}
-				c.After(150 * time.Millisecond)
-			} else {
-				ui.Text(c, i18n.T("正在移除资源")).FontSize(12)
-			}
+			a.resourceDownloadControls(c)
 		case s.confirm == item.ID:
 			if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
 				a.resourceAction(item, true)
@@ -406,15 +413,7 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 		ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 			switch {
 			case s.busy == pack.ID:
-				if s.cancel != nil {
-					ui.Text(c, fmt.Sprintf("%s / %s", formatResourceBytes(s.received.Load()), formatResourceBytes(s.total))).FontSize(12)
-					if ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
-						s.cancel()
-					}
-					c.After(150 * time.Millisecond)
-				} else {
-					ui.Text(c, i18n.T("正在移除资源")).FontSize(12)
-				}
+				a.resourceDownloadControls(c)
 			case s.confirm == pack.ID:
 				if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
 					a.packAction(pack, true)
@@ -422,7 +421,7 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 				if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
 					s.confirm = ""
 				}
-			case s.installed[pack.ID]:
+			case s.installed[pack.ID] && (pack.BaseModel == "" || s.installed[pack.BaseModel]):
 				resourceStatusBadge(c, i18n.T("已下载"), true)
 				if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "").Clicked() {
 					s.confirm = pack.ID
@@ -437,80 +436,38 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 }
 
 func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string, accent bool, detail string) {
-	s := &a.resources
-	vram := s.gpu.VRAMGiB()
 	sizeText := formatResourceBytes(pack.TotalSize())
-	switch pack.ID {
-	case "rmbg3-fp8":
-		switch {
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = fmt.Sprintf(i18n.T("推荐 · 适配 %d GB 显存"), vram)
-			accent = true
-		case s.gpuFound && vram > 0:
-			badge = fmt.Sprintf(i18n.T("需 %d GB+ 显存"), pack.MinVRAMGiB)
-		default:
-			badge = i18n.T("8 GB+ 显存 · FP8 量化")
-		}
-		detail = fmt.Sprintf(i18n.T("生成级精细抠图，发丝、玻璃与半透明材质最佳（含文本编码器与 VAE） · %s · %s"), sizeText, pack.License)
-	case "sa2va-internvl3-2b":
-		switch {
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = i18n.T("推荐 · 轻量快速")
-			accent = true
-		case s.gpuFound && vram > 0:
-			badge = fmt.Sprintf(i18n.T("需 %d GB+ 显存"), pack.MinVRAMGiB)
-		default:
-			badge = i18n.T("6 GB+ 显存 · 轻量快速")
-		}
-		detail = fmt.Sprintf(i18n.T("按文字指定抠出画面中的特定对象，速度快、显存占用低 · %s · %s · 需安装 ComfyUI-Sa2VA 插件"), sizeText, pack.License)
-	case "sa2va-qwen3-vl-4b":
-		switch {
-		case s.gpuFound && vram >= 12:
-			badge = fmt.Sprintf(i18n.T("高精度 · 适配 %d GB 显存（自动 8-bit）"), vram)
-			accent = true
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = i18n.T("可用 · 自动 8-bit 量化")
-		default:
-			badge = i18n.T("10 GB+ 显存 · 自动 8-bit 量化")
-		}
-		detail = fmt.Sprintf(i18n.T("复杂画面指代理解更精准，16 GB 及以下显存自动启用 8-bit 量化 · %s · %s · 需安装 ComfyUI-Sa2VA 插件"), sizeText, pack.License)
-	case "seedvr2-7b-sharp-int8":
-		switch {
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = fmt.Sprintf(i18n.T("重绘放大 · 推荐 · 适配 %d GB 显存"), vram)
-			accent = true
-		case s.gpuFound && vram > 0:
-			badge = fmt.Sprintf(i18n.T("重绘放大 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
-		default:
-			badge = i18n.T("重绘放大 · 10 GB+ 显存 · INT8")
-		}
-		detail = fmt.Sprintf(i18n.T("一步扩散重绘超分（含锐化增强与分块 VAE），保留透明通道与真实皮肤织物细节 · %s · %s"), sizeText, pack.License)
-	case "z-image-turbo-int8":
-		switch {
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = i18n.T("图像生成 · 推荐 · 8 步极速")
-			accent = true
-		case s.gpuFound && vram > 0:
-			badge = fmt.Sprintf(i18n.T("图像生成 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
-		default:
-			badge = i18n.T("图像生成 · 8 GB+ 显存 · INT8")
-		}
-		detail = fmt.Sprintf(i18n.T("通义轻量 6B 文生图模型，8 步快速出图、语义准确、全驻显存流畅运行 · %s · %s"), sizeText, pack.License)
-	case "qwen-image-2.1-turbo-int8":
-		switch {
-		case s.gpuFound && vram >= pack.MinVRAMGiB:
-			badge = fmt.Sprintf(i18n.T("生图与改图 · 适配 %d GB 显存"), vram)
-			accent = true
-		case s.gpuFound && vram > 0:
-			badge = fmt.Sprintf(i18n.T("生图与改图 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
-		default:
-			badge = i18n.T("生图与改图 · 10 GB+ 显存 · INT8")
-		}
-		detail = fmt.Sprintf(i18n.T("文生图、多图参考编辑与红圈标注改图一体，中文排版与文字渲染极强 · %s · %s"), sizeText, pack.License)
-	default:
-		detail = fmt.Sprintf("%s · %s", sizeText, pack.License)
+	license := pack.License
+	if license == "Author permission" {
+		license = i18n.T("作者授权")
 	}
-	return badge, accent, detail
+	if pack.BaseModel != "" {
+		base, _ := localresource.ComfyPack(pack.BaseModel)
+		return i18n.T(pack.Category), false, fmt.Sprintf(i18n.T("底模：%s · %s · %s"), base.Name, sizeText, license)
+	}
+	purpose := ""
+	switch pack.Kind {
+	case "rmbg3":
+		purpose = i18n.T("精细抠图，可填写材质说明")
+	case "sa2va":
+		purpose = i18n.T("按文字抠图，需 Sa2VA 插件")
+		if pack.ID == "sa2va-qwen3-vl-4b" {
+			purpose = i18n.T("按文字抠图，需 Sa2VA 插件；≤16 GB 显存时自动量化")
+		}
+	case "seedvr2":
+		purpose = i18n.T("2× / 4× 重绘放大，保留透明通道")
+	case "upscale":
+		purpose = i18n.T("2× / 4× 动漫放大")
+	case "zimage":
+		purpose = i18n.T("文字生图，8 步生成")
+	case "qwen-image":
+		purpose = i18n.T("文字生图与参考图编辑")
+	}
+	if pack.MinVRAMGiB > 0 {
+		badge = fmt.Sprintf(i18n.T("建议 %d GB+ 显存"), pack.MinVRAMGiB)
+	}
+	detail = fmt.Sprintf("%s · %s · %s", purpose, sizeText, license)
+	return
 }
 
 func (a *App) settingsResources(c *ui.Context) {
@@ -526,32 +483,19 @@ func (a *App) settingsResources(c *ui.Context) {
 		items = append(items, engine)
 	}
 
-	settingsHeading(c, i18n.T("可选资源"), i18n.T("按需下载到本地运行，所有图片处理均不上传云端；入门用户用第 1 组即可，独显用户可按步骤开启第 2 组"))
+	settingsHeading(c, i18n.T("可选资源"), i18n.T("下载后可在白板节点中使用"))
 
-	settingsSection(c, i18n.T("概览：本机硬件与保存位置"))
+	settingsSection(c, i18n.T("硬件与保存位置"))
 	settingsGroup(c, "resource-overview", func() {
-		gpuDesc := i18n.T("正在检测本机显卡")
-		gpuBadge, gpuAccent := "", false
+		gpuDesc := i18n.T("正在检测显卡")
 		if s.gpuDone {
 			if s.gpuFound {
-				vram := s.gpu.VRAMGiB()
-				if vram >= 8 {
-					gpuDesc = fmt.Sprintf(i18n.T("%s · %d GB 显存 · 可流畅运行 ComfyUI FP8 与 8-bit 量化模型"), s.gpu.Name, vram)
-					gpuBadge, gpuAccent = fmt.Sprintf(i18n.T("%d GB 显存 · 推荐 FP8 / 量化方案"), vram), true
-				} else {
-					gpuDesc = fmt.Sprintf(i18n.T("%s · %d GB 显存 · 建议优先使用下方开箱即用模型"), s.gpu.Name, vram)
-					gpuBadge = fmt.Sprintf(i18n.T("%d GB 显存"), vram)
-				}
+				gpuDesc = fmt.Sprintf(i18n.T("%s · %d GB 显存"), s.gpu.Name, s.gpu.VRAMGiB())
 			} else {
-				gpuDesc = i18n.T("未检测到 NVIDIA 独立显卡 · 建议优先使用开箱即用模型")
-				gpuBadge = i18n.T("通用模式")
+				gpuDesc = i18n.T("未检测到 NVIDIA 显卡")
 			}
 		}
-		settingRow(c, "gpu-info", i18n.T("本机显卡"), gpuDesc, func() {
-			if gpuBadge != "" {
-				resourceStatusBadge(c, gpuBadge, gpuAccent)
-			}
-		})
+		settingRow(c, "gpu-info", i18n.T("本机显卡"), gpuDesc, func() {})
 		settingsSeparator(c)
 		settingRow(c, "path", i18n.T("资源目录"), root, func() {
 			if s.busy == resourceBusyMigrate {
@@ -570,131 +514,149 @@ func (a *App) settingsResources(c *ui.Context) {
 				a.chooseResourceDirectory()
 			}
 		})
-		ui.Text(c, i18n.T("更改位置时会自动将已下载的资源转移到新目录，不影响其他文件")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+		ui.Text(c, i18n.T("更改位置会迁移已下载资源")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 	})
 
-	settingsSection(c, i18n.T("开箱即用（免配置 · 下载即用）"))
-	ui.Text(c, i18n.T("无需安装 Python 或 ComfyUI，下载后直接在白板的「本地抠图」与「图片放大」节点使用")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
-	settingsGroup(c, "builtin-resources", func() {
-		rowAdded := false
-		if !supported {
-			settingRow(c, "no-cutout", i18n.T("本地抠图"), i18n.T("此平台暂不支持本地抠图"), func() {})
-			rowAdded = true
-		} else {
-			for _, item := range items {
-				if rowAdded {
-					settingsSeparator(c)
+	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("模型"), i18n.T("增强模型"), "LoRA").Label(i18n.T("资源类型")).Disabled(s.busy != "")
+
+	if s.tab != 2 {
+		settingsSection(c, i18n.T("直接运行"))
+		ui.Text(c, i18n.T("以下资源无需配置 ComfyUI")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
+		settingsGroup(c, "builtin-resources", func() {
+			rowAdded := false
+			if s.tab == 0 {
+				if !supported {
+					settingRow(c, "no-cutout", i18n.T("本地抠图"), i18n.T("此平台暂不支持本地抠图"), func() {})
+					rowAdded = true
+				} else {
+					for _, item := range items {
+						if rowAdded {
+							settingsSeparator(c)
+						}
+						detail := i18n.T("通用物体与人像抠图")
+						switch item.ID {
+						case "birefnet-hr-matting":
+							detail = i18n.T("2048×2048 抠图，内存占用较高")
+						case engine.ID:
+							detail = i18n.T("共用运行库，下载抠图模型时自动安装")
+						}
+						a.settingsResourceRow(c, item, fmt.Sprintf("%s · %.1f MiB · MIT", detail, float64(item.Size)/(1<<20)))
+						rowAdded = true
+					}
 				}
-				detail := i18n.T("推荐新手优先试用 · 日常通用与人像发丝均衡")
-				switch item.ID {
-				case "birefnet-hr-matting":
-					detail = i18n.T("2048×2048 高清精细抠图 · 发丝与半透明细节更强，耗时与内存占用较高")
-				case engine.ID:
-					detail = i18n.T("抠图共享引擎 · 首次下载上方模型时自动附带")
-				}
-				a.settingsResourceRow(c, item, fmt.Sprintf("%s · %.1f MiB · MIT", detail, float64(item.Size)/(1<<20)))
-				rowAdded = true
 			}
-		}
-		if rowAdded {
-			settingsSeparator(c)
-		}
-		if !upscaleSupported {
-			settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
-		} else {
-			detail := fmt.Sprintf("%s · %.1f MiB · MIT / BSD-3-Clause", i18n.T("2× / 4× 高清放大（含写实照片与动漫插画），支持 Vulkan GPU 加速"), float64(upscaleEngine.Size)/(1<<20))
-			a.settingsResourceRow(c, upscaleEngine, detail)
-		}
-	})
-
-	settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
-	ui.Text(c, i18n.T("适合独显用户：第 1 步连接本机 ComfyUI，第 2 步按显卡容量下载专业模型，即可在白板直接调用")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
-	if !s.comfyURLInit {
-		s.comfyURL = a.prefs.ComfyUI.URL
-		s.comfyURLInit = true
+			if s.tab == 1 {
+				if !upscaleSupported {
+					settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
+				} else {
+					detail := fmt.Sprintf("%s · %.1f MiB · MIT / BSD-3-Clause", i18n.T("2× / 4× 放大，含照片与动漫模型"), float64(upscaleEngine.Size)/(1<<20))
+					a.settingsResourceRow(c, upscaleEngine, detail)
+				}
+			}
+		})
 	}
-	settingsGroup(c, "comfyui-engine", func() {
-		dirNote := a.prefs.ComfyUI.Dir
-		if dirNote == "" {
-			dirNote = i18n.T("未配置 · 点击右侧选择本机 ComfyUI 文件夹即可，FreeFolio 会静默拉起且不修改原目录")
-		}
-		settingRow(c, "comfy-dir", i18n.T("步骤 1 · ComfyUI 目录"), dirNote, func() {
-			if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy).Clicked() {
-				a.setComfyDirectory("")
-			}
-			if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy).Clicked() {
-				a.chooseComfyDirectory()
-			}
-		})
-		settingsSeparator(c)
-		status := i18n.T("选好目录后点击右侧「检测并启动」，确认显卡与可用节点")
-		if s.comfyBusy {
-			status = i18n.T("正在启动并检测 ComfyUI")
-		} else if s.comfyCaps != nil {
-			dev := s.comfyCaps.Device
-			if dev == "" {
-				dev = "ComfyUI"
-			}
-			rmbgState := i18n.T("未就绪（需升级 ComfyUI 至 0.4.60+）")
-			if s.comfyCaps.RMBG3Native {
-				rmbgState = i18n.T("原生节点已就绪")
-			}
-			sa2vaState := i18n.T("未安装（可选装 ComfyUI-Sa2VA-XJ 或 ComfyUI-Sa2VA）")
-			if s.comfyCaps.Sa2VANode != "" {
-				sa2vaState = s.comfyCaps.Sa2VANode
-			}
-			nativeState := func(ok bool) string {
-				if ok {
-					return i18n.T("就绪")
-				}
-				return i18n.T("未就绪")
-			}
-			status = fmt.Sprintf(i18n.T("已连接 %s · RMBG-3.0：%s · Sa2VA：%s · SeedVR2：%s · Z-Image：%s · Qwen-Image 2.1：%s · 放大模型 %d 个"),
-				dev, rmbgState, sa2vaState, nativeState(s.comfyCaps.SeedVR2Native), nativeState(s.comfyCaps.ZImageNative), nativeState(s.comfyCaps.QwenImageNative), len(s.comfyCaps.UpscaleModels))
-		}
-		settingRow(c, "comfy-status", i18n.T("连接与能力状态"), status, func() {
-			if s.comfyCaps != nil {
-				resourceStatusBadge(c, i18n.T("已连接"), true)
-			}
-			if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
-				a.stopComfyUI()
-				s.comfyCaps = nil
-			}
-			canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
-			if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
-				a.probeComfyUI()
-			}
-		})
-		settingsSeparator(c)
-		settingRow(c, "comfy-url", i18n.T("服务地址（进阶 · 可选）"), i18n.T("留空即可自动启动；仅需连接已手动启动的 ComfyUI 窗口时填写"), func() {
-			if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy).Changed() {
-				a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
-				a.savePrefs()
-				s.comfyCaps = nil
-				s.comfyErr = nil
-			}
-		})
-	})
 
-	settingsSection(c, i18n.T("步骤 2 · 下载 GPU 专业模型（自动挂载到 ComfyUI）"))
+	if s.tab == 0 {
+		settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
+		ui.Text(c, i18n.T("选择目录后，点击「检测并启动」")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
+		if !s.comfyURLInit {
+			s.comfyURL = a.prefs.ComfyUI.URL
+			s.comfyURLInit = true
+		}
+		settingsGroup(c, "comfyui-engine", func() {
+			dirNote := a.prefs.ComfyUI.Dir
+			if dirNote == "" {
+				dirNote = i18n.T("请选择本机 ComfyUI 目录")
+			}
+			settingRow(c, "comfy-dir", i18n.T("ComfyUI 目录"), dirNote, func() {
+				if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy).Clicked() {
+					a.setComfyDirectory("")
+				}
+				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy).Clicked() {
+					a.chooseComfyDirectory()
+				}
+			})
+			settingsSeparator(c)
+			status := i18n.T("尚未连接")
+			if s.comfyBusy {
+				status = i18n.T("正在连接")
+			} else if s.comfyCaps != nil {
+				dev := s.comfyCaps.Device
+				if dev == "" {
+					dev = "ComfyUI"
+				}
+				var available []string
+				caps := s.comfyCaps
+				for _, item := range []struct {
+					name  string
+					ready bool
+				}{{"RMBG-3.0", caps.RMBG3Native}, {"Sa2VA", caps.Sa2VANode != ""}, {"SeedVR2", caps.SeedVR2Native}, {"Z-Image", caps.ZImageNative}, {"Qwen 2.1", caps.QwenImageNative}, {"LoRA", caps.LoRANative}} {
+					if item.ready {
+						available = append(available, item.name)
+					}
+				}
+				status = dev
+				if len(available) > 0 {
+					status += "\n" + fmt.Sprintf(i18n.T("可用：%s"), strings.Join(available, "、"))
+				} else {
+					status += "\n" + i18n.T("未发现可用节点，请更新 ComfyUI")
+				}
+
+			}
+			settingRow(c, "comfy-status", i18n.T("连接状态"), status, func() {
+				if s.comfyCaps != nil {
+					resourceStatusBadge(c, i18n.T("已连接"), true)
+				}
+				if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
+					a.stopComfyUI()
+					s.comfyCaps = nil
+				}
+				canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
+				if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
+					a.probeComfyUI()
+				}
+			})
+			settingsSeparator(c)
+			settingRow(c, "comfy-url", i18n.T("服务地址（可选）"), i18n.T("连接已运行的服务时填写；留空则按所选目录启动"), func() {
+				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy).Changed() {
+					a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
+					a.savePrefs()
+					s.comfyCaps = nil
+					s.comfyErr = nil
+				}
+			})
+		})
+	} else {
+		ui.Text(c, i18n.T("先在「模型」页连接 ComfyUI")).FontSize(12).TextColor(t.TextMuted)
+	}
+
+	if s.tab == 2 {
+		ui.Text(c, i18n.T("LoRA 用于调整生成风格或细节，下载时会补齐缺少的底模")).FontSize(12).TextColor(t.TextMuted)
+	}
+	settingsSection(c, []string{i18n.T("模型"), i18n.T("增强模型"), "LoRA"}[s.tab])
 	settingsGroup(c, "comfyui-packs", func() {
-		for index, pack := range localresource.ComfyPacks {
-			if index > 0 {
+		added := false
+		for _, pack := range localresource.ComfyPacks {
+			if pack.ResourceTab() != s.tab {
+				continue
+			}
+			if added {
 				settingsSeparator(c)
 			}
+			added = true
 			badge, accent, detail := a.packDetailAndBadge(pack)
 			a.settingsPackRow(c, pack, badge, accent, detail)
 		}
-		ui.Text(c, i18n.T("下载文件经 --extra-model-paths-config 自动挂载并做 SHA-256 校验，中断后再次点击下载可断点继续")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+		ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 	})
 
 	if s.comfyErr != nil {
 		ui.Text(c, i18n.T("ComfyUI 连接失败：")+s.comfyErr.Error()).TextColor(t.Danger).FontSize(12)
 	}
 	if s.confirm != "" {
-		ui.Text(c, i18n.T("仅移除所选资源，不影响原图或已生成的图片")).FontSize(12)
+		ui.Text(c, i18n.T("所选资源将移到回收站")).FontSize(12)
 		if supported && s.confirm == engine.ID {
-			ui.Text(c, i18n.T("删除共用运行库后，两款本地抠图模型都需要重新下载运行库才能运行")).FontSize(12)
+			ui.Text(c, i18n.T("移除运行库后，需重新下载才能抠图")).FontSize(12)
 		}
 	}
 	if s.err != nil {

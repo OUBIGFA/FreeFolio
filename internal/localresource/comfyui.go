@@ -71,6 +71,8 @@ type ComfyCapabilities struct {
 	ZImageModels    []string
 	QwenImageNative bool
 	QwenImageModels []string
+	LoRANative      bool
+	LoRAModels      []string
 }
 
 type comfyNodeSchema struct {
@@ -673,7 +675,7 @@ func WriteComfyExtraModelPaths(resourceDir string) (string, error) {
 		return "", errors.New("resource directory must be an absolute path")
 	}
 	base := filepath.Join(resourceDir, "comfyui")
-	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg", "sa2va", "vitmatte"}
+	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg", "sa2va", "vitmatte", "loras"}
 	for _, sub := range folders {
 		if err := os.MkdirAll(filepath.Join(base, sub), 0o700); err != nil {
 			return "", err
@@ -1072,6 +1074,10 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 		if len(caps.CutoutModels) > 0 {
 			caps.CutoutNode = "RMBG"
 		}
+	}
+	if loader, ok := info["LoraLoaderModelOnly"]; ok {
+		caps.LoRANative = true
+		caps.LoRAModels = parseComfyChoiceList(loader.Input.Required["lora_name"])
 	}
 	hasAll := func(names ...string) bool {
 		for _, name := range names {
@@ -1543,6 +1549,9 @@ type ComfyImageRequest struct {
 	AspectRatio string
 	Count       int
 	Images      [][]byte
+	LoRA        string
+	Strength    float64
+	Enhance     bool
 }
 
 func randomComfySeed() uint64 {
@@ -1632,6 +1641,11 @@ func (m *ComfyManager) encodeAndUploadPNG(ctx context.Context, base string, data
 
 // UpscaleSeedVR2 runs ByteDance SeedVR2 generative restoration/upscaling via ComfyUI native nodes.
 func (m *ComfyManager) UpscaleSeedVR2(ctx context.Context, cfg ComfyConfig, scale int, input []byte) ([]byte, error) {
+	return m.UpscaleSeedVR2Model(ctx, cfg, "seedvr2-7b-sharp-int8", scale, input)
+}
+
+// UpscaleSeedVR2Model honors the chosen variant instead of preferring 7B.
+func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig, modelID string, scale int, input []byte) ([]byte, error) {
 	if scale == 0 {
 		scale = 4
 	}
@@ -1664,7 +1678,17 @@ func (m *ComfyManager) UpscaleSeedVR2(ctx context.Context, cfg ComfyConfig, scal
 	if !caps.SeedVR2Native {
 		return nil, errors.New("ComfyUI does not expose native SeedVR2 nodes; update ComfyUI first")
 	}
-	unetName := pickComfyModel([]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "seedvr2_7b_int8_convrot.safetensors", "seedvr2_3b_int8_convrot.safetensors"}, caps.SeedVR2Models, "seedvr2")
+	pack, ok := ComfyPack(modelID)
+	if !ok || pack.Kind != "seedvr2" {
+		return nil, fmt.Errorf("unknown SeedVR2 model: %s", modelID)
+	}
+	unetName := ""
+	for _, name := range caps.SeedVR2Models {
+		if name == filepath.Base(pack.Files[0].RelPath) {
+			unetName = name
+			break
+		}
+	}
 	if unetName == "" {
 		return nil, errors.New("SeedVR2 diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
 	}
@@ -1757,7 +1781,12 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 	if !caps.ZImageNative {
 		return nil, errors.New("ComfyUI does not expose native Z-Image nodes; update ComfyUI first")
 	}
-	unetName := pickComfyModel([]string{"z_image_turbo_int8_convrot.safetensors", "z_image_turbo_bf16.safetensors"}, caps.ZImageModels, "z_image")
+	loraName, err := prepareLoRA(cfg, caps, &req, "zimage")
+	if err != nil {
+		return nil, err
+	}
+	prompt = strings.TrimSpace(req.Prompt)
+	unetName := pickComfyModel([]string{"z_image_turbo_int8_convrot.safetensors", "z_image_turbo_bf16.safetensors"}, caps.ZImageModels, "z_image_turbo")
 	if unetName == "" {
 		return nil, errors.New("Z-Image-Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
 	}
@@ -1800,11 +1829,23 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 		"9":  map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"6", 0}}},
 		"10": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"9", 0}, "filename_prefix": "freefolio_zimage"}},
 	}
+	graph["2"].(map[string]any)["inputs"].(map[string]any)["model"] = attachLoRA(graph, loraName, req.Strength)
 	return m.runImagesWorkflow(ctx, base, graph)
 }
 
 // GenerateQwenImage21Turbo runs text-to-image or multi-image editing via Qwen-Image 2.1 Turbo native nodes.
 func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	if req.Enhance {
+		if len(req.Images) != 1 {
+			return nil, errors.New("image enhancement requires one input image")
+		}
+		data, err := enhancementInput(req.Images[0])
+		if err != nil {
+			return nil, err
+		}
+		req.Images = [][]byte{data}
+		req.Count = 1
+	}
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
 		return nil, errors.New("prompt is required")
@@ -1817,7 +1858,12 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 	if !caps.QwenImageNative {
 		return nil, errors.New("ComfyUI does not expose native Qwen-Image 2.1 nodes; update ComfyUI first")
 	}
-	unetName := pickComfyModel([]string{"qwen_image_2.1_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_bf16.safetensors"}, caps.QwenImageModels, "qwen_image_2.1")
+	loraName, err := prepareLoRA(cfg, caps, &req, "qwen")
+	if err != nil {
+		return nil, err
+	}
+	prompt = strings.TrimSpace(req.Prompt)
+	unetName := pickComfyModel([]string{"qwen_image_2.1_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_bf16.safetensors"}, caps.QwenImageModels, "qwen_image_2.1_turbo")
 	if unetName == "" {
 		return nil, errors.New("Qwen-Image 2.1 Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
 	}
@@ -1860,6 +1906,10 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 		"3": map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "qwen_image", "device": "default"}},
 		"4": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
 	}
+	cacheInputs["model"] = attachLoRA(graph, loraName, req.Strength)
+	if req.Enhance {
+		encInputs["resolution"] = 0
+	}
 	if len(req.Images) > 0 {
 		encInputs["vae"] = []any{"4", 0}
 		limit := min(len(req.Images), 8)
@@ -1876,7 +1926,7 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 	graph["5"] = map[string]any{"class_type": "TextEncodeQwenImage21", "inputs": encInputs}
 
 	var latentRef []any
-	if len(req.Images) > 0 && strings.TrimSpace(req.Size) == "" && strings.TrimSpace(req.AspectRatio) == "" && count == 1 {
+	if req.Enhance || len(req.Images) > 0 && strings.TrimSpace(req.Size) == "" && strings.TrimSpace(req.AspectRatio) == "" && count == 1 {
 		latentRef = []any{"5", 2}
 	} else {
 		graph["6"] = map[string]any{"class_type": "EmptyLatentImage", "inputs": map[string]any{"width": w, "height": h, "batch_size": count}}

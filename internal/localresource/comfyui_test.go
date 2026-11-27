@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -645,7 +646,7 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		case "/object_info":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"UNETLoader": map[string]any{"input": map[string]any{"required": map[string]any{
-					"unet_name": []any{[]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "z_image_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_int8_convrot.safetensors"}},
+					"unet_name": []any{[]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "seedvr2_3b_int8_convrot.safetensors", "z_image_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_int8_convrot.safetensors"}},
 				}}},
 				"CLIPLoader": map[string]any{"input": map[string]any{"required": map[string]any{
 					"clip_name": []any{[]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen3vl_8b_int8_convrot.safetensors"}},
@@ -654,6 +655,7 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 					"vae_name": []any{[]string{"seedvr2_ema_vae_fp16.safetensors", "ae.safetensors", "qwen_image_2.1_vae_bf16.safetensors"}},
 				}}},
 				"KSampler":              map[string]any{},
+				"LoraLoaderModelOnly":   map[string]any{"input": map[string]any{"required": map[string]any{"lora_name": []any{[]string{"freefolio-z-detail.safetensors", "freefolio-z-pencil.safetensors", "freefolio-qwen-restore.safetensors", "freefolio-qwen-detail.safetensors"}}}}},
 				"VAEDecode":             map[string]any{},
 				"JoinImageWithAlpha":    map[string]any{},
 				"ResizeImageMaskNode":   map[string]any{"input": map[string]any{"required": map[string]any{"resize_type": []any{[]string{"scale by multiplier"}}}}},
@@ -724,7 +726,7 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !caps.SeedVR2Native || !caps.ZImageNative || !caps.QwenImageNative ||
-		len(caps.SeedVR2Models) != 1 || len(caps.ZImageModels) != 1 || len(caps.QwenImageModels) != 1 {
+		len(caps.SeedVR2Models) != 2 || len(caps.ZImageModels) != 1 || len(caps.QwenImageModels) != 1 {
 		t.Fatalf("unexpected capabilities: %+v", caps)
 	}
 
@@ -763,5 +765,55 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 	}
 	if captured[3]["5"]["images.image_1"] == nil || captured[3]["5"]["vae"] == nil {
 		t.Fatalf("expected reference image & vae in Qwen21 Edit encoder: %+v", captured[3]["5"])
+	}
+	if _, err := mgr.UpscaleSeedVR2Model(context.Background(), cfg, "seedvr2-3b-int8", 2, in); err != nil {
+		t.Fatal(err)
+	}
+	if captured[4]["6"]["unet_name"] != "seedvr2_3b_int8_convrot.safetensors" {
+		t.Fatal("3B selection ran 7B")
+	}
+	for _, tc := range []struct {
+		id       string
+		strength float64
+		enhance  bool
+	}{
+		{"z-detail", .35, false}, {"z-pencil", .7, false}, {"z-pencil", 0, false}, {"qwen-restore", 1, true}, {"qwen-detail", .85, true},
+	} {
+		req := ComfyImageRequest{Prompt: "keep the subject", LoRA: tc.id, Strength: tc.strength, Enhance: tc.enhance}
+		var err error
+		if tc.enhance {
+			req.Images = [][]byte{in}
+			_, err = mgr.GenerateQwenImage21Turbo(context.Background(), cfg, req)
+		} else {
+			_, err = mgr.GenerateZImageTurbo(context.Background(), cfg, req)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		g := captured[len(captured)-1]
+		if tc.strength == 0 {
+			if g["lora"] != nil || g["4"]["text"] != "keep the subject" {
+				t.Fatal("disabled LoRA affected graph or prompt")
+			}
+			continue
+		}
+		if g["lora"]["__class_type"] != "LoraLoaderModelOnly" || g["lora"]["lora_name"] != "freefolio-"+tc.id+".safetensors" || g["lora"]["strength_model"] != tc.strength {
+			t.Fatalf("wrong LoRA graph: %+v", g)
+		}
+		if fmt.Sprint(g["2"]["model"]) != "[lora 0]" {
+			t.Fatal("sampler uses unpatched model")
+		}
+		if tc.enhance && (g["5"]["resolution"] != float64(0) || fmt.Sprint(g["11"]["latent_image"]) != "[5 2]") {
+			t.Fatal("restoration lost native reference resolution")
+		}
+	}
+	before := len(captured)
+	for _, id := range []string{"qwen-restore", "z-unknown", "z-3d"} {
+		if _, err := mgr.GenerateZImageTurbo(context.Background(), cfg, ComfyImageRequest{Prompt: "test", LoRA: id, Strength: .5}); err == nil {
+			t.Fatalf("unsupported or missing adapter %s accepted", id)
+		}
+	}
+	if len(captured) != before {
+		t.Fatal("invalid LoRA submitted a generation")
 	}
 }

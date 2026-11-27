@@ -161,12 +161,12 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		var meta string
 		if len(n.Outputs) > 0 {
 			cur := n.Current
-			if n.Role == whiteboard.AIImage {
+			if n.ImageHistory() {
 				cur = b.aiHistoryCurrent(e, n)
 			}
 			cur = max(0, min(cur, len(n.Outputs)-1))
 			meta = fmt.Sprintf("%d/%d", cur+1, len(n.Outputs))
-			if n.Role == whiteboard.AIImage && n.Outputs[cur].Run > 0 {
+			if n.ImageHistory() && n.Outputs[cur].Run > 0 {
 				meta = fmt.Sprintf(i18n.T("第 %d 次 · %d/%d"), n.Outputs[cur].Run, cur+1, len(n.Outputs))
 			}
 		}
@@ -290,7 +290,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		b.paintAIComparePreview(p, e, n, r, pal, zoom)
 		return
 	}
-	if n.Role == whiteboard.AIImage && len(n.Outputs) > 0 {
+	if n.ImageHistory() && len(n.Outputs) > 0 {
 		b.paintAIImageHistory(p, e, n, r, pal, zoom)
 		return
 	}
@@ -340,7 +340,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		switch n.Role {
 		case whiteboard.AIImage:
 			hint = i18n.T("运行后显示图像")
-		case whiteboard.AICutout, whiteboard.AIUpscale:
+		case whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AIEnhance:
 			hint = i18n.T("请连接一张输入图片")
 		case whiteboard.AIVideo:
 			hint = i18n.T("运行后显示视频")
@@ -570,6 +570,9 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 					ui.Row(c.Key("inline-params-" + id)).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
 						b.aiInlineParams(c, o, id, n, disabled)
 					})
+					if n.Role == whiteboard.AIImage && n.Params.LoRAStrength != nil {
+						ui.Row(c.Key("inline-lora-" + id)).Height(26).Gap(6).AlignItems(ui.Center).Children(func() { b.aiLoRAStrength(c, o, id, n, disabled) })
+					}
 				})
 			}
 		})
@@ -610,7 +613,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 		b.selectIDs([]string{id})
 		// A deliberate image run requests a new variation, even with the
 		// same prompt. Whole-workflow runs still use the input cache.
-		force := b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImage
+		force := b.aiNode(b.Scene.ElementByID(id)).ImageHistory()
 		b.RunAI([]string{id}, false, force, o)
 	}
 }
@@ -624,6 +627,8 @@ func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whit
 	p := n.Params
 	key := func(k string) string { return "inline-" + k + "-" + id }
 	switch n.Role {
+	case whiteboard.AIEnhance:
+		b.aiLoRAStrength(c, o, id, n, disabled)
 	case whiteboard.AIText:
 		values, labels := []string{""}, []string{i18n.T("常用指令")}
 		for _, pr := range aiTextPresets {

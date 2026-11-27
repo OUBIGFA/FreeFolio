@@ -2,6 +2,20 @@ package whiteboard
 
 import "testing"
 
+func TestZImageLoRANodeAcceptsTextButRejectsImageLinks(t *testing.T) {
+	n := &AINode{Role: AIImage, Connection: "comfyui-zimage", Model: "z-pencil"}
+	if _, ok := AIFindInputByType(n, AITypeImage); ok {
+		t.Fatal("text-only LoRA node accepts images")
+	}
+	if _, ok := AIFindInputByType(n, AITypeString); !ok {
+		t.Fatal("text-only LoRA node rejects prompts")
+	}
+	n.Connect("image.0", "photo")
+	if n.LinkAt("image.0") != "" {
+		t.Fatal("disabled reference image connected")
+	}
+}
+
 func TestCutoutPromptFollowsModelCapability(t *testing.T) {
 	for _, tc := range []struct {
 		connection string

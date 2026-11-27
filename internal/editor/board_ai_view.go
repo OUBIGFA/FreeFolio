@@ -13,8 +13,8 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
@@ -283,10 +283,38 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-image", "生成图像", "图像", "image", "image", add(whiteboard.AIImage, "")},
 		{"ai-cutout", "本地抠图", "图像", "image", "image", add(whiteboard.AICutout, "")},
 		{"ai-upscale", "图片放大", "图像", "image", "image", add(whiteboard.AIUpscale, "")},
+		{"ai-enhance", "图片增强", "图像", "image", "image", add(whiteboard.AIEnhance, "")},
 		{"ai-compare", "图片对比", "图像", "image", "image", add(whiteboard.AICompare, "")},
 		{"ai-edit", "编辑图像", "图像", "sparkles", "image", add(whiteboard.AIImage, "编辑图像")},
 		{"ai-video", "文生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "")},
 		{"ai-i2v", "图生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "图生视频")},
+	}
+	if o.AI.Presets != nil {
+		for _, preset := range o.AI.Presets() {
+			m := preset.Model
+			label := m.Name
+			if m.Category != "" {
+				label = i18n.T(m.Category) + " · " + label
+			}
+			items = append(items, aiBarItem{"model-" + m.Model, label, "增强与 LoRA", "image", "image", func() {
+				b.edit(o, func() {
+					e := b.newAINode(preset.Role, b.viewCenter(), o)
+					n := whiteboard.AINodeOf(e)
+					n.Title, n.Connection, n.Model, n.Instruction = label, m.Connection, m.Model, m.Instruction
+					n.Params.LoRAStrength = m.LoRAStrength
+					if preset.Role == whiteboard.AIImage {
+						n.Params.Size = m.defaultImageSize()
+						n.Params.Quality = ""
+					}
+					e.H = max(e.H, aiMinHeight(n))
+					b.err = whiteboard.SetAINode(e, n)
+					b.selectIDs([]string{e.ID})
+				})
+				if o.AI.Remember != nil {
+					o.AI.Remember(preset.Role, m)
+				}
+			}})
+		}
 	}
 	for _, t := range aiTemplates {
 		items = append(items, aiBarItem{"tpl-" + t.key, t.label, "模板", "sparkles", "text", func() { b.insertAITemplate(t.key, o) }})
@@ -433,7 +461,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
 			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 			b.aiModelField(c, o, id, n)
 		}
 		aiPropDivider(c, o)
@@ -483,7 +511,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 				edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
 			}
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
 			aiPropSection(c, o, "指令")
 			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
 			if n.Role == whiteboard.AICutout {
@@ -554,7 +582,7 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 		current = (BoardAIModel{Connection: n.Connection, Model: n.Model}).label()
 	}
 	before := current
-	ui.Select(c.Key("board-ai-model"), &current, labels).WidthPercent(100).FontSize(13).Label(i18n.T("模型"))
+	ui.Select(c.Key("board-ai-model"), &current, labels).WidthPercent(100).FontSize(13).Disabled(b.ReadOnly || b.Scene.ElementByID(id).Locked).Label(i18n.T("模型"))
 	if current != before {
 		for i, l := range labels {
 			if l == current {
@@ -586,7 +614,13 @@ func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whit
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { fn(&n.Params) })
 	}
 	p := n.Params
+	if n.Params.LoRAStrength != nil {
+		ui.Row(c.Key("lora-strength-prop")).Height(28).Gap(6).AlignItems(ui.Center).Children(func() { b.aiLoRAStrength(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked) })
+	}
 	switch n.Role {
+	case whiteboard.AIEnhance:
+		ui.Text(c, i18n.T("按原图比例增强，输出约 2MP 的新图片")).FontSize(12).TextColor(o.Theme.TextMuted)
+		return
 	case whiteboard.AIText:
 		b.aiPresetRow(c, o, id)
 		aiPropDivider(c, o)
@@ -788,6 +822,10 @@ func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, m
 	_, _, wasNative := aiImageSizeChoices(o, n, false)
 	b.updateAINode(o, id, func(node *whiteboard.AINode) {
 		node.Connection, node.Model = model.Connection, model.Model
+		node.Params.LoRAStrength = model.LoRAStrength
+		if node.Instruction == "" {
+			node.Instruction = model.Instruction
+		}
 		if node.Role == whiteboard.AIImage && wasNative != (len(model.ImageSizes) > 0) {
 			node.Params.Size, node.Params.Quality = model.defaultImageSize(), ""
 		}
@@ -823,7 +861,7 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 	}
 	before := current
 	// The cached control includes its native chevron at the board's scale.
-	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(i18n.T("模型")).Cache()
+	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(current).Cache()
 	if current != before {
 		for i, l := range labels {
 			if l == current {
