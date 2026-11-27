@@ -15,8 +15,12 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+var loraBaseModels = []string{"z-image-turbo-int8", "qwen-image-2.1-turbo-int8", "qwen-image-2.1-int8"}
+
 type resourceState struct {
+	installing                bool
 	tab                       int
+	loraBaseTab               int
 	dir, busy, confirm        string
 	installed                 map[string]bool
 	cancel                    context.CancelFunc
@@ -74,6 +78,7 @@ func (a *App) setComfyDirectory(dir string) {
 	a.savePrefs()
 	a.resources.comfyCaps = nil
 	a.resources.comfyErr = nil
+	a.resources.dir = ""
 	a.stopComfyUI()
 }
 
@@ -235,6 +240,7 @@ func (a *App) inspectResources(root string, items []localresource.Resource) {
 	state.dir = root
 	state.installed = nil
 	packs := localresource.ComfyPacks
+	engineDir := a.prefs.ComfyUI.Dir
 	a.backgroundResult(func() func() {
 		installed := map[string]bool{}
 		for _, item := range items {
@@ -242,6 +248,9 @@ func (a *App) inspectResources(root string, items []localresource.Resource) {
 		}
 		for _, pack := range packs {
 			installed[pack.ID] = localresource.PackPresent(root, pack)
+			if pack.Kind == "audio-tts" {
+				installed[pack.ID] = installed[pack.ID] && localresource.VoicePluginInstalled(root, engineDir)
+			}
 		}
 		return func() {
 			if state.dir == root {
@@ -308,6 +317,18 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 		return
 	}
 	root := a.resourceDirectory()
+	engineDir := a.prefs.ComfyUI.Dir
+	if !remove && pack.Kind == "audio-tts" {
+		if strings.TrimSpace(a.prefs.ComfyUI.URL) != "" {
+			s.err = errors.New(i18n.T("自动安装语音插件需由 FreeFolio 启动引擎，请清空服务地址后下载"))
+			return
+		}
+		layout, err := localresource.DetectComfyLayout(engineDir)
+		if err != nil || !layout.IsolatedPython {
+			s.err = fmt.Errorf("%s", i18n.T("请先选择含独立运行环境的 ComfyUI 目录"))
+			return
+		}
+	}
 	s.busy, s.confirm, s.err = pack.ID, "", nil
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !remove {
@@ -336,11 +357,25 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 		defer cancel()
 		var err error
 		if remove {
-			err = localresource.RemovePack(root, pack, a.trashItem)
+			if pack.Kind == "audio-tts" {
+				err = localresource.RemoveVoicePlugin(root, a.trashItem)
+			}
+			if err == nil {
+				err = localresource.RemovePack(root, pack, a.trashItem)
+			}
 		} else {
 			err = localresource.InstallPack(ctx, root, download, func(done, _ int64) {
 				s.received.Store(done)
 			})
+			if err == nil && pack.Kind == "audio-tts" {
+				if a.win != nil {
+					a.win.Update(func() { s.installing = true })
+				}
+				err = localresource.InstallVoicePlugin(ctx, root, engineDir)
+				if err == nil && mgr != nil {
+					mgr.Stop()
+				}
+			}
 			if err == nil {
 				_, err = localresource.WriteComfyExtraModelPaths(root)
 			}
@@ -445,7 +480,18 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 	}
 	if pack.BaseModel != "" {
 		base, _ := localresource.ComfyPack(pack.BaseModel)
-		return i18n.T(pack.Category), false, fmt.Sprintf(i18n.T("LoRA：%s · %s\n底模：%s"), sizeText, license, base.Name)
+		detail = fmt.Sprintf(i18n.T("LoRA：%s · %s\n底模：%s"), sizeText, license, base.Name)
+		if pack.Experimental {
+			detail += "\n" + i18n.T("实验版，效果需验证")
+		}
+		if len(pack.Dependencies) > 0 {
+			var size int64
+			for _, f := range pack.Dependencies {
+				size += f.Size
+			}
+			detail += "\n" + fmt.Sprintf(i18n.T("另需文本编码器：%s"), formatResourceBytes(size))
+		}
+		return i18n.T(pack.Category), false, detail
 	}
 	if pack.Kind == "seedvr2" {
 		sizeText = formatResourceBytes(pack.Files[0].Size)
@@ -465,6 +511,14 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 		purpose = i18n.T("2× / 4× 动漫放大")
 	case "zimage":
 		purpose = i18n.T("文字生图，8 步生成")
+	case "audio-music":
+		purpose = i18n.T("音乐与歌曲，可填歌词，默认 30 秒")
+	case "audio-sfx":
+		purpose = i18n.T("音效与环境声，默认 10 秒")
+	case "audio-tts":
+		purpose = i18n.T("多语言朗读，自动安装语音插件")
+	case "video-wan":
+		purpose = i18n.T("文字或首帧生成视频，832×480，默认 4 秒")
 	case "qwen-image":
 		purpose = i18n.T("文字生图与参考图编辑")
 	}
@@ -525,7 +579,7 @@ func (a *App) settingsResources(c *ui.Context) {
 		ui.Text(c, i18n.T("更改位置会迁移已下载资源")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 	})
 
-	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("本地模型"), i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA").Label(i18n.T("资源类型")).Disabled(s.busy != "")
+	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("本地模型"), i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA", i18n.T("音频模型"), i18n.T("视频模型")).Label(i18n.T("资源类型")).Disabled(s.busy != "")
 
 	if s.tab == 0 {
 		settingsSection(c, i18n.T("直接运行"))
@@ -640,13 +694,17 @@ func (a *App) settingsResources(c *ui.Context) {
 
 	if s.tab == 3 {
 		ui.Text(c, i18n.T("LoRA 用于调整生成风格或细节，下载时会补齐缺少的底模")).FontSize(12).TextColor(t.TextMuted)
+		ui.Tabs(c.Key("lora-base-tabs"), &s.loraBaseTab, "Z-Image Turbo", "Qwen 2.1 Turbo", i18n.T("Qwen 2.1 普通版")).Label(i18n.T("LoRA 底模")).Disabled(s.busy != "")
 	}
 	if s.tab > 0 {
-		settingsSection(c, []string{"", i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA"}[s.tab])
+		settingsSection(c, []string{"", i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA", i18n.T("音频模型"), i18n.T("视频模型")}[s.tab])
 		settingsGroup(c, "comfyui-packs", func() {
 			added := false
 			for _, pack := range localresource.ComfyPacks {
 				if pack.ResourceTab() != s.tab {
+					continue
+				}
+				if s.tab == 3 && pack.BaseModel != loraBaseModels[s.loraBaseTab] {
 					continue
 				}
 				if added {

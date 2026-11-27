@@ -39,8 +39,11 @@ func (b *Board) insertAIModelPreset(preset BoardAIPreset, label string, o BoardO
 			n.Model = m.BaseModel
 			n.Params.LoRAStrength = nil
 			n.Connect("model", lora.ID)
+			if preset.Role == whiteboard.AIImage && m.Connection == "comfyui-qwen-image" {
+				n.Params.Size, n.Params.AspectRatio = "", ""
+			}
 		}
-		if preset.Role == whiteboard.AIImage {
+		if preset.Role == whiteboard.AIImage && m.Connection != "comfyui-qwen-image" {
 			n.Params.Size = m.defaultImageSize()
 			n.Params.Quality = ""
 		}

@@ -207,7 +207,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIEnhance: "图片增强", whiteboard.AIModel: "加载底模", whiteboard.AILoRA: "加载 LoRA", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIEnhance: "图片增强", whiteboard.AIModel: "加载底模", whiteboard.AILoRA: "加载 LoRA", whiteboard.AIVideo: "视频生成", whiteboard.AIAudio: "音频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -301,7 +301,7 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
 	var model BoardAIModel
-	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIModel || role == whiteboard.AILoRA || role == whiteboard.AIVideo || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
+	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIModel || role == whiteboard.AILoRA || role == whiteboard.AIVideo || role == whiteboard.AIAudio || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
 		model = o.AI.Default(role)
 		n.Connection, n.Model = model.Connection, model.Model
 		n.Params.LoRAStrength = model.LoRAStrength
@@ -693,11 +693,16 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	// A linked prompt slot replaces the node's instruction, as a widget
 	// input does in ComfyUI.
 	instruction, group := n.Instruction, ""
+	lyrics := n.Params.Lyrics
 	if !n.AcceptsPrompt() {
 		instruction = ""
 	}
 	addText := func(label, text string) {
 		hashes = append(hashes, "t:"+group+"\x00"+label+"\x00"+text)
+		if n.Role == whiteboard.AIAudio && group == "lyrics" {
+			lyrics = text
+			return
+		}
 		if group == "prompt" {
 			instruction = text
 			return
@@ -819,6 +824,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		job.Node.Connection, job.Node.Model = modelFlow.Connection, modelFlow.Model
 	}
 	job.Node.Instruction = instruction
+	job.Node.Params.Lyrics = lyrics
 	switch n.Role {
 	case whiteboard.AIEnhance:
 		if len(images) != 1 {

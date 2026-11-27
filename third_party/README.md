@@ -196,3 +196,5 @@ export implement the open [JSON Canvas 1.0](https://jsoncanvas.org) format
 APIs and Google's Gemini, Imagen and Veo APIs directly from their public
 documentation, with the request conventions OpenAI-compatible gateways such as
 new-api and LiteLLM accept; no SDK or gateway code is bundled.
+
+Optional local audio/video weights and the externally installed ComfyUI-QwenTTS plugin are recorded in [media-resources.json](manifests/media-resources.json). They are downloaded only on request and are not bundled. The pinned GPL-3.0 plugin remains a separate ComfyUI component with its upstream license.

@@ -131,7 +131,7 @@ func TestResourceTabsKeepModelsEnhancementsAndLoRASeparate(t *testing.T) {
 		index                 int
 	}{
 		{"ComfyUI 增强", "SeedVR2 3B (INT8)", "BEN2", 2},
-		{"ComfyUI LoRA", "Qwen 2.1 Restore", "SeedVR2 3B (INT8)", 3},
+		{"ComfyUI LoRA", "Z-Image Detailer", "SeedVR2 3B (INT8)", 3},
 		{"ComfyUI 模型", "Z-Image-Turbo (INT8)", "BEN2", 1},
 		{"本地模型", "BEN2", "Z-Image Detailer", 0},
 	} {
@@ -286,7 +286,7 @@ func TestAllEnhancementPacksHaveMatchingNodes(t *testing.T) {
 				continue
 			}
 			found = true
-			if pack.Kind == "lora-qwen" && preset.Role != whiteboard.AIEnhance {
+			if pack.ID == "qwen-restore" && preset.Role != whiteboard.AIEnhance {
 				t.Fatal("Qwen restore has no image input")
 			}
 			if pack.BaseModel != "" && preset.Model.LoRAStrength == nil {

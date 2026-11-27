@@ -15,11 +15,28 @@ func (a *App) boardEnhancementPresets() []editor.BoardAIPreset {
 		m := editor.BoardAIModel{Model: pack.ModelID, Name: pack.Name, ConnectionName: "ComfyUI", Local: true, Category: pack.Category, Instruction: pack.Instruction, BaseModel: pack.BaseModel, NeedsDownload: !a.resources.installed[pack.ID]}
 		role := whiteboard.AIImage
 		switch pack.Kind {
+		case "audio-music", "audio-sfx", "audio-tts":
+			m.Connection = "comfyui-media"
+			role = whiteboard.AIAudio
+			switch pack.Kind {
+			case "audio-music":
+				m.Category = "音乐"
+			case "audio-sfx":
+				m.Category = "音效"
+			case "audio-tts":
+				m.Category = "语音"
+			}
+		case "video-wan":
+			m.Connection = "comfyui-media"
+			role = whiteboard.AIVideo
+			m.Category = "本地视频"
 		case "lora-zimage":
 			m.Connection = "comfyui-zimage"
 		case "lora-qwen":
 			m.Connection = "comfyui-qwen-image"
-			role = whiteboard.AIEnhance
+			if pack.ID == "qwen-restore" {
+				role = whiteboard.AIEnhance
+			}
 		case "seedvr2":
 			m.Connection = "comfyui-seedvr2"
 			role = whiteboard.AIUpscale

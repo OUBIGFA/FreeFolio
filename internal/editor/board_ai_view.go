@@ -13,8 +13,8 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIModel: "底模", whiteboard.AILoRA: "LoRA", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIModel: "image", whiteboard.AILoRA: "sparkles", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIModel: "底模", whiteboard.AILoRA: "LoRA", whiteboard.AIVideo: "视频", whiteboard.AIAudio: "音频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIModel: "image", whiteboard.AILoRA: "sparkles", whiteboard.AIVideo: "player-play", whiteboard.AIAudio: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
@@ -309,6 +309,12 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 					label = i18n.T(m.Category) + " · " + label
 				}
 				group := "图片处理"
+				if preset.Role == whiteboard.AIAudio {
+					group = "音频"
+				}
+				if preset.Role == whiteboard.AIVideo {
+					group = "视频"
+				}
 				if m.BaseModel != "" {
 					group = "LoRA 流程（自动连线）"
 				}
@@ -413,7 +419,7 @@ func translated(values ...string) []string {
 // aiEditBuffers are the panel's text fields, kept while a node is edited so
 // typing and IME composition survive frames.
 type aiEditBuffers struct {
-	title, instruction, note, template, extra string
+	title, instruction, note, template, extra, lyrics string
 }
 
 func aiPropDivider(c *ui.Context, o BoardOptions) {
@@ -447,7 +453,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 			raw, _ := json.Marshal(n.Params.Extra)
 			extra = string(raw)
 		}
-		b.ai.buf = aiEditBuffers{n.Title, n.Instruction, n.Note, n.Params.Template, extra}
+		b.ai.buf = aiEditBuffers{n.Title, n.Instruction, n.Note, n.Params.Template, extra, n.Params.Lyrics}
 		s.extraErr = ""
 	}
 	id := e.ID
@@ -471,7 +477,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
 			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 			b.aiModelField(c, o, id, n)
 		}
 		aiPropDivider(c, o)
@@ -521,7 +527,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 				edit(func(n *whiteboard.AINode) { n.Params.Template = b.ai.buf.template })
 			}
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AIAudio || n.Role == whiteboard.AICutout {
 			aiPropSection(c, o, "指令")
 			value, placeholder := &b.ai.buf.instruction, i18n.T("输入指令或提示词")
 			if n.Role == whiteboard.AICutout {
@@ -594,6 +600,11 @@ func aiImageSizeChoices(o BoardOptions, n *whiteboard.AINode, compact bool) ([]s
 }
 
 func (b *Board) aiParamsFields(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
+	if n.Connection == "comfyui-media" {
+		aiPropSection(c, o, "生成参数")
+		b.aiLocalMediaParams(c, o, id, n, false, b.ReadOnly || b.Scene.ElementByID(id).Locked)
+		return
+	}
 	set := func(fn func(*whiteboard.AIParams)) {
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { fn(&n.Params) })
 	}
@@ -792,6 +803,9 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 		if (out.Kind == "text" || out.Kind == "image") && ui.Button(c.Key("place"), i18n.T("放到白板")).Clicked() {
 			b.placeAIOutput(id, o)
 		}
+		if out.Kind == "audio" && out.Path != "" && o.AI.OpenFile != nil && ui.Button(c.Key("play-audio"), i18n.T("播放音频")).Clicked() {
+			o.AI.OpenFile(out.Path)
+		}
 		if out.Path != "" && o.AI.OpenFile != nil && ui.Button(c.Key("open"), i18n.T("打开文件")).Clicked() {
 			o.AI.OpenFile(out.Path)
 		}
@@ -805,6 +819,11 @@ func (b *Board) aiOutputActions(c *ui.Context, o BoardOptions, id string, n *whi
 func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, model BoardAIModel) {
 	_, _, wasNative := aiImageSizeChoices(o, n, false)
 	b.updateAINode(o, id, func(node *whiteboard.AINode) {
+		if (node.Connection == "comfyui-media" || model.Connection == "comfyui-media") && (node.Connection != model.Connection || node.Model != model.Model) {
+			// Speech and music use different language codes; each model also
+			// has its own duration limits. Keep saved lyrics when switching.
+			node.Params.Language, node.Params.Seconds = "", 0
+		}
 		node.Connection, node.Model = model.Connection, model.Model
 		node.Params.LoRAStrength = model.LoRAStrength
 		if node.Instruction == "" {
@@ -877,6 +896,13 @@ func (b *Board) aiVideoOverlay(c *ui.Context, o BoardOptions) {
 	if e != nil {
 		x, y, w, h := b.canvasRect(e.X, e.Y, e.W, e.H)
 		out := n.Output()
+		if out != nil && out.Kind == "audio" && o.AI != nil && o.AI.OpenFile != nil {
+			r := b.aiLayout(e, n).preview
+			z := float32(b.Zoom)
+			if ui.Button(c.Key("board-ai-play-audio"), i18n.T("播放音频")).Absolute().Left(x + r.X*z + 12).Top(y + r.Y*z + 12).Clicked() {
+				o.AI.OpenFile(out.Path)
+			}
+		}
 		if out != nil && out.Kind == "video" && o.AI != nil && o.AI.OpenVideo != nil && w > 60 && h > 60 {
 			player := s.videos[out.Path]
 			if player == nil {

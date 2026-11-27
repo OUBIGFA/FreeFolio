@@ -45,7 +45,7 @@ type aiCardLayout struct {
 
 func aiRunnableRole(role whiteboard.AIRole) bool {
 	switch role {
-	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout, whiteboard.AIUpscale:
+	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIAudio, whiteboard.AIConcat, whiteboard.AINote, whiteboard.AICutout, whiteboard.AIUpscale:
 		return true
 	}
 	return false
@@ -673,7 +673,7 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AILoRA, whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AILoRA, whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIAudio, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}

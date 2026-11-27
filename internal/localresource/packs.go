@@ -38,6 +38,12 @@ type ResourcePack struct {
 	Trigger         string
 	Instruction     string
 	DefaultStrength float64
+	// Adapter dependencies remain separate from its own displayed weight size.
+	Dependencies []PackFile
+	TextEncoder  string
+	Exclusive    bool
+	ImageInputs  int
+	Experimental bool
 }
 
 // TotalSize returns the total byte size of all files in the pack.
@@ -232,7 +238,35 @@ var ComfyPacks = append([]ResourcePack{
 			},
 		},
 	},
-}, enhancementPacks...)
+	{
+		ID:         "qwen-image-2.1-int8",
+		Name:       "Qwen-Image 2.1 (INT8)",
+		License:    "Qwen",
+		Kind:       "qwen-image",
+		ModelID:    "qwen-image-2.1-int8",
+		MinVRAMGiB: 10,
+		Files: []PackFile{
+			{
+				RelPath: "comfyui/diffusion_models/qwen_image_2.1_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/aacf31a6d48e707f352ecba714cee0680da3479b/diffusion_models/qwen_image_2.1_int8_convrot.safetensors",
+				Size:    7256783064,
+				SHA:     "cb74113cb03faecd79611b01fd7fd642f0aa60d6f0b95086abee214d75eaa57d",
+			},
+			{
+				RelPath: "comfyui/text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/aacf31a6d48e707f352ecba714cee0680da3479b/text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+				Size:    9350798360,
+				SHA:     "8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f",
+			},
+			{
+				RelPath: "comfyui/vae/qwen_image_2.1_vae_bf16.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/aacf31a6d48e707f352ecba714cee0680da3479b/vae/qwen_image_2.1_vae_bf16.safetensors",
+				Size:    675509688,
+				SHA:     "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9",
+			},
+		},
+	},
+}, append(append(enhancementPacks, qwenAdapterPacks...), mediaPacks...)...)
 
 // ComfyPack returns the resource pack matching id.
 func ComfyPack(id string) (ResourcePack, bool) {
@@ -258,14 +292,23 @@ func ComfyPackByModel(modelID string) (ResourcePack, bool) {
 // Each catalog LoRA has one complete base pack; installed files are reused.
 func PackDownload(pack ResourcePack) (ResourcePack, error) {
 	if pack.BaseModel == "" {
+		pack.Files = append(append([]PackFile(nil), pack.Dependencies...), pack.Files...)
+		pack.Dependencies = nil
 		return pack, nil
 	}
 	base, ok := ComfyPack(pack.BaseModel)
 	if !ok {
 		return ResourcePack{}, fmt.Errorf("unknown base model: %s", pack.BaseModel)
 	}
-	pack.Files = append(append([]PackFile(nil), base.Files...), pack.Files...)
+	files := append(append([]PackFile(nil), base.Files...), pack.Dependencies...)
+	pack.Files = append(files, pack.Files...)
+	pack.Dependencies = nil
 	return pack, nil
+}
+
+// ResourceFiles includes auxiliary files owned by an adapter, but not its base.
+func (p ResourcePack) ResourceFiles() []PackFile {
+	return append(append([]PackFile(nil), p.Files...), p.Dependencies...)
 }
 
 func resolvePackFilePath(root, rel string) (string, error) {
@@ -315,7 +358,7 @@ func PackPresent(root string, pack ResourcePack) bool {
 	if len(pack.Files) == 0 {
 		return false
 	}
-	for _, pf := range pack.Files {
+	for _, pf := range pack.ResourceFiles() {
 		target, err := resolvePackFilePath(root, pf.RelPath)
 		if err != nil {
 			return false
@@ -379,7 +422,7 @@ func installPack(ctx context.Context, root string, pack ResourcePack, client *ht
 // before passing each file to trash. Missing files are skipped cleanly.
 func RemovePack(root string, pack ResourcePack, trash func(string) error) error {
 	var targets []string
-	for _, pf := range pack.Files {
+	for _, pf := range pack.ResourceFiles() {
 		// SeedVR2 variants share a VAE; removing one must leave the other
 		// installed variant usable. A standalone LoRA never owns its base.
 		shared := false
@@ -387,7 +430,7 @@ func RemovePack(root string, pack ResourcePack, trash func(string) error) error 
 			if other.ID == pack.ID || !PackPresent(root, other) {
 				continue
 			}
-			for _, f := range other.Files {
+			for _, f := range other.ResourceFiles() {
 				if f.RelPath == pf.RelPath && f.SHA == pf.SHA {
 					shared = true
 				}

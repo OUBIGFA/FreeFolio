@@ -23,6 +23,7 @@ const (
 	AITypeString = "STRING"
 	AITypeImage  = "IMAGE"
 	AITypeVideo  = "VIDEO"
+	AITypeAudio  = "AUDIO"
 	AITypeModel  = "MODEL"
 )
 
@@ -65,6 +66,7 @@ var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 	AICompare: {{"a", "图片 A", AITypeImage, false, false}, {"b", "图片 B", AITypeImage, false, false}},
 	AIText:    {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
 	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}, {"model", "模型", AITypeModel, false, false}},
+	AIAudio:   {{"prompt", "提示词", AITypeString, false, true}, {"lyrics", "歌词", AITypeString, false, false}},
 	AIVideo:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "首帧", AITypeImage, false, false}},
 	AIConcat:  {{"text", "文本", AITypeString, true, false}},
 }
@@ -75,7 +77,7 @@ func (n *AINode) AcceptsPrompt() bool {
 	switch n.Role {
 	case AICutout:
 		return n.Connection == "comfyui-rmbg3" || n.Connection == "comfyui-sa2va"
-	case AIPrompt, AIText, AIImage, AIEnhance, AIVideo:
+	case AIPrompt, AIText, AIImage, AIEnhance, AIVideo, AIAudio:
 		return true
 	}
 	return false
@@ -89,6 +91,8 @@ func AIOutputType(role AIRole) string {
 		return AITypeModel
 	case AIImage, AIEnhance, AIImageInput, AICutout, AIUpscale:
 		return AITypeImage
+	case AIAudio:
+		return AITypeAudio
 	case AIVideo, AICompare:
 		return ""
 	}
@@ -113,7 +117,7 @@ func AISlots(n *AINode) []AISlot {
 		if sp.typ == AITypeModel && n.Role != AILoRA && n.Connection != "" && n.Connection != "comfyui-zimage" && n.Connection != "comfyui-qwen-image" && n.LinkAt("model") == "" {
 			continue
 		}
-		disabled := sp.widget && !n.AcceptsPrompt() || n.Role == AIImage && n.Connection == "comfyui-zimage" && sp.typ == AITypeImage
+		disabled := n.Role == AIAudio && sp.group == "lyrics" && n.Model != "ace15-turbo" || sp.widget && !n.AcceptsPrompt() || n.Role == AIImage && n.Connection == "comfyui-zimage" && sp.typ == AITypeImage
 		if !sp.list {
 			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget, Disabled: disabled})
 			continue

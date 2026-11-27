@@ -17,9 +17,12 @@ func (a *App) setPackDownloadProgress(pack, download localresource.ResourcePack)
 	s := &a.resources
 	s.received.Store(0)
 	s.total, s.ownStart, s.dependencyTotal, s.dependencyLabel = pack.TotalSize(), 0, 0, ""
-	if pack.BaseModel != "" {
+	if pack.BaseModel != "" || len(pack.Dependencies) > 0 {
 		s.ownStart = download.TotalSize() - pack.TotalSize()
 		s.dependencyTotal, s.dependencyLabel = s.ownStart, "底模下载"
+		if len(pack.Dependencies) > 0 {
+			s.dependencyLabel = "依赖下载"
+		}
 	} else if pack.Kind == "seedvr2" {
 		s.total = pack.Files[0].Size
 		s.dependencyTotal, s.dependencyLabel = download.TotalSize()-s.total, "VAE下载"
@@ -56,6 +59,7 @@ func (a *App) stopResourceDownload() {
 func (a *App) finishResourceDownload(err error) {
 	s := &a.resources
 	s.cancel = nil
+	s.installing = false
 	if s.pausing && errors.Is(err, context.Canceled) {
 		s.pausing = false
 		s.paused = true
@@ -71,6 +75,13 @@ func (a *App) finishResourceDownload(err error) {
 
 func (a *App) resourceDownloadControls(c *ui.Context) {
 	s := &a.resources
+	if s.installing {
+		ui.Text(c, i18n.T("正在安装语音插件")).FontSize(12)
+		if ui.Button(c.Key("stop"), i18n.T("停止")).Disabled(s.stopping).Clicked() {
+			a.stopResourceDownload()
+		}
+		return
+	}
 	if s.resume == nil {
 		ui.Text(c, i18n.T("正在移除资源")).FontSize(12)
 		return

@@ -71,7 +71,7 @@ func CollectMigratableFiles(root string) ([]MigrationItem, int64, bool) {
 		addCandidate(up.File, up.Size, up.SHA, false)
 	}
 	for _, pack := range ComfyPacks {
-		for _, pf := range pack.Files {
+		for _, pf := range pack.ResourceFiles() {
 			addCandidate(pf.RelPath, pf.Size, pf.SHA, true)
 		}
 	}
@@ -174,6 +174,9 @@ func migrateItems(ctx context.Context, fromDir, toDir string, items []MigrationI
 	}
 
 	if hasComfy {
+		if err := restoreMigratedVoicePlugin(fromDir, toDir); err != nil {
+			return err
+		}
 		if _, err := WriteComfyExtraModelPaths(toDir); err != nil {
 			return err
 		}

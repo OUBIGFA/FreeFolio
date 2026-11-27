@@ -68,7 +68,7 @@ func TestLoRARejectsMissingTamperedAndInvalidStrength(t *testing.T) {
 }
 
 func TestEnhancementDownloadsIncludeMatchingBase(t *testing.T) {
-	for _, id := range []string{"z-detail", "qwen-restore", "qwen-detail"} {
+	for _, id := range []string{"z-detail", "qwen-restore", "qwen-consistency"} {
 		pack, _ := ComfyPack(id)
 		plan, err := PackDownload(pack)
 		if err != nil {

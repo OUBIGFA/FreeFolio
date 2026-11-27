@@ -6,9 +6,9 @@ links are recorded in [enhancements.json](../manifests/enhancements.json).
 
 - Z-Image Detailer: styly-agents, Apache-2.0 as stated in the model-card text.
 - V1 Realism: youknownothing, Apache-2.0.
-- Qwen Image 2.1 Restore: ausboss, Qwen Research license.
-- Qwen 2.1 Detail Enhancer: reverentelusarca; the public model card does not
-  declare a standalone license, so use and integration require author permission.
+- Qwen Image 2.1 Restore and Consistency: ausboss, Qwen Research license.
+- FUSAL Anime, MosaicMate, WarmBlood Anime/Real: see pinned Qwen model cards.
+- Qwen 2.1 Turbo Character Swap: akhaliq, metadata declares `other`.
 - Elusarca Anime: reverentelusarca, Apache-2.0.
 - Pencil Sketch: Ttio2, Apache-2.0.
 - Linex Storybook: ABDALLALSWAITI, CreativeML OpenRAIL-M.

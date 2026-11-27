@@ -4,6 +4,12 @@ import "strings"
 
 // ResourceTab groups downloads by how they are used, independently of engine.
 func (p ResourcePack) ResourceTab() int {
+	if strings.HasPrefix(p.Kind, "audio-") {
+		return 4
+	}
+	if strings.HasPrefix(p.Kind, "video-") {
+		return 5
+	}
 	if strings.HasPrefix(p.Kind, "lora-") {
 		return 3
 	}
@@ -53,19 +59,6 @@ var enhancementPacks = []ResourcePack{
 		Trigger:         "",
 		Instruction:     "Restore the photo, remove blur, noise and compression artifacts, preserve the same people, composition, colors and natural texture",
 		Files:           []PackFile{{RelPath: "comfyui/loras/freefolio-qwen-restore.safetensors", URL: "https://huggingface.co/ausboss/Qwen-Image-2.1-Restore-LoRA/resolve/a223f1255f4738b89b36d79c44d61740d3b3546f/qwen-image-2.1-restore.safetensors", Size: 159436584, SHA: "65de4f6c2468071d5aa6ffbd82c76bfee7cc8ac28fe960e91bbca4a58f43c08c"}},
-	},
-	{
-		ID:              "qwen-detail",
-		Name:            "Qwen 2.1 Detail Enhancer",
-		Kind:            "lora-qwen",
-		ModelID:         "qwen-detail",
-		License:         "Author permission",
-		BaseModel:       "qwen-image-2.1-turbo-int8",
-		Category:        "细节增强",
-		DefaultStrength: 0.85,
-		Trigger:         "",
-		Instruction:     "Enhance this image with natural fine detail while preserving the original composition, colors, lighting and visual style",
-		Files:           []PackFile{{RelPath: "comfyui/loras/freefolio-qwen-detail.safetensors", URL: "https://huggingface.co/reverentelusarca/elusarcas-qwen-2.1-detail-enhancer-lora/resolve/aedadc6b65a15e6b261c0ec61a4587c3e7119514/elusarcas-qwen2-1-detailer-v1.safetensors", Size: 79744352, SHA: "c1298f51eb090473f924314475952710a2f0322f1df65c0290f3e14997244f96"}},
 	},
 	{
 		ID:              "z-3d",

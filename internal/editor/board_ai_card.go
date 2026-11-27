@@ -347,6 +347,8 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 			hint = i18n.T("运行后显示图像")
 		case whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AIEnhance:
 			hint = i18n.T("请连接一张输入图片")
+		case whiteboard.AIAudio:
+			hint = i18n.T("运行后生成音频")
 		case whiteboard.AIVideo:
 			hint = i18n.T("运行后显示视频")
 		case whiteboard.AINote:
@@ -386,7 +388,7 @@ func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboa
 		dw, dh := float32(iw)*scale, float32(ih)*scale
 		p.ImageRegion(bm, ui.Rect{}, ui.Rect{X: r.X + (r.W-dw)/2, Y: r.Y + (r.H-dh)/2, W: dw, H: dh}, ui.ImageOptions{})
 		drawBorder()
-	case "video":
+	case "video", "audio":
 		p.Fill(r, ui.Hex("#14161A"), 8)
 		cx, cy := r.X+r.W/2, r.Y+r.H/2-12
 		p.Fill(ui.Rect{X: cx - 19, Y: cy - 19, W: 38, H: 38}, ui.RGBA(255, 255, 255, 0.18), 19)
@@ -636,6 +638,10 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 // aiInlineParams are a role's common settings on its card; the rest are in
 // the node's full settings.
 func (b *Board) aiInlineParams(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
+	if n.Connection == "comfyui-media" {
+		b.aiLocalMediaParams(c, o, id, n, true, disabled)
+		return
+	}
 	set := func(fn func(*whiteboard.AIParams)) {
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { fn(&n.Params) })
 	}

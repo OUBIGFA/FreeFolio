@@ -53,6 +53,11 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 	}
 	for _, pack := range localresource.ComfyPacks {
 		a.resources.tab = pack.ResourceTab()
+		for i, base := range loraBaseModels {
+			if pack.BaseModel == base {
+				a.resources.loraBaseTab = i
+			}
+		}
 		tester.Frame()
 		if !tester.HasText(pack.Name) {
 			t.Fatalf("missing ComfyUI pack %s", pack.Name)

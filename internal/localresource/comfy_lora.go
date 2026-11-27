@@ -19,14 +19,23 @@ func prepareLoRA(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageReques
 		return "", nil
 	}
 	pack, ok := ComfyPack(req.LoRA)
+	if req.LoRA == "qwen-detail" {
+		return "", fmt.Errorf("Qwen 2.1 Detail Enhancer has been removed; choose another LoRA")
+	}
 	if !ok || pack.Kind != "lora-"+family {
 		return "", fmt.Errorf("LoRA is not compatible with this model: %s", req.LoRA)
+	}
+	if family == "qwen" && req.BaseModel != "" && pack.BaseModel != req.BaseModel {
+		return "", fmt.Errorf("LoRA %s requires base model %s", pack.Name, pack.BaseModel)
 	}
 	if math.IsNaN(req.Strength) || math.IsInf(req.Strength, 0) || req.Strength < 0 || req.Strength > 2 {
 		return "", fmt.Errorf("LoRA strength must be between 0 and 2")
 	}
 	if req.Strength == 0 {
 		return "", nil
+	}
+	if len(req.Images) < pack.ImageInputs {
+		return "", fmt.Errorf("LoRA %s requires %d reference images", pack.Name, pack.ImageInputs)
 	}
 	if !caps.LoRANative {
 		return "", fmt.Errorf("ComfyUI does not expose LoraLoaderModelOnly; update ComfyUI first")
@@ -42,8 +51,10 @@ func prepareLoRA(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageReques
 		return "", fmt.Errorf("LoRA %s is not available; download it in Settings → Optional resources and reconnect ComfyUI", pack.Name)
 	}
 	if cfg.ResourceDir != "" {
-		if _, err := verifyPackFile(cfg.ResourceDir, pack.Files[0]); err != nil {
-			return "", fmt.Errorf("verify %s: %w", pack.Name, err)
+		for _, file := range pack.ResourceFiles() {
+			if _, err := verifyPackFile(cfg.ResourceDir, file); err != nil {
+				return "", fmt.Errorf("verify %s: %w", pack.Name, err)
+			}
 		}
 	}
 	if req.Strength != 0 && pack.Trigger != "" && !strings.Contains(strings.ToLower(req.Prompt), strings.ToLower(pack.Trigger)) {
@@ -86,6 +97,25 @@ func prepareLoRAChain(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageR
 	adapters := req.LoRAs
 	if len(adapters) == 0 && req.LoRA != "" {
 		adapters = []ComfyLoRA{{ID: req.LoRA, Strength: req.Strength}}
+	}
+	active := 0
+	exclusive := false
+	restore, consistency := false, false
+	for _, adapter := range adapters {
+		if adapter.Strength == 0 {
+			continue
+		}
+		active++
+		pack, _ := ComfyPack(adapter.ID)
+		exclusive = exclusive || pack.Exclusive
+		restore = restore || adapter.ID == "qwen-restore"
+		consistency = consistency || strings.HasPrefix(adapter.ID, "qwen-consistency")
+	}
+	if exclusive && active > 1 {
+		return nil, fmt.Errorf("this LoRA must be used alone")
+	}
+	if restore && consistency {
+		return nil, fmt.Errorf("Restore and Consistency LoRAs must not be combined")
 	}
 	var out []ComfyLoRA
 	for _, adapter := range adapters {

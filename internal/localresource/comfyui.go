@@ -50,34 +50,47 @@ type ComfyLayout struct {
 
 // ComfyCapabilities records the GPU device and models exposed by ComfyUI.
 type ComfyCapabilities struct {
-	BaseURL         string
-	Device          string
-	VRAMMiB         int
-	Version         string
-	ResolvedRoot    string
-	ResolvedPython  string
-	UpscaleModels   []string
-	CutoutModels    []string
-	CutoutNode      string
-	RMBG3Native     bool
-	RMBG3Models     []string
-	TextEncoders    []string
-	VAEModels       []string
-	Sa2VANode       string
-	Sa2VAModels     []string
-	SeedVR2Native   bool
-	SeedVR2Models   []string
-	ZImageNative    bool
-	ZImageModels    []string
-	QwenImageNative bool
-	QwenImageModels []string
-	LoRANative      bool
-	LoRAModels      []string
+	BaseURL             string
+	Device              string
+	VRAMMiB             int
+	Version             string
+	ResolvedRoot        string
+	ResolvedPython      string
+	UpscaleModels       []string
+	CutoutModels        []string
+	CutoutNode          string
+	RMBG3Native         bool
+	RMBG3Models         []string
+	TextEncoders        []string
+	VAEModels           []string
+	Sa2VANode           string
+	Sa2VAModels         []string
+	SeedVR2Native       bool
+	SeedVR2Models       []string
+	ZImageNative        bool
+	ZImageModels        []string
+	QwenImageNative     bool
+	QwenImageBaseNative bool
+	QwenImageModels     []string
+	LoRANative          bool
+	LoRAModels          []string
 }
 
 type comfyNodeSchema struct {
 	Required map[string]any
 	Output   []string
+}
+
+type comfyFileRef struct {
+	Filename  string `json:"filename"`
+	Subfolder string `json:"subfolder"`
+	Type      string `json:"type"`
+}
+
+// ComfyOutput is one saved file exposed by a workflow's output nodes.
+type ComfyOutput struct {
+	Filename string
+	Data     []byte
 }
 
 type tailBuffer struct {
@@ -675,7 +688,7 @@ func WriteComfyExtraModelPaths(resourceDir string) (string, error) {
 		return "", errors.New("resource directory must be an absolute path")
 	}
 	base := filepath.Join(resourceDir, "comfyui")
-	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg", "sa2va", "vitmatte", "loras"}
+	folders := []string{"diffusion_models", "text_encoders", "vae", "upscale_models", "checkpoints", "rmbg", "sa2va", "vitmatte", "loras", "tts", "custom_nodes"}
 	for _, sub := range folders {
 		if err := os.MkdirAll(filepath.Join(base, sub), 0o700); err != nil {
 			return "", err
@@ -1098,6 +1111,9 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	}
 	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeQwenImage21", "QwenImage21Cache", "ManualSigmas", "KSamplerSelect", "RandomNoise", "CFGGuider", "SamplerCustomAdvanced", "EmptyLatentImage", "VAEDecode") {
 		caps.QwenImageNative = true
+	}
+	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeQwenImage21", "QwenImage21Cache", "KSampler", "EmptyLatentImage", "VAEDecode") {
+		caps.QwenImageBaseNative = true
 	}
 	if unet, ok := info["UNETLoader"]; ok {
 		for _, name := range parseComfyChoiceList(unet.Input.Required["unet_name"]) {
@@ -1544,6 +1560,7 @@ func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelNa
 
 // ComfyImageRequest configures text-to-image or reference-image editing via ComfyUI.
 type ComfyImageRequest struct {
+	BaseModel   string
 	Prompt      string
 	Size        string
 	AspectRatio string
@@ -1842,6 +1859,19 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 
 // GenerateQwenImage21Turbo runs text-to-image or multi-image editing via Qwen-Image 2.1 Turbo native nodes.
 func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	req.BaseModel = "qwen-image-2.1-turbo-int8"
+	return m.GenerateQwenImage21(ctx, cfg, req)
+}
+
+// GenerateQwenImage21 keeps ordinary and distilled sampling paths distinct.
+func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	if req.BaseModel == "" {
+		req.BaseModel = "qwen-image-2.1-turbo-int8"
+	}
+	turbo := req.BaseModel == "qwen-image-2.1-turbo-int8"
+	if !turbo && req.BaseModel != "qwen-image-2.1-int8" {
+		return nil, errors.New("unknown Qwen Image 2.1 base model")
+	}
 	if req.Enhance {
 		if len(req.Images) != 1 {
 			return nil, errors.New("image enhancement requires one input image")
@@ -1862,7 +1892,7 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 	if err != nil {
 		return nil, err
 	}
-	if !caps.QwenImageNative {
+	if turbo && !caps.QwenImageNative || !turbo && !caps.QwenImageBaseNative {
 		return nil, errors.New("ComfyUI does not expose native Qwen-Image 2.1 nodes; update ComfyUI first")
 	}
 	loras, err := prepareLoRAChain(cfg, caps, &req, "qwen")
@@ -1871,10 +1901,36 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 	}
 	prompt = strings.TrimSpace(req.Prompt)
 	unetName := pickComfyModel([]string{"qwen_image_2.1_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_bf16.safetensors"}, caps.QwenImageModels, "qwen_image_2.1_turbo")
+	if !turbo {
+		// Do not fall back to a Turbo weight when the ordinary model is missing.
+		unetName = ""
+		for _, want := range []string{"qwen_image_2.1_int8_convrot.safetensors", "qwen_image_2.1_bf16.safetensors"} {
+			if slices.Contains(caps.QwenImageModels, want) {
+				unetName = want
+				break
+			}
+		}
+	}
 	if unetName == "" {
-		return nil, errors.New("Qwen-Image 2.1 Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+		return nil, fmt.Errorf("selected Qwen Image 2.1 model not found: %s", req.BaseModel)
 	}
 	clipName := pickComfyModel([]string{"qwen3vl_8b_int8_convrot.safetensors", "qwen3vl_8b_w4a8.safetensors", "qwen3vl_8b_bf16.safetensors"}, caps.TextEncoders, "qwen3vl_8b")
+	for _, adapter := range req.LoRAs {
+		if adapter.Strength == 0 {
+			continue
+		}
+		if pack, ok := ComfyPack(adapter.ID); ok && pack.TextEncoder != "" {
+			clipName = pack.TextEncoder
+		}
+	}
+	if req.LoRA != "" && req.Strength != 0 {
+		if pack, ok := ComfyPack(req.LoRA); ok && pack.TextEncoder != "" {
+			clipName = pack.TextEncoder
+		}
+	}
+	if !slices.Contains(caps.TextEncoders, clipName) {
+		return nil, fmt.Errorf("required Qwen text encoder is missing: %s", clipName)
+	}
 	if clipName == "" {
 		return nil, errors.New("Qwen3-VL-8B text encoder not found in ComfyUI; download the Qwen-Image 2.1 Turbo pack in Settings -> Optional Resources")
 	}
@@ -1951,6 +2007,12 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 		"sigmas":       []any{"8", 0},
 		"latent_image": latentRef,
 	}}
+	if !turbo {
+		for _, id := range []string{"7", "8", "9", "10"} {
+			delete(graph, id)
+		}
+		graph["11"] = map[string]any{"class_type": "KSampler", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "latent_image": latentRef, "seed": randomComfySeed(), "steps": 25, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}}
+	}
 	graph["12"] = map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"11", 0}, "vae": []any{"4", 0}}}
 	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_qwen21"}}
 	return m.runImagesWorkflow(ctx, base, graph)
@@ -2037,6 +2099,18 @@ func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph 
 }
 
 func (m *ComfyManager) runImagesWorkflow(ctx context.Context, base string, graph map[string]any) ([][]byte, error) {
+	files, err := m.runFilesWorkflow(ctx, base, graph)
+	if err != nil {
+		return nil, err
+	}
+	var out [][]byte
+	for _, file := range files {
+		out = append(out, file.Data)
+	}
+	return out, nil
+}
+
+func (m *ComfyManager) runFilesWorkflow(ctx context.Context, base string, graph map[string]any) ([]ComfyOutput, error) {
 	payload, err := json.Marshal(map[string]any{"prompt": graph, "client_id": "freefolio"})
 	if err != nil {
 		return nil, err
@@ -2084,15 +2158,14 @@ func (m *ComfyManager) runImagesWorkflow(ctx context.Context, base string, graph
 					Messages  [][]json.RawMessage `json:"messages"`
 				} `json:"status"`
 				Outputs map[string]struct {
-					Images []struct {
-						Filename  string `json:"filename"`
-						Subfolder string `json:"subfolder"`
-						Type      string `json:"type"`
-					} `json:"images"`
+					Images []comfyFileRef `json:"images"`
+					Audio  []comfyFileRef `json:"audio"`
+					Videos []comfyFileRef `json:"videos"`
+					Gifs   []comfyFileRef `json:"gifs"`
 				} `json:"outputs"`
 			}
-			if json.Unmarshal(rawHist, &hist) != nil {
-				continue
+			if err := json.Unmarshal(rawHist, &hist); err != nil {
+				return nil, fmt.Errorf("invalid ComfyUI history: %w", err)
 			}
 			item, ok := hist[queued.PromptID]
 			if !ok {
@@ -2101,28 +2174,30 @@ func (m *ComfyManager) runImagesWorkflow(ctx context.Context, base string, graph
 			if item.Status.StatusStr == "error" {
 				return nil, formatComfyExecutionError(item.Status.Messages)
 			}
-			var results [][]byte
+			var results []ComfyOutput
 			for _, out := range item.Outputs {
-				for _, img := range out.Images {
-					q := url.Values{}
-					q.Set("filename", img.Filename)
-					q.Set("subfolder", img.Subfolder)
-					if img.Type == "" {
-						img.Type = "output"
+				for _, refs := range [][]comfyFileRef{out.Images, out.Audio, out.Videos, out.Gifs} {
+					for _, img := range refs {
+						q := url.Values{}
+						q.Set("filename", img.Filename)
+						q.Set("subfolder", img.Subfolder)
+						if img.Type == "" {
+							img.Type = "output"
+						}
+						q.Set("type", img.Type)
+						data, err := m.getBytes(ctx, base+"/view?"+q.Encode())
+						if err != nil {
+							return nil, err
+						}
+						results = append(results, ComfyOutput{Filename: img.Filename, Data: data})
 					}
-					q.Set("type", img.Type)
-					data, err := m.getBytes(ctx, base+"/view?"+q.Encode())
-					if err != nil {
-						return nil, err
-					}
-					results = append(results, data)
 				}
 			}
 			if len(results) > 0 {
 				return results, nil
 			}
 			if item.Status.Completed {
-				return nil, errors.New("ComfyUI workflow completed with no output image")
+				return nil, errors.New("ComfyUI workflow completed with no output file")
 			}
 		}
 	}
@@ -2168,12 +2243,16 @@ func (m *ComfyManager) getBytes(ctx context.Context, target string) ([]byte, err
 		return nil, err
 	}
 	defer res.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(res.Body, 128<<20))
+	const maxMediaBytes = 256 << 20
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxMediaBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d", res.StatusCode)
+	}
+	if len(data) > maxMediaBytes {
+		return nil, errors.New("ComfyUI output exceeds 256 MiB")
 	}
 	return data, nil
 }

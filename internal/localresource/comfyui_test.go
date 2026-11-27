@@ -646,16 +646,16 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		case "/object_info":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"UNETLoader": map[string]any{"input": map[string]any{"required": map[string]any{
-					"unet_name": []any{[]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "seedvr2_3b_int8_convrot.safetensors", "z_image_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_int8_convrot.safetensors"}},
+					"unet_name": []any{[]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "seedvr2_3b_int8_convrot.safetensors", "z_image_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_int8_convrot.safetensors", "qwen_image_2.1_int8_convrot.safetensors"}},
 				}}},
 				"CLIPLoader": map[string]any{"input": map[string]any{"required": map[string]any{
-					"clip_name": []any{[]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen3vl_8b_int8_convrot.safetensors"}},
+					"clip_name": []any{[]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen3vl_8b_int8_convrot.safetensors", "qwen3-vl-8b-heretic-1.3.0_bf16.safetensors"}},
 				}}},
 				"VAELoader": map[string]any{"input": map[string]any{"required": map[string]any{
 					"vae_name": []any{[]string{"seedvr2_ema_vae_fp16.safetensors", "ae.safetensors", "qwen_image_2.1_vae_bf16.safetensors"}},
 				}}},
 				"KSampler":              map[string]any{},
-				"LoraLoaderModelOnly":   map[string]any{"input": map[string]any{"required": map[string]any{"lora_name": []any{[]string{"freefolio-z-detail.safetensors", "freefolio-z-pencil.safetensors", "freefolio-qwen-restore.safetensors", "freefolio-qwen-detail.safetensors"}}}}},
+				"LoraLoaderModelOnly":   map[string]any{"input": map[string]any{"required": map[string]any{"lora_name": []any{[]string{"freefolio-z-detail.safetensors", "freefolio-z-pencil.safetensors", "freefolio-qwen-restore.safetensors", "freefolio-qwen-consistency.safetensors", "freefolio-qwen-character-swap.safetensors", "freefolio-qwen-fusal-turbo.safetensors", "freefolio-qwen-fusal-base.safetensors", "freefolio-qwen-mosaic.safetensors", "freefolio-qwen-consistency-2000.safetensors"}}}}},
 				"VAEDecode":             map[string]any{},
 				"JoinImageWithAlpha":    map[string]any{},
 				"ResizeImageMaskNode":   map[string]any{"input": map[string]any{"required": map[string]any{"resize_type": []any{[]string{"scale by multiplier"}}}}},
@@ -726,7 +726,7 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !caps.SeedVR2Native || !caps.ZImageNative || !caps.QwenImageNative ||
-		len(caps.SeedVR2Models) != 2 || len(caps.ZImageModels) != 1 || len(caps.QwenImageModels) != 1 {
+		len(caps.SeedVR2Models) != 2 || len(caps.ZImageModels) != 1 || len(caps.QwenImageModels) != 2 {
 		t.Fatalf("unexpected capabilities: %+v", caps)
 	}
 
@@ -777,7 +777,7 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		strength float64
 		enhance  bool
 	}{
-		{"z-detail", .35, false}, {"z-pencil", .7, false}, {"z-pencil", 0, false}, {"qwen-restore", 1, true}, {"qwen-detail", .85, true},
+		{"z-detail", .35, false}, {"z-pencil", .7, false}, {"z-pencil", 0, false}, {"qwen-restore", 1, true}, {"qwen-consistency", 1, true},
 	} {
 		req := ComfyImageRequest{Prompt: "keep the subject", LoRA: tc.id, Strength: tc.strength, Enhance: tc.enhance}
 		var err error
@@ -824,5 +824,51 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 	}
 	if len(captured) != before {
 		t.Fatal("invalid LoRA submitted a generation")
+	}
+	for _, tc := range []struct {
+		base, adapter string
+		images        int
+	}{
+		{"qwen-image-2.1-int8", "", 0},
+		{"qwen-image-2.1-int8", "qwen-fusal-base", 1},
+		{"qwen-image-2.1-turbo-int8", "qwen-fusal-turbo", 0},
+		{"qwen-image-2.1-turbo-int8", "qwen-character-swap", 2},
+		{"qwen-image-2.1-turbo-int8", "qwen-mosaic", 1},
+	} {
+		req := ComfyImageRequest{BaseModel: tc.base, Prompt: "keep the composition", LoRA: tc.adapter, Strength: .7}
+		for range tc.images {
+			req.Images = append(req.Images, in)
+		}
+		if _, err := mgr.GenerateQwenImage21(context.Background(), cfg, req); err != nil {
+			t.Fatalf("%s/%s: %v", tc.base, tc.adapter, err)
+		}
+		g := captured[len(captured)-1]
+		if tc.base == "qwen-image-2.1-int8" {
+			if g["1"]["unet_name"] != "qwen_image_2.1_int8_convrot.safetensors" || g["11"]["__class_type"] != "KSampler" || g["11"]["steps"] != float64(25) || g["8"] != nil {
+				t.Fatalf("ordinary model used Turbo workflow: %+v", g)
+			}
+		} else if g["11"]["__class_type"] != "SamplerCustomAdvanced" || g["8"]["__class_type"] != "ManualSigmas" {
+			t.Fatal("Turbo sampling changed")
+		}
+		if strings.Contains(tc.adapter, "fusal") && g["3"]["clip_name"] != "qwen3-vl-8b-heretic-1.3.0_bf16.safetensors" {
+			t.Fatal("FUSAL ignored its trained encoder")
+		}
+		if tc.images == 2 && g["5"]["images.image_2"] == nil {
+			t.Fatal("character reference lost")
+		}
+	}
+	before = len(captured)
+	for _, req := range []ComfyImageRequest{
+		{BaseModel: "qwen-image-2.1-int8", Prompt: "test", LoRA: "qwen-fusal-turbo", Strength: 1},
+		{BaseModel: "qwen-image-2.1-turbo-int8", Prompt: "test", LoRA: "qwen-detail", Strength: 1},
+		{BaseModel: "qwen-image-2.1-turbo-int8", Prompt: "test", LoRA: "qwen-character-swap", Strength: 1, Images: [][]byte{in}},
+		{BaseModel: "qwen-image-2.1-turbo-int8", Prompt: "test", LoRAs: []ComfyLoRA{{ID: "qwen-fusal-turbo", Strength: .7}, {ID: "qwen-consistency", Strength: 1}}, Images: [][]byte{in}},
+	} {
+		if _, err := mgr.GenerateQwenImage21(context.Background(), cfg, req); err == nil {
+			t.Fatal("invalid base, removed adapter, input count or exclusive chain accepted")
+		}
+	}
+	if len(captured) != before {
+		t.Fatal("invalid request submitted a workflow")
 	}
 }

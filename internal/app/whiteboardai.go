@@ -137,7 +137,8 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 					out = append(out, editor.BoardAIModel{Connection: "comfyui-zimage", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
 				}
 			case "qwen-image":
-				if installed || (caps != nil && caps.QwenImageNative && len(caps.QwenImageModels) > 0) {
+				native := caps != nil && ((pack.ID == "qwen-image-2.1-turbo-int8" && caps.QwenImageNative) || (pack.ID == "qwen-image-2.1-int8" && caps.QwenImageBaseNative))
+				if installed || (native && slices.Contains(caps.QwenImageModels, path.Base(pack.Files[0].RelPath))) {
 					out = append(out, editor.BoardAIModel{Connection: "comfyui-qwen-image", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
 				}
 			}
@@ -353,6 +354,43 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 	comfyMgr := a.comfyManager()
 	comfyCfg := a.comfyConfig()
 	r.Media = func(ctx context.Context, job editor.BoardAIJob, progress func(string)) ([]editor.BoardAIMedia, error) {
+		if job.Node.Connection == "comfyui-media" {
+			if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+				return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+			}
+			pack, ok := localresource.ComfyPack(job.Node.Model)
+			if !ok || (job.Node.Role == whiteboard.AIAudio) != strings.HasPrefix(pack.Kind, "audio-") || (job.Node.Role == whiteboard.AIVideo) != strings.HasPrefix(pack.Kind, "video-") {
+				return nil, errors.New(i18n.T("模型与节点类型不匹配"))
+			}
+			p := job.Node.Params
+			req := localresource.ComfyMediaRequest{Model: job.Node.Model, Prompt: job.Prompt, Lyrics: p.Lyrics, Speaker: p.Speaker, Language: p.Language, Seconds: p.Seconds}
+			if len(job.Images) > 1 {
+				return nil, errors.New(i18n.T("请只连接一张首帧图片"))
+			}
+			if len(job.Images) == 1 {
+				req.Image = job.Images[0].Data
+			}
+			if progress != nil {
+				progress(i18n.T("正在本机生成"))
+			}
+			result, err := comfyMgr.GenerateLocalMedia(ctx, comfyCfg, req)
+			if err != nil {
+				return nil, err
+			}
+			kind, mime, ext := "audio", "audio/flac", ".flac"
+			if job.Node.Role == whiteboard.AIVideo {
+				kind, mime, ext = "video", "video/mp4", ".mp4"
+			}
+			if strings.ToLower(path.Ext(result.Filename)) != ext {
+				return nil, errors.New(i18n.T("生成文件格式不正确"))
+			}
+			asset, err := a.writeAssetFor(d, path.Dir(rel), "generated-"+kind+ext, result.Data)
+			if err != nil {
+				return nil, err
+			}
+			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: kind, Path: asset, MIME: mime, Prompt: job.Prompt}, Data: result.Data}}, nil
+		}
+
 		if job.Node.Role == whiteboard.AICutout {
 			if len(job.Images) != 1 {
 				return nil, errors.New(i18n.T("请连接一张输入图片"))
@@ -441,6 +479,9 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
 		}
 		if job.Node.ImageHistory() && (job.Node.Connection == "comfyui-zimage" || job.Node.Connection == "comfyui-qwen-image") {
+			if job.Node.Model == "qwen-detail" {
+				return nil, errors.New(i18n.T("Detail Enhancer 已移除，请选择其他 LoRA"))
+			}
 			if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 				return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
 			}
@@ -452,6 +493,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				Count:       p.Count,
 			}
 			if pack, ok := localresource.ComfyPackByModel(job.Node.Model); ok && pack.BaseModel != "" {
+				req.BaseModel = pack.BaseModel
 				req.LoRA, req.Strength = pack.ID, pack.DefaultStrength
 				if p.LoRAStrength != nil {
 					req.Strength = *p.LoRAStrength
@@ -461,6 +503,8 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				}
 			} else if !ok || (pack.Kind != "zimage" && pack.Kind != "qwen-image") {
 				return nil, errors.New(i18n.T("所选本地模型不可用，请重新选择"))
+			} else {
+				req.BaseModel = pack.ModelID
 			}
 			req.Enhance = job.Node.Role == whiteboard.AIEnhance
 			for _, img := range job.Images {
@@ -469,6 +513,9 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if job.ModelFlow != nil {
 				req.LoRA = ""
 				for _, patch := range job.ModelFlow.LoRAs {
+					if patch.ID == "qwen-detail" {
+						return nil, errors.New(i18n.T("Detail Enhancer 已移除，请选择其他 LoRA"))
+					}
 					pack, ok := localresource.ComfyPack(patch.ID)
 					if !ok || pack.BaseModel != job.Node.Model {
 						return nil, errors.New(i18n.T("LoRA 与连接的底模不匹配"))
@@ -488,7 +535,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if job.Node.Connection == "comfyui-zimage" {
 				imgs, err = comfyMgr.GenerateZImageTurbo(ctx, comfyCfg, req)
 			} else {
-				imgs, err = comfyMgr.GenerateQwenImage21Turbo(ctx, comfyCfg, req)
+				imgs, err = comfyMgr.GenerateQwenImage21(ctx, comfyCfg, req)
 			}
 			if err != nil {
 				return nil, err

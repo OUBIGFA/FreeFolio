@@ -35,17 +35,6 @@
       "baseModel": "qwen-image-2.1-turbo-int8"
     },
     {
-      "id": "qwen-detail",
-      "name": "Qwen 2.1 Detail Enhancer",
-      "source": "https://huggingface.co/reverentelusarca/elusarcas-qwen-2.1-detail-enhancer-lora/resolve/aedadc6b65a15e6b261c0ec61a4587c3e7119514/elusarcas-qwen2-1-detailer-v1.safetensors",
-      "revision": "aedadc6b65a15e6b261c0ec61a4587c3e7119514",
-      "sha256": "c1298f51eb090473f924314475952710a2f0322f1df65c0290f3e14997244f96",
-      "bytes": 79744352,
-      "license": "Author permission",
-      "modelCard": "https://huggingface.co/reverentelusarca/elusarcas-qwen-2.1-detail-enhancer-lora/blob/aedadc6b65a15e6b261c0ec61a4587c3e7119514/README.md",
-      "baseModel": "qwen-image-2.1-turbo-int8"
-    },
-    {
       "id": "z-3d",
       "name": "3D Render Style Redmond",
       "source": "https://huggingface.co/artificialguybr/3DRenderStyle-REDMOND-ZIMAGE/resolve/1b12fe69069bfca5f44e8b5c37625976b84b0c87/%5BZImage.Turbo%5D3DRenderStyle_Redmond.safetensors",
@@ -192,6 +181,120 @@
       "license": "BSD-3-Clause",
       "modelCard": "https://github.com/xinntao/Real-ESRGAN/blob/v0.2.2.4/docs/anime_model.md",
       "digestProvenance": "SHA-256 calculated from the official release asset; the legacy release has no published digest"
+    },
+    {
+      "id": "qwen-consistency",
+      "name": "Qwen 2.1 Consistency",
+      "source": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA/resolve/58897a02f4f60f88376eab5676738dd45e5ed1a2/qwen-image-2.1-consistency.safetensors",
+      "revision": "58897a02f4f60f88376eab5676738dd45e5ed1a2",
+      "sha256": "4f44ada1be2189cc23b3d010f9603543403f48454e2f76842a3d30109b20bd63",
+      "bytes": 159436496,
+      "license": "Qwen",
+      "modelCard": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA/blob/58897a02f4f60f88376eab5676738dd45e5ed1a2/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8",
+      "experimental": false
+    },
+    {
+      "id": "qwen-consistency-2000",
+      "name": "Qwen 2.1 Consistency 2000",
+      "source": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA/resolve/58897a02f4f60f88376eab5676738dd45e5ed1a2/qwen-image-2.1-consistency-2000.safetensors",
+      "revision": "58897a02f4f60f88376eab5676738dd45e5ed1a2",
+      "sha256": "a0bf043edc4695b1661a0e768e49a7fdff9a656b7d4313203d590e0262b64beb",
+      "bytes": 159436496,
+      "license": "Qwen",
+      "modelCard": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA/blob/58897a02f4f60f88376eab5676738dd45e5ed1a2/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8",
+      "experimental": false
+    },
+    {
+      "id": "qwen-fusal-turbo",
+      "name": "FUSAL Anime Turbo E6",
+      "source": "https://huggingface.co/MicksHF/Qwen-Image-2.1-Anime-Fusal/resolve/e3e8a6c17919affca8eb6631a4aefe07b08a88a8/fusal-qwen-image-2.1-turbo-e6-preview-r128.safetensors",
+      "revision": "e3e8a6c17919affca8eb6631a4aefe07b08a88a8",
+      "sha256": "7f915e874a44d8ca7650b660d38216ba1b2c4ded881dd17582811b6b3e619e48",
+      "bytes": 671174216,
+      "license": "Qwen",
+      "modelCard": "https://huggingface.co/MicksHF/Qwen-Image-2.1-Anime-Fusal/blob/e3e8a6c17919affca8eb6631a4aefe07b08a88a8/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8",
+      "experimental": true
+    },
+    {
+      "id": "qwen-character-swap",
+      "name": "Qwen 2.1 Character Swap",
+      "source": "https://huggingface.co/akhaliq/Qwen-Image-2.1-Turbo-Character-Swap-LoRA/resolve/fbdc96c6e0f15c26f07eb08de2902246b6b94c37/qwen-image-21-turbo-character-swap-lora.safetensors",
+      "revision": "fbdc96c6e0f15c26f07eb08de2902246b6b94c37",
+      "sha256": "e4e3c5cd3e1184d2841206369344c5793912ea5f5228908385b53c268f2b102e",
+      "bytes": 167830056,
+      "license": "other",
+      "modelCard": "https://huggingface.co/akhaliq/Qwen-Image-2.1-Turbo-Character-Swap-LoRA/blob/fbdc96c6e0f15c26f07eb08de2902246b6b94c37/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8",
+      "experimental": false
+    },
+    {
+      "id": "qwen-mosaic",
+      "name": "Qwen 2.1 MosaicMate",
+      "source": "https://huggingface.co/Schwi-AI/Qwen-Image-2.1-MosaicMate-LoRA/resolve/05e95b56ba1ffe5a07ff2db213102c757dc2f3b4/qwen-image-2.1-mosaicmate-v1.safetensors",
+      "revision": "05e95b56ba1ffe5a07ff2db213102c757dc2f3b4",
+      "sha256": "3eaf24cba51f70e5e19b5a42b6479e85d679ceb3f8fe578cb89023792d911897",
+      "bytes": 42027120,
+      "license": "Qwen",
+      "modelCard": "https://huggingface.co/Schwi-AI/Qwen-Image-2.1-MosaicMate-LoRA/blob/05e95b56ba1ffe5a07ff2db213102c757dc2f3b4/README.md",
+      "baseModel": "qwen-image-2.1-turbo-int8",
+      "experimental": false
+    },
+    {
+      "id": "qwen-fusal-base",
+      "name": "FUSAL Anime V3",
+      "source": "https://huggingface.co/MicksHF/Qwen-Image-2.1-Anime-Fusal/resolve/e3e8a6c17919affca8eb6631a4aefe07b08a88a8/fusal-qwen-image-2.1-v3-exact-r80.safetensors",
+      "revision": "e3e8a6c17919affca8eb6631a4aefe07b08a88a8",
+      "sha256": "f5de464f68c4498b9766753d78c9b9492fddd30a1cef3a59fd2ed1545f5aff31",
+      "bytes": 419490824,
+      "license": "Qwen",
+      "modelCard": "https://huggingface.co/MicksHF/Qwen-Image-2.1-Anime-Fusal/blob/e3e8a6c17919affca8eb6631a4aefe07b08a88a8/README.md",
+      "baseModel": "qwen-image-2.1-int8",
+      "experimental": false
+    },
+    {
+      "id": "qwen-base-anime",
+      "name": "Qwen 2.1 Anime Consistency",
+      "source": "https://huggingface.co/WarmBloodAban/Qwen-Image-2.1-LoRAs/resolve/c4ab5473bfdf585fc19cfd1e280f79d2b0c79947/Qwen2.1_Anime_consistency.safetensors",
+      "revision": "c4ab5473bfdf585fc19cfd1e280f79d2b0c79947",
+      "sha256": "0c171eb802ea8051b511f2d93c1743eeadd030316255aa98fa65d40809366752",
+      "bytes": 167830408,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/WarmBloodAban/Qwen-Image-2.1-LoRAs/blob/c4ab5473bfdf585fc19cfd1e280f79d2b0c79947/README.md",
+      "baseModel": "qwen-image-2.1-int8",
+      "experimental": true
+    },
+    {
+      "id": "qwen-base-real",
+      "name": "Qwen 2.1 Anything2Real",
+      "source": "https://huggingface.co/WarmBloodAban/Qwen-Image-2.1-LoRAs/resolve/c4ab5473bfdf585fc19cfd1e280f79d2b0c79947/Qwen2.1_Anything2RealCharacters.safetensors",
+      "revision": "c4ab5473bfdf585fc19cfd1e280f79d2b0c79947",
+      "sha256": "5db4dd2376e6017812bf1189b2fc46e52aaa2c0b7e688faac75e83e1c4dce849",
+      "bytes": 318820200,
+      "license": "Apache-2.0",
+      "modelCard": "https://huggingface.co/WarmBloodAban/Qwen-Image-2.1-LoRAs/blob/c4ab5473bfdf585fc19cfd1e280f79d2b0c79947/README.md",
+      "baseModel": "qwen-image-2.1-int8",
+      "experimental": true
+    }
+  ],
+  "additionalResources": [
+    {
+      "id": "qwen-image-2.1-int8",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/aacf31a6d48e707f352ecba714cee0680da3479b/README.md",
+      "file": "diffusion_models/qwen_image_2.1_int8_convrot.safetensors",
+      "bytes": 7256783064,
+      "sha256": "cb74113cb03faecd79611b01fd7fd642f0aa60d6f0b95086abee214d75eaa57d",
+      "license": "Qwen"
+    },
+    {
+      "id": "fusal-text-encoder",
+      "source": "https://huggingface.co/MicksHF/Qwen-Image-2.1-Anime-Fusal/blob/e3e8a6c17919affca8eb6631a4aefe07b08a88a8/README.md",
+      "file": "text_encoders/qwen3-vl-8b-heretic-1.3.0_bf16.safetensors",
+      "bytes": 17534334584,
+      "sha256": "1fb1c78533a944ceb7a48c55b16b7a7290ed671ee666f8bd42e01c2da5ffbff5",
+      "license": "Qwen"
     }
   ]
 }

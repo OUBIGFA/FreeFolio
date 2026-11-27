@@ -44,6 +44,8 @@ const (
 	AILoRA  AIRole = "lora"
 	// AIVideo generates a video, from a first frame when given a picture.
 	AIVideo AIRole = "video"
+	// AIAudio generates music, sound effects or speech.
+	AIAudio AIRole = "audio"
 	// AIConcat joins its text inputs through a template, without a model.
 	AIConcat AIRole = "concat"
 	// AINote supplies a space document's text, named as [[document]].
@@ -51,7 +53,7 @@ const (
 )
 
 // AIRoles are the supported roles stored in a scene.
-var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIEnhance, AIModel, AILoRA, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIEnhance, AIModel, AILoRA, AIVideo, AIAudio, AIConcat, AINote, AICutout, AIUpscale, AICompare}
 
 // MaxAIOutputs bounds non-image history; image references remain available
 // for selection and comparison across runs.
@@ -65,6 +67,9 @@ type AIParams struct {
 	Quality     string `json:"quality,omitempty"`
 	Count       int    `json:"count,omitempty"`
 	Seconds     int    `json:"seconds,omitempty"`
+	Lyrics      string `json:"lyrics,omitempty"`
+	Speaker     string `json:"speaker,omitempty"`
+	Language    string `json:"language,omitempty"`
 	Scale       int    `json:"scale,omitempty"`
 	// LoRAStrength is optional so existing boards use the catalog default;
 	// an explicit zero disables the adapter without changing its selection.
@@ -134,6 +139,8 @@ func (n *AINode) Kind() string {
 		return "image"
 	case AIVideo:
 		return "video"
+	case AIAudio:
+		return "audio"
 	}
 	return "text"
 }
@@ -237,7 +244,7 @@ func AINodeSize(role AIRole) (float64, float64) {
 		return 420, 380
 	case AIImage, AIEnhance:
 		return 380, 520
-	case AIVideo:
+	case AIVideo, AIAudio:
 		return 380, 470
 	case AIText:
 		return 350, 430

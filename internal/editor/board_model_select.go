@@ -40,6 +40,11 @@ func (b *Board) aiModelSelect(c *ui.Context, o BoardOptions, id string, n *white
 		if n.ImageHistory() && m.BaseModel != "" && m.Model != n.Model {
 			continue
 		}
+		if n.Role == whiteboard.AILoRA && n.LinkAt("model") != "" {
+			if flow, err := b.Scene.AIModelFlow(n.LinkAt("model")); err == nil && flow != nil && m.BaseModel != flow.Model && m.Model != n.Model {
+				continue
+			}
+		}
 		filtered = append(filtered, m)
 	}
 	models = filtered

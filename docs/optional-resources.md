@@ -2,12 +2,14 @@
 
 在「设置 → 可选资源」选保存位置，再点资源旁的「下载」。抠图模型会附带共用运行库；Real-ESRGAN Vulkan 包含引擎和两款模型。这些资源无需另装 Python；ComfyUI 资源需先配置本机引擎。安装和打开 FreeFolio 不会自动下载资源。
 
-「硬件与保存位置」位于页面顶部，由四个标签页共用：
+「硬件与保存位置」位于页面顶部，由六个标签页共用：
 
 - **本地模型**：无需 ComfyUI 的抠图模型、运行库和 Real-ESRGAN Vulkan。
 - **ComfyUI 模型**：引擎连接、生图底模和 ComfyUI 抠图模型。
 - **ComfyUI 增强**：SeedVR2 7B Sharp / 3B INT8 与 ComfyUI 原生 Real-ESRGAN Anime 6B。
-- **ComfyUI LoRA**：调整风格或细节的附加权重。下载会补齐底模，已有且校验一致的文件会复用。
+- **ComfyUI LoRA**：按 Z-Image Turbo、Qwen 2.1 Turbo、Qwen 2.1 普通版分组的附加权重。下载会补齐底模，已有且校验一致的文件会复用。
+- **音频模型**：ACE-Step 1.5 音乐、Stable Audio 3 音效、Qwen3-TTS 语音。
+- **视频模型**：Wan 2.2 TI2V 5B，支持文字生视频和首帧图生视频
 
 下载行显示进度条、百分比和已下载大小。点击「暂停」保留当前任务，点击「继续下载」恢复；点击「停止」结束当前任务，已下载内容仍保留。下次点击「下载」时继续，包括重新打开应用后。服务端需支持 HTTP Range；若不支持，将重下当前文件。所有权重在完整下载并通过 SHA-256 校验后才可使用。断点文件保存在资源目录内，不会被当作已安装模型。
 
@@ -26,7 +28,6 @@ Qwen 图片修复流程还需将图片连到最后一个节点的「输入图片
 | 细节增强 | Z-Image Detailer | 图像生成，Z-Image Turbo |
 | 人物与写实 | V1 Realism | 图像生成，Z-Image Turbo |
 | 图片修复 | Qwen 2.1 Restore | 图片增强，接入一张图片 |
-| 创作性细节 | Qwen 2.1 Detail Enhancer | 图片增强，接入一张图片 |
 | 3D | 3D Render Style Redmond | 图像生成，Z-Image Turbo |
 | 电商样机 | Mockups Redmond | 图像生成，Z-Image Turbo |
 | 插画 | Elusarca Anime | 图像生成，Z-Image Turbo |
@@ -105,3 +106,20 @@ Qwen 图片修复流程还需将图片连到最后一个节点的「输入图片
 
 - **依据与限制。** 参照 [BEN2](https://github.com/PramaLLC/BEN2)、[BiRefNet](https://github.com/ZhengPeng7/BiRefNet) 与 [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) 原项目及对应模型卡。[BRIA RMBG 2.0/3.0](https://huggingface.co/briaai/RMBG-3.0) 与 `4x-UltraSharp` 为非商业许可，`upscayl-ncnn` 为 AGPL-3.0，均不作为默认本地包分发。
 - **位置和删除。** 更改保存位置时会自动将当前目录中已下载的本地模型、运行库和 `comfyui/` 模型包（含重建挂载配置）转移到新目录，不影响其他文件或旧笔记。下载和使用前核对 SHA-256。删除时核对文件内容并移到系统回收站；不递归删除目录，不动旧笔记、已生成图片或其他文件。同名文件内容不符时会报错，不覆盖或删除。单独移除抠图模型不影响另一款模型或图片放大资源；删除共用 ONNX 运行库后，两款抠图模型都需要重新下载运行库才能使用。
+
+## 音频与视频
+
+在资源页下载对应模型后，在白板添加「音频生成」或「视频生成」节点。音频节点模型下拉框显示三款本地模型，视频节点同时保留已有供应商模型。
+
+- 音频节点填写提示词。ACE-Step 还可在「歌词」输入框填写歌词，或将文字节点连接到歌词口。连接歌词后，输入框置灰，行为与 ComfyUI 的已连接控件一致。
+- Qwen3-TTS 使用「音色」和「语言」设置。先选择本机 ComfyUI 目录并清空服务地址，由 FreeFolio 启动引擎。首次下载会安装固定版本的 ComfyUI-QwenTTS 节点和依赖。安装使用所选 ComfyUI 的独立 Python 环境，不替换 CUDA PyTorch。
+- 视频节点默认生成 832×480、24 帧/秒、4 秒视频。可将一张图片连接到「首帧」。
+- 运行结果保存为白板附件。音频使用 FLAC，视频使用 MP4。节点内可播放或打开结果文件。
+
+这些设置按当前硬件给出保守默认值。模型下载和本机推理的显存峰值、速度与画质仍需在本机实际运行确认。
+
+## Qwen 2.1 底模与 LoRA
+
+普通版使用 25 步采样，Turbo 使用 8 步采样，模型与 LoRA 不跨版本混用。当前接入 Turbo 的 Restore、Consistency、Consistency 2000、FUSAL Anime Turbo E6、Character Swap、MosaicMate；普通版接入 FUSAL Anime V3、WarmBlood Anime 与 WarmBlood Real。旧 Detail Enhancer 已从菜单移除，旧白板选择它时会提示重新选择。
+
+Character Swap 将原图连到参考图 1，目标角色图连到参考图 2。Consistency、MosaicMate 至少需要一张参考图。FUSAL 会额外下载对应文本编码器，显示体积不计入 LoRA 本身；FUSAL 必须单独使用，Restore 与 Consistency 也不能叠加。Turbo E6 与 WarmBlood 项目标为实验版。
