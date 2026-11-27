@@ -418,6 +418,7 @@ func aiInlineSelect(c *ui.Context, key, label, current string, values, labels []
 // instruction field is disabled while its slot is linked.
 func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 	s := b.aiState()
+	s.hoverTextArea = false
 	if o.AI == nil || b.Zoom < 0.1 {
 		if s.inlineFocused != "" {
 			s.inlineFocused = ""
@@ -494,7 +495,11 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		ui.Column(c.Key("ai-inline-"+id)).Absolute().Left(x+r.X*z).Top(y+r.Y*z).Size(r.W, r.H).TransformOrigin(0, 0).Scale(z, z).Gap(6).Children(func() {
 			switch n.Role {
 			case whiteboard.AIPrompt:
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容")))
+				el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容"))
+				if el.Hovered() {
+					s.hoverTextArea = true
+				}
+				focus(el)
 			case whiteboard.AINote:
 				ui.Row(c).Height(28).Gap(4).AlignItems(ui.Center).Children(func() {
 					focus(ui.TextInput(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入引用的笔记名称")).FontSize(12).Grow(1).MinWidth(0).Height(28).Disabled(disabled).Label(i18n.T("引用的笔记")))
@@ -503,7 +508,11 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 					}
 				})
 			case whiteboard.AIConcat:
-				focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板")))
+				el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("{1}、{2} 为输入，{all} 为全部")).FontSize(12).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("拼接模板"))
+				if el.Hovered() {
+					s.hoverTextArea = true
+				}
+				focus(el)
 			case whiteboard.AICutout:
 				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
 				if src := b.aiPromptSource(n); src != "" {
@@ -541,7 +550,11 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 						ph = i18n.T("描述视频画面或动作")
 					}
 					// Match the reserved area, including the text area's native minimum.
-					focus(ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(aiPromptHeight).MinHeight(0).Disabled(disabled).Label(i18n.T("指令")))
+					el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(aiPromptHeight).MinHeight(0).Disabled(disabled).Label(i18n.T("指令"))
+					if el.Hovered() {
+						s.hoverTextArea = true
+					}
+					focus(el)
 				}
 				ui.Column(c.Key("inline-cfg-" + id)).Gap(4).Children(func() {
 					ui.Row(c.Key("inline-bar-" + id)).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {

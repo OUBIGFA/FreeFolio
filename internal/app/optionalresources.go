@@ -135,17 +135,57 @@ func (a *App) resourceDirectory() string {
 	return filepath.Join(a.cfg.ConfigDir, "resources")
 }
 
+const resourceBusyMigrate = "__migrate__"
+
 func (a *App) setResourceDirectory(dir string) {
 	if !filepath.IsAbs(dir) || a.resources.busy != "" {
 		return
 	}
-	a.prefs.ResourceDir = filepath.Clean(dir)
-	a.savePrefs()
-	a.resources.dir = ""
-	a.resources.confirm = ""
-	a.resources.err = nil
-	a.resources.comfyCaps = nil
+	newDir := filepath.Clean(dir)
+	oldDir := filepath.Clean(a.resourceDirectory())
+	if localresource.SameDirectory(oldDir, newDir) {
+		return
+	}
 	a.stopComfyUI()
+	items, total, hasComfy := localresource.CollectMigratableFiles(oldDir)
+	if len(items) == 0 && !hasComfy {
+		a.prefs.ResourceDir = newDir
+		a.savePrefs()
+		a.resources.dir = ""
+		a.resources.confirm = ""
+		a.resources.err = nil
+		a.resources.comfyCaps = nil
+		return
+	}
+	s := &a.resources
+	s.busy, s.confirm, s.err = resourceBusyMigrate, "", nil
+	s.comfyCaps = nil
+	s.received.Store(0)
+	s.total = total
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	mgr := s.comfy
+	a.backgroundResult(func() func() {
+		defer cancel()
+		err := localresource.Migrate(ctx, oldDir, newDir, func(done, _ int64) {
+			s.received.Store(done)
+		})
+		if mgr != nil {
+			mgr.InvalidateCaps()
+		}
+		return func() {
+			s.cancel = nil
+			s.busy = ""
+			s.dir = ""
+			s.comfyCaps = nil
+			if err == nil {
+				a.prefs.ResourceDir = newDir
+				a.savePrefs()
+			} else if !errors.Is(err, context.Canceled) {
+				s.err = err
+			}
+		}
+	})
 }
 
 func (a *App) chooseResourceDirectory() {
@@ -514,11 +554,23 @@ func (a *App) settingsResources(c *ui.Context) {
 		})
 		settingsSeparator(c)
 		settingRow(c, "path", i18n.T("资源目录"), root, func() {
+			if s.busy == resourceBusyMigrate {
+				if s.total > 0 {
+					ui.Text(c, fmt.Sprintf("%s %s / %s", i18n.T("正在转移资源"), formatResourceBytes(s.received.Load()), formatResourceBytes(s.total))).FontSize(12)
+				} else {
+					ui.Text(c, i18n.T("正在转移资源")).FontSize(12)
+				}
+				if s.cancel != nil && ui.Button(c.Key("cancel-migrate"), i18n.T("取消")).Clicked() {
+					s.cancel()
+				}
+				c.After(150 * time.Millisecond)
+				return
+			}
 			if ui.Button(c.Key("change"), i18n.T("更改位置")).Disabled(s.busy != "").Clicked() {
 				a.chooseResourceDirectory()
 			}
 		})
-		ui.Text(c, i18n.T("切换目录不会移动或删除旧文件，选回原目录可以继续使用")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+		ui.Text(c, i18n.T("更改位置时会自动将已下载的资源转移到新目录，不影响其他文件")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 	})
 
 	settingsSection(c, i18n.T("开箱即用（免配置 · 下载即用）"))
@@ -608,7 +660,7 @@ func (a *App) settingsResources(c *ui.Context) {
 				a.stopComfyUI()
 				s.comfyCaps = nil
 			}
-			canProbe := !s.comfyBusy && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
+			canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
 			if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
 				a.probeComfyUI()
 			}

@@ -831,52 +831,60 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 	}
 }
 
-// aiNodeOverlay is the floating action & history bar above the selected node,
-// and the player of its video.
+// aiNodeOverlay is the floating action & history bar above the selected node.
 func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
+	s := b.aiState()
+	e, n := b.selectedAINode()
+	if e == nil {
+		return
+	}
+	x, y, w, h := b.canvasRect(e.X, e.Y, e.W, e.H)
+	out := n.Output()
+	st := boardChromeFor(o.Theme)
+	b.selectionToolbar(c, "board-ai-node-bar", i18n.T("节点操作"), ui.Rect{X: x, Y: y, W: w, H: h}, st).Children(func() {
+		if n.Role == whiteboard.AIImageInput || out != nil && out.Kind == "image" {
+			b.aiImageButtons(c, o, e.ID, true)
+		}
+		// Running is on the card; the bar holds what a card has no
+		// room for, as ComfyUI's selection toolbox.
+		if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
+			s.panel = !s.panel
+		}
+		if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare && !b.AIRunning() {
+			if boardFlatButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false, st).Height(26).Clicked() {
+				b.RunAI([]string{e.ID}, true, false, o)
+			}
+		}
+		if len(n.Outputs) > 1 && n.Role != whiteboard.AIImage {
+			boardToolbarDivider(c, "node-bar-sep-1", st)
+			if boardFlatButton(c, "board-ai-prev", "‹", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("上一个结果")).Disabled(n.Current <= 0).Clicked() {
+				b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current-- })
+			}
+			ui.Text(c, fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))).FontSize(11.5).TextColor(st.muted).PaddingX(2)
+			if boardFlatButton(c, "board-ai-next", "›", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("下一个结果")).Disabled(n.Current >= len(n.Outputs)-1).Clicked() {
+				b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current++ })
+			}
+		}
+		if out != nil && (out.Kind == "text" || out.Kind == "image") {
+			boardToolbarDivider(c, "node-bar-sep-2", st)
+			if out.Kind == "text" && boardFlatButton(c, "board-ai-copy", i18n.T("复制"), false, st).Height(26).Label(i18n.T("复制文字")).Clicked() {
+				b.services.WriteClipboard(out.Text)
+			}
+			if !b.ReadOnly && boardFlatButton(c, "board-ai-place", i18n.T("放到白板"), false, st).Height(26).Clicked() {
+				b.placeAIOutput(e.ID, o)
+			}
+		}
+	})
+}
+
+// aiVideoOverlay renders the selected node's video player inside the board viewport.
+func (b *Board) aiVideoOverlay(c *ui.Context, o BoardOptions) {
 	s := b.aiState()
 	e, n := b.selectedAINode()
 	shown := ""
 	if e != nil {
 		x, y, w, h := b.canvasRect(e.X, e.Y, e.W, e.H)
 		out := n.Output()
-		{
-			st := boardChromeFor(o.Theme)
-			b.selectionToolbar(c, "board-ai-node-bar", i18n.T("节点操作"), ui.Rect{X: x, Y: y, W: w, H: h}, st).Children(func() {
-				if n.Role == whiteboard.AIImageInput || out != nil && out.Kind == "image" {
-					b.aiImageButtons(c, o, e.ID, true)
-				}
-				// Running is on the card; the bar holds what a card has no
-				// room for, as ComfyUI's selection toolbox.
-				if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
-					s.panel = !s.panel
-				}
-				if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare && !b.AIRunning() {
-					if boardFlatButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false, st).Height(26).Clicked() {
-						b.RunAI([]string{e.ID}, true, false, o)
-					}
-				}
-				if len(n.Outputs) > 1 && n.Role != whiteboard.AIImage {
-					boardToolbarDivider(c, "node-bar-sep-1", st)
-					if boardFlatButton(c, "board-ai-prev", "‹", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("上一个结果")).Disabled(n.Current <= 0).Clicked() {
-						b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current-- })
-					}
-					ui.Text(c, fmt.Sprintf("%d/%d", n.Current+1, len(n.Outputs))).FontSize(11.5).TextColor(st.muted).PaddingX(2)
-					if boardFlatButton(c, "board-ai-next", "›", false, st).Height(26).MinWidth(24).PaddingX(6).Label(i18n.T("下一个结果")).Disabled(n.Current >= len(n.Outputs)-1).Clicked() {
-						b.updateAINode(o, e.ID, func(n *whiteboard.AINode) { n.Current++ })
-					}
-				}
-				if out != nil && (out.Kind == "text" || out.Kind == "image") {
-					boardToolbarDivider(c, "node-bar-sep-2", st)
-					if out.Kind == "text" && boardFlatButton(c, "board-ai-copy", i18n.T("复制"), false, st).Height(26).Label(i18n.T("复制文字")).Clicked() {
-						b.services.WriteClipboard(out.Text)
-					}
-					if !b.ReadOnly && boardFlatButton(c, "board-ai-place", i18n.T("放到白板"), false, st).Height(26).Clicked() {
-						b.placeAIOutput(e.ID, o)
-					}
-				}
-			})
-		}
 		if out != nil && out.Kind == "video" && o.AI != nil && o.AI.OpenVideo != nil && w > 60 && h > 60 {
 			player := s.videos[out.Path]
 			if player == nil {

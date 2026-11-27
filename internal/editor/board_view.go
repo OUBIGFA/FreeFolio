@@ -38,65 +38,81 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 	b.ShowGrid = b.Scene.AppState.GridModeEnabled
 	root := ui.Box(c.Key("whiteboard-root")).Grow(1).WidthPercent(100).MinWidth(0).MinHeight(0).Clip()
 	root.Children(func() {
-		canvas := ui.Box(c.Key("board-canvas")).Fill().Focusable().FocusRing(false).Role(ui.RoleGroup).Label(i18n.T("手绘白板"))
-		if b.RequestFocus {
-			canvas.Focus()
-			b.RequestFocus = false
-		}
-		rect := canvas.LayoutBounds()
-		if rect.W > 0 && rect.H > 0 {
-			b.lastRect = rect
-			if !b.fitted {
-				if len(b.Scene.Elements) > 0 {
+		viewport := ui.Box(c.Key("board-viewport")).Fill()
+		viewport.HandleInput(func(ev ui.InputEvent) bool {
+			switch ev.Kind {
+			case ui.InputZoom:
+				return b.input(ev, o)
+			case ui.InputScroll:
+				if o.ImageAnnotation || ev.Mods&(ui.Cmd|ui.Ctrl) != 0 || !b.ai.hoverTextArea {
+					return b.input(ev, o)
+				}
+			}
+			return false
+		})
+		viewport.Children(func() {
+			canvas := ui.Box(c.Key("board-canvas")).Fill().Focusable().FocusRing(false).Role(ui.RoleGroup).Label(i18n.T("手绘白板"))
+			if b.RequestFocus {
+				canvas.Focus()
+				b.RequestFocus = false
+			}
+			rect := canvas.LayoutBounds()
+			if rect.W > 0 && rect.H > 0 {
+				b.lastRect = rect
+				if !b.fitted {
+					if len(b.Scene.Elements) > 0 {
+						b.fit(false)
+					}
+					b.fitted = true
+				}
+				b.prepareImages(o)
+				b.aiPrepareMedia(o)
+			} else {
+				c.After(0)
+			}
+			canvas.HandleInput(func(ev ui.InputEvent) bool { return b.input(ev, o) })
+			if o.DropFiles != nil && !b.ReadOnly {
+				if paths := canvas.DroppedFiles(); len(paths) > 0 {
+					o.DropFiles(paths)
+				}
+			}
+			canvas.ContextMenu(func(m *ui.Menu) {
+				if o.ImageAnnotation {
+					b.annotationMenu(m, o)
+				} else {
+					b.contextMenu(m, o)
+				}
+			})
+			// Scroll and pinch events have no release event. Keep their feedback
+			// briefly between events, then restore the tool cursor without a move.
+			now := c.Now()
+			if b.gestureChanged {
+				b.gestureUntil = now.Add(180 * time.Millisecond)
+				b.gestureChanged = false
+			}
+			gesture := b.gestureCursor != ui.CursorDefault && now.Before(b.gestureUntil)
+			if gesture {
+				c.After(b.gestureUntil.Sub(now))
+			}
+			// Reproject the current pointer after pan/zoom as well as pointer moves.
+			// PointerPosition also requests frames for hover-only target changes.
+			if x, y, over := canvas.PointerPosition(); over {
+				b.hover = b.scenePoint(x, y)
+			}
+			canvas.Cursor(b.canvasCursor(c.Modifiers(), gesture))
+			canvas.Draw(func(p *ui.Painter, r ui.Rect) {
+				b.lastRect = r
+				// The first view has no LayoutBounds yet. Fit the inspector using
+				// the actual paint bounds before any full-size pixels are shown.
+				if o.ImageAnnotation && !b.fitted && r.W > 0 && r.H > 0 {
 					b.fit(false)
 				}
-				b.fitted = true
-			}
-			b.prepareImages(o)
-			b.aiPrepareMedia(o)
-		} else {
-			c.After(0)
-		}
-		canvas.HandleInput(func(ev ui.InputEvent) bool { return b.input(ev, o) })
-		if o.DropFiles != nil && !b.ReadOnly {
-			if paths := canvas.DroppedFiles(); len(paths) > 0 {
-				o.DropFiles(paths)
-			}
-		}
-		canvas.ContextMenu(func(m *ui.Menu) {
-			if o.ImageAnnotation {
-				b.annotationMenu(m, o)
-			} else {
-				b.contextMenu(m, o)
-			}
+				b.paint(p, r, o.Theme.Dark && !o.ImageAnnotation, true)
+			})
+			b.aiNodeInlineControls(c, o)
+			b.aiVideoOverlay(c, o)
+			b.aiLinkControls(c, o)
 		})
-		// Scroll and pinch events have no release event. Keep their feedback
-		// briefly between events, then restore the tool cursor without a move.
-		now := c.Now()
-		if b.gestureChanged {
-			b.gestureUntil = now.Add(180 * time.Millisecond)
-			b.gestureChanged = false
-		}
-		gesture := b.gestureCursor != ui.CursorDefault && now.Before(b.gestureUntil)
-		if gesture {
-			c.After(b.gestureUntil.Sub(now))
-		}
-		// Reproject the current pointer after pan/zoom as well as pointer moves.
-		// PointerPosition also requests frames for hover-only target changes.
-		if x, y, over := canvas.PointerPosition(); over {
-			b.hover = b.scenePoint(x, y)
-		}
-		canvas.Cursor(b.canvasCursor(c.Modifiers(), gesture))
-		canvas.Draw(func(p *ui.Painter, r ui.Rect) {
-			b.lastRect = r
-			// The first view has no LayoutBounds yet. Fit the inspector using
-			// the actual paint bounds before any full-size pixels are shown.
-			if o.ImageAnnotation && !b.fitted && r.W > 0 && r.H > 0 {
-				b.fit(false)
-			}
-			b.paint(p, r, o.Theme.Dark && !o.ImageAnnotation, true)
-		})
-		b.aiNodeInlineControls(c, o)
 		b.textOverlay(c, o)
 		if !b.ReadOnly {
 			if o.ImageAnnotation {
@@ -116,7 +132,6 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			b.aiPickerMenu(c, o)
 		}
 		b.aiNodeOverlay(c, o)
-		b.aiLinkControls(c, o)
 		b.aiProperties(c, o)
 		b.footer(c, o)
 		b.panelView(c, o)

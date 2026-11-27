@@ -169,6 +169,7 @@ type boardAIState struct {
 	bufs             map[string]*boardAINodeBuffer
 	inlineFocused    string
 	focusInstruction bool
+	hoverTextArea    bool
 }
 
 type boardAICardText struct {

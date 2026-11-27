@@ -1,10 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/OUBIGFA/FreeFolio/internal/localresource"
@@ -58,6 +60,63 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 	saved, err = a.prefStore.Load()
 	if err != nil || saved.ComfyUI.Dir != root {
 		t.Fatalf("ComfyUI directory not saved: %+v %v", saved.ComfyUI, err)
+	}
+}
+
+func TestOptionalResourcesChangeDirectoryMigratesFiles(t *testing.T) {
+	a, tester := newTestApp(t)
+	oldDir := t.TempDir()
+	newDir := t.TempDir()
+
+	a.setResourceDirectory(oldDir)
+	tester.Frame()
+
+	// Seed a known ComfyUI pack file with exact size plus an unrelated user file.
+	pack := localresource.ComfyPacks[1] // sa2va-internvl3-2b
+	pf := pack.Files[0]                 // added_tokens.json (881 bytes, no SHA required)
+	payload := bytes.Repeat([]byte("A"), int(pf.Size))
+	oldPackFile := filepath.Join(oldDir, filepath.FromSlash(pf.RelPath))
+	if err := os.MkdirAll(filepath.Dir(oldPackFile), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldPackFile, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localresource.WriteComfyExtraModelPaths(oldDir); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := filepath.Join(oldDir, "keep-me.txt")
+	if err := os.WriteFile(unrelated, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a.setResourceDirectory(newDir)
+	tester.Frame()
+
+	if a.resources.err != nil {
+		t.Fatalf("migration failed: %v", a.resources.err)
+	}
+	if a.resources.busy != "" {
+		t.Fatalf("resources still busy after headless migration: %q", a.resources.busy)
+	}
+	saved, err := a.prefStore.Load()
+	if err != nil || saved.ResourceDir != newDir || a.resourceDirectory() != newDir {
+		t.Fatalf("resource directory not updated after migration: saved=%q current=%q err=%v", saved.ResourceDir, a.resourceDirectory(), err)
+	}
+	if _, err := os.Stat(oldPackFile); !os.IsNotExist(err) {
+		t.Fatalf("old resource file still exists: %v", err)
+	}
+	newPackFile := filepath.Join(newDir, filepath.FromSlash(pf.RelPath))
+	got, err := os.ReadFile(newPackFile)
+	if err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("migrated resource mismatch: err=%v", err)
+	}
+	yamlData, err := os.ReadFile(filepath.Join(newDir, "comfyui", "extra_model_paths.yaml"))
+	if err != nil || !strings.Contains(string(yamlData), filepath.ToSlash(filepath.Join(newDir, "comfyui"))) {
+		t.Fatalf("new extra_model_paths.yaml invalid: err=%v\n%s", err, string(yamlData))
+	}
+	if gotKeep, err := os.ReadFile(unrelated); err != nil || string(gotKeep) != "keep" {
+		t.Fatalf("unrelated file was affected: err=%v", err)
 	}
 }
 

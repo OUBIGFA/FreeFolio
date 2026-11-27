@@ -193,3 +193,118 @@ func TestBoardAICompareHandleUsableAtLowZoom(t *testing.T) {
 		t.Fatal("compare divider handle is missing at 25% zoom")
 	}
 }
+
+func TestBoardAICompareHoverZoomAndPan(t *testing.T) {
+	f := &fakeAI{}
+	o := f.options(t)
+	b := NewBoard(whiteboard.NewScene())
+	if err := b.InsertImage(testColoredPNG(t, 8, 8, color.NRGBA{R: 220, G: 40, B: 40, A: 255}), whiteboard.Point{120, 200}); err != nil {
+		t.Fatal(err)
+	}
+	imgA := b.Scene.ElementByID(b.SelectedIDs()[0])
+	if err := b.InsertImage(testColoredPNG(t, 8, 8, color.NRGBA{R: 40, G: 80, B: 220, A: 255}), whiteboard.Point{120, 420}); err != nil {
+		t.Fatal(err)
+	}
+	imgB := b.Scene.ElementByID(b.SelectedIDs()[0])
+	cmpID := b.AddAINode(whiteboard.AICompare, whiteboard.Point{600, 320}, o)
+	b.setAILink(cmpID, "a", imgA.ID)
+	b.setAILink(cmpID, "b", imgB.ID)
+	b.selectIDs([]string{cmpID})
+	b.Zoom, b.PanX, b.PanY = 1, 0, 0
+	b.fitted = true
+
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 800)
+	tt.Frame()
+
+	info, ok := tt.Access("图片对比分隔线")
+	if !ok {
+		t.Fatal("missing compare handle")
+	}
+	cx := info.Bounds.X + info.Bounds.W/2
+	cy := info.Bounds.Y + info.Bounds.H/2
+
+	// Pinch zoom in and out while hovering over the compare preview (through MyGo hit-testing).
+	beforePinch := b.Zoom
+	tt.Move(cx, cy)
+	tt.Pinch(cx, cy, 1.25)
+	if b.Zoom <= beforePinch {
+		t.Fatalf("pinch in over compare preview did not zoom in: before=%v after=%v", beforePinch, b.Zoom)
+	}
+	zoomedIn := b.Zoom
+	tt.Pinch(cx, cy, 0.8)
+	if b.Zoom >= zoomedIn {
+		t.Fatalf("pinch out over compare preview did not zoom out: before=%v after=%v", zoomedIn, b.Zoom)
+	}
+
+	// Wheel / touchpad scroll pans the board when hovering over the compare preview.
+	beforePanX, beforePanY := b.PanX, b.PanY
+	tt.Scroll(cx, cy, 24, 36)
+	if b.PanX == beforePanX && b.PanY == beforePanY {
+		t.Fatalf("scroll over compare preview did not pan board")
+	}
+	afterScrollPanY := b.PanY
+	tt.Wheel(cx, cy, 0, -40)
+	if b.PanY == afterScrollPanY {
+		t.Fatalf("wheel over compare preview did not reach viewport")
+	}
+
+	// Ctrl+wheel event zooms at cursor.
+	beforeCtrlZoom := b.Zoom
+	b.input(ui.InputEvent{Kind: ui.InputScroll, X: cx, Y: cy, DY: -40, Mods: ui.Ctrl}, o)
+	if b.Zoom <= beforeCtrlZoom {
+		t.Fatalf("Ctrl+wheel did not zoom in: before=%v after=%v", beforeCtrlZoom, b.Zoom)
+	}
+
+	// Dragging the compare preview still adjusts the split divider.
+	tt.Frame()
+	info, ok = tt.Access("图片对比分隔线")
+	if !ok {
+		t.Fatal("missing compare handle after pan/zoom")
+	}
+	midY := info.Bounds.Y + info.Bounds.H/2
+	tt.Press(info.Bounds.X+info.Bounds.W*0.5, midY)
+	tt.Move(info.Bounds.X+info.Bounds.W*0.8, midY)
+	tt.Release(info.Bounds.X+info.Bounds.W*0.8, midY)
+	cmpEl := b.Scene.ElementByID(cmpID)
+	if split := b.aiCompare(cmpEl).split; split <= 0.65 {
+		t.Fatalf("dragging compare divider failed: split=%v", split)
+	}
+
+	// Toggle mode handle also allows zoom and pan.
+	b.setCompareMode(o, cmpEl, "toggle")
+	tt.Frame()
+	toggleInfo, ok := tt.Access("按住查看图片 A")
+	if !ok {
+		t.Fatal("missing toggle compare handle")
+	}
+	txCmp := toggleInfo.Bounds.X + toggleInfo.Bounds.W/2
+	tyCmp := toggleInfo.Bounds.Y + toggleInfo.Bounds.H/2
+	beforeToggleZoom := b.Zoom
+	tt.Pinch(txCmp, tyCmp, 1.2)
+	if b.Zoom <= beforeToggleZoom {
+		t.Fatalf("pinch over toggle compare node did not zoom: before=%v after=%v", beforeToggleZoom, b.Zoom)
+	}
+
+	// Pinch over an inline TextArea zooms the board, while unmodified wheel leaves it to the TextArea.
+	promptID := b.AddAINode(whiteboard.AIPrompt, whiteboard.Point{250, 250}, o)
+	b.selectIDs([]string{promptID})
+	b.Zoom, b.PanX, b.PanY = 1, 0, 0
+	tt.Frame()
+	ta, ok := tt.Access("文字内容")
+	if !ok {
+		t.Fatal("missing prompt inline textarea")
+	}
+	tx := ta.Bounds.X + ta.Bounds.W/2
+	ty := ta.Bounds.Y + ta.Bounds.H/2
+	tt.Move(tx, ty)
+	tt.Frame()
+	panBeforeTextWheel := b.PanY
+	tt.Wheel(tx, ty, 0, -40)
+	if b.PanY != panBeforeTextWheel {
+		t.Fatalf("unmodified wheel over inline textarea panned board instead of scrolling text: before=%v after=%v", panBeforeTextWheel, b.PanY)
+	}
+	tt.Pinch(tx, ty, 1.2)
+	if b.Zoom <= 1 {
+		t.Fatalf("pinch over prompt textarea did not zoom: zoom=%v", b.Zoom)
+	}
+}
