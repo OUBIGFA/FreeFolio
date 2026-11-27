@@ -4,7 +4,7 @@
 
 导入已有 Git 仓库作为空间，登录 GitHub 并授权仓库后，直接提交、推送和拉取。支持完整的手动操作、计划同步、OneBot 提交说明、冲突解决和恢复。界面使用现有 Go + MyGo；优先复用本机 Git，没有时按需校验并安装 MinGit，不改变系统 PATH。
 
-GitHub 登录需要维护者注册应用并配置公开 Client ID。普通用户不填写令牌或私钥。未配置应用标识的构建会显示原因，不会报告登录成功。
+点击“连接 GitHub”后，在系统浏览器中登录并授权即可。FreeFolio 调用 Git Credential Manager（GCM）的官方登录流程，不要求注册 GitHub App、配置 Client ID 或填写令牌。优先使用电脑已有的兼容 GCM，缺少时自动下载官方组件并核对 SHA-256，不修改系统 PATH 或全局 Git 设置。
 
 ## 使用方式
 
@@ -16,7 +16,7 @@ GitHub 登录需要维护者注册应用并配置公开 Client ID。普通用户
 
 ## 安全与恢复
 
-账号令牌只在配置目录的 credentials 下加密保存，不进入仓库、命令参数或日志。使用设备码授权，处理取消、过期、轮询退避、令牌刷新和撤销后的重新登录。HTTPS Git 凭据通过受限凭据助手传递，只回应 github.com。
+Windows 上，GCM 将令牌加密保存在 FreeFolio 配置目录的 `credentials/gcm`，使用系统 DPAPI；macOS 使用系统钥匙串，Linux 使用 Secret Service。每次连接使用独立的 FreeFolio 凭据名称，断开不会删除其他 Git 工具的账号。账号身份经 GitHub 核实后才显示连接成功。登录取消、失败或凭据失效会显示错误，后台同步不自动弹出登录窗口。HTTPS Git 凭据通过受限凭据助手传递，只回应 github.com 上选定的仓库。
 
 仓库操作串行执行，保留用户暂存区；自动任务遇到用户已暂存内容时暂停并提示。提交、推送不强制改写历史。绑定的远端、分支或空间根目录改变时需要重新检查。SSH 仓库保留原有 SSH 认证，不因网页登录而改写远端。
 
@@ -28,23 +28,23 @@ GitHub 登录需要维护者注册应用并配置公开 Client ID。普通用户
 
 - Git for Windows / MinGit 2.56.1.windows.1，Git 主体 GPL-2.0；可选包保留自己的许可文件
 - Obsidian Git 2.44.0（MIT）作为工作流参考，没有引入 TypeScript 或运行时
-- GitHub 官方设备码授权和 Contents 仓库权限；现有 OAuth/HTTP 和 OneBot 接口优先复用
+- Git Credential Manager 3.0.2（MIT）的浏览器 OAuth 授权和系统凭据存储；现有 HTTP 和 OneBot 接口继续复用
 - 现有云同步的不开启补跑、备份和活动编辑保护规则
 
 ## 验证
 
-隔离临时仓库和本地 bare remote 验证真实 Git 行为；本地 HTTP 服务验证授权、刷新、下载和 AI 输出。原生无窗口测试覆盖设置、调度和冲突入口。真实 GitHub 登录须在注册应用后补做，不以本地模拟代替账号验收。
+隔离临时仓库和本地 bare remote 验证真实 Git 行为；本地 HTTP 服务与凭据助手子进程验证登录结果、取消、失败、下载和 AI 输出。官方 GCM 程序在隔离凭据目录中验证存储、读取与断开，使用合成测试令牌，不接触用户账号。原生无窗口测试覆盖登录按钮、设置、调度和冲突入口。真实 GitHub 浏览器登录仍由用户本人完成，不以本地模拟代替账号验收。
 
-## 维护者一次性注册
+## 登录与授权
 
-1. 在 GitHub 的 Developer settings → GitHub Apps 创建 FreeFolio 应用
-2. 启用 Device flow，关闭不使用的 Webhook
-3. Repository permissions 只启用 Contents 读写，Metadata 保留默认只读
-4. 将应用安装到测试账号，并仅授权隔离的测试仓库
-5. 配置公开 Client ID：开发时使用 `FREEFOLIO_GITHUB_CLIENT_ID`，或在构建时设置 `github.com/OUBIGFA/FreeFolio/internal/gitsync.GitHubClientID`
-6. 在隔离配置目录中验证浏览器登录、私有仓库拉取、推送、令牌续期和撤销授权
+1. 打开“设置 → GitHub 同步”，点击“连接 GitHub”
+2. 首次使用时等待组件准备完成，浏览器将自动打开 GitHub
+3. 登录并授权 Git Credential Manager，返回 FreeFolio 查看账号
+4. 选择空间并检查仓库，选择同步账号和规则后保存设置
 
-普通用户不填写 Client ID、令牌或私钥。设备码登录无需 Client Secret。新增仓库授权通过“管理仓库授权”打开 GitHub 官方页面；受保护分支遵守 GitHub 的推送限制，界面报告错误，不绕过保护。
+授权页面显示 Git Credential Manager 的应用身份。它按上游流程申请 `repo`、`gist` 和 `workflow` 权限，权限范围由 GitHub 页面展示；FreeFolio 只对明确选择的空间执行同步。组织仓库可能需要管理员批准或 SSO 授权。“管理仓库授权”打开 GitHub 的应用授权页面；受保护分支遵守 GitHub 的推送限制，不绕过保护。
+
+“断开账号”移除 FreeFolio 自己保存的登录，GitHub 端的应用授权可在上述页面撤销。较早构建中通过自注册应用连接的账号需点击“连接 GitHub”重新授权一次，同一账号的空间绑定继续保留。
 
 ## 文件与恢复范围
 

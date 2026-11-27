@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"github.com/OUBIGFA/FreeFolio/internal/gitsync"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"image/png"
@@ -9,6 +10,36 @@ import (
 	"testing"
 	"time"
 )
+
+func TestGitLoginStartsBrowserFlowWithoutClientID(t *testing.T) {
+	a, tt := newTestApp(t)
+	a.initGitSync()
+	a.gitSync.loaded = true
+	a.openSettings(tabGit)
+	a.gitSync.signIn = func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error) {
+		account := gitsync.Account{ID: "42", Login: "octo"}
+		return account, []gitsync.Account{account}, nil
+	}
+	tt.Frame()
+	if tt.HasText("此构建尚未配置 GitHub 应用，维护者需完成一次性注册") {
+		t.Fatal("login still requires registration")
+	}
+	if e := tt.Click("连接 GitHub"); e != nil {
+		t.Fatal(e)
+	}
+	if a.gitSync.busy {
+		select {
+		case done := <-a.gitSync.done:
+			a.gitSync.done <- done
+		case <-time.After(time.Second):
+			t.Fatal("login worker did not complete")
+		}
+	}
+	tt.Frame()
+	if !tt.HasText("octo") || a.gitSync.failed || a.gitSpaceConfig(a.state.Active).Account != "42" {
+		t.Fatal(a.gitSync.message, tt.Texts())
+	}
+}
 
 func TestGitSyncSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render Git sync settings")

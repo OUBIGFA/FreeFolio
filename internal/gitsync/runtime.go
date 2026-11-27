@@ -1,7 +1,9 @@
 package gitsync
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -183,6 +185,9 @@ func extractRuntime(archive, dest, digest string) error {
 	if fmt.Sprintf("%x", h.Sum(nil)) != digest {
 		return errRuntimeDigest
 	}
+	if strings.Contains(filepath.Base(archive), ".tar.gz") {
+		return extractTarRuntime(archive, dest)
+	}
 	z, e := zip.OpenReader(archive)
 	if e != nil {
 		return e
@@ -231,4 +236,69 @@ func extractRuntime(archive, dest, digest string) error {
 		}
 	}
 	return nil
+}
+
+// Official Unix GCM archives contain executable files and license notices.
+// The same size and path rules apply as to ZIPs; links and special files fail.
+func extractTarRuntime(archive, dest string) error {
+	f, e := os.Open(archive)
+	if e != nil {
+		return e
+	}
+	defer f.Close()
+	gz, e := gzip.NewReader(f)
+	if e != nil {
+		return e
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	var total int64
+	for {
+		entry, e := tr.Next()
+		if e == io.EOF {
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(entry.Name, "./"), "/")
+		if name == "" || name == "." {
+			continue
+		}
+		if entry.Size < 0 || strings.ContainsAny(name, "\\:\x00") {
+			return errors.New(i18n.T("Git 压缩包包含不安全路径"))
+		}
+		total += entry.Size
+		if total > 512<<20 || entry.Size > 128<<20 {
+			return errors.New(i18n.T("Git 解压大小超出限制"))
+		}
+		path, e := validPath(dest, name)
+		if e != nil {
+			return e
+		}
+		switch entry.Typeflag {
+		case tar.TypeDir:
+			if e = os.MkdirAll(path, 0700); e != nil {
+				return e
+			}
+		case tar.TypeReg:
+			if e = os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+				return e
+			}
+			out, e := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0700)
+			if e != nil {
+				return e
+			}
+			_, copyErr := io.CopyN(out, tr, entry.Size)
+			closeErr := out.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+		default:
+			return errors.New(i18n.T("Git 压缩包包含不安全路径"))
+		}
+	}
 }

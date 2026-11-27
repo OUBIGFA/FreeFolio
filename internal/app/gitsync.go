@@ -19,6 +19,8 @@ import (
 )
 
 type gitUIState struct {
+	signingIn                                              bool
+	signIn                                                 func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error)
 	applyingSpace                                          string
 	saved                                                  map[string]gitsync.SpaceConfig
 	messageFingerprint                                     string
@@ -26,7 +28,6 @@ type gitUIState struct {
 	config                                                 gitsync.Config
 	loaded, loading, broken, busy, failed                  bool
 	selected, message, commitMessage, preview, previewPath string
-	code, authURL                                          string
 	client                                                 *gitsync.GitHub
 	accounts                                               []gitsync.Account
 	repos                                                  map[string]gitsync.Repository
@@ -54,7 +55,15 @@ func (a *App) initGitSync() {
 	}
 	s.config = gitsync.Config{Version: 1, Spaces: map[string]*gitsync.SpaceConfig{}}
 	s.saved = map[string]gitsync.SpaceConfig{}
-	s.client = gitsync.NewGitHub(filepath.Join(a.cfg.ConfigDir, "credentials"), "")
+	s.client = gitsync.NewGitHub(filepath.Join(a.cfg.ConfigDir, "credentials"))
+	s.signIn = func(ctx context.Context, progress func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error) {
+		account, e := s.client.Login(ctx, progress)
+		if e != nil {
+			return account, nil, e
+		}
+		accounts, e := s.client.Accounts()
+		return account, accounts, e
+	}
 	s.repos = map[string]gitsync.Repository{}
 	s.schedules = map[string]*gitsync.Schedule{}
 	s.checked = map[string]map[string]bool{}
@@ -168,6 +177,8 @@ func (a *App) gitTick(c *ui.Context) {
 		case p := <-s.progress:
 			if p.Total > 0 {
 				s.message = fmt.Sprintf(i18n.T("正在准备 Git · %.1f / %.1f MiB"), float64(p.Received)/(1<<20), float64(p.Total)/(1<<20))
+			} else if s.signingIn {
+				s.message = i18n.T("请在浏览器中登录并授权 GitHub")
 			}
 		default:
 		}
@@ -265,42 +276,46 @@ func (a *App) gitApplyingView(c *ui.Context) {
 }
 func (a *App) gitLogin() {
 	a.initGitSync()
-	client := a.gitSync.client
-	a.gitWork("正在连接 GitHub", func(ctx context.Context) func() {
-		d, e := client.Begin(ctx)
+	if a.gitSync.busy {
+		return
+	}
+	a.gitSync.signingIn = true
+	spaceID := a.gitSync.selected
+	if spaceID == "" {
+		spaceID = a.state.Active
+	}
+	signIn := a.gitSync.signIn
+	a.gitWork("请在浏览器中登录并授权 GitHub", func(ctx context.Context) func() {
+		account, accounts, e := signIn(ctx, func(p gitsync.RuntimeProgress) {
+			if p.Total == 0 {
+				select {
+				case <-a.gitSync.progress:
+				default:
+				}
+			}
+			select {
+			case a.gitSync.progress <- p:
+			default:
+			}
+		})
 		return func() {
+			a.gitSync.signingIn = false
 			if e != nil {
 				a.gitError(e)
 				return
 			}
-			a.gitSync.code, a.gitSync.authURL = d.Code, d.URL
-			mygo.Shell.OpenExternal(d.URL)
-			a.gitWork("请在浏览器中完成 GitHub 授权", func(ctx context.Context) func() {
-				account, e := client.Complete(ctx, d)
-				accounts, accountErr := client.Accounts()
-				if e == nil {
-					e = accountErr
-				}
-				return func() {
-					a.gitSync.code = ""
-					if e != nil {
-						a.gitError(e)
-						return
-					}
-					a.gitSync.accounts = accounts
-					if a.gitSync.selected != "" {
-						a.gitSpaceConfig(a.gitSync.selected).Account = account.ID
-					}
-					a.gitSync.message = i18n.T("GitHub 已连接")
-				}
-			})
+			a.gitSync.accounts = accounts
+			if a.state.Get(spaceID) != nil {
+				a.gitSpaceConfig(spaceID).Account = account.ID
+			}
+			a.gitSync.message = i18n.T("GitHub 已连接")
 		}
 	})
 }
 func (a *App) gitDisconnect(id string) {
 	client := a.gitSync.client
 	a.gitWork("正在断开 GitHub", func(ctx context.Context) func() {
-		e := client.Disconnect(id)
+		e := client.Disconnect(ctx, id)
 		accounts, accountErr := client.Accounts()
 		if e == nil {
 			e = accountErr

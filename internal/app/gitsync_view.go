@@ -36,23 +36,10 @@ func (a *App) settingsGitSync(c *ui.Context) {
 				a.gitLogin()
 			}
 			if ui.Button(c.Key("access"), i18n.T("管理仓库授权")).Clicked() {
-				mygo.Shell.OpenExternal("https://github.com/settings/installations")
+				mygo.Shell.OpenExternal("https://github.com/settings/applications")
 			}
 		})
-		if !s.client.Configured() {
-			ui.Text(c, i18n.T("此构建尚未配置 GitHub 应用，维护者需完成一次性注册")).FontSize(13).Padding(0, 16, 12)
-		}
-		if s.code != "" {
-			ui.Text(c, i18n.T("在 GitHub 输入授权码")+" · "+s.code).FontSize(16).Padding(8, 16)
-			ui.Row(c).Padding(0, 16, 12).Gap(8).Children(func() {
-				if ui.Button(c.Key("copy-code"), i18n.T("复制授权码")).Clicked() {
-					mygo.Clipboard.WriteText(s.code)
-				}
-				if ui.Button(c.Key("open-auth"), i18n.T("打开授权页面")).Clicked() {
-					mygo.Shell.OpenExternal(s.authURL)
-				}
-			})
-		}
+		ui.Text(c, i18n.T("在浏览器中登录并授权即可，首次连接会自动准备所需组件")).FontSize(13).Padding(0, 16, 12)
 		for _, account := range s.accounts {
 			ui.Row(c.Key(account.ID)).Padding(8, 16).Gap(10).Children(func() {
 				ui.Text(c, account.Login).Grow(1)
