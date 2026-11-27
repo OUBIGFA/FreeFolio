@@ -38,11 +38,9 @@ func (a *App) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel 
 	}
 	caps := a.resources.comfyCaps
 	if caps == nil {
-		m.Unavailable = i18n.T("正在检查 ComfyUI")
-		if a.resources.comfyErr != nil {
-			m.Unavailable = i18n.T("ComfyUI 不可用，请检查连接")
-		}
-		a.ensureBoardComfyCheck()
+		// Listing models must not start or reconnect an engine the user stopped.
+		// The run path starts it on demand and validates its nodes and weights.
+		m.Unavailable = ""
 		return m
 	}
 	supported := true
@@ -123,18 +121,6 @@ func (a *App) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel 
 	}
 	m.Unavailable = ""
 	return m
-}
-
-func (a *App) ensureBoardComfyCheck() {
-	if a.win == nil || a.resources.comfyBusy || a.resources.busy != "" {
-		return
-	}
-	key := a.prefs.ComfyUI.Dir + "\x00" + a.prefs.ComfyUI.URL + "\x00" + a.resourceDirectory()
-	if a.resources.comfyCheckKey == key {
-		return
-	}
-	a.resources.comfyCheckKey = key
-	a.probeComfyUI()
 }
 
 func (a *App) boardRoleUnavailable(role whiteboard.AIRole) string {

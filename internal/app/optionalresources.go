@@ -41,14 +41,13 @@ type resourceState struct {
 	gpuFound   bool
 	gpu        localresource.GPUInfo
 
-	comfy         *localresource.ComfyManager
-	comfyURL      string
-	comfyCheckKey string
-	comfyURLInit  bool
-	comfyBusy     bool
-	comfyCaps     *localresource.ComfyCapabilities
-	comfyErr      error
-	inspection    uint64
+	comfy        *localresource.ComfyManager
+	comfyURL     string
+	comfyURLInit bool
+	comfyBusy    bool
+	comfyCaps    *localresource.ComfyCapabilities
+	comfyErr     error
+	inspection   uint64
 }
 
 func (a *App) comfyManager() *localresource.ComfyManager {
@@ -70,6 +69,7 @@ func (a *App) stopComfyUI() {
 	if a.resources.comfy != nil {
 		a.resources.comfy.Stop()
 	}
+	a.resources.comfyCaps = nil
 }
 
 func (a *App) setComfyDirectory(dir string) {
@@ -83,7 +83,6 @@ func (a *App) setComfyDirectory(dir string) {
 	a.prefs.ComfyUI.Dir = dir
 	a.savePrefs()
 	a.resources.comfyCaps = nil
-	a.resources.comfyCheckKey = ""
 	a.resources.comfyErr = nil
 	a.resources.dir = ""
 	a.stopComfyUI()
@@ -172,7 +171,6 @@ func (a *App) setResourceDirectory(dir string) {
 		a.resources.confirm = ""
 		a.resources.err = nil
 		a.resources.comfyCaps = nil
-		a.resources.comfyCheckKey = ""
 		return
 	}
 	s := &a.resources
@@ -416,7 +414,6 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 		}
 		return func() {
 			state.comfyCaps = nil
-			state.comfyCheckKey = ""
 			a.finishResourceDownload(s, err)
 			if remove {
 				state.busy = ""
@@ -717,8 +714,6 @@ func (a *App) settingsResources(c *ui.Context) {
 				}
 				if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
 					a.stopComfyUI()
-					s.comfyCaps = nil
-					s.comfyCheckKey = ""
 				}
 				canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
 				if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
@@ -731,7 +726,6 @@ func (a *App) settingsResources(c *ui.Context) {
 					a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
 					a.savePrefs()
 					s.comfyCaps = nil
-					s.comfyCheckKey = ""
 					s.comfyErr = nil
 				}
 			})

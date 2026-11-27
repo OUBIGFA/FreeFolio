@@ -1,8 +1,11 @@
 package app
 
 import (
+	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/localresource"
@@ -23,8 +26,8 @@ func TestLocalNodeRequiresDownloadDependenciesAndEngineSupport(t *testing.T) {
 		t.Fatal("missing base enabled")
 	}
 	a.resources.installed["z-image-turbo-int8"] = true
-	if got := a.boardModelAvailability(m); got.NeedsDownload || got.Unavailable == "" {
-		t.Fatal("unchecked engine enabled")
+	if got := a.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
+		t.Fatalf("downloaded model cannot start the engine on demand: %+v", got)
 	}
 	a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true, LoRANative: true}
 	if got := a.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
@@ -33,6 +36,55 @@ func TestLocalNodeRequiresDownloadDependenciesAndEngineSupport(t *testing.T) {
 	a.resources.comfyCaps.LoRANative = false
 	if a.boardModelAvailability(m).Unavailable == "" {
 		t.Fatal("missing native LoRA node enabled")
+	}
+}
+
+func TestBoardComfyStaysIdleUntilNodeRun(t *testing.T) {
+	for _, state := range []string{"not-started", "stopped", "failed-connection"} {
+		t.Run(state, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			// An isolated missing engine makes a startup attempt observable without
+			// launching Python or touching the user's ComfyUI installation.
+			a.prefs.ComfyUI.Dir = filepath.Join(t.TempDir(), "missing-engine")
+			a.resources.dir = a.resourceDirectory()
+			a.resources.installed = map[string]bool{"z-image-turbo-int8": true}
+			switch state {
+			case "stopped":
+				a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true}
+				a.stopComfyUI()
+				if a.resources.comfyCaps != nil {
+					t.Fatal("stopping retained stale engine capabilities")
+				}
+			case "failed-connection":
+				a.resources.comfyErr = errors.New("previous connection failed")
+			}
+			previousErr := a.resources.comfyErr
+			a.newWhiteboard("")
+			tt.Frame()
+			if err := tt.Click("AI 节点"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Advance(time.Second)
+			model := a.boardAIDefault(whiteboard.AIImage)
+			if model.Connection != "comfyui-zimage" || model.Model != "z-image-turbo-int8" {
+				t.Fatalf("idle engine blocked model selection: %+v", model)
+			}
+			if a.resources.comfyBusy || a.resources.comfyCaps != nil || a.resources.comfyErr != previousErr || a.resources.comfy != nil && a.resources.comfy.Running() {
+				t.Fatal("browsing the sidebar changed the engine connection")
+			}
+			o := a.boardOptionsWith(nil, a.doc)
+			id := a.doc.board.AddAINode(whiteboard.AIImage, whiteboard.Point{}, o)
+			el := a.doc.board.Scene.ElementByID(id)
+			n := whiteboard.AINodeOf(el)
+			n.Instruction = "a cat"
+			if err := whiteboard.SetAINode(el, n); err != nil {
+				t.Fatal(err)
+			}
+			a.doc.board.RunAI([]string{id}, false, true, o)
+			if err := whiteboard.AINodeOf(el).Error; !strings.Contains(err, "directory does not exist") {
+				t.Fatalf("running the node did not attempt the configured engine: %s", err)
+			}
+		})
 	}
 }
 
