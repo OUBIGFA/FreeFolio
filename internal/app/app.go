@@ -37,7 +37,7 @@ import (
 )
 
 // Version is FreeFolio's version, which plugins' engines are checked against.
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 // Config says where FreeFolio keeps its files.
 type Config struct {
