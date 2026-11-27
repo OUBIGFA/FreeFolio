@@ -60,6 +60,8 @@ type BoardAI struct {
 // BoardAIModel is a model of a connection.
 type BoardAIModel struct {
 	Connection, ConnectionName, Model, Name string
+	// Local identifies a host-managed local model connection, such as Ollama.
+	Local bool
 	// ImageSizes overrides pixel dimensions with the provider's native options.
 	ImageSizes []string
 }
@@ -68,6 +70,9 @@ func (m BoardAIModel) label() string {
 	source := i18n.T("供应商模型")
 	switch m.Connection {
 	case "local", "local-ncnn", "comfyui", "comfyui-rmbg3", "comfyui-sa2va", "comfyui-seedvr2", "comfyui-zimage", "comfyui-qwen-image":
+		source = i18n.T("本地模型")
+	}
+	if m.Local {
 		source = i18n.T("本地模型")
 	}
 	name := m.Name

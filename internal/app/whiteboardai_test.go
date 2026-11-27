@@ -21,6 +21,25 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
+func TestWhiteboardClassifiesLocalAndRemoteOllama(t *testing.T) {
+	a, _ := newTestApp(t)
+	for _, tc := range []struct {
+		address string
+		local   bool
+	}{
+		{"http://localhost:11434", true},
+		{"http://127.0.0.1:11434", true},
+		{"http://[::1]:11434", true},
+		{"https://ollama.com", false},
+	} {
+		a.prefs.AI.Connections = []prefs.AIConnection{{ID: "saved-connection", Name: "Ollama", Protocol: agent.Ollama, BaseURL: tc.address, Models: []agent.ModelInfo{{ID: "model", Enabled: true}}}}
+		models := a.boardAIModels(whiteboard.AIText)
+		if len(models) != 1 || models[0].Local != tc.local {
+			t.Errorf("%s: model source = %+v, want local=%v", tc.address, models, tc.local)
+		}
+	}
+}
+
 func TestGeminiCatalogFeedsWhiteboardAndOneBotImages(t *testing.T) {
 	var buf bytes.Buffer
 	_ = png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 2, 2)))

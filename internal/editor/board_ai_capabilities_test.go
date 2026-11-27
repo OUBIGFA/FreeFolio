@@ -10,6 +10,10 @@ import (
 )
 
 func TestBoardAIModelLabelsDistinguishSources(t *testing.T) {
+	local := BoardAIModel{Connection: "saved-connection", ConnectionName: "Ollama", Model: "model", Local: true}
+	if label := local.label(); !strings.HasPrefix(label, i18n.T("本地模型")+" · ") {
+		t.Errorf("host local connection label = %q", label)
+	}
 	for _, connection := range []string{"local", "local-ncnn", "comfyui", "comfyui-rmbg3", "comfyui-sa2va", "comfyui-seedvr2", "comfyui-zimage", "comfyui-qwen-image", "provider-id"} {
 		m := BoardAIModel{Connection: connection, ConnectionName: "Engine", Model: "model-id", Name: "Model"}
 		want := i18n.T("本地模型")

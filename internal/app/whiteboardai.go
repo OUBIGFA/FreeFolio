@@ -121,6 +121,9 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 			}
 			if ok {
 				item := editor.BoardAIModel{Connection: c.ID, ConnectionName: c.Name, Model: m.ID, Name: m.Name}
+				// Ollama can also point to a remote host; only a loopback
+				// Ollama connection identifies a model on this computer.
+				item.Local = c.Protocol == agent.Ollama && agent.IsLocal(c.BaseURL)
 				if role == whiteboard.AIImage && c.Protocol == agent.Gemini && !strings.HasPrefix(strings.TrimPrefix(m.ID, "models/"), "imagen") {
 					item.ImageSizes = []string{"1K", "2K", "4K"}
 				}
