@@ -434,6 +434,39 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 			badge = i18n.T("10 GB+ 显存 · 自动 8-bit 量化")
 		}
 		detail = fmt.Sprintf(i18n.T("复杂画面指代理解更精准，16 GB 及以下显存自动启用 8-bit 量化 · %s · %s · 需安装 ComfyUI-Sa2VA 插件"), sizeText, pack.License)
+	case "seedvr2-7b-sharp-int8":
+		switch {
+		case s.gpuFound && vram >= pack.MinVRAMGiB:
+			badge = fmt.Sprintf(i18n.T("重绘放大 · 推荐 · 适配 %d GB 显存"), vram)
+			accent = true
+		case s.gpuFound && vram > 0:
+			badge = fmt.Sprintf(i18n.T("重绘放大 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
+		default:
+			badge = i18n.T("重绘放大 · 10 GB+ 显存 · INT8")
+		}
+		detail = fmt.Sprintf(i18n.T("一步扩散重绘超分（含锐化增强与分块 VAE），保留透明通道与真实皮肤织物细节 · %s · %s"), sizeText, pack.License)
+	case "z-image-turbo-int8":
+		switch {
+		case s.gpuFound && vram >= pack.MinVRAMGiB:
+			badge = i18n.T("图像生成 · 推荐 · 8 步极速")
+			accent = true
+		case s.gpuFound && vram > 0:
+			badge = fmt.Sprintf(i18n.T("图像生成 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
+		default:
+			badge = i18n.T("图像生成 · 8 GB+ 显存 · INT8")
+		}
+		detail = fmt.Sprintf(i18n.T("通义轻量 6B 文生图模型，8 步快速出图、语义准确、全驻显存流畅运行 · %s · %s"), sizeText, pack.License)
+	case "qwen-image-2.1-turbo-int8":
+		switch {
+		case s.gpuFound && vram >= pack.MinVRAMGiB:
+			badge = fmt.Sprintf(i18n.T("生图与改图 · 适配 %d GB 显存"), vram)
+			accent = true
+		case s.gpuFound && vram > 0:
+			badge = fmt.Sprintf(i18n.T("生图与改图 · 需 %d GB+ 显存"), pack.MinVRAMGiB)
+		default:
+			badge = i18n.T("生图与改图 · 10 GB+ 显存 · INT8")
+		}
+		detail = fmt.Sprintf(i18n.T("文生图、多图参考编辑与红圈标注改图一体，中文排版与文字渲染极强 · %s · %s"), sizeText, pack.License)
 	default:
 		detail = fmt.Sprintf("%s · %s", sizeText, pack.License)
 	}
@@ -558,7 +591,14 @@ func (a *App) settingsResources(c *ui.Context) {
 			if s.comfyCaps.Sa2VANode != "" {
 				sa2vaState = s.comfyCaps.Sa2VANode
 			}
-			status = fmt.Sprintf(i18n.T("已连接 %s · RMBG-3.0：%s · Sa2VA：%s · 放大模型 %d 个"), dev, rmbgState, sa2vaState, len(s.comfyCaps.UpscaleModels))
+			nativeState := func(ok bool) string {
+				if ok {
+					return i18n.T("就绪")
+				}
+				return i18n.T("未就绪")
+			}
+			status = fmt.Sprintf(i18n.T("已连接 %s · RMBG-3.0：%s · Sa2VA：%s · SeedVR2：%s · Z-Image：%s · Qwen-Image 2.1：%s · 放大模型 %d 个"),
+				dev, rmbgState, sa2vaState, nativeState(s.comfyCaps.SeedVR2Native), nativeState(s.comfyCaps.ZImageNative), nativeState(s.comfyCaps.QwenImageNative), len(s.comfyCaps.UpscaleModels))
 		}
 		settingRow(c, "comfy-status", i18n.T("连接与能力状态"), status, func() {
 			if s.comfyCaps != nil {

@@ -630,3 +630,138 @@ func TestComfyManagerRMBG3AndSa2VACutout(t *testing.T) {
 		t.Fatalf("unexpected Sa2VA 2B inputs: %+v", sa2b)
 	}
 }
+
+func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
+	outA := comfyTestPNG(t, 8, 8, color.NRGBA{R: 120, G: 210, B: 90, A: 255})
+	outB := comfyTestPNG(t, 8, 8, color.NRGBA{R: 90, G: 120, B: 210, A: 255})
+	var captured []map[string]map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/system_stats":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"devices": []map[string]any{{"name": "NVIDIA GeForce RTX 3080 Ti", "vram_total": int64(12288) * 1024 * 1024}},
+			})
+		case "/object_info":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"UNETLoader": map[string]any{"input": map[string]any{"required": map[string]any{
+					"unet_name": []any{[]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "z_image_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_int8_convrot.safetensors"}},
+				}}},
+				"CLIPLoader": map[string]any{"input": map[string]any{"required": map[string]any{
+					"clip_name": []any{[]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen3vl_8b_int8_convrot.safetensors"}},
+				}}},
+				"VAELoader": map[string]any{"input": map[string]any{"required": map[string]any{
+					"vae_name": []any{[]string{"seedvr2_ema_vae_fp16.safetensors", "ae.safetensors", "qwen_image_2.1_vae_bf16.safetensors"}},
+				}}},
+				"KSampler":              map[string]any{},
+				"VAEDecode":             map[string]any{},
+				"JoinImageWithAlpha":    map[string]any{},
+				"ResizeImageMaskNode":   map[string]any{"input": map[string]any{"required": map[string]any{"resize_type": []any{[]string{"scale by multiplier"}}}}},
+				"SeedVR2Preprocess":     map[string]any{},
+				"SeedVR2Conditioning":   map[string]any{},
+				"SeedVR2PostProcessing": map[string]any{"input": map[string]any{"required": map[string]any{"color_correction_method": []any{[]string{"lab", "none"}}}}},
+				"VAEEncodeTiled":        map[string]any{},
+				"VAEDecodeTiled":        map[string]any{},
+				"ModelSamplingAuraFlow": map[string]any{},
+				"CLIPTextEncode":        map[string]any{},
+				"ConditioningZeroOut":   map[string]any{},
+				"EmptySD3LatentImage":   map[string]any{},
+				"TextEncodeQwenImage21": map[string]any{"input": map[string]any{"required": map[string]any{"resolution": []any{"INT", map[string]any{"default": 1024}}}}},
+				"QwenImage21Cache":      map[string]any{"input": map[string]any{"required": map[string]any{"device": []any{[]string{"auto"}}, "dtype": []any{[]string{"default"}}}}},
+				"ManualSigmas":          map[string]any{},
+				"KSamplerSelect":        map[string]any{},
+				"RandomNoise":           map[string]any{},
+				"CFGGuider":             map[string]any{},
+				"SamplerCustomAdvanced": map[string]any{},
+				"EmptyLatentImage":      map[string]any{},
+			})
+		case "/upload/image":
+			_ = json.NewEncoder(w).Encode(map[string]any{"name": "freefolio_in.png", "subfolder": ""})
+		case "/prompt":
+			var req struct {
+				Prompt map[string]struct {
+					ClassType string         `json:"class_type"`
+					Inputs    map[string]any `json:"inputs"`
+				} `json:"prompt"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			entry := map[string]map[string]any{}
+			for id, node := range req.Prompt {
+				node.Inputs["__class_type"] = node.ClassType
+				entry[id] = node.Inputs
+			}
+			captured = append(captured, entry)
+			_ = json.NewEncoder(w).Encode(map[string]any{"prompt_id": "job-1"})
+		case "/history/job-1":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"job-1": map[string]any{
+					"status": map[string]any{"status_str": "success", "completed": true},
+					"outputs": map[string]any{
+						"out": map[string]any{"images": []map[string]any{
+							{"filename": "a.png", "subfolder": "", "type": "output"},
+							{"filename": "b.png", "subfolder": "", "type": "output"},
+						}},
+					},
+				},
+			})
+		case "/view":
+			w.Header().Set("Content-Type", "image/png")
+			if r.URL.Query().Get("filename") == "b.png" {
+				_, _ = w.Write(outB)
+			} else {
+				_, _ = w.Write(outA)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	mgr := NewComfyManager()
+	cfg := ComfyConfig{URL: srv.URL}
+	caps, err := mgr.Probe(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !caps.SeedVR2Native || !caps.ZImageNative || !caps.QwenImageNative ||
+		len(caps.SeedVR2Models) != 1 || len(caps.ZImageModels) != 1 || len(caps.QwenImageModels) != 1 {
+		t.Fatalf("unexpected capabilities: %+v", caps)
+	}
+
+	in := comfyTestPNG(t, 4, 4, color.NRGBA{R: 50, G: 50, B: 50, A: 180})
+	up, err := mgr.UpscaleSeedVR2(context.Background(), cfg, 4, in)
+	if err != nil || !bytes.Equal(up, outA) {
+		t.Fatalf("UpscaleSeedVR2 failed: %v", err)
+	}
+
+	zImgs, err := mgr.GenerateZImageTurbo(context.Background(), cfg, ComfyImageRequest{Prompt: "a cozy library", AspectRatio: "16:9", Count: 2})
+	if err != nil || len(zImgs) != 2 || !bytes.Equal(zImgs[0], outA) || !bytes.Equal(zImgs[1], outB) {
+		t.Fatalf("GenerateZImageTurbo failed: len=%d err=%v", len(zImgs), err)
+	}
+
+	qT2I, err := mgr.GenerateQwenImage21Turbo(context.Background(), cfg, ComfyImageRequest{Prompt: "中文海报标题", Size: "1024x1024", Count: 1})
+	if err != nil || len(qT2I) == 0 {
+		t.Fatalf("GenerateQwenImage21Turbo T2I failed: %v", err)
+	}
+
+	qEdit, err := mgr.GenerateQwenImage21Turbo(context.Background(), cfg, ComfyImageRequest{Prompt: "把帽子改成红色", Images: [][]byte{in}})
+	if err != nil || len(qEdit) == 0 {
+		t.Fatalf("GenerateQwenImage21Turbo Edit failed: %v", err)
+	}
+
+	if len(captured) != 4 {
+		t.Fatalf("expected 4 workflow prompts, got %d", len(captured))
+	}
+	if captured[0]["6"]["unet_name"] != "seedvr2_7b_sharp_int8_convrot.safetensors" || captured[0]["3"]["resize_type.multiplier"] != float64(4) {
+		t.Fatalf("unexpected SeedVR2 graph: %+v", captured[0])
+	}
+	if captured[1]["7"]["width"] != float64(1344) || captured[1]["7"]["height"] != float64(768) || captured[1]["7"]["batch_size"] != float64(2) {
+		t.Fatalf("unexpected Z-Image latent size: %+v", captured[1]["7"])
+	}
+	if captured[2]["5"]["prompt"] != "中文海报标题" || captured[2]["5"]["vae"] != nil {
+		t.Fatalf("unexpected Qwen21 T2I encoder: %+v", captured[2]["5"])
+	}
+	if captured[3]["5"]["images.image_1"] == nil || captured[3]["5"]["vae"] == nil {
+		t.Fatalf("expected reference image & vae in Qwen21 Edit encoder: %+v", captured[3]["5"])
+	}
+}

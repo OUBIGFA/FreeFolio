@@ -115,6 +115,11 @@ func TestInstallVerifyResumeAndRemovePack(t *testing.T) {
 }
 
 func TestComfyPackCatalogIntegrity(t *testing.T) {
+	for _, wantID := range []string{"rmbg3-fp8", "sa2va-internvl3-2b", "sa2va-qwen3-vl-4b", "seedvr2-7b-sharp-int8", "z-image-turbo-int8", "qwen-image-2.1-turbo-int8"} {
+		if _, ok := ComfyPack(wantID); !ok {
+			t.Fatalf("missing ComfyPack %s", wantID)
+		}
+	}
 	if p, ok := ComfyPack("rmbg3-fp8"); !ok || !strings.Contains(p.Files[0].RelPath, "RMBG-3.0-fp8.safetensors") || len(p.Files) != 3 {
 		t.Fatalf("unexpected rmbg3-fp8 pack: %+v ok=%v", p, ok)
 	}

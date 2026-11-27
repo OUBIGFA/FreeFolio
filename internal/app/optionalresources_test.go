@@ -89,6 +89,41 @@ func TestBoardCutoutIncludesRMBG3FP8AndSa2VA(t *testing.T) {
 	}
 }
 
+func TestBoardUpscaleAndImageIncludeSeedVR2ZImageAndQwenImage(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.resources.comfyCaps = &localresource.ComfyCapabilities{
+		Device:          "NVIDIA GeForce RTX 3080 Ti",
+		VRAMMiB:         12288,
+		SeedVR2Native:   true,
+		SeedVR2Models:   []string{"seedvr2_7b_sharp_int8_convrot.safetensors"},
+		ZImageNative:    true,
+		ZImageModels:    []string{"z_image_turbo_int8_convrot.safetensors"},
+		QwenImageNative: true,
+		QwenImageModels: []string{"qwen_image_2.1_turbo_int8_convrot.safetensors"},
+	}
+	var hasSeedVR2 bool
+	for _, m := range a.boardAIModels(whiteboard.AIUpscale) {
+		if m.Connection == "comfyui-seedvr2" && m.Model == "seedvr2-7b-sharp-int8" {
+			hasSeedVR2 = true
+		}
+	}
+	if !hasSeedVR2 {
+		t.Fatal("missing SeedVR2 7B Sharp in AIUpscale models")
+	}
+	var hasZImage, hasQwen bool
+	for _, m := range a.boardAIModels(whiteboard.AIImage) {
+		if m.Connection == "comfyui-zimage" && m.Model == "z-image-turbo-int8" {
+			hasZImage = true
+		}
+		if m.Connection == "comfyui-qwen-image" && m.Model == "qwen-image-2.1-turbo-int8" {
+			hasQwen = true
+		}
+	}
+	if !hasZImage || !hasQwen {
+		t.Fatalf("missing ComfyUI image models: zimage=%v qwen=%v", hasZImage, hasQwen)
+	}
+}
+
 func TestOptionalResourcesSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render optional resources settings")
 	a, tt := newTestApp(t)

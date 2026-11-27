@@ -3,11 +3,14 @@ package localresource
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"io"
+	"math"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -47,21 +50,27 @@ type ComfyLayout struct {
 
 // ComfyCapabilities records the GPU device and models exposed by ComfyUI.
 type ComfyCapabilities struct {
-	BaseURL        string
-	Device         string
-	VRAMMiB        int
-	Version        string
-	ResolvedRoot   string
-	ResolvedPython string
-	UpscaleModels  []string
-	CutoutModels   []string
-	CutoutNode     string
-	RMBG3Native    bool
-	RMBG3Models    []string
-	TextEncoders   []string
-	VAEModels      []string
-	Sa2VANode      string
-	Sa2VAModels    []string
+	BaseURL         string
+	Device          string
+	VRAMMiB         int
+	Version         string
+	ResolvedRoot    string
+	ResolvedPython  string
+	UpscaleModels   []string
+	CutoutModels    []string
+	CutoutNode      string
+	RMBG3Native     bool
+	RMBG3Models     []string
+	TextEncoders    []string
+	VAEModels       []string
+	Sa2VANode       string
+	Sa2VAModels     []string
+	SeedVR2Native   bool
+	SeedVR2Models   []string
+	ZImageNative    bool
+	ZImageModels    []string
+	QwenImageNative bool
+	QwenImageModels []string
 }
 
 type comfyNodeSchema struct {
@@ -1075,11 +1084,27 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeFibo2", "KSampler", "VAEDecode", "ImageToMask", "InvertMask", "JoinImageWithAlpha") {
 		caps.RMBG3Native = true
 	}
+	if hasAll("UNETLoader", "VAELoader", "KSampler", "JoinImageWithAlpha", "ResizeImageMaskNode", "SeedVR2Preprocess", "SeedVR2Conditioning", "SeedVR2PostProcessing", "VAEEncodeTiled", "VAEDecodeTiled") {
+		caps.SeedVR2Native = true
+	}
+	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "ModelSamplingAuraFlow", "CLIPTextEncode", "ConditioningZeroOut", "EmptySD3LatentImage", "KSampler", "VAEDecode") {
+		caps.ZImageNative = true
+	}
+	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeQwenImage21", "QwenImage21Cache", "ManualSigmas", "KSamplerSelect", "RandomNoise", "CFGGuider", "SamplerCustomAdvanced", "EmptyLatentImage", "VAEDecode") {
+		caps.QwenImageNative = true
+	}
 	if unet, ok := info["UNETLoader"]; ok {
 		for _, name := range parseComfyChoiceList(unet.Input.Required["unet_name"]) {
 			low := strings.ToLower(name)
-			if strings.Contains(low, "rmbg3") || strings.Contains(low, "rmbg-3") {
+			switch {
+			case strings.Contains(low, "rmbg3") || strings.Contains(low, "rmbg-3"):
 				caps.RMBG3Models = append(caps.RMBG3Models, name)
+			case strings.Contains(low, "seedvr2"):
+				caps.SeedVR2Models = append(caps.SeedVR2Models, name)
+			case strings.Contains(low, "z_image") || strings.Contains(low, "z-image"):
+				caps.ZImageModels = append(caps.ZImageModels, name)
+			case strings.Contains(low, "qwen_image") || strings.Contains(low, "qwen-image"):
+				caps.QwenImageModels = append(caps.QwenImageModels, name)
 			}
 		}
 	}
@@ -1090,7 +1115,12 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 		caps.VAEModels = parseComfyChoiceList(vae.Input.Required["vae_name"])
 	}
 	schemas := map[string]comfyNodeSchema{}
-	for _, key := range []string{"TextGenerateV2", "TextEncodeFibo2", "XJSa2VAImageSegmentationV2", "XJSa2VAImageSegmentation", "Sa2VANodeTpl"} {
+	for _, key := range []string{
+		"TextGenerateV2", "TextEncodeFibo2",
+		"XJSa2VAImageSegmentationV2", "XJSa2VAImageSegmentation", "Sa2VANodeTpl",
+		"ResizeImageMaskNode", "SeedVR2PostProcessing",
+		"TextEncodeQwenImage21", "QwenImage21Cache",
+	} {
 		if node, ok := info[key]; ok {
 			schemas[key] = comfyNodeSchema{
 				Required: parseComfyRequiredDefaults(node.Input.Required),
@@ -1506,6 +1536,369 @@ func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelNa
 	return m.runImageWorkflow(ctx, base, graph)
 }
 
+// ComfyImageRequest configures text-to-image or reference-image editing via ComfyUI.
+type ComfyImageRequest struct {
+	Prompt      string
+	Size        string
+	AspectRatio string
+	Count       int
+	Images      [][]byte
+}
+
+func randomComfySeed() uint64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		// Keep within signed 53-bit JSON-safe integer range for ComfyUI widgets.
+		return (binary.LittleEndian.Uint64(b[:]) & ((uint64(1) << 50) - 1)) | 1
+	}
+	return uint64(time.Now().UnixNano()&((1<<50)-1)) | 1
+}
+
+func alignDim(v, mult, minV, maxV int) int {
+	if mult <= 1 {
+		mult = 16
+	}
+	v = max(minV, min(maxV, v))
+	v = ((v + mult/2) / mult) * mult
+	if v < minV {
+		v = minV
+	}
+	if v > maxV {
+		v = maxV
+	}
+	return v
+}
+
+func resolveComfyImageSize(size, aspect string, refImg []byte, mult int) (int, int) {
+	if mult <= 0 {
+		mult = 16
+	}
+	if raw := strings.TrimSpace(strings.ToLower(size)); raw != "" {
+		raw = strings.ReplaceAll(raw, "×", "x")
+		if left, right, ok := strings.Cut(raw, "x"); ok {
+			w, errW := strconv.Atoi(strings.TrimSpace(left))
+			h, errH := strconv.Atoi(strings.TrimSpace(right))
+			if errW == nil && errH == nil && w > 0 && h > 0 {
+				return alignDim(w, mult, 512, 2048), alignDim(h, mult, 512, 2048)
+			}
+		}
+	}
+	aspect = strings.TrimSpace(aspect)
+	switch aspect {
+	case "16:9":
+		return alignDim(1344, mult, 512, 2048), alignDim(768, mult, 512, 2048)
+	case "9:16":
+		return alignDim(768, mult, 512, 2048), alignDim(1344, mult, 512, 2048)
+	case "4:3":
+		return alignDim(1152, mult, 512, 2048), alignDim(896, mult, 512, 2048)
+	case "3:4":
+		return alignDim(896, mult, 512, 2048), alignDim(1152, mult, 512, 2048)
+	case "1:1":
+		return 1024, 1024
+	}
+	if len(refImg) > 0 {
+		if cfg, _, err := image.DecodeConfig(bytes.NewReader(refImg)); err == nil && cfg.Width > 0 && cfg.Height > 0 {
+			ratio := float64(cfg.Width) / float64(cfg.Height)
+			targetW := math.Sqrt(1024 * 1024 * ratio)
+			targetH := targetW / ratio
+			return alignDim(int(math.Round(targetW)), mult, 512, 2048), alignDim(int(math.Round(targetH)), mult, 512, 2048)
+		}
+	}
+	return 1024, 1024
+}
+
+func (m *ComfyManager) encodeAndUploadPNG(ctx context.Context, base string, data []byte) (string, int, int, error) {
+	if len(data) > maxInput {
+		return "", 0, 0, errors.New("input image exceeds 64 MiB")
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", 0, 0, err
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	if w <= 0 || h <= 0 {
+		return "", 0, 0, errors.New("empty input image")
+	}
+	var pngBuf bytes.Buffer
+	if err := writeNormalizedPNGTo(&pngBuf, img); err != nil {
+		return "", 0, 0, err
+	}
+	uploaded, err := m.uploadImage(ctx, base, pngBuf.Bytes())
+	if err != nil {
+		return "", 0, 0, err
+	}
+	return uploaded, w, h, nil
+}
+
+// UpscaleSeedVR2 runs ByteDance SeedVR2 generative restoration/upscaling via ComfyUI native nodes.
+func (m *ComfyManager) UpscaleSeedVR2(ctx context.Context, cfg ComfyConfig, scale int, input []byte) ([]byte, error) {
+	if scale == 0 {
+		scale = 4
+	}
+	if scale != 2 && scale != 4 {
+		return nil, errors.New("upscale factor must be 2 or 4")
+	}
+	if len(input) > maxInput {
+		return nil, errors.New("input image exceeds 64 MiB")
+	}
+	img, _, err := image.Decode(bytes.NewReader(input))
+	if err != nil {
+		return nil, err
+	}
+	origW, origH := img.Bounds().Dx(), img.Bounds().Dy()
+	if origW <= 0 || origH <= 0 {
+		return nil, errors.New("empty input image")
+	}
+	outW, outH := origW*scale, origH*scale
+	if int64(outW)*int64(outH) > maxUpscaleOutputPixels || outW > maxUpscaleOutputSide || outH > maxUpscaleOutputSide {
+		return nil, errors.New("upscaled image exceeds size limit")
+	}
+	var pngBuf bytes.Buffer
+	if err := writeNormalizedPNGTo(&pngBuf, img); err != nil {
+		return nil, err
+	}
+	caps, schemas, err := m.ensureCaps(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if !caps.SeedVR2Native {
+		return nil, errors.New("ComfyUI does not expose native SeedVR2 nodes; update ComfyUI first")
+	}
+	unetName := pickComfyModel([]string{"seedvr2_7b_sharp_int8_convrot.safetensors", "seedvr2_7b_int8_convrot.safetensors", "seedvr2_3b_int8_convrot.safetensors"}, caps.SeedVR2Models, "seedvr2")
+	if unetName == "" {
+		return nil, errors.New("SeedVR2 diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+	}
+	vaeName := pickComfyModel([]string{"seedvr2_ema_vae_fp16.safetensors", "ema_vae_fp16.safetensors"}, caps.VAEModels, "seedvr2", "vae")
+	if vaeName == "" {
+		vaeName = pickComfyModel(nil, caps.VAEModels, "ema_vae")
+	}
+	if vaeName == "" {
+		return nil, errors.New("SeedVR2 VAE not found in ComfyUI; download the SeedVR2 pack in Settings -> Optional Resources")
+	}
+	base := caps.BaseURL
+	if base == "" {
+		base, err = m.EnsureRunning(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	uploaded, err := m.uploadImage(ctx, base, pngBuf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	resizeInputs := cloneInputsMap(schemas["ResizeImageMaskNode"].Required)
+	resizeInputs["input"] = []any{"2", 0}
+	resizeInputs["resize_type"] = "scale by multiplier"
+	resizeInputs["resize_type.multiplier"] = float64(scale)
+	resizeInputs["scale_method"] = "lanczos"
+
+	postInputs := cloneInputsMap(schemas["SeedVR2PostProcessing"].Required)
+	postInputs["images"] = []any{"10", 0}
+	postInputs["original_resized_images"] = []any{"3", 0}
+	postInputs["color_correction_method"] = "none"
+
+	graph := map[string]any{
+		"1": map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}},
+		"2": map[string]any{"class_type": "JoinImageWithAlpha", "inputs": map[string]any{"image": []any{"1", 0}, "alpha": []any{"1", 1}}},
+		"3": map[string]any{"class_type": "ResizeImageMaskNode", "inputs": resizeInputs},
+		"4": map[string]any{"class_type": "SeedVR2Preprocess", "inputs": map[string]any{"resized_images": []any{"3", 0}}},
+		"5": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
+		"6": map[string]any{"class_type": "UNETLoader", "inputs": map[string]any{"unet_name": unetName, "weight_dtype": "default"}},
+		"7": map[string]any{"class_type": "VAEEncodeTiled", "inputs": map[string]any{
+			"pixels":           []any{"4", 0},
+			"vae":              []any{"5", 0},
+			"tile_size":        512,
+			"overlap":          128,
+			"temporal_size":    4096,
+			"temporal_overlap": 8,
+		}},
+		"8": map[string]any{"class_type": "SeedVR2Conditioning", "inputs": map[string]any{"model": []any{"6", 0}, "vae_conditioning": []any{"7", 0}}},
+		"9": map[string]any{"class_type": "KSampler", "inputs": map[string]any{
+			"model":        []any{"6", 0},
+			"positive":     []any{"8", 0},
+			"negative":     []any{"8", 1},
+			"latent_image": []any{"7", 0},
+			"seed":         42,
+			"steps":        1,
+			"cfg":          1.0,
+			"sampler_name": "euler",
+			"scheduler":    "simple",
+			"denoise":      1.0,
+		}},
+		"10": map[string]any{"class_type": "VAEDecodeTiled", "inputs": map[string]any{
+			"samples":          []any{"9", 0},
+			"vae":              []any{"5", 0},
+			"tile_size":        512,
+			"overlap":          128,
+			"temporal_size":    4096,
+			"temporal_overlap": 8,
+		}},
+		"11": map[string]any{"class_type": "SeedVR2PostProcessing", "inputs": postInputs},
+		"12": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"11", 0}, "filename_prefix": "freefolio_seedvr2"}},
+	}
+	return m.runImageWorkflow(ctx, base, graph)
+}
+
+// GenerateZImageTurbo generates images with Z-Image-Turbo (INT8) via ComfyUI native core nodes.
+func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return nil, errors.New("prompt is required")
+	}
+	if len(req.Images) > 0 {
+		return nil, errors.New("Z-Image-Turbo only supports text-to-image; use Qwen-Image 2.1 Turbo for reference image editing")
+	}
+	count := max(1, min(req.Count, 4))
+	caps, _, err := m.ensureCaps(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if !caps.ZImageNative {
+		return nil, errors.New("ComfyUI does not expose native Z-Image nodes; update ComfyUI first")
+	}
+	unetName := pickComfyModel([]string{"z_image_turbo_int8_convrot.safetensors", "z_image_turbo_bf16.safetensors"}, caps.ZImageModels, "z_image")
+	if unetName == "" {
+		return nil, errors.New("Z-Image-Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+	}
+	clipName := pickComfyModel([]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen_3_4b.safetensors"}, caps.TextEncoders, "qwen_3_4b")
+	if clipName == "" {
+		return nil, errors.New("Qwen3-4B text encoder for Z-Image-Turbo not found in ComfyUI; download the Z-Image-Turbo pack in Settings -> Optional Resources")
+	}
+	vaeName := pickComfyModel([]string{"ae.safetensors"}, caps.VAEModels, "ae.safetensors")
+	if vaeName == "" {
+		return nil, errors.New("VAE (ae.safetensors) for Z-Image-Turbo not found in ComfyUI; download the Z-Image-Turbo pack in Settings -> Optional Resources")
+	}
+	base := caps.BaseURL
+	if base == "" {
+		base, err = m.EnsureRunning(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	w, h := resolveComfyImageSize(req.Size, req.AspectRatio, nil, 16)
+	graph := map[string]any{
+		"1": map[string]any{"class_type": "UNETLoader", "inputs": map[string]any{"unet_name": unetName, "weight_dtype": "default"}},
+		"2": map[string]any{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]any{"model": []any{"1", 0}, "shift": 3}},
+		"3": map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "lumina2", "device": "default"}},
+		"4": map[string]any{"class_type": "CLIPTextEncode", "inputs": map[string]any{"clip": []any{"3", 0}, "text": prompt}},
+		"5": map[string]any{"class_type": "ConditioningZeroOut", "inputs": map[string]any{"conditioning": []any{"4", 0}}},
+		"6": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
+		"7": map[string]any{"class_type": "EmptySD3LatentImage", "inputs": map[string]any{"width": w, "height": h, "batch_size": count}},
+		"8": map[string]any{"class_type": "KSampler", "inputs": map[string]any{
+			"model":        []any{"2", 0},
+			"positive":     []any{"4", 0},
+			"negative":     []any{"5", 0},
+			"latent_image": []any{"7", 0},
+			"seed":         randomComfySeed(),
+			"steps":        8,
+			"cfg":          1.0,
+			"sampler_name": "res_multistep",
+			"scheduler":    "simple",
+			"denoise":      1.0,
+		}},
+		"9":  map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"6", 0}}},
+		"10": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"9", 0}, "filename_prefix": "freefolio_zimage"}},
+	}
+	return m.runImagesWorkflow(ctx, base, graph)
+}
+
+// GenerateQwenImage21Turbo runs text-to-image or multi-image editing via Qwen-Image 2.1 Turbo native nodes.
+func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return nil, errors.New("prompt is required")
+	}
+	count := max(1, min(req.Count, 4))
+	caps, schemas, err := m.ensureCaps(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if !caps.QwenImageNative {
+		return nil, errors.New("ComfyUI does not expose native Qwen-Image 2.1 nodes; update ComfyUI first")
+	}
+	unetName := pickComfyModel([]string{"qwen_image_2.1_turbo_int8_convrot.safetensors", "qwen_image_2.1_turbo_bf16.safetensors"}, caps.QwenImageModels, "qwen_image_2.1")
+	if unetName == "" {
+		return nil, errors.New("Qwen-Image 2.1 Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+	}
+	clipName := pickComfyModel([]string{"qwen3vl_8b_int8_convrot.safetensors", "qwen3vl_8b_w4a8.safetensors", "qwen3vl_8b_bf16.safetensors"}, caps.TextEncoders, "qwen3vl_8b")
+	if clipName == "" {
+		return nil, errors.New("Qwen3-VL-8B text encoder not found in ComfyUI; download the Qwen-Image 2.1 Turbo pack in Settings -> Optional Resources")
+	}
+	vaeName := pickComfyModel([]string{"qwen_image_2.1_vae_bf16.safetensors"}, caps.VAEModels, "qwen_image_2.1")
+	if vaeName == "" {
+		return nil, errors.New("Qwen-Image 2.1 VAE not found in ComfyUI; download the Qwen-Image 2.1 Turbo pack in Settings -> Optional Resources")
+	}
+	base := caps.BaseURL
+	if base == "" {
+		base, err = m.EnsureRunning(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var firstRef []byte
+	if len(req.Images) > 0 {
+		firstRef = req.Images[0]
+	}
+	w, h := resolveComfyImageSize(req.Size, req.AspectRatio, firstRef, 32)
+
+	cacheInputs := cloneInputsMap(schemas["QwenImage21Cache"].Required)
+	cacheInputs["model"] = []any{"1", 0}
+	cacheInputs["device"] = "auto"
+	cacheInputs["dtype"] = "default"
+
+	encInputs := cloneInputsMap(schemas["TextEncodeQwenImage21"].Required)
+	encInputs["clip"] = []any{"3", 0}
+	encInputs["prompt"] = prompt
+	encInputs["negative_prompt"] = ""
+	encInputs["resolution"] = 1024
+
+	graph := map[string]any{
+		"1": map[string]any{"class_type": "UNETLoader", "inputs": map[string]any{"unet_name": unetName, "weight_dtype": "default"}},
+		"2": map[string]any{"class_type": "QwenImage21Cache", "inputs": cacheInputs},
+		"3": map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "qwen_image", "device": "default"}},
+		"4": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
+	}
+	if len(req.Images) > 0 {
+		encInputs["vae"] = []any{"4", 0}
+		limit := min(len(req.Images), 8)
+		for i := range limit {
+			uploaded, _, _, err := m.encodeAndUploadPNG(ctx, base, req.Images[i])
+			if err != nil {
+				return nil, err
+			}
+			loadID := fmt.Sprintf("img_%d", i+1)
+			graph[loadID] = map[string]any{"class_type": "LoadImage", "inputs": map[string]any{"image": uploaded}}
+			encInputs[fmt.Sprintf("images.image_%d", i+1)] = []any{loadID, 0}
+		}
+	}
+	graph["5"] = map[string]any{"class_type": "TextEncodeQwenImage21", "inputs": encInputs}
+
+	var latentRef []any
+	if len(req.Images) > 0 && strings.TrimSpace(req.Size) == "" && strings.TrimSpace(req.AspectRatio) == "" && count == 1 {
+		latentRef = []any{"5", 2}
+	} else {
+		graph["6"] = map[string]any{"class_type": "EmptyLatentImage", "inputs": map[string]any{"width": w, "height": h, "batch_size": count}}
+		latentRef = []any{"6", 0}
+	}
+
+	graph["7"] = map[string]any{"class_type": "CFGGuider", "inputs": map[string]any{"model": []any{"2", 0}, "positive": []any{"5", 0}, "negative": []any{"5", 1}, "cfg": 1.0}}
+	graph["8"] = map[string]any{"class_type": "ManualSigmas", "inputs": map[string]any{"sigmas": "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"}}
+	graph["9"] = map[string]any{"class_type": "KSamplerSelect", "inputs": map[string]any{"sampler_name": "euler"}}
+	graph["10"] = map[string]any{"class_type": "RandomNoise", "inputs": map[string]any{"noise_seed": randomComfySeed()}}
+	graph["11"] = map[string]any{"class_type": "SamplerCustomAdvanced", "inputs": map[string]any{
+		"noise":        []any{"10", 0},
+		"guider":       []any{"7", 0},
+		"sampler":      []any{"9", 0},
+		"sigmas":       []any{"8", 0},
+		"latent_image": latentRef,
+	}}
+	graph["12"] = map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"11", 0}, "vae": []any{"4", 0}}}
+	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_qwen21"}}
+	return m.runImagesWorkflow(ctx, base, graph)
+}
+
 func writeNormalizedPNGTo(w io.Writer, img image.Image) error {
 	f, ok := w.(*bytes.Buffer)
 	if !ok {
@@ -1579,6 +1972,14 @@ func (m *ComfyManager) uploadImage(ctx context.Context, base string, data []byte
 }
 
 func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph map[string]any) ([]byte, error) {
+	imgs, err := m.runImagesWorkflow(ctx, base, graph)
+	if err != nil {
+		return nil, err
+	}
+	return imgs[0], nil
+}
+
+func (m *ComfyManager) runImagesWorkflow(ctx context.Context, base string, graph map[string]any) ([][]byte, error) {
 	payload, err := json.Marshal(map[string]any{"prompt": graph, "client_id": "freefolio"})
 	if err != nil {
 		return nil, err
@@ -1643,19 +2044,25 @@ func (m *ComfyManager) runImageWorkflow(ctx context.Context, base string, graph 
 			if item.Status.StatusStr == "error" {
 				return nil, formatComfyExecutionError(item.Status.Messages)
 			}
+			var results [][]byte
 			for _, out := range item.Outputs {
-				if len(out.Images) == 0 {
-					continue
+				for _, img := range out.Images {
+					q := url.Values{}
+					q.Set("filename", img.Filename)
+					q.Set("subfolder", img.Subfolder)
+					if img.Type == "" {
+						img.Type = "output"
+					}
+					q.Set("type", img.Type)
+					data, err := m.getBytes(ctx, base+"/view?"+q.Encode())
+					if err != nil {
+						return nil, err
+					}
+					results = append(results, data)
 				}
-				img := out.Images[0]
-				q := url.Values{}
-				q.Set("filename", img.Filename)
-				q.Set("subfolder", img.Subfolder)
-				if img.Type == "" {
-					img.Type = "output"
-				}
-				q.Set("type", img.Type)
-				return m.getBytes(ctx, base+"/view?"+q.Encode())
+			}
+			if len(results) > 0 {
+				return results, nil
 			}
 			if item.Status.Completed {
 				return nil, errors.New("ComfyUI workflow completed with no output image")

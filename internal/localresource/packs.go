@@ -148,6 +148,84 @@ var ComfyPacks = []ResourcePack{
 			hfPackFile("comfyui/sa2va/ByteDance/Sa2VA-Qwen3-VL-4B", "https://huggingface.co/ByteDance/Sa2VA-Qwen3-VL-4B/resolve/main/", "vocab.json", 2776833, ""),
 		},
 	},
+	{
+		ID:         "seedvr2-7b-sharp-int8",
+		Name:       "SeedVR2 7B Sharp (INT8)",
+		License:    "Apache-2.0",
+		Kind:       "seedvr2",
+		ModelID:    "seedvr2-7b-sharp-int8",
+		MinVRAMGiB: 10,
+		Files: []PackFile{
+			{
+				RelPath: "comfyui/diffusion_models/seedvr2_7b_sharp_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_7b_sharp_int8_convrot.safetensors",
+				Size:    8334897976,
+				SHA:     "db48be2f1cc7e36b01a2aa529810f5d9c6a971edd29be225cf1b0eb18d51c366",
+			},
+			{
+				RelPath: "comfyui/vae/seedvr2_ema_vae_fp16.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/vae/seedvr2_ema_vae_fp16.safetensors",
+				Size:    501324814,
+				SHA:     "20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1",
+			},
+		},
+	},
+	{
+		ID:         "z-image-turbo-int8",
+		Name:       "Z-Image-Turbo (INT8)",
+		License:    "Apache-2.0",
+		Kind:       "zimage",
+		ModelID:    "z-image-turbo-int8",
+		MinVRAMGiB: 8,
+		Files: []PackFile{
+			{
+				RelPath: "comfyui/diffusion_models/z_image_turbo_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors",
+				Size:    6201001296,
+				SHA:     "be517ebd47c912a5626a588e1aeea43e6be4a43c0cdcd2b48a2a780d9f358635",
+			},
+			{
+				RelPath: "comfyui/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+				Size:    5631994051,
+				SHA:     "72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15",
+			},
+			{
+				RelPath: "comfyui/vae/ae.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+				Size:    335304388,
+				SHA:     "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+			},
+		},
+	},
+	{
+		ID:         "qwen-image-2.1-turbo-int8",
+		Name:       "Qwen-Image 2.1 Turbo (INT8)",
+		License:    "Qwen",
+		Kind:       "qwen-image",
+		ModelID:    "qwen-image-2.1-turbo-int8",
+		MinVRAMGiB: 10,
+		Files: []PackFile{
+			{
+				RelPath: "comfyui/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors",
+				Size:    7256787829,
+				SHA:     "8144a0182964aa8403ad6dbc011db837304167d235161b9aabaa8532e967314c",
+			},
+			{
+				RelPath: "comfyui/text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+				Size:    9350798360,
+				SHA:     "8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f",
+			},
+			{
+				RelPath: "comfyui/vae/qwen_image_2.1_vae_bf16.safetensors",
+				URL:     "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors",
+				Size:    675509688,
+				SHA:     "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9",
+			},
+		},
+	},
 }
 
 // ComfyPack returns the resource pack matching id.

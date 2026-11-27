@@ -40,8 +40,14 @@
 | **BRIA RMBG-3.0 (FP8)** | 8 GB+ 显存（12 GB 推荐） | `comfyui/diffusion_models/RMBG-3.0-fp8.safetensors`、`text_encoders/qwen3vl_4b_int8_convrot.safetensors`、`vae/flux2-vae.safetensors` | 生成级柔和透明抠图，发丝、玻璃、婚纱与半透明物体效果最佳；通过 ComfyUI ≥ 0.4.60 原生节点运行，无需额外插件 | CC-BY-NC-4.0 |
 | **Sa2VA-InternVL3-2B** | 6 GB+ 显存（推荐） | `comfyui/sa2va/ByteDance/Sa2VA-InternVL3-2B/` | 按自然语言指代抠出特定对象（如「左边穿白衣服的人」），轻量快速；需安装 `ComfyUI-Sa2VA-XJ` 或 `ComfyUI-Sa2VA` 插件 | Apache-2.0 |
 | **Sa2VA-Qwen3-VL-4B** | 10 GB+ 显存（≤16 GB 自动 8-bit 量化） | `comfyui/sa2va/ByteDance/Sa2VA-Qwen3-VL-4B/` | 复杂场景指代理解精度更高，12 GB 显卡自动启用 8-bit 量化避免爆显存；需安装 `ComfyUI-Sa2VA-XJ` 或 `ComfyUI-Sa2VA` 插件 | Apache-2.0 |
+| **SeedVR2 7B Sharp (INT8)** | 10 GB+ 显存（12 GB + 大内存推荐） | `comfyui/diffusion_models/seedvr2_7b_sharp_int8_convrot.safetensors`、`vae/seedvr2_ema_vae_fp16.safetensors` | 一步扩散重绘级 2×/4× 图片放大，重建毛发、皮肤、织物与文字细节并保留 Alpha 透明通道，分块 VAE 防爆显存；ComfyUI 原生节点无需插件 | Apache-2.0 |
+| **Z-Image-Turbo (INT8)** | 8 GB+ 显存（推荐） | `comfyui/diffusion_models/z_image_turbo_int8_convrot.safetensors`、`text_encoders/qwen_3_4b_fp8_mixed.safetensors`、`vae/ae.safetensors` | 8 步极速文生图，中英文语义准确、轻量全驻显存；ComfyUI 原生节点无需插件，供白板「图像生成」使用 | Apache-2.0 |
+| **Qwen-Image 2.1 Turbo (INT8)** | 10 GB+ 显存 | `comfyui/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors`、`text_encoders/qwen3vl_8b_int8_convrot.safetensors`、`vae/qwen_image_2.1_vae_bf16.safetensors` | 文生图 + 多参考图/红圈标注改图一体，中文文字排版与复杂指令理解极强；ComfyUI 原生节点无需插件 | Qwen |
 
-白板「本地抠图」节点新增了可选的「抠图说明」输入口与文本栏：使用 **BRIA RMBG-3.0 (FP8)** 时可提示主体材质（如 `透明玻璃杯`），使用 **Sa2VA** 时可直接描述要抠出的具体对象；留空时均默认自动识别主体。
+白板 AI 工作流节点支持：
+- 「**本地抠图**」节点可选 **BRIA RMBG-3.0 (FP8)** 与 **Sa2VA**，并支持通过「抠图说明」输入框或文字连线提示主体材质与指代对象。
+- 「**图片放大**」节点可选 **SeedVR2 7B Sharp (INT8)**（`2×` / `4×` 重绘超分），与极速的 `Real-ESRGAN Vulkan` 互补。
+- 「**生成图像 / 编辑图像**」节点可在模型列表直接选用本机 ComfyUI 的 **Z-Image-Turbo (INT8)**（文生图）与 **Qwen-Image 2.1 Turbo (INT8)**（自动切换文生图或参考图/红圈标注改图），保留完整的批量出图（`×1..×4`）、历史对比与 A/B 挑选体验。
 
 此外，探测 `/object_info` 后也会继续列出 ComfyUI 中已有的通用放大模型（`UpscaleModelLoader`）与 `RMBG` 自定义节点模型。
 

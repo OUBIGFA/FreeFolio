@@ -2552,4 +2552,22 @@ var en = map[string]string{
 	"复杂画面指代理解更精准，16 GB 及以下显存自动启用 8-bit 量化 · %s · %s · 需安装 ComfyUI-Sa2VA 插件": "Higher referring accuracy for complex scenes, enables 8-bit quantization on 16 GB or smaller GPUs · %s · %s · Requires ComfyUI-Sa2VA plugin",
 	"下载文件经 --extra-model-paths-config 自动挂载并做 SHA-256 校验，中断后再次点击下载可断点继续":     "Files are mounted via --extra-model-paths-config with SHA-256 verification; Click Download again to resume if interrupted",
 	"删除共用运行库后，两款本地抠图模型都需要重新下载运行库才能运行":                                       "Removing the shared runtime means both local cutout models will need to download it again before running",
+
+	// SeedVR2 7B Sharp, Z-Image-Turbo and Qwen-Image 2.1 Turbo.
+	"重绘放大": "Diffusion upscale",
+	"重绘放大 · 推荐 · 适配 %d GB 显存": "Diffusion upscale · Recommended · Fits %d GB VRAM",
+	"重绘放大 · 需 %d GB+ 显存":      "Diffusion upscale · Requires %d GB+ VRAM",
+	"重绘放大 · 10 GB+ 显存 · INT8": "Diffusion upscale · 10 GB+ VRAM · INT8",
+	"一步扩散重绘超分（含锐化增强与分块 VAE），保留透明通道与真实皮肤织物细节 · %s · %s": "One-step diffusion generative upscaling with sharp enhancement and tiled VAE, preserving alpha transparency and natural textures · %s · %s",
+	"图像生成 · 推荐 · 8 步极速":      "Image generation · Recommended · 8-step fast",
+	"图像生成 · 需 %d GB+ 显存":     "Image generation · Requires %d GB+ VRAM",
+	"图像生成 · 8 GB+ 显存 · INT8": "Image generation · 8 GB+ VRAM · INT8",
+	"通义轻量 6B 文生图模型，8 步快速出图、语义准确、全驻显存流畅运行 · %s · %s": "Fast 8-step 6B text-to-image model with strong prompt adherence and smooth VRAM footprint · %s · %s",
+	"生图与改图 · 适配 %d GB 显存":      "Generate & edit · Fits %d GB VRAM",
+	"生图与改图 · 需 %d GB+ 显存":      "Generate & edit · Requires %d GB+ VRAM",
+	"生图与改图 · 10 GB+ 显存 · INT8": "Generate & edit · 10 GB+ VRAM · INT8",
+	"文生图、多图参考编辑与红圈标注改图一体，中文排版与文字渲染极强 · %s · %s": "Unified text-to-image, multi-reference and annotated image editing with strong Chinese typography rendering · %s · %s",
+	"就绪":  "Ready",
+	"未就绪": "Not ready",
+	"已连接 %s · RMBG-3.0：%s · Sa2VA：%s · SeedVR2：%s · Z-Image：%s · Qwen-Image 2.1：%s · 放大模型 %d 个": "Connected %s · RMBG-3.0: %s · Sa2VA: %s · SeedVR2: %s · Z-Image: %s · Qwen-Image 2.1: %s · %d upscale models",
 }

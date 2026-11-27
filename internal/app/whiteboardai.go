@@ -69,12 +69,41 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 			}
 			out = append(out, editor.BoardAIModel{Connection: "local-ncnn", Model: model.ID, Name: label})
 		}
-		if a.resources.comfyCaps != nil {
-			for _, model := range a.resources.comfyCaps.UpscaleModels {
+		a.ensureResourcesInspected()
+		caps := a.resources.comfyCaps
+		for _, pack := range localresource.ComfyPacks {
+			if pack.Kind == "seedvr2" && (a.resources.installed[pack.ID] || (caps != nil && caps.SeedVR2Native && len(caps.SeedVR2Models) > 0)) {
+				out = append(out, editor.BoardAIModel{
+					Connection:     "comfyui-seedvr2",
+					ConnectionName: "ComfyUI",
+					Model:          pack.ModelID,
+					Name:           pack.Name + " · " + i18n.T("重绘放大"),
+				})
+			}
+		}
+		if caps != nil {
+			for _, model := range caps.UpscaleModels {
 				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
 			}
 		}
 		return out
+	}
+	if role == whiteboard.AIImage {
+		a.ensureResourcesInspected()
+		caps := a.resources.comfyCaps
+		for _, pack := range localresource.ComfyPacks {
+			installed := a.resources.installed[pack.ID]
+			switch pack.Kind {
+			case "zimage":
+				if installed || (caps != nil && caps.ZImageNative && len(caps.ZImageModels) > 0) {
+					out = append(out, editor.BoardAIModel{Connection: "comfyui-zimage", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
+				}
+			case "qwen-image":
+				if installed || (caps != nil && caps.QwenImageNative && len(caps.QwenImageModels) > 0) {
+					out = append(out, editor.BoardAIModel{Connection: "comfyui-qwen-image", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
+				}
+			}
+		}
 	}
 	for _, c := range a.prefs.AI.Connections {
 		for _, m := range c.Models {
@@ -338,7 +367,15 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 					return nil, errors.New(i18n.T("请在设置的可选资源中下载图片放大资源"))
 				}
 				data, err = localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data)
+			case "comfyui-seedvr2":
+				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+				}
+				data, err = comfyMgr.UpscaleSeedVR2(ctx, comfyCfg, job.Node.Params.Scale, job.Images[0].Data)
 			case "comfyui":
+				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+				}
 				data, err = comfyMgr.Upscale(ctx, comfyCfg, job.Node.Model, job.Node.Params.Scale, job.Images[0].Data)
 			default:
 				return nil, errors.New(i18n.T("不支持的图片放大提供方"))
@@ -354,6 +391,44 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				return nil, err
 			}
 			return []editor.BoardAIMedia{{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: data}}, nil
+		}
+		if job.Node.Role == whiteboard.AIImage && (job.Node.Connection == "comfyui-zimage" || job.Node.Connection == "comfyui-qwen-image") {
+			if comfyCfg.Dir == "" && comfyCfg.URL == "" {
+				return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
+			}
+			p := job.Node.Params
+			req := localresource.ComfyImageRequest{
+				Prompt:      job.Prompt,
+				Size:        p.Size,
+				AspectRatio: p.AspectRatio,
+				Count:       p.Count,
+			}
+			for _, img := range job.Images {
+				req.Images = append(req.Images, img.Data)
+			}
+			var imgs [][]byte
+			var err error
+			if job.Node.Connection == "comfyui-zimage" {
+				imgs, err = comfyMgr.GenerateZImageTurbo(ctx, comfyCfg, req)
+			} else {
+				imgs, err = comfyMgr.GenerateQwenImage21Turbo(ctx, comfyCfg, req)
+			}
+			if err != nil {
+				return nil, err
+			}
+			if err = ctx.Err(); err != nil {
+				return nil, err
+			}
+			out := make([]editor.BoardAIMedia, 0, len(imgs))
+			for i, imgData := range imgs {
+				name := fmt.Sprintf("ai-image-%d.png", i+1)
+				url, err := a.writeAssetFor(d, path.Dir(rel), name, imgData)
+				if err != nil {
+					return out, err
+				}
+				out = append(out, editor.BoardAIMedia{Output: whiteboard.AIOutput{Kind: "image", Path: url, MIME: "image/png"}, Data: imgData})
+			}
+			return out, nil
 		}
 		s, err := find(job.Node)
 		if err != nil {
