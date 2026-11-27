@@ -2484,9 +2484,12 @@ var en = map[string]string{
 	"通用写实": "General",
 	"动漫插画": "Anime",
 	"请连接一张输入图片，本地模型在设置的可选资源中下载": "Connect one input image and download local models in Settings → Optional resources",
-	"请在设置的可选资源中下载图片放大模型":        "Download an upscaling model in Settings → Optional resources",
-	"请在设置的可选资源中下载图片放大资源":        "Download the image upscaling engine in Settings → Optional resources",
-	"不支持的图片放大提供方":               "Unsupported image upscale provider",
+	"本地模型":      "Local model",
+	"供应商模型":     "Provider model",
+	"此模型不支持提示词": "This model does not support prompts",
+	"请在设置的可选资源中下载图片放大模型": "Download an upscaling model in Settings → Optional resources",
+	"请在设置的可选资源中下载图片放大资源": "Download the image upscaling engine in Settings → Optional resources",
+	"不支持的图片放大提供方":        "Unsupported image upscale provider",
 
 	// Managed ComfyUI engine settings.
 	"ComfyUI 引擎（GPU 加速）": "ComfyUI Engine (GPU Acceleration)",

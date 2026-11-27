@@ -490,13 +490,16 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 				placeholder = i18n.T("可选：指定对象或材质，如「左边的人」或「透明玻璃」")
 			}
 			linked := b.aiPromptSource(n)
-			if linked != "" {
+			unsupported := !n.AcceptsPrompt()
+			if unsupported {
+				value, placeholder = new(string), i18n.T("此模型不支持提示词")
+			} else if linked != "" {
 				// The linked slot feeds the instruction, so the field is
 				// disabled and shows the source, as ComfyUI's widget inputs.
 				value, placeholder = new(string), fmt.Sprintf(i18n.T("已连接：%s"), linked)
 			}
-			area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(104).Disabled(linked != "" || b.ReadOnly).Label(i18n.T("指令")).Description(placeholder)
-			if s.focusInstruction && linked == "" {
+			area := ui.TextArea(c.Key("board-ai-instruction"), value).Placeholder(placeholder).WidthPercent(100).Height(104).Disabled(unsupported || linked != "" || b.ReadOnly || e.Locked).Label(i18n.T("指令")).Description(placeholder)
+			if s.focusInstruction && !unsupported && linked == "" && !b.ReadOnly && !e.Locked {
 				area.Focus()
 				s.focusInstruction = false
 			}
@@ -548,7 +551,7 @@ func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteb
 		}
 	}
 	if current == "" && n.Model != "" {
-		current = n.Model
+		current = (BoardAIModel{Connection: n.Connection, Model: n.Model}).label()
 	}
 	before := current
 	ui.Select(c.Key("board-ai-model"), &current, labels).WidthPercent(100).FontSize(13).Label(i18n.T("模型"))
@@ -813,7 +816,7 @@ func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n 
 	}
 	if current == "" {
 		if n.Model != "" {
-			current = n.Model
+			current = (BoardAIModel{Connection: n.Connection, Model: n.Model}).label()
 		} else {
 			current = i18n.T("选择模型")
 		}

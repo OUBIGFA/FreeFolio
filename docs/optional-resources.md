@@ -45,7 +45,10 @@
 | **Qwen-Image 2.1 Turbo (INT8)** | 10 GB+ 显存 | `comfyui/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors`、`text_encoders/qwen3vl_8b_int8_convrot.safetensors`、`vae/qwen_image_2.1_vae_bf16.safetensors` | 文生图 + 多参考图/红圈标注改图一体，中文文字排版与复杂指令理解极强；ComfyUI 原生节点无需插件 | Qwen |
 
 白板 AI 工作流节点支持：
+
+- 节点和属性面板的模型选项以「本地模型」或「供应商模型」区分来源，ComfyUI 属于本地模型。
 - 「**本地抠图**」节点可选 **BRIA RMBG-3.0 (FP8)** 与 **Sa2VA**，并支持通过「抠图说明」输入框或文字连线提示主体材质与指代对象。
+- **BEN2、BiRefNet 与通用 RMBG** 不接收提示词，抠图说明和对应输入槽位置灰并禁止连接。切换模型时保留原文字和连线；禁用期间连线不参与运行，也不触发上游节点，切回支持提示词的模型后恢复。
 - 「**图片放大**」节点可选 **SeedVR2 7B Sharp (INT8)**（`2×` / `4×` 重绘超分），与极速的 `Real-ESRGAN Vulkan` 互补。
 - 「**生成图像 / 编辑图像**」节点可在模型列表直接选用本机 ComfyUI 的 **Z-Image-Turbo (INT8)**（文生图）与 **Qwen-Image 2.1 Turbo (INT8)**（自动切换文生图或参考图/红圈标注改图），保留完整的批量出图（`×1..×4`）、历史对比与 A/B 挑选体验。
 

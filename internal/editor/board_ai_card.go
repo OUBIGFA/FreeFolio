@@ -121,7 +121,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			if b.Scene.AILinkSource(n, sl.Name) != nil {
 				color = pal.secondary
 			}
-			if !b.aiSlotUsable(e.ID, sl.Type, true) {
+			if sl.Disabled || !b.aiSlotUsable(e.ID, sl.Type, true) {
 				color = color.Alpha(0.30)
 			}
 			slLayout := b.aiCardTextFont(e.ID+"#slot"+sl.Name, aiSlotLabel(sl), 0, ui.Font{Size: 11.5, Weight: 500})
@@ -208,7 +208,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 	for i, sl := range l.slots {
 		y := float32(aiInputPoint(e, l, i)[1] - e.Y)
 		c := aiTypeColor(sl.Type, dark)
-		if !b.aiSlotUsable(e.ID, sl.Type, true) {
+		if sl.Disabled || !b.aiSlotUsable(e.ID, sl.Type, true) {
 			c = c.Alpha(0.30)
 		}
 		lit := d != nil && d.target == e.ID && d.targetSlot == sl.Name
@@ -268,6 +268,9 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 		return
 	}
 	color := pal.secondary
+	if n.Role == whiteboard.AICutout && !n.AcceptsPrompt() {
+		value, color = i18n.T("此模型不支持提示词"), pal.muted
+	}
 	if src := b.aiPromptSource(n); src != "" {
 		value, color = fmt.Sprintf(i18n.T("已连接：%s"), src), pal.muted
 	}
@@ -515,7 +518,11 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 				focus(el)
 			case whiteboard.AICutout:
 				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
-				if src := b.aiPromptSource(n); src != "" {
+				if !n.AcceptsPrompt() {
+					empty := ""
+					note := i18n.T("此模型不支持提示词")
+					ui.TextInput(c.Key("board-ai-inline-unsupported-"+id), &empty).Placeholder(note).FontSize(11.5).WidthPercent(100).Height(28).Disabled(true).Label(i18n.T("抠图说明")).Description(note)
+				} else if src := b.aiPromptSource(n); src != "" {
 					empty := ""
 					note := fmt.Sprintf(i18n.T("已连接：%s"), src)
 					ui.TextInput(c.Key("board-ai-inline-linked-"+id), &empty).Placeholder(note).FontSize(12).WidthPercent(100).Height(28).Disabled(true).Label(i18n.T("抠图说明")).Description(note)

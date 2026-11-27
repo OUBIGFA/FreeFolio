@@ -449,6 +449,9 @@ func (b *Board) aiSlotHit(p whiteboard.Point) (id, slot string, output bool) {
 			}
 		}
 		for k, sl := range l.slots {
+			if sl.Disabled {
+				continue
+			}
 			ip := aiInputPoint(e, l, k)
 			if whiteboard.Distance(p, ip) <= r || p[0] >= ip[0]-r && p[0] <= e.X+72 && math.Abs(p[1]-ip[1]) <= aiSlotRow/2 {
 				return e.ID, sl.Name, false
@@ -530,7 +533,7 @@ func (b *Board) aiDragTo(p whiteboard.Point) {
 			}
 			l := b.aiLayout(e, n)
 			for k, sl := range l.slots {
-				if math.Abs(p[1]-aiInputPoint(e, l, k)[1]) <= aiSlotRow/2 && p[0] <= e.X+e.W/2 && whiteboard.AIValidConnection(d.typ, sl.Type) {
+				if !sl.Disabled && math.Abs(p[1]-aiInputPoint(e, l, k)[1]) <= aiSlotRow/2 && p[0] <= e.X+e.W/2 && whiteboard.AIValidConnection(d.typ, sl.Type) {
 					d.target, d.targetSlot = e.ID, sl.Name
 					return
 				}

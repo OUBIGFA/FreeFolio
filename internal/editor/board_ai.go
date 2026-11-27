@@ -65,14 +65,19 @@ type BoardAIModel struct {
 }
 
 func (m BoardAIModel) label() string {
+	source := i18n.T("供应商模型")
+	switch m.Connection {
+	case "local", "local-ncnn", "comfyui", "comfyui-rmbg3", "comfyui-sa2va", "comfyui-seedvr2", "comfyui-zimage", "comfyui-qwen-image":
+		source = i18n.T("本地模型")
+	}
 	name := m.Name
 	if name == "" {
 		name = m.Model
 	}
 	if m.ConnectionName == "" {
-		return name
+		return source + " · " + name
 	}
-	return m.ConnectionName + " · " + name
+	return source + " · " + m.ConnectionName + " · " + name
 }
 
 func (m BoardAIModel) defaultImageSize() string {
@@ -644,6 +649,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	// A linked prompt slot replaces the node's instruction, as a widget
 	// input does in ComfyUI.
 	instruction, group := n.Instruction, ""
+	if !n.AcceptsPrompt() {
+		instruction = ""
+	}
 	addText := func(label, text string) {
 		hashes = append(hashes, "t:"+group+"\x00"+label+"\x00"+text)
 		if group == "prompt" {
@@ -830,6 +838,11 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		parts = append(parts, i18n.T("参考图中的红圈、箭头和文字是修改标注：按标注修改对应区域，保留其余内容，结果中不要出现标注"))
 	}
 	job.Prompt = strings.Join(parts, "\n")
+	if !n.AcceptsPrompt() {
+		// Frame annotations and saved notes are not instructions for these
+		// image-only adapters; retain the document's text without sending it.
+		job.Prompt = ""
+	}
 	if strings.TrimSpace(job.Prompt) == "" && len(images) == 0 {
 		return nil, errors.New(i18n.T("请填写提示词或连接输入"))
 	}

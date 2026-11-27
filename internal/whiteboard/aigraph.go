@@ -35,6 +35,8 @@ type AISlot struct {
 	// Widget marks the slot that feeds the node's instruction field; the
 	// field is disabled while the slot is linked.
 	Widget bool
+	// Disabled slots remain visible, but cannot feed or schedule a node.
+	Disabled bool
 	// Number is a list slot's place from 1 while the list shows more than
 	// one slot, else 0; it follows Label where the slot is shown.
 	Number int
@@ -62,6 +64,18 @@ var aiSlotSpecs = map[AIRole][]aiSlotSpec{
 	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
 	AIVideo:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "首帧", AITypeImage, false, false}},
 	AIConcat:  {{"text", "文本", AITypeString, true, false}},
+}
+
+// AcceptsPrompt follows the inputs consumed by the model adapters. In
+// particular, automatic matting and super-resolution do not consume text.
+func (n *AINode) AcceptsPrompt() bool {
+	switch n.Role {
+	case AICutout:
+		return n.Connection == "comfyui-rmbg3" || n.Connection == "comfyui-sa2va"
+	case AIPrompt, AIText, AIImage, AIVideo:
+		return true
+	}
+	return false
 }
 
 // AIOutputType is the type of a role's output, or "" for a node whose
@@ -92,7 +106,7 @@ func AISlots(n *AINode) []AISlot {
 	var out []AISlot
 	for _, sp := range aiSlotSpecs[n.Role] {
 		if !sp.list {
-			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget})
+			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget, Disabled: sp.widget && !n.AcceptsPrompt()})
 			continue
 		}
 		count := 0
@@ -136,6 +150,9 @@ func (n *AINode) LinkAt(slot string) string {
 // Connect links an element into a slot, replacing the slot's link as
 // LiteGraph's connectSlots does.
 func (n *AINode) Connect(slot, from string) {
+	if sl, ok := AISlotByName(n, slot); ok && sl.Disabled {
+		return
+	}
 	n.Links = slices.DeleteFunc(slices.Clone(n.Links), func(l AILink) bool { return l.Slot == slot })
 	n.Links = append(n.Links, AILink{Slot: slot, From: from})
 }
@@ -186,6 +203,9 @@ func AIFindInputByType(n *AINode, typ string) (AISlot, bool) {
 	slots := AISlots(n)
 	for i := range slots {
 		sl := &slots[i]
+		if sl.Disabled {
+			continue
+		}
 		free := n.LinkAt(sl.Name) == ""
 		for _, w := range want {
 			for _, have := range strings.Split(strings.ToLower(sl.Type), ",") {
@@ -235,8 +255,12 @@ func (s *Scene) AISourceType(e *Element) string {
 }
 
 // AILinkSource is the live element linked into a slot, or nil when the
-// link names an element that is gone.
+// link names an element that is gone or the selected model disables it.
 func (s *Scene) AILinkSource(n *AINode, slot string) *Element {
+	// Keep stored links intact so switching back restores the user's graph.
+	if slot == "prompt" && !n.AcceptsPrompt() {
+		return nil
+	}
 	e := s.ElementByID(n.LinkAt(slot))
 	if e == nil || e.IsDeleted {
 		return nil

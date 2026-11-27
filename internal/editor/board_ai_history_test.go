@@ -199,6 +199,12 @@ func TestCutoutNodeRunsWithOnePictureAndNoPrompt(t *testing.T) {
 	board := NewBoard(whiteboard.NewScene())
 	source := board.AddAINode(whiteboard.AIImage, whiteboard.Point{300, 250}, options)
 	target := board.AddAINode(whiteboard.AICutout, whiteboard.Point{850, 250}, options)
+	prompt := board.AddAINode(whiteboard.AIPrompt, whiteboard.Point{0, 0}, options)
+	board.updateAINode(options, target, func(n *whiteboard.AINode) {
+		n.Connection, n.Instruction = "local", "saved subject note"
+		// Old links must not read an empty upstream prompt or reach the runner.
+		n.Links = []whiteboard.AILink{{Slot: "prompt", From: prompt}}
+	})
 	const rel = "assets/source.png"
 	f.files[rel] = testPNG(t)
 	board.updateAINode(options, source, func(n *whiteboard.AINode) {
@@ -209,6 +215,9 @@ func TestCutoutNodeRunsWithOnePictureAndNoPrompt(t *testing.T) {
 	}
 	board.RunAI([]string{target}, false, true, options)
 	result := board.aiNode(board.Scene.ElementByID(target))
+	if result.Instruction != "saved subject note" || result.LinkAt("prompt") != prompt {
+		t.Fatal("running an image-only model erased its saved prompt")
+	}
 	if len(f.jobs) != 1 || len(f.jobs[0].Images) != 1 || f.jobs[0].Prompt != "" || !bytes.Equal(f.jobs[0].Images[0].Data, f.files[rel]) || result.Output() == nil || result.Output().Kind != "image" {
 		t.Fatalf("cutout run: %+v %+v", result, f.jobs)
 	}
