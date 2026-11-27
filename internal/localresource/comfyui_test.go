@@ -808,6 +808,15 @@ func TestComfyManagerSeedVR2ZImageAndQwenImage(t *testing.T) {
 		}
 	}
 	before := len(captured)
+	_, err = mgr.GenerateZImageTurbo(context.Background(), cfg, ComfyImageRequest{Prompt: "tree", LoRAs: []ComfyLoRA{{ID: "z-pencil", Strength: .7}, {ID: "z-detail", Strength: .35}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := captured[len(captured)-1]
+	if fmt.Sprint(chain["lora_2"]["model"]) != "[lora 0]" || fmt.Sprint(chain["2"]["model"]) != "[lora_2 0]" || chain["lora"]["lora_name"] != "freefolio-z-pencil.safetensors" {
+		t.Fatal("native workflow did not follow ordered LoRA chain")
+	}
+	before = len(captured)
 	for _, id := range []string{"qwen-restore", "z-unknown", "z-3d"} {
 		if _, err := mgr.GenerateZImageTurbo(context.Background(), cfg, ComfyImageRequest{Prompt: "test", LoRA: id, Strength: .5}); err == nil {
 			t.Fatalf("unsupported or missing adapter %s accepted", id)

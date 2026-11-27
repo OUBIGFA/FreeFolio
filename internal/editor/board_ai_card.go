@@ -244,6 +244,8 @@ func (b *Board) paintAISlot(p *ui.Painter, x, y float32, c, bg ui.Color, filled,
 
 func aiTypeName(typ string) string {
 	switch typ {
+	case whiteboard.AITypeModel:
+		return i18n.T("模型")
 	case whiteboard.AITypeImage:
 		return i18n.T("图片")
 	case whiteboard.AITypeVideo:
@@ -286,6 +288,9 @@ func (b *Board) paintAIWidgetValues(p *ui.Painter, e *whiteboard.Element, n *whi
 // paintAIPreview draws the node's result, its streamed text while it runs,
 // or what it will show.
 func (b *Board) paintAIPreview(p *ui.Painter, e *whiteboard.Element, n *whiteboard.AINode, r ui.Rect, pal aiNodeColors, zoom float32) {
+	if n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA {
+		return
+	}
 	if n.Role == whiteboard.AICompare {
 		b.paintAIComparePreview(p, e, n, r, pal, zoom)
 		return
@@ -497,6 +502,16 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 		}
 		ui.Column(c.Key("ai-inline-"+id)).Absolute().Left(x+r.X*z).Top(y+r.Y*z).Size(r.W, r.H).TransformOrigin(0, 0).Scale(z, z).Gap(6).Children(func() {
 			switch n.Role {
+			case whiteboard.AIModel, whiteboard.AILoRA:
+				ui.Row(c).Height(26).Children(func() { b.aiInlineModelSelect(c, o, id, n, disabled) })
+				if n.Role == whiteboard.AILoRA {
+					ui.Row(c).Height(26).Gap(6).AlignItems(ui.Center).Children(func() { b.aiLoRAStrength(c, o, id, n, disabled) })
+				}
+				note := i18n.T("将模型输出连到 LoRA 或生成节点")
+				if n.Role == whiteboard.AILoRA {
+					note = i18n.T("左侧连接底模，右侧连接生成节点")
+				}
+				ui.Text(c, note).FontSize(11.5).WidthPercent(100).TextColor(o.Theme.TextMuted)
 			case whiteboard.AIPrompt:
 				el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(i18n.T("输入提示词或文本，从右侧输出连到其他节点")).FontSize(13).WidthPercent(100).Grow(1).MinHeight(0).Disabled(disabled).Label(i18n.T("文字内容"))
 				if el.Hovered() {

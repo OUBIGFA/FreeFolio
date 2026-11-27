@@ -23,6 +23,7 @@ const (
 	AITypeString = "STRING"
 	AITypeImage  = "IMAGE"
 	AITypeVideo  = "VIDEO"
+	AITypeModel  = "MODEL"
 )
 
 // AIMaxListSlots bounds a growing input list, such as reference pictures.
@@ -57,12 +58,13 @@ type aiSlotSpec struct {
 // aiSlotSpecs are the input slots of each role, in drawing order. Labels
 // are interface text, translated where they are shown.
 var aiSlotSpecs = map[AIRole][]aiSlotSpec{
+	AILoRA:    {{"model", "模型", AITypeModel, false, false}},
 	AICutout:  {{"image", "输入图片", AITypeImage, false, false}, {"prompt", "抠图说明", AITypeString, false, true}},
 	AIUpscale: {{"image", "输入图片", AITypeImage, false, false}},
-	AIEnhance: {{"image", "输入图片", AITypeImage, false, false}, {"prompt", "增强说明", AITypeString, false, true}},
+	AIEnhance: {{"model", "模型", AITypeModel, false, false}, {"image", "输入图片", AITypeImage, false, false}, {"prompt", "增强说明", AITypeString, false, true}},
 	AICompare: {{"a", "图片 A", AITypeImage, false, false}, {"b", "图片 B", AITypeImage, false, false}},
 	AIText:    {{"prompt", "指令", AITypeString, false, true}, {"text", "文本", AITypeString, true, false}, {"image", "图片", AITypeImage, true, false}},
-	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}},
+	AIImage:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "参考图", AITypeImage, true, false}, {"mask", "遮罩", AITypeImage, false, false}, {"model", "模型", AITypeModel, false, false}},
 	AIVideo:   {{"prompt", "提示词", AITypeString, false, true}, {"image", "首帧", AITypeImage, false, false}},
 	AIConcat:  {{"text", "文本", AITypeString, true, false}},
 }
@@ -83,6 +85,8 @@ func (n *AINode) AcceptsPrompt() bool {
 // result is not passed on.
 func AIOutputType(role AIRole) string {
 	switch role {
+	case AIModel, AILoRA:
+		return AITypeModel
 	case AIImage, AIEnhance, AIImageInput, AICutout, AIUpscale:
 		return AITypeImage
 	case AIVideo, AICompare:
@@ -106,6 +110,9 @@ func listIndex(name string) (string, int, bool) {
 func AISlots(n *AINode) []AISlot {
 	var out []AISlot
 	for _, sp := range aiSlotSpecs[n.Role] {
+		if sp.typ == AITypeModel && n.Role != AILoRA && n.Connection != "" && n.Connection != "comfyui-zimage" && n.Connection != "comfyui-qwen-image" && n.LinkAt("model") == "" {
+			continue
+		}
 		disabled := sp.widget && !n.AcceptsPrompt() || n.Role == AIImage && n.Connection == "comfyui-zimage" && sp.typ == AITypeImage
 		if !sp.list {
 			out = append(out, AISlot{Name: sp.group, Group: sp.group, Label: sp.label, Type: sp.typ, Widget: sp.widget, Disabled: disabled})
@@ -260,7 +267,7 @@ func (s *Scene) AISourceType(e *Element) string {
 // link names an element that is gone or the selected model disables it.
 func (s *Scene) AILinkSource(n *AINode, slot string) *Element {
 	// Keep stored links intact so switching back restores the user's graph.
-	if sl, ok := AISlotByName(n, slot); ok && sl.Disabled {
+	if sl, ok := AISlotByName(s.AIInputNode(n), slot); ok && sl.Disabled {
 		return nil
 	}
 	e := s.ElementByID(n.LinkAt(slot))

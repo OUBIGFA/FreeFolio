@@ -517,9 +517,9 @@ func (a *App) settingsResources(c *ui.Context) {
 		ui.Text(c, i18n.T("更改位置会迁移已下载资源")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 	})
 
-	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("模型"), i18n.T("增强模型"), "LoRA").Label(i18n.T("资源类型")).Disabled(s.busy != "")
+	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("本地模型"), i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA").Label(i18n.T("资源类型")).Disabled(s.busy != "")
 
-	if s.tab != 2 {
+	if s.tab == 0 {
 		settingsSection(c, i18n.T("直接运行"))
 		ui.Text(c, i18n.T("以下资源无需配置 ComfyUI")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
 		settingsGroup(c, "builtin-resources", func() {
@@ -545,7 +545,7 @@ func (a *App) settingsResources(c *ui.Context) {
 					}
 				}
 			}
-			if s.tab == 1 {
+			if s.tab == 0 {
 				if !upscaleSupported {
 					settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
 				} else {
@@ -556,7 +556,7 @@ func (a *App) settingsResources(c *ui.Context) {
 		})
 	}
 
-	if s.tab == 0 {
+	if s.tab == 1 {
 		settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
 		ui.Text(c, i18n.T("选择目录后，点击「检测并启动」")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
 		if !s.comfyURLInit {
@@ -626,30 +626,32 @@ func (a *App) settingsResources(c *ui.Context) {
 				}
 			})
 		})
-	} else {
-		ui.Text(c, i18n.T("先在「模型」页连接 ComfyUI")).FontSize(12).TextColor(t.TextMuted)
+	} else if s.tab > 1 {
+		ui.Text(c, i18n.T("先在「ComfyUI 模型」页连接引擎")).FontSize(12).TextColor(t.TextMuted)
 	}
 
-	if s.tab == 2 {
+	if s.tab == 3 {
 		ui.Text(c, i18n.T("LoRA 用于调整生成风格或细节，下载时会补齐缺少的底模")).FontSize(12).TextColor(t.TextMuted)
 	}
-	settingsSection(c, []string{i18n.T("模型"), i18n.T("增强模型"), "LoRA"}[s.tab])
-	settingsGroup(c, "comfyui-packs", func() {
-		added := false
-		for _, pack := range localresource.ComfyPacks {
-			if pack.ResourceTab() != s.tab {
-				continue
+	if s.tab > 0 {
+		settingsSection(c, []string{"", i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA"}[s.tab])
+		settingsGroup(c, "comfyui-packs", func() {
+			added := false
+			for _, pack := range localresource.ComfyPacks {
+				if pack.ResourceTab() != s.tab {
+					continue
+				}
+				if added {
+					settingsSeparator(c)
+				}
+				added = true
+				badge, accent, detail := a.packDetailAndBadge(pack)
+				a.settingsPackRow(c, pack, badge, accent, detail)
 			}
-			if added {
-				settingsSeparator(c)
-			}
-			added = true
-			badge, accent, detail := a.packDetailAndBadge(pack)
-			a.settingsPackRow(c, pack, badge, accent, detail)
-		}
-		ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
-	})
+			ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+		})
 
+	}
 	if s.comfyErr != nil {
 		ui.Text(c, i18n.T("ComfyUI 连接失败：")+s.comfyErr.Error()).TextColor(t.Danger).FontSize(12)
 	}

@@ -49,7 +49,7 @@ func TestAIValidConnectionMatchesLiteGraph(t *testing.T) {
 
 func TestAISlotsGrowReplaceAndClose(t *testing.T) {
 	n := &AINode{Role: AIImage}
-	if got := slotNames(n); !slices.Equal(got, []string{"prompt", "image.0", "mask"}) {
+	if got := slotNames(n); !slices.Equal(got, []string{"prompt", "image.0", "mask", "model"}) {
 		t.Fatal(got)
 	}
 	// A dropped picture goes to the first free picture slot, not the mask.
@@ -57,7 +57,7 @@ func TestAISlotsGrowReplaceAndClose(t *testing.T) {
 	n.Connect(sl.Name, "a")
 	sl, _ = AIFindInputByType(n, AITypeImage)
 	n.Connect(sl.Name, "b")
-	if got := slotNames(n); !slices.Equal(got, []string{"prompt", "image.0", "image.1", "image.2", "mask"}) {
+	if got := slotNames(n); !slices.Equal(got, []string{"prompt", "image.0", "image.1", "image.2", "mask", "model"}) {
 		t.Fatal(got)
 	}
 	// An input holds one link: connecting again replaces it.
@@ -67,7 +67,7 @@ func TestAISlotsGrowReplaceAndClose(t *testing.T) {
 	}
 	// Removing a list member closes the gap.
 	n.Disconnect("image.0")
-	if n.LinkAt("image.0") != "b" || n.LinkAt("image.1") != "" || !slices.Equal(slotNames(n), []string{"prompt", "image.0", "image.1", "mask"}) {
+	if n.LinkAt("image.0") != "b" || n.LinkAt("image.1") != "" || !slices.Equal(slotNames(n), []string{"prompt", "image.0", "image.1", "mask", "model"}) {
 		t.Fatalf("%+v %v", n.Links, slotNames(n))
 	}
 	// With every typed slot taken, findFreeSlotOfType falls back to the

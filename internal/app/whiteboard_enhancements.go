@@ -12,7 +12,7 @@ func (a *App) boardEnhancementPresets() []editor.BoardAIPreset {
 	a.ensureResourcesInspected()
 	var out []editor.BoardAIPreset
 	for _, pack := range localresource.ComfyPacks {
-		m := editor.BoardAIModel{Model: pack.ModelID, Name: pack.Name, ConnectionName: "ComfyUI", Local: true, Category: pack.Category, Instruction: pack.Instruction, NeedsDownload: !a.resources.installed[pack.ID]}
+		m := editor.BoardAIModel{Model: pack.ModelID, Name: pack.Name, ConnectionName: "ComfyUI", Local: true, Category: pack.Category, Instruction: pack.Instruction, BaseModel: pack.BaseModel, NeedsDownload: !a.resources.installed[pack.ID]}
 		role := whiteboard.AIImage
 		switch pack.Kind {
 		case "lora-zimage":

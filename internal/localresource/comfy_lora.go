@@ -82,11 +82,36 @@ func enhancementInput(data []byte) ([]byte, error) {
 	return out.Bytes(), err
 }
 
-// attachLoRA keeps all model consumers on the same patched model.
-func attachLoRA(graph map[string]any, name string, strength float64) []any {
-	if name == "" || strength == 0 {
-		return []any{"1", 0}
+func prepareLoRAChain(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageRequest, family string) ([]ComfyLoRA, error) {
+	adapters := req.LoRAs
+	if len(adapters) == 0 && req.LoRA != "" {
+		adapters = []ComfyLoRA{{ID: req.LoRA, Strength: req.Strength}}
 	}
-	graph["lora"] = map[string]any{"class_type": "LoraLoaderModelOnly", "inputs": map[string]any{"model": []any{"1", 0}, "lora_name": name, "strength_model": strength}}
-	return []any{"lora", 0}
+	var out []ComfyLoRA
+	for _, adapter := range adapters {
+		part := *req
+		part.LoRA, part.Strength = adapter.ID, adapter.Strength
+		name, err := prepareLoRA(cfg, caps, &part, family)
+		if err != nil {
+			return nil, err
+		}
+		req.Prompt = part.Prompt
+		if name != "" {
+			out = append(out, ComfyLoRA{ID: name, Strength: adapter.Strength})
+		}
+	}
+	return out, nil
+}
+
+func attachLoRAChain(graph map[string]any, adapters []ComfyLoRA) []any {
+	model := []any{"1", 0}
+	for i, adapter := range adapters {
+		id := "lora"
+		if i > 0 {
+			id = fmt.Sprintf("lora_%d", i+1)
+		}
+		graph[id] = map[string]any{"class_type": "LoraLoaderModelOnly", "inputs": map[string]any{"model": model, "lora_name": adapter.ID, "strength_model": adapter.Strength}}
+		model = []any{id, 0}
+	}
+	return model
 }

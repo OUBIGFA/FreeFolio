@@ -39,6 +39,9 @@ const (
 	AIImage AIRole = "image"
 	// AIEnhance restores one input picture with a local image-editing model.
 	AIEnhance AIRole = "enhance"
+	// AIModel and AILoRA carry model settings, not rendered image outputs.
+	AIModel AIRole = "model"
+	AILoRA  AIRole = "lora"
 	// AIVideo generates a video, from a first frame when given a picture.
 	AIVideo AIRole = "video"
 	// AIConcat joins its text inputs through a template, without a model.
@@ -48,7 +51,7 @@ const (
 )
 
 // AIRoles are the supported roles stored in a scene.
-var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIEnhance, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
+var AIRoles = []AIRole{AIPrompt, AIImageInput, AIText, AIImage, AIEnhance, AIModel, AILoRA, AIVideo, AIConcat, AINote, AICutout, AIUpscale, AICompare}
 
 // MaxAIOutputs bounds non-image history; image references remain available
 // for selection and comparison across runs.
@@ -125,6 +128,8 @@ func (n *AINode) Output() *AIOutput {
 // Kind is the data a node supplies downstream.
 func (n *AINode) Kind() string {
 	switch n.Role {
+	case AIModel, AILoRA:
+		return "model"
 	case AIImage, AIEnhance, AIImageInput, AICutout, AIUpscale, AICompare:
 		return "image"
 	case AIVideo:
@@ -218,6 +223,8 @@ func SetAINode(e *Element, n *AINode) error {
 // that needs more room for its slots.
 func AINodeSize(role AIRole) (float64, float64) {
 	switch role {
+	case AIModel, AILoRA:
+		return 340, 200
 	case AIPrompt:
 		return 300, 220
 	case AIImageInput:
@@ -311,7 +318,10 @@ func (s *Scene) AIInputs(id string) []AIInput {
 		return nil
 	}
 	var out []AIInput
-	for _, sl := range AISlots(n) {
+	for _, sl := range AISlots(s.AIInputNode(n)) {
+		if sl.Disabled {
+			continue
+		}
 		from := s.AILinkSource(n, sl.Name)
 		if from == nil || from.ID == id {
 			continue

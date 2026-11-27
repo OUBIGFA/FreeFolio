@@ -68,6 +68,7 @@ type BoardAIModel struct {
 	LoRAStrength  *float64
 	Instruction   string
 	NeedsDownload bool
+	BaseModel     string
 	// ImageSizes overrides pixel dimensions with the provider's native options.
 	ImageSizes []string
 }
@@ -118,11 +119,12 @@ type BoardAIRunner struct {
 // BoardAIJob is one node's request: its settings, the composed prompt and
 // its pictures.
 type BoardAIJob struct {
-	NodeID string
-	Node   whiteboard.AINode
-	Prompt string
-	Images []BoardAIImage
-	Mask   *BoardAIImage
+	NodeID    string
+	Node      whiteboard.AINode
+	Prompt    string
+	Images    []BoardAIImage
+	Mask      *BoardAIImage
+	ModelFlow *whiteboard.AIModelConfig
 }
 
 // BoardAIImage is a picture input.
@@ -205,7 +207,7 @@ type boardAICardText struct {
 }
 
 // aiRoleNames are the roles' names in the interface.
-var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIEnhance: "图片增强", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
+var aiRoleNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字节点", whiteboard.AIImageInput: "图片输入", whiteboard.AIText: "文本生成", whiteboard.AIImage: "图像生成", whiteboard.AIEnhance: "图片增强", whiteboard.AIModel: "加载底模", whiteboard.AILoRA: "加载 LoRA", whiteboard.AIVideo: "视频生成", whiteboard.AIConcat: "提示词拼接", whiteboard.AINote: "笔记引用", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "图片对比"}
 
 // aiTextPresets are the text node's common instructions.
 var aiTextPresets = []struct{ label, instruction string }{
@@ -299,7 +301,7 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 	e := whiteboard.NewAINode(role, at[0]-w/2, at[1]-h/2)
 	n := whiteboard.AINodeOf(e)
 	var model BoardAIModel
-	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIVideo || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
+	if o.AI != nil && o.AI.Default != nil && (role == whiteboard.AIText || role == whiteboard.AIImage || role == whiteboard.AIEnhance || role == whiteboard.AIModel || role == whiteboard.AILoRA || role == whiteboard.AIVideo || role == whiteboard.AICutout || role == whiteboard.AIUpscale) {
 		model = o.AI.Default(role)
 		n.Connection, n.Model = model.Connection, model.Model
 		n.Params.LoRAStrength = model.LoRAStrength
@@ -652,6 +654,13 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	if n.Role == whiteboard.AICompare {
 		return &boardAIResult{}, nil
 	}
+	modelFlow, err := snap.AIModelFlow(id)
+	if err != nil {
+		return nil, errors.New(i18n.T(err.Error()))
+	}
+	if n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA {
+		return &boardAIResult{}, nil
+	}
 	if n.Role == whiteboard.AIImageInput {
 		// A source validates its existing asset during an upstream run;
 		// generation nodes read the same file directly through AIInputs.
@@ -665,6 +674,17 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		return &boardAIResult{}, nil
 	}
 	var texts, labels, hashes []string
+	if modelFlow != nil {
+		// Upstream model settings must invalidate a downstream cached image.
+		hashes = append(hashes, fmt.Sprintf("model:%s:%s", modelFlow.Connection, modelFlow.Model))
+		for _, lora := range modelFlow.LoRAs {
+			strength := "default"
+			if lora.Strength != nil {
+				strength = fmt.Sprint(*lora.Strength)
+			}
+			hashes = append(hashes, "lora:"+lora.ID+":"+strength)
+		}
+	}
 	var images []BoardAIImage
 	var mask *BoardAIImage
 	annotated := false
@@ -698,6 +718,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		return nil
 	}
 	for _, in := range snap.AIInputs(id) {
+		if in.Group == "model" {
+			continue
+		}
 		group = in.Group
 		switch in.Kind {
 		case "text":
@@ -789,7 +812,10 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		}
 		return res, nil
 	}
-	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask}
+	job := BoardAIJob{NodeID: id, Node: *n, Images: images, Mask: mask, ModelFlow: modelFlow}
+	if modelFlow != nil {
+		job.Node.Connection, job.Node.Model = modelFlow.Connection, modelFlow.Model
+	}
 	job.Node.Instruction = instruction
 	switch n.Role {
 	case whiteboard.AIEnhance:
@@ -797,14 +823,14 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 			return nil, errors.New(i18n.T("请连接一张输入图片"))
 		}
 	case whiteboard.AICutout:
-		if n.Model == "" {
+		if job.Node.Model == "" {
 			return nil, errors.New(i18n.T("请在设置的可选资源中下载抠图模型"))
 		}
 		if len(images) != 1 {
 			return nil, errors.New(i18n.T("请连接一张输入图片"))
 		}
 	case whiteboard.AIUpscale:
-		if n.Model == "" {
+		if job.Node.Model == "" {
 			return nil, errors.New(i18n.T("请在设置的可选资源中下载图片放大模型"))
 		}
 		if len(images) != 1 {
@@ -827,7 +853,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		res.text = text
 		return res, nil
 	case whiteboard.AIText:
-		if n.Model == "" {
+		if job.Node.Model == "" {
 			return nil, errors.New(i18n.T("请先为节点选择模型"))
 		}
 		var sb strings.Builder
@@ -847,7 +873,7 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 		res.text = strings.TrimSpace(text)
 		return res, nil
 	}
-	if n.Model == "" {
+	if job.Node.Model == "" {
 		return nil, errors.New(i18n.T("请先为节点选择模型"))
 	}
 	var parts []string
@@ -921,7 +947,7 @@ func (b *Board) applyAIResult(id string, res *boardAIResult, err error, o BoardO
 		r.status, r.err = "error", err
 		b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = err.Error() })
 		return
-	case b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImageInput || b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AICompare:
+	case b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIModel || b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AILoRA || b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AIImageInput || b.aiNode(b.Scene.ElementByID(id)).Role == whiteboard.AICompare:
 		r.status, r.err = "done", nil
 		if n := b.aiNode(b.Scene.ElementByID(id)); n.Error != "" {
 			b.updateAINode(o, id, func(n *whiteboard.AINode) { n.Error = "" })
@@ -1155,7 +1181,7 @@ func (b *Board) Connect(o BoardOptions, fromID, toID, label string) error {
 	var err error
 	if n := b.aiNode(to); n != nil {
 		b.edit(o, func() {
-			for _, sl := range whiteboard.AISlots(n) {
+			for _, sl := range whiteboard.AISlots(b.Scene.AIInputNode(n)) {
 				named := strings.EqualFold(label, sl.Group) || label == sl.Name || label == sl.Label || label == i18n.T(sl.Label)
 				if !sl.Disabled && label != "" && named && whiteboard.AIValidConnection(b.Scene.AISourceType(from), sl.Type) && !b.Scene.AICreatesCycle(from.ID, to.ID) {
 					b.setAILink(to.ID, sl.Name, from.ID)

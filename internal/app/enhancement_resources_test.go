@@ -105,6 +105,12 @@ func TestBoardEnhancementRunnerWritesNativeLoRAResult(t *testing.T) {
 	if !strings.HasPrefix(prompt, "Restore the photo") {
 		t.Fatalf("missing default restoration prompt: %q", prompt)
 	}
+	job.Node.Model = "qwen-image-2.1-turbo-int8"
+	job.ModelFlow = &whiteboard.AIModelConfig{Connection: "comfyui-qwen-image", Model: job.Node.Model, LoRAs: []whiteboard.AILoRAConfig{{ID: "qwen-restore", Strength: &strength}}}
+	result, err = runner.Media(context.Background(), job, nil)
+	if err != nil || len(result) != 1 || graph["lora"].Inputs["strength_model"] != .5 {
+		t.Fatalf("connected model chain failed: %v", err)
+	}
 }
 
 func TestResourceTabsKeepModelsEnhancementsAndLoRASeparate(t *testing.T) {
@@ -116,7 +122,7 @@ func TestResourceTabsKeepModelsEnhancementsAndLoRASeparate(t *testing.T) {
 		t.Fatal("shared resource directory is missing")
 	}
 	for _, node := range tt.AccessAll() {
-		if node.Role == ui.RoleTab && node.Name == "模型" && node.Bounds.Y <= pathControl.Bounds.Y+pathControl.Bounds.H {
+		if node.Role == ui.RoleTab && node.Name == "本地模型" && node.Bounds.Y <= pathControl.Bounds.Y+pathControl.Bounds.H {
 			t.Fatal("shared overview must be above resource tabs")
 		}
 	}
@@ -124,9 +130,10 @@ func TestResourceTabsKeepModelsEnhancementsAndLoRASeparate(t *testing.T) {
 		name, visible, hidden string
 		index                 int
 	}{
-		{"增强模型", "SeedVR2 3B (INT8)", "BEN2", 1},
-		{"LoRA", "Qwen 2.1 Restore", "SeedVR2 3B (INT8)", 2},
-		{"模型", "BEN2", "Z-Image Detailer", 0},
+		{"ComfyUI 增强", "SeedVR2 3B (INT8)", "BEN2", 2},
+		{"ComfyUI LoRA", "Qwen 2.1 Restore", "SeedVR2 3B (INT8)", 3},
+		{"ComfyUI 模型", "Z-Image-Turbo (INT8)", "BEN2", 1},
+		{"本地模型", "BEN2", "Z-Image Detailer", 0},
 	} {
 		found := false
 		for _, node := range tt.AccessAll() {
@@ -152,13 +159,13 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 	tt.SetSize(1240, 900)
 	a.resources.gpuChecked, a.resources.gpuDone = true, true
 	a.openSettings(tabResources)
-	for _, tab := range []int{1, 2} {
+	for _, tab := range []int{0, 1, 2, 3} {
 		a.resources.tab = tab
 		for range 3 {
 			tt.Frame()
 		}
-		name := "enhancement-models.png"
-		if tab == 2 {
+		name := []string{"resources-local.png", "resources-comfy.png", "enhancement-models.png", "enhancement-loras.png"}[tab]
+		if tab == 3 {
 			name = "enhancement-loras.png"
 		}
 		savePNG(t, filepath.Join(dir, name), tt)
@@ -214,6 +221,46 @@ func TestEnhancementNodesSnapshot(t *testing.T) {
 	savePNG(t, filepath.Join(dir, "enhancement-nodes.png"), tt)
 }
 
+func TestModelFlowSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect model flow")
+	a, tt := newTestApp(t)
+	tt.SetSize(1600, 1000)
+	a.newWhiteboard("")
+	tt.Frame()
+	if err := tt.Click("AI 节点"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "model-sidebar.png"), tt)
+	tt.Scroll(200, 700, 0, 650)
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "model-sidebar-loras.png"), tt)
+	tt.Scroll(200, 400, 0, -2000)
+	tt.Frame()
+	search, ok := tt.Access("搜索节点")
+	if !ok {
+		t.Fatal("search missing")
+	}
+	tt.ClickAt(search.Bounds.X+20, search.Bounds.Y+10)
+	tt.Type("Z-Image Detailer")
+	tt.Frame()
+	if err := tt.Click("细节增强 · Z-Image Detailer"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	savePNG(t, filepath.Join(dir, "model-flow.png"), tt)
+	for _, node := range tt.AccessAll() {
+		if node.Role == ui.RolePopUpButton && node.Name == "模型" {
+			tt.ClickAt(node.Bounds.X+20, node.Bounds.Y+10)
+			break
+		}
+	}
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "model-selector.png"), tt)
+}
+
 func TestAllEnhancementPacksHaveMatchingNodes(t *testing.T) {
 	a, _ := newTestApp(t)
 	if model := a.boardAIDefault(whiteboard.AIImage); model.Model != "" {
@@ -221,7 +268,7 @@ func TestAllEnhancementPacksHaveMatchingNodes(t *testing.T) {
 	}
 	presets := a.boardEnhancementPresets()
 	for _, pack := range localresource.ComfyPacks {
-		if pack.ResourceTab() == 0 {
+		if pack.ResourceTab() == 1 {
 			continue
 		}
 		found := false

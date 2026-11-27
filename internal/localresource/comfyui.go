@@ -1552,6 +1552,13 @@ type ComfyImageRequest struct {
 	LoRA        string
 	Strength    float64
 	Enhance     bool
+	LoRAs       []ComfyLoRA
+}
+
+// ComfyLoRA is an ordered model-only patch in a native workflow.
+type ComfyLoRA struct {
+	ID       string
+	Strength float64
 }
 
 func randomComfySeed() uint64 {
@@ -1781,7 +1788,7 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 	if !caps.ZImageNative {
 		return nil, errors.New("ComfyUI does not expose native Z-Image nodes; update ComfyUI first")
 	}
-	loraName, err := prepareLoRA(cfg, caps, &req, "zimage")
+	loras, err := prepareLoRAChain(cfg, caps, &req, "zimage")
 	if err != nil {
 		return nil, err
 	}
@@ -1829,7 +1836,7 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 		"9":  map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"6", 0}}},
 		"10": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"9", 0}, "filename_prefix": "freefolio_zimage"}},
 	}
-	graph["2"].(map[string]any)["inputs"].(map[string]any)["model"] = attachLoRA(graph, loraName, req.Strength)
+	graph["2"].(map[string]any)["inputs"].(map[string]any)["model"] = attachLoRAChain(graph, loras)
 	return m.runImagesWorkflow(ctx, base, graph)
 }
 
@@ -1858,7 +1865,7 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 	if !caps.QwenImageNative {
 		return nil, errors.New("ComfyUI does not expose native Qwen-Image 2.1 nodes; update ComfyUI first")
 	}
-	loraName, err := prepareLoRA(cfg, caps, &req, "qwen")
+	loras, err := prepareLoRAChain(cfg, caps, &req, "qwen")
 	if err != nil {
 		return nil, err
 	}
@@ -1906,7 +1913,7 @@ func (m *ComfyManager) GenerateQwenImage21Turbo(ctx context.Context, cfg ComfyCo
 		"3": map[string]any{"class_type": "CLIPLoader", "inputs": map[string]any{"clip_name": clipName, "type": "qwen_image", "device": "default"}},
 		"4": map[string]any{"class_type": "VAELoader", "inputs": map[string]any{"vae_name": vaeName}},
 	}
-	cacheInputs["model"] = attachLoRA(graph, loraName, req.Strength)
+	cacheInputs["model"] = attachLoRAChain(graph, loras)
 	if req.Enhance {
 		encInputs["resolution"] = 0
 	}

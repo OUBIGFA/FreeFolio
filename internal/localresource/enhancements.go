@@ -5,12 +5,12 @@ import "strings"
 // ResourceTab groups downloads by how they are used, independently of engine.
 func (p ResourcePack) ResourceTab() int {
 	if strings.HasPrefix(p.Kind, "lora-") {
-		return 2
+		return 3
 	}
 	if p.Kind == "seedvr2" || p.Kind == "upscale" {
-		return 1
+		return 2
 	}
-	return 0
+	return 1
 }
 
 // enhancementPacks reuses the existing model engines; all downloads are opt-in.

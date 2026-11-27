@@ -558,7 +558,7 @@ func (a *App) fileTab(c *ui.Context, f *fileSession, i int, rel string, maxWidth
 	ink := t.TextMuted
 	switch {
 	case shown:
-		tab.Background(navigationFill(t))
+		tab.Background(t.Surface).Border(1, t.Border)
 		ink = t.Text
 		if f.revealed != rel {
 			f.revealed = rel

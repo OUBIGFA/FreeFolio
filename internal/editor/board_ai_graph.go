@@ -54,6 +54,10 @@ func aiRunnableRole(role whiteboard.AIRole) bool {
 // aiWidgetHeightFor is the height of a role's in-node controls.
 func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	switch role {
+	case whiteboard.AIModel:
+		return 70
+	case whiteboard.AILoRA:
+		return 102
 	case whiteboard.AINote:
 		return 30
 	case whiteboard.AICutout:
@@ -78,6 +82,8 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 // aiPreviewMin is the least room a role's result needs.
 func aiPreviewMin(role whiteboard.AIRole) float32 {
 	switch role {
+	case whiteboard.AIModel, whiteboard.AILoRA:
+		return 0
 	case whiteboard.AIPrompt:
 		return 80
 	case whiteboard.AINote:
@@ -120,7 +126,9 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	s := b.aiState()
 	var slots []whiteboard.AISlot
 	cached, ok := s.nodes[e.ID]
-	if ok && cached.node == n && cached.layout != nil {
+	if n.LinkAt("model") != "" {
+		slots = whiteboard.AISlots(b.Scene.AIInputNode(n))
+	} else if ok && cached.node == n && cached.layout != nil {
 		slots = cached.layout.slots
 	} else {
 		slots = whiteboard.AISlots(n)
@@ -266,6 +274,9 @@ func (b *Board) aiLinkHit(p whiteboard.Point) *aiLink {
 }
 
 func aiTypeColor(typ string, dark bool) ui.Color {
+	if typ == whiteboard.AITypeModel {
+		return ui.Hex("#9562CD")
+	}
 	kind := "text"
 	switch typ {
 	case whiteboard.AITypeImage:
@@ -529,7 +540,7 @@ func (b *Board) aiDragTo(p whiteboard.Point) {
 			continue
 		}
 		if d.from != "" {
-			n := b.aiNode(e)
+			n := b.Scene.AIInputNode(b.aiNode(e))
 			if n == nil {
 				continue
 			}
@@ -596,7 +607,10 @@ func (b *Board) setAILink(nodeID, slot, from string) {
 	if from == "" {
 		next.Disconnect(slot)
 	} else {
+		saved := next.Connection
+		next.Connection = b.Scene.AIInputNode(n).Connection
 		next.Connect(slot, from)
+		next.Connection = saved
 	}
 	if h := aiMinHeight(&next); e.H < h {
 		e.H = h
@@ -611,7 +625,7 @@ func (b *Board) setAILink(nodeID, slot, from string) {
 // slot only when nothing else fits. It fails when nothing fits or the link
 // would make a cycle.
 func (b *Board) connectAI(from, to *whiteboard.Element, content bool) error {
-	n := b.aiNode(to)
+	n := b.Scene.AIInputNode(b.aiNode(to))
 	typ := b.Scene.AISourceType(from)
 	if n == nil || typ == "" {
 		return errAI(i18n.T("只能连接到 AI 节点的输入"))
@@ -659,14 +673,14 @@ type aiPicker struct {
 func aiPickerRoles(pk *aiPicker) []whiteboard.AIRole {
 	var out []whiteboard.AIRole
 	if pk.from != "" {
-		for _, r := range []whiteboard.AIRole{whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
+		for _, r := range []whiteboard.AIRole{whiteboard.AILoRA, whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIVideo, whiteboard.AIConcat, whiteboard.AICutout, whiteboard.AIUpscale, whiteboard.AICompare} {
 			if _, ok := whiteboard.AIFindInputByType(&whiteboard.AINode{Role: r}, pk.typ); ok {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
-	for _, r := range []whiteboard.AIRole{whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AICutout, whiteboard.AIUpscale} {
+	for _, r := range []whiteboard.AIRole{whiteboard.AIModel, whiteboard.AILoRA, whiteboard.AIPrompt, whiteboard.AINote, whiteboard.AIText, whiteboard.AIConcat, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AICutout, whiteboard.AIUpscale} {
 		if t := whiteboard.AIOutputType(r); t != "" && whiteboard.AIValidConnection(t, pk.typ) {
 			out = append(out, r)
 		}

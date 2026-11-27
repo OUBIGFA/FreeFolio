@@ -13,12 +13,18 @@ import (
 
 var (
 	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
+	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIModel: "底模", whiteboard.AILoRA: "LoRA", whiteboard.AIVideo: "视频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
+	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIModel: "image", whiteboard.AILoRA: "sparkles", whiteboard.AIVideo: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.
 func (b *Board) aiStatus(e *whiteboard.Element, n *whiteboard.AINode) (string, bool) {
+	if n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA {
+		if _, err := b.Scene.AIModelFlow(e.ID); err != nil {
+			return i18n.T(err.Error()), true
+		}
+		return i18n.T("随下游节点运行"), false
+	}
 	if n.Role == whiteboard.AICompare {
 		if b.aiCompareInputAt(n, "a").ok && b.aiCompareInputAt(n, "b").ok {
 			return i18n.T("对比中"), false
@@ -280,6 +286,8 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-note", "笔记引用", "输入", "text", "text", add(whiteboard.AINote, "")},
 		{"ai-text", "文本生成", "文本", "text", "text", add(whiteboard.AIText, "")},
 		{"ai-concat", "提示词拼接", "文本", "group", "text", add(whiteboard.AIConcat, "")},
+		{"ai-base", "加载底模", "ComfyUI 模型", "image", "model", add(whiteboard.AIModel, "")},
+		{"ai-lora", "加载 LoRA", "ComfyUI 模型", "sparkles", "model", add(whiteboard.AILoRA, "")},
 		{"ai-image", "生成图像", "图像", "image", "image", add(whiteboard.AIImage, "")},
 		{"ai-cutout", "本地抠图", "图像", "image", "image", add(whiteboard.AICutout, "")},
 		{"ai-upscale", "图片放大", "图像", "image", "image", add(whiteboard.AIUpscale, "")},
@@ -290,31 +298,24 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		{"ai-i2v", "图生视频", "视频", "player-play", "video", add(whiteboard.AIVideo, "图生视频")},
 	}
 	if o.AI.Presets != nil {
-		for _, preset := range o.AI.Presets() {
-			m := preset.Model
-			label := m.Name
-			if m.Category != "" {
-				label = i18n.T(m.Category) + " · " + label
-			}
-			items = append(items, aiBarItem{"model-" + m.Model, label, "增强与 LoRA", "image", "image", func() {
-				b.edit(o, func() {
-					e := b.newAINode(preset.Role, b.viewCenter(), o)
-					n := whiteboard.AINodeOf(e)
-					n.Title, n.Connection, n.Model, n.Instruction = label, m.Connection, m.Model, m.Instruction
-					n.Params.LoRAStrength = m.LoRAStrength
-					if preset.Role == whiteboard.AIImage {
-						n.Params.Size = m.defaultImageSize()
-						n.Params.Quality = ""
-					}
-					e.H = max(e.H, aiMinHeight(n))
-					b.err = whiteboard.SetAINode(e, n)
-					b.selectIDs([]string{e.ID})
-				})
-				if o.AI.Remember != nil {
-					o.AI.Remember(preset.Role, m)
+		for _, isLoRA := range []bool{true, false} {
+			for _, preset := range o.AI.Presets() {
+				if (preset.Model.BaseModel != "") != isLoRA {
+					continue
 				}
-			}})
+				m := preset.Model
+				label := m.Name
+				if m.Category != "" {
+					label = i18n.T(m.Category) + " · " + label
+				}
+				group := "图片处理"
+				if m.BaseModel != "" {
+					group = "LoRA 流程（自动连线）"
+				}
+				items = append(items, aiBarItem{"model-" + m.Model, label, group, "image", "image", func() { b.insertAIModelPreset(preset, label, o) }})
+			}
 		}
+
 	}
 	for _, t := range aiTemplates {
 		items = append(items, aiBarItem{"tpl-" + t.key, t.label, "模板", "sparkles", "text", func() { b.insertAITemplate(t.key, o) }})
@@ -333,9 +334,18 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 		items = append(items, aiBarItem{"canvas-export", "导出 JSON Canvas", "交换", "duplicate", "text", func() { o.Export("canvas") }})
 	}
 	st := boardChromeFor(o.Theme)
-	boardSurface(ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(240).MaxHeight(max(120, b.lastRect.H-132)).Padding(12).Gap(4), st).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
+	boardSurface(ui.Scroll(c.Key("board-ai-bar")).Absolute().Top(66).Left(12).Width(min(360, max(220, b.lastRect.W-24))).MaxHeight(max(120, b.lastRect.H-96)).Padding(12).Gap(4).AlignItems(ui.Stretch), st).Role(ui.RoleGroup).Label(i18n.T("AI 节点")).Children(func() {
 		boardPanelHeader(c, st, i18n.T("AI 节点"), "", "", o.Theme.Dark, func() { b.ai.bar = false })
-		search := ui.TextInput(c.Key("board-ai-search"), &b.ai.query).Placeholder(i18n.T("搜索节点")).WidthPercent(100)
+		ui.Text(c, i18n.T("模型线：底模 → LoRA → 生成；提示词接生成节点")).FontSize(12).WidthPercent(100).TextColor(st.muted)
+		ui.Row(c).WidthPercent(100).Gap(10).Justify(ui.Start).Children(func() {
+			for _, source := range []struct{ label, connection string }{{"本地", "local"}, {"ComfyUI", "comfyui"}, {"供应商", "cloud"}} {
+				ui.Row(c.Key(source.connection)).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(6, 6).Radius(3).Background((BoardAIModel{Connection: source.connection}).sourceColor())
+					ui.Text(c, i18n.T(source.label)).FontSize(11.5).TextColor(st.muted)
+				})
+			}
+		})
+		search := ui.TextInput(c.Key("board-ai-search"), &b.ai.query).Placeholder(i18n.T("搜索节点")).Label(i18n.T("搜索节点")).WidthPercent(100)
 		if b.ai.barFocus {
 			search.Focus()
 			b.ai.barFocus = false
@@ -352,17 +362,17 @@ func (b *Board) aiBar(c *ui.Context, o BoardOptions) {
 				if group != "" {
 					ui.Box(c).Height(2)
 				}
-				ui.Box(c.Key("g-"+group)).Padding(6, 4, 2, 4).Children(func() {
+				ui.Row(c.Key("g-"+group)).WidthPercent(100).Justify(ui.Start).Padding(6, 4, 2, 4).Children(func() {
 					boardSectionLabel(c, st, i18n.T(group))
 				})
 			}
-			row := ui.ButtonBase(c.Key("board-ai-item-"+it.key)).WidthPercent(100).Padding(5, 8).Gap(8).AlignItems(ui.Center).Radius(6).Focusable().Label(label)
+			row := ui.ButtonBase(c.Key("board-ai-item-"+it.key)).WidthPercent(100).Padding(7, 8).Gap(8).Justify(ui.Start).AlignItems(ui.Center).Radius(6).Focusable().Label(label)
 			if row.Hovered() {
 				row.Background(st.hover)
 			}
 			row.Children(func() {
 				aiItemBadge(c, it.icon, it.kind, o.Theme.Dark)
-				ui.Text(c, label).FontSize(13).TextColor(st.text).SingleLine()
+				ui.Text(c, label).FontSize(13).TextColor(st.text).Grow(1).MinWidth(0).TextAlign(ui.Start).SingleLine()
 			})
 			if row.Clicked() {
 				it.run()
@@ -452,7 +462,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 	}
 	panel.Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
 		boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
-		if n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare {
+		if aiRunnableRole(n.Role) {
 			b.aiRunControls(c, o, id)
 		}
 		aiPropDivider(c, o)
@@ -461,7 +471,7 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 		if ui.TextInput(c.Key("board-ai-title"), &b.ai.buf.title).Placeholder(i18n.T(aiRoleNames[n.Role])).WidthPercent(100).Changed() {
 			edit(func(n *whiteboard.AINode) { n.Title = b.ai.buf.title })
 		}
-		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
+		if n.Role == whiteboard.AIText || n.Role == whiteboard.AIImage || n.Role == whiteboard.AIEnhance || n.Role == whiteboard.AIModel || n.Role == whiteboard.AILoRA || n.Role == whiteboard.AIVideo || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 			b.aiModelField(c, o, id, n)
 		}
 		aiPropDivider(c, o)
@@ -561,36 +571,10 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 }
 
 func (b *Board) aiModelField(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode) {
-	var models []BoardAIModel
-	if o.AI.Models != nil {
-		models = o.AI.Models(n.Role)
-	}
 	ui.Text(c, i18n.T("模型")).FontSize(12).TextColor(o.Theme.TextMuted)
-	if len(models) == 0 {
-		ui.Text(c, i18n.T("没有可用模型；请在「设置 → OneBot」添加供应商并勾选支持此类输出的模型")).FontSize(12.5).TextColor(o.Theme.Danger)
-		return
-	}
-	labels := make([]string, len(models))
-	current := ""
-	for i, m := range models {
-		labels[i] = m.label()
-		if m.Connection == n.Connection && m.Model == n.Model {
-			current = labels[i]
-		}
-	}
-	if current == "" && n.Model != "" {
-		current = (BoardAIModel{Connection: n.Connection, Model: n.Model}).label()
-	}
-	before := current
-	ui.Select(c.Key("board-ai-model"), &current, labels).WidthPercent(100).FontSize(13).Disabled(b.ReadOnly || b.Scene.ElementByID(id).Locked).Label(i18n.T("模型"))
-	if current != before {
-		for i, l := range labels {
-			if l == current {
-				m := models[i]
-				b.chooseAIModel(o, id, n, m)
-			}
-		}
-	}
+	ui.Row(c).WidthPercent(100).Children(func() {
+		b.aiModelSelect(c, o, id, n, "board-ai-model", b.ReadOnly || b.Scene.ElementByID(id).Locked, 30)
+	})
 }
 
 // aiImageSizeChoices shares provider-specific resolutions between the card
@@ -836,40 +820,7 @@ func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, m
 }
 
 func (b *Board) aiInlineModelSelect(c *ui.Context, o BoardOptions, id string, n *whiteboard.AINode, disabled bool) {
-	var models []BoardAIModel
-	if o.AI != nil && o.AI.Models != nil {
-		models = o.AI.Models(n.Role)
-	}
-	if len(models) == 0 {
-		ui.Text(c, i18n.T("未配置模型")).FontSize(11.5).TextColor(o.Theme.Danger).Grow(1).MinWidth(0).SingleLine()
-		return
-	}
-	labels := make([]string, len(models))
-	current := ""
-	for i, m := range models {
-		labels[i] = m.label()
-		if m.Connection == n.Connection && m.Model == n.Model {
-			current = labels[i]
-		}
-	}
-	if current == "" {
-		if n.Model != "" {
-			current = (BoardAIModel{Connection: n.Connection, Model: n.Model}).label()
-		} else {
-			current = i18n.T("选择模型")
-		}
-	}
-	before := current
-	// The cached control includes its native chevron at the board's scale.
-	ui.Select(c.Key("inline-model-"+id), &current, labels).Grow(1).MinWidth(0).Height(26).FontSize(11.5).Disabled(disabled).Label(i18n.T("模型")).Tooltip(current).Cache()
-	if current != before {
-		for i, l := range labels {
-			if l == current {
-				m := models[i]
-				b.chooseAIModel(o, id, n, m)
-			}
-		}
-	}
+	b.aiModelSelect(c, o, id, n, "inline-model-"+id, disabled, 26)
 }
 
 // aiNodeOverlay is the floating action & history bar above the selected node.
@@ -891,7 +842,7 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 		if boardFlatButton(c, "board-ai-settings", i18n.T("全部设置"), s.panel, st).Height(26).Label(i18n.T("全部设置")).Clicked() {
 			s.panel = !s.panel
 		}
-		if !b.ReadOnly && n.Role != whiteboard.AIPrompt && n.Role != whiteboard.AINote && n.Role != whiteboard.AIImageInput && n.Role != whiteboard.AICompare && !b.AIRunning() {
+		if !b.ReadOnly && aiRunnableRole(n.Role) && !b.AIRunning() {
 			if boardFlatButton(c, "board-ai-run-up", i18n.T("连同上游运行"), false, st).Height(26).Clicked() {
 				b.RunAI([]string{e.ID}, true, false, o)
 			}

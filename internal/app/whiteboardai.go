@@ -32,6 +32,29 @@ const boardAISystem = "You are OneBot working inside the user's FreeFolio whiteb
 // boardAIModels lists the enabled models able to run a node of the role.
 func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 	var out []editor.BoardAIModel
+	if role == whiteboard.AIModel {
+		a.ensureResourcesInspected()
+		for _, p := range localresource.ComfyPacks {
+			connection := ""
+			if p.Kind == "zimage" {
+				connection = "comfyui-zimage"
+			} else if p.Kind == "qwen-image" {
+				connection = "comfyui-qwen-image"
+			} else {
+				continue
+			}
+			out = append(out, editor.BoardAIModel{Connection: connection, ConnectionName: "ComfyUI", Model: p.ModelID, Name: p.Name, Local: true, NeedsDownload: !a.resources.installed[p.ID]})
+		}
+		return out
+	}
+	if role == whiteboard.AILoRA {
+		for _, preset := range a.boardEnhancementPresets() {
+			if preset.Model.BaseModel != "" {
+				out = append(out, preset.Model)
+			}
+		}
+		return out
+	}
 	if role == whiteboard.AICutout {
 		for _, model := range localresource.Models {
 			out = append(out, editor.BoardAIModel{Connection: "local", Model: model.ID, Name: model.Name})
@@ -103,14 +126,14 @@ func (a *App) boardAIModels(role whiteboard.AIRole) []editor.BoardAIModel {
 		}
 		return out
 	}
-	if role == whiteboard.AIImage {
+	if role == whiteboard.AIImage || role == whiteboard.AIEnhance {
 		a.ensureResourcesInspected()
 		caps := a.resources.comfyCaps
 		for _, pack := range localresource.ComfyPacks {
 			installed := a.resources.installed[pack.ID]
 			switch pack.Kind {
 			case "zimage":
-				if installed || (caps != nil && caps.ZImageNative && len(caps.ZImageModels) > 0) {
+				if role == whiteboard.AIImage && (installed || (caps != nil && caps.ZImageNative && len(caps.ZImageModels) > 0)) {
 					out = append(out, editor.BoardAIModel{Connection: "comfyui-zimage", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
 				}
 			case "qwen-image":
@@ -173,7 +196,7 @@ func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
 		}
 	}
 	for _, model := range models {
-		if !model.NeedsDownload {
+		if !model.NeedsDownload && (!(role == whiteboard.AIImage || role == whiteboard.AIEnhance) || model.BaseModel == "") {
 			return model
 		}
 	}
@@ -442,6 +465,23 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			req.Enhance = job.Node.Role == whiteboard.AIEnhance
 			for _, img := range job.Images {
 				req.Images = append(req.Images, img.Data)
+			}
+			if job.ModelFlow != nil {
+				req.LoRA = ""
+				for _, patch := range job.ModelFlow.LoRAs {
+					pack, ok := localresource.ComfyPack(patch.ID)
+					if !ok || pack.BaseModel != job.Node.Model {
+						return nil, errors.New(i18n.T("LoRA 与连接的底模不匹配"))
+					}
+					strength := pack.DefaultStrength
+					if patch.Strength != nil {
+						strength = *patch.Strength
+					}
+					req.LoRAs = append(req.LoRAs, localresource.ComfyLoRA{ID: pack.ID, Strength: strength})
+					if strings.TrimSpace(req.Prompt) == "" {
+						req.Prompt = pack.Instruction
+					}
+				}
 			}
 			var imgs [][]byte
 			var err error
