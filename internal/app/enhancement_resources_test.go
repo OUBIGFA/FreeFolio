@@ -181,6 +181,15 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 	a.resources.paused = true
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "enhancement-paused.png"), tt)
+	pack, _ := localresource.ComfyPack("z-detail")
+	download, err := localresource.PackDownload(pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.setPackDownloadProgress(pack, download)
+	a.resources.received.Store(a.resources.ownStart / 2)
+	tt.Frame()
+	savePNG(t, filepath.Join(dir, "lora-base-size.png"), tt)
 }
 
 func TestEnhancementNodesSnapshot(t *testing.T) {

@@ -1,11 +1,62 @@
 package editor
 
 import (
+	"fmt"
+	"math"
 	"testing"
 
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestAddingAINodesPreservesViewportAtCurrentCenter(t *testing.T) {
+	for _, zoom := range []float64{0.6, 1.7} {
+		for _, flow := range []bool{false, true} {
+			t.Run(fmt.Sprintf("zoom=%g/flow=%v", zoom, flow), func(t *testing.T) {
+				f := &fakeAI{}
+				o := f.options(t)
+				strength := .35
+				o.AI.Presets = func() []BoardAIPreset {
+					return []BoardAIPreset{{Role: whiteboard.AIImage, Model: BoardAIModel{
+						Connection: "comfyui-zimage", Model: "z-detail", BaseModel: "z-image-turbo-int8",
+						Name: "Z-Image Detailer", LoRAStrength: &strength,
+					}}}
+				}
+				b := NewBoard(nil)
+				// An unrelated distant element must not pull the viewport away
+				// when a new workflow is added to a zoomed and panned canvas.
+				b.Scene.Elements = append(b.Scene.Elements, whiteboard.NewElement(whiteboard.KindRectangle, 12000, -9000, 200, 100))
+				tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, o) }, 1200, 850)
+				tt.Frame()
+				b.Zoom, b.PanX, b.PanY = zoom, -357, 219
+				b.ai.bar = true
+				label := "图片放大"
+				if flow {
+					label = "Z-Image Detailer"
+				}
+				b.ai.query = label
+				tt.Frame()
+				center := b.viewCenter()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+				tt.Frame()
+				if b.Zoom != zoom || b.PanX != -357 || b.PanY != 219 {
+					t.Fatalf("adding a node moved the viewport: zoom=%g pan=(%g,%g)", b.Zoom, b.PanX, b.PanY)
+				}
+				var middle *whiteboard.Element
+				for _, e := range b.Scene.Elements {
+					if n := whiteboard.AINodeOf(e); n != nil && ((!flow && n.Role == whiteboard.AIUpscale) || (flow && n.Role == whiteboard.AILoRA)) {
+						middle = e
+					}
+				}
+				if middle == nil || math.Abs(middle.X+middle.W/2-center[0]) > 1e-6 || math.Abs(middle.Y+middle.H/2-center[1]) > 1e-6 {
+					t.Fatalf("node or workflow was not placed at the original viewport center: %+v, want %v", middle, center)
+				}
+			})
+		}
+	}
+}
 
 func TestLoRAFlowRunsFromFinalNodeAndInvalidatesCache(t *testing.T) {
 	f := &fakeAI{}

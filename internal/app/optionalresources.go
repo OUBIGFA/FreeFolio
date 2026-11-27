@@ -23,6 +23,8 @@ type resourceState struct {
 	err                       error
 	received                  atomic.Int64
 	total                     int64
+	ownStart, dependencyTotal int64
+	dependencyLabel           string
 	paused, pausing, stopping bool
 	resume                    func()
 
@@ -275,6 +277,7 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	}
 	s.received.Store(0)
 	s.total = 0
+	s.ownStart, s.dependencyTotal, s.dependencyLabel = 0, 0, ""
 	for _, part := range items {
 		s.total += part.Size
 	}
@@ -327,8 +330,7 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 	if remove {
 		s.cancel = nil
 	}
-	s.received.Store(0)
-	s.total = download.TotalSize()
+	a.setPackDownloadProgress(pack, download)
 	mgr := a.resources.comfy
 	a.backgroundResult(func() func() {
 		defer cancel()
@@ -443,7 +445,10 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 	}
 	if pack.BaseModel != "" {
 		base, _ := localresource.ComfyPack(pack.BaseModel)
-		return i18n.T(pack.Category), false, fmt.Sprintf(i18n.T("底模：%s · %s · %s"), base.Name, sizeText, license)
+		return i18n.T(pack.Category), false, fmt.Sprintf(i18n.T("LoRA：%s · %s\n底模：%s"), sizeText, license, base.Name)
+	}
+	if pack.Kind == "seedvr2" {
+		sizeText = formatResourceBytes(pack.Files[0].Size)
 	}
 	purpose := ""
 	switch pack.Kind {
@@ -467,6 +472,9 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 		badge = fmt.Sprintf(i18n.T("建议 %d GB+ 显存"), pack.MinVRAMGiB)
 	}
 	detail = fmt.Sprintf("%s · %s · %s", purpose, sizeText, license)
+	if pack.Kind == "seedvr2" {
+		detail += "\n" + fmt.Sprintf(i18n.T("另需 VAE：%s"), formatResourceBytes(pack.TotalSize()-pack.Files[0].Size))
+	}
 	return
 }
 

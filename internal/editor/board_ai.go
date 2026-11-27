@@ -317,6 +317,8 @@ func (b *Board) newAINode(role whiteboard.AIRole, at whiteboard.Point, o BoardOp
 		n.Params.Scale = 4
 	}
 	e.H = max(e.H, aiMinHeight(n))
+	// Center the final card size, including any extra room for its controls.
+	e.Y = at[1] - e.H/2
 	_ = whiteboard.SetAINode(e, n)
 	b.Scene.Elements = append(b.Scene.Elements, e)
 	return e

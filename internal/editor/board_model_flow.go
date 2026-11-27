@@ -45,11 +45,12 @@ func (b *Board) insertAIModelPreset(preset BoardAIPreset, label string, o BoardO
 			n.Params.Quality = ""
 		}
 		gen.H = max(gen.H, aiMinHeight(n))
+		gen.Y = genAt[1] - gen.H/2
 		b.err = whiteboard.SetAINode(gen, n)
 		b.selectIDs([]string{gen.ID})
 	})
 	if m.BaseModel != "" {
 		b.ai.bar = false
-		b.fit(false)
+		// Adding content must not change the user's current zoom or pan.
 	}
 }

@@ -2662,4 +2662,8 @@ var en = map[string]string{
 	"图片处理":                        "Image processing",
 	"本地":                          "Local",
 	"模型连线只支持 ComfyUI 底模":          "Model connections require a ComfyUI base model",
+	"LoRA：%s · %s\n底模：%s":         "LoRA: %s \u00b7 %s\nBase model: %s",
+	"另需 VAE：%s":                   "VAE required separately: %s",
+	"底模下载":                        "Base model download",
+	"VAE下载":                       "VAE download",
 }
