@@ -39,8 +39,8 @@ func TestSidebarCopyPasteDocumentAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tt)
-	if len(a.copied) != 1 || a.copied[0] != (place{sp.ID, "会议纪要模板.md"}) {
-		t.Fatalf("unexpected clipboard after Copy: %+v", a.copied)
+	if len(a.clipboard.copied) != 1 || a.clipboard.copied[0] != (place{sp.ID, "会议纪要模板.md"}) {
+		t.Fatalf("unexpected clipboard after Copy: %+v", a.clipboard.copied)
 	}
 
 	// Paste via document row context menu places the copy beside it in the same
@@ -248,13 +248,13 @@ func TestSidebarCopyPasteFolderAndSelfPasteGuard(t *testing.T) {
 	settle(tt)
 
 	// Pasting Journal into itself or into Journal/Sub must be disallowed.
-	if a.canPasteInto(sp, "Journal") {
+	if a.clipboard.canPasteInto(sp, "Journal") {
 		t.Fatal("should not allow pasting a folder into itself")
 	}
-	if a.canPasteInto(sp, "Journal/Sub") {
+	if a.clipboard.canPasteInto(sp, "Journal/Sub") {
 		t.Fatal("should not allow pasting a folder into its descendant")
 	}
-	if !a.canPasteInto(sp, "Target") || !a.canPasteInto(sp, "") {
+	if !a.clipboard.canPasteInto(sp, "Target") || !a.clipboard.canPasteInto(sp, "") {
 		t.Fatal("should allow pasting folder into another folder or root")
 	}
 
@@ -331,8 +331,8 @@ func TestSidebarMultiSelectCopyPasteAndUndo(t *testing.T) {
 		t.Fatalf("multi-select Copy failed: %v; menu=%q", err, tt.Menu())
 	}
 	settle(tt)
-	if len(a.copied) != 3 {
-		t.Fatalf("expected 3 deduplicated copied items, got %+v", a.copied)
+	if len(a.clipboard.copied) != 3 {
+		t.Fatalf("expected 3 deduplicated copied items, got %+v", a.clipboard.copied)
 	}
 
 	// Right-click Dest shows "粘贴 3 项".
@@ -386,8 +386,8 @@ func TestSidebarCopyPasteCrossSpaceAttachmentsAndExternal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a.copyEntries(src, []string{a.doc.rel})
-	a.pasteInto(dst, "", "")
+	a.clipboard.copyEntries(src, []string{a.doc.rel})
+	a.clipboard.pasteInto(dst, "", "")
 
 	// Original document and original asset remain untouched and still in src.
 	if _, err := vault.Read(src.Root, "Drop.arcmd"); err != nil {
@@ -434,8 +434,8 @@ func TestSidebarCopyPasteCrossSpaceAttachmentsAndExternal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dst.Root, "Sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	a.copyEntries(dst, []string{"Drop.arcmd"})
-	a.pasteInto(dst, "Sub", "")
+	a.clipboard.copyEntries(dst, []string{"Drop.arcmd"})
+	a.clipboard.pasteInto(dst, "Sub", "")
 	subText, err := vault.Read(dst.Root, "Sub/Drop.arcmd")
 	if err != nil {
 		t.Fatalf("same-space subfolder paste missing: %v", err)
@@ -471,8 +471,8 @@ func TestSidebarCopyPasteCrossSpaceAttachmentsAndExternal(t *testing.T) {
 	if err := vault.Write(broken.Root, "assets", "not a directory"); err != nil {
 		t.Fatal(err)
 	}
-	a.copyEntries(src, []string{"Drop.arcmd"})
-	a.pasteInto(broken, "", "")
+	a.clipboard.copyEntries(src, []string{"Drop.arcmd"})
+	a.clipboard.pasteInto(broken, "", "")
 	if _, err := os.Stat(filepath.Join(broken.Root, "Drop.arcmd")); !os.IsNotExist(err) {
 		t.Fatalf("failed copy was not rolled back: %v", err)
 	}
@@ -491,11 +491,11 @@ func TestSidebarCopyPasteCrossSpaceAttachmentsAndExternal(t *testing.T) {
 	if ext == nil || !ext.IsExternal() {
 		t.Fatal("loose file did not open in the file browser's locations")
 	}
-	if a.canPasteInto(ext, "") {
+	if a.clipboard.canPasteInto(ext, "") {
 		t.Fatal("file browser locations must not accept pastes")
 	}
-	a.copyEntries(ext, []string{a.doc.rel})
-	if a.canPasteInto(dst, "") {
+	a.clipboard.copyEntries(ext, []string{a.doc.rel})
+	if a.clipboard.canPasteInto(dst, "") {
 		t.Fatal("an unregistered location must not be a paste source")
 	}
 }
@@ -522,8 +522,8 @@ func TestSidebarCopyPasteShortcutsAndFocusIsolation(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.KeyC)
 	settle(tt)
-	if len(a.copied) != 1 || a.copied[0].rel != "Note.md" {
-		t.Fatalf("Cmd+C on focused sidebar row failed: %+v", a.copied)
+	if len(a.clipboard.copied) != 1 || a.clipboard.copied[0].rel != "Note.md" {
+		t.Fatalf("Cmd+C on focused sidebar row failed: %+v", a.clipboard.copied)
 	}
 	tt.Key(ui.Cmd, ui.KeyV)
 	settle(tt)
@@ -566,15 +566,15 @@ func TestSidebarCopyPasteShortcutsAndFocusIsolation(t *testing.T) {
 	settle(tt)
 
 	// When the editor has focus, Cmd+C / Cmd+V must NOT trigger sidebar copy/paste.
-	a.copied = nil
+	a.clipboard.copied = nil
 	a.open("Note.md")
 	focusDocument(a, tt)
 	tt.Key(ui.Cmd, ui.KeyC)
 	settle(tt)
-	if len(a.copied) != 0 {
-		t.Fatalf("Cmd+C in editor leaked into sidebar clipboard: %+v", a.copied)
+	if len(a.clipboard.copied) != 0 {
+		t.Fatalf("Cmd+C in editor leaked into sidebar clipboard: %+v", a.clipboard.copied)
 	}
-	a.copied = []place{{sp.ID, "Note.md"}}
+	a.clipboard.copied = []place{{sp.ID, "Note.md"}}
 	tt.Key(ui.Cmd, ui.KeyV)
 	settle(tt)
 	if _, err := os.Stat(filepath.Join(sp.Root, "Note 3.md")); !os.IsNotExist(err) {
@@ -607,8 +607,8 @@ func TestSidebarFavoriteCopyAndCommandPalette(t *testing.T) {
 		t.Fatalf("favorite tile Copy failed: %v; menu=%q", err, tt.Menu())
 	}
 	settle(tt)
-	if len(a.copied) != 1 || a.copied[0] != (place{sp.ID, "Welcome.md"}) {
-		t.Fatalf("favorite tile copy clipboard = %+v", a.copied)
+	if len(a.clipboard.copied) != 1 || a.clipboard.copied[0] != (place{sp.ID, "Welcome.md"}) {
+		t.Fatalf("favorite tile copy clipboard = %+v", a.clipboard.copied)
 	}
 
 	a.switchSpace(work.ID)
@@ -658,15 +658,15 @@ func TestSidebarCopyPasteMarkdownImagesAndEmptyListMenu(t *testing.T) {
 	settle(tt)
 
 	// Same-directory copy keeps Markdown raw bytes untouched and shares assets/shot.png.
-	a.copyEntries(sp, []string{"会议模板.md"})
-	a.pasteInto(sp, "", "")
+	a.clipboard.copyEntries(sp, []string{"会议模板.md"})
+	a.clipboard.pasteInto(sp, "", "")
 	if got, err := vault.Read(sp.Root, "会议模板 2.md"); err != nil || got != rawMD {
 		t.Fatalf("same-dir Markdown copy changed raw bytes:\ngot:  %q\nwant: %q\nerr:  %v", got, rawMD, err)
 	}
 
 	// Cross-folder copy with colliding asset name copies to a numbered image and
 	// rewrites both cover and image block URLs in the copied Markdown file.
-	a.pasteInto(sp, "Archive", "")
+	a.clipboard.pasteInto(sp, "Archive", "")
 	movedMD, err := vault.Read(sp.Root, "Archive/会议模板.md")
 	if err != nil {
 		t.Fatalf("cross-folder Markdown copy missing: %v", err)

@@ -578,7 +578,7 @@ func TestSourceModeSplitSnapshot(t *testing.T) {
 			a.refreshTree()
 			a.open("SplitDemo.md")
 			a.toggleSource()
-			a.toggleSourceSplit(a.doc)
+			a.sourceMode.toggleSourceSplit(a.doc)
 			a.prefs.SourceSplitSwapped = tc.swapped
 			settle(tt)
 			writePNG(t, filepath.Join(dir, tc.name+".png"), tt.Image())

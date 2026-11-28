@@ -77,14 +77,14 @@ func (a *App) moreMenu(c *ui.Context) {
 		m.Submenu(i18n.T("导出"), func(sub *ui.Menu) {
 			if isDB {
 				if sub.Item(i18n.T("导出 CSV 文件")).Chosen() {
-					_, _ = a.exportDatabaseCSV(a.doc)
+					_, _ = a.databases.exportDatabaseCSV(a.doc)
 				}
 			}
 			if sub.Item(i18n.T("导出 Markdown 文件")).Disabled(noText || isMDZ || isDB).Chosen() {
 				a.exportMarkdown()
 			}
 			if a.menuKey(sub.Item(i18n.T("导出 PDF")), "export-pdf").Disabled(noText || isMDZ || isDB).Chosen() {
-				a.exportPDF()
+				a.pdfExports.exportPDF()
 			}
 			if sub.Item(i18n.T("导出 HTML 网页")).Disabled(noText || isMDZ || isDB).Chosen() {
 				a.exportHTML()
@@ -93,9 +93,9 @@ func (a *App) moreMenu(c *ui.Context) {
 				a.mdzFiles.exportMDZ()
 			}
 		}).Disabled(noText || isMDZ)
-		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(a.doc))
+		m.Submenu(i18n.T("页面缩放"), a.zoom.pageZoomMenu).Disabled(!a.zoom.canZoomPage(a.doc))
 		if m.Item(i18n.T("打印")).Disabled(noText || isMDZ || isDB).Chosen() {
-			a.printDoc()
+			a.pdfExports.printDoc()
 		}
 		if m.Item(i18n.T("在文件管理器中显示文档")).Disabled(noDoc).Chosen() {
 			a.revealIn(a.doc.space, a.doc.rel)

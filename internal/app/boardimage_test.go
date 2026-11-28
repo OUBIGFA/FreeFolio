@@ -29,7 +29,7 @@ func TestBoardImageViewingKeepsInternalClicksAndPans(t *testing.T) {
 			a, w, win, _ := boardImageFixture(t)
 			w.editing = tc.editing
 			w.image.Board.Tool = editor.ToolHand
-			tt := ui.NewTester(func(c *ui.Context) { a.boardImageView(c, w) }, 900, 650)
+			tt := ui.NewTester(func(c *ui.Context) { a.boardImages.boardImageView(c, w) }, 900, 650)
 			tt.Frame()
 			r, ok := tt.Find("手绘白板")
 			if !ok {
@@ -62,7 +62,7 @@ func TestBoardImageOutsideDismissPreservesEditingAndSaving(t *testing.T) {
 			w.saving = mode == "saving"
 			w.confirmClose = mode == "confirm"
 			w.closed = mode == "closed"
-			a.dismissBoardImageOutside(w)
+			a.boardImages.dismissBoardImageOutside(w)
 			want := 0
 			if mode == "view" || mode == "loading" {
 				want = 1
@@ -132,11 +132,11 @@ func boardImageFixture(t *testing.T) (*App, *boardImageWindow, *fakeWindow, []by
 		win = &fakeWindow{title: title, view: view, close: close}
 		return win
 	}
-	a.openBoardImage(d, source.ID, true)
-	if len(a.boardImages) != 1 || a.boardImages[0].image == nil {
-		t.Fatalf("image not opened: %+v", a.boardImages)
+	a.boardImages.openBoardImage(d, source.ID, true)
+	if len(a.boardImages.windows) != 1 || a.boardImages.windows[0].image == nil {
+		t.Fatalf("image not opened: %+v", a.boardImages.windows)
 	}
-	return a, a.boardImages[0], win, buf.Bytes()
+	return a, a.boardImages.windows[0], win, buf.Bytes()
 }
 
 func TestBoardImageAnnotationBecomesGenerationReferenceWithoutChangingOriginal(t *testing.T) {
@@ -148,7 +148,7 @@ func TestBoardImageAnnotationBecomesGenerationReferenceWithoutChangingOriginal(t
 	mark.StrokeColor = "#e03131"
 	mark.StrokeWidth = 4
 	w.image.Board.Scene.Elements = append(w.image.Board.Scene.Elements, mark)
-	a.saveBoardImage(w, true)
+	a.boardImages.saveBoardImage(w, true)
 	if w.err != "" || w.message == "" {
 		t.Fatalf("save: %s %s", w.err, w.message)
 	}
@@ -194,16 +194,16 @@ func TestBoardImageLockedNodeCanViewButCannotSave(t *testing.T) {
 	a, w, _, _ := boardImageFixture(t)
 	source := w.doc.board.Scene.ElementByID(w.nodeID)
 	source.Locked = true
-	a.saveBoardImage(w, true)
+	a.boardImages.saveBoardImage(w, true)
 	if w.err == "" || len(w.doc.board.Scene.Elements) != 1 {
 		t.Fatal("locked node accepted edit")
 	}
 	w.savedRevision = w.image.Board.Revision()
-	if !a.closeBoardImage(w) {
+	if !a.boardImages.closeBoardImage(w) {
 		t.Fatal("unchanged viewer did not close")
 	}
-	a.openBoardImage(a.doc, source.ID, false)
-	if len(a.boardImages) != 1 || a.boardImages[0].editing {
+	a.boardImages.openBoardImage(a.doc, source.ID, false)
+	if len(a.boardImages.windows) != 1 || a.boardImages.windows[0].editing {
 		t.Fatal("locked node cannot be inspected")
 	}
 }
@@ -229,13 +229,13 @@ func TestBoardImageHistoryViewerKeepsOutputAndOpensRequestedAttachment(t *testin
 	before := string(source.CustomData)
 	for i := range outputs {
 		a.boardAI.boardAI(d).OpenHistoryImage(source.ID, i)
-		opened := a.boardImages[len(a.boardImages)-1]
+		opened := a.boardImages.windows[len(a.boardImages.windows)-1]
 		if opened.image == nil || opened.editing || opened.exportPath != outputs[i].Path || string(source.CustomData) != before {
 			t.Fatalf("history viewer changed selection or loaded wrong attachment: %+v", opened)
 		}
 	}
 	a.boardAI.boardAI(d).OpenHistoryImage(source.ID, 1)
-	if len(a.boardImages) != 3 {
+	if len(a.boardImages.windows) != 3 {
 		t.Fatal("reopening an existing image duplicated its window")
 	}
 }
@@ -265,7 +265,7 @@ func TestBoardImageClosePromptsAfterEdit(t *testing.T) {
 	if win.close() || !w.confirmClose {
 		t.Fatal("unsaved annotation closed silently")
 	}
-	a.discardBoardImage(w)
+	a.boardImages.discardBoardImage(w)
 	if !win.close() || !w.closed {
 		t.Fatal("discard did not close annotation")
 	}

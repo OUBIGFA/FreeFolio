@@ -28,15 +28,13 @@ import (
 type whiteboardAIHost interface {
 	chatGPT() *chatGPTState
 	findNamedFrom(id, name string) (*space.Space, string, bool)
+	imageWindows() *boardImageFeature
 	notify(format string, args ...any)
-	openBoardImage(d *document, id string, edit bool)
-	openBoardImageAt(d *document, id string, edit bool, index int)
 	optionalResources() *resourceState
 	pickBoardNodeImage(d *document, nodeID string)
 	preferences() *prefs.Prefs
 	providerFactory() func(agent.Settings) agent.Provider
 	readAIKeys() (aiKeyring, error)
-	saveBoardImageAs(parent *mygo.Window, rel string, read func(string) ([]byte, error), done func(error))
 	savePrefs()
 	window() *mygo.Window
 	writeAssetFor(d *document, dir, name string, data []byte) (string, error)
@@ -285,10 +283,10 @@ func (wa *whiteboardAIFeature) boardAI(d *document) *editor.BoardAI {
 	}
 	ai := &editor.BoardAI{Models: wa.boardAIModels, Unavailable: wa.boardRoleUnavailable, Presets: wa.boardEnhancementPresets, Default: wa.boardAIDefault, Remember: wa.rememberBoardAIModel, ReadFile: read}
 	ai.ReplaceImage = func(nodeID string) { wa.host.pickBoardNodeImage(d, nodeID) }
-	ai.OpenImage = func(id string, edit bool) { wa.host.openBoardImage(d, id, edit) }
-	ai.OpenHistoryImage = func(id string, index int) { wa.host.openBoardImageAt(d, id, false, index) }
+	ai.OpenImage = func(id string, edit bool) { wa.host.imageWindows().openBoardImage(d, id, edit) }
+	ai.OpenHistoryImage = func(id string, index int) { wa.host.imageWindows().openBoardImageAt(d, id, false, index) }
 	ai.SaveImage = func(rel string) {
-		wa.host.saveBoardImageAs(wa.host.window(), rel, read, func(err error) {
+		wa.host.imageWindows().saveBoardImageAs(wa.host.window(), rel, read, func(err error) {
 			if err != nil {
 				wa.host.notify("另存为失败；%v", err)
 			}

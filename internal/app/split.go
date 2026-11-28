@@ -385,8 +385,8 @@ func (a *App) residentDocuments() []*document {
 	if a.files != nil {
 		add(a.files.previous)
 	}
-	if a.dbPeek.open && a.dbPeek.doc != nil {
-		add(a.dbPeek.doc)
+	if a.databases.dbPeek.open && a.databases.dbPeek.doc != nil {
+		add(a.databases.dbPeek.doc)
 	}
 	for _, s := range a.sessions {
 		add(s.doc)
@@ -402,7 +402,7 @@ func (a *App) residentDocuments() []*document {
 	for _, w := range a.windows {
 		add(w.doc)
 	}
-	for _, w := range a.boardImages {
+	for _, w := range a.boardImages.windows {
 		if !w.closed {
 			add(w.doc)
 		}
@@ -476,11 +476,11 @@ func (a *App) withDocument(d *document, fn func()) {
 			parent.boardOverlay = replacement
 		}
 	}
-	if a.dbPeek.doc == d {
-		a.dbPeek.doc = replacement
+	if a.databases.dbPeek.doc == d {
+		a.databases.dbPeek.doc = replacement
 	}
-	if a.dbPeek.dbDoc == d {
-		a.dbPeek.dbDoc = replacement
+	if a.databases.dbPeek.dbDoc == d {
+		a.databases.dbPeek.dbDoc = replacement
 	}
 	if selected != d {
 		a.doc = selected
@@ -604,15 +604,15 @@ func (a *App) replaceReferences(old, replacement *document) {
 	}
 	if old != nil {
 		if replacement == nil {
-			if a.dbPeek.doc == old || a.dbPeek.dbDoc == old {
-				a.closeRecordPeek()
+			if a.databases.dbPeek.doc == old || a.databases.dbPeek.dbDoc == old {
+				a.databases.closeRecordPeek()
 			}
 		} else {
-			if a.dbPeek.doc == old {
-				a.dbPeek.doc = replacement
+			if a.databases.dbPeek.doc == old {
+				a.databases.dbPeek.doc = replacement
 			}
-			if a.dbPeek.dbDoc == old {
-				a.dbPeek.dbDoc = replacement
+			if a.databases.dbPeek.dbDoc == old {
+				a.databases.dbPeek.dbDoc = replacement
 			}
 		}
 	}

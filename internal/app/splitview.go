@@ -179,7 +179,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 			if d != nil {
 				name = d.title()
 				if width >= 325 {
-					docIcon(c, a.iconTitle(d.space.ID, d.rel), 14)
+					docIcon(c, a.links.iconTitle(d.space.ID, d.rel), 14)
 				}
 			}
 			ui.Text(c, name).FontSize(12).SingleLine().Grow(1).MinWidth(0).TextColor(t.TextMuted)

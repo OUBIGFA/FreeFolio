@@ -11,11 +11,11 @@ import (
 
 func finishTestPDF(t *testing.T, a *App, tt *ui.Tester) {
 	t.Helper()
-	for i := 0; i < 500 && a.pdfExport != nil; i++ {
+	for i := 0; i < 500 && a.pdfExports.job != nil; i++ {
 		tt.Advance(2 * time.Millisecond)
 		tt.Frame()
 	}
-	if a.pdfExport != nil {
+	if a.pdfExports.job != nil {
 		t.Fatal("PDF export did not finish")
 	}
 }
@@ -26,8 +26,8 @@ func TestPDFCancelCleansPartialOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.open("Long.arcmd")
-	a.exportPDF()
-	file := a.pdfExport.file.Name()
+	a.pdfExports.exportPDF()
+	file := a.pdfExports.job.file.Name()
 	tt.Advance(2 * time.Millisecond)
 	tt.Frame()
 	if !tt.HasText("正在导出 PDF") {
@@ -37,7 +37,7 @@ func TestPDFCancelCleansPartialOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.pdfExport != nil {
+	if a.pdfExports.job != nil {
 		t.Fatal("job remains after cancellation")
 	}
 	if _, err := os.Stat(file); !os.IsNotExist(err) {
@@ -54,7 +54,7 @@ func TestPDFTextLayer(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.open("Searchable.arcmd")
-	a.exportPDF()
+	a.pdfExports.exportPDF()
 	finishTestPDF(t, a, tt)
 	data, err := os.ReadFile(filepath.Join(root(a), "Searchable.pdf"))
 	if err != nil {
@@ -94,7 +94,7 @@ func TestVectorPDFOutlinesLinksMathAndMermaid(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.open("VectorSpec.arcmd")
-	a.exportPDF()
+	a.pdfExports.exportPDF()
 	finishTestPDF(t, a, tt)
 
 	data, err := os.ReadFile(filepath.Join(root(a), "VectorSpec.pdf"))
@@ -123,8 +123,8 @@ func TestVectorPDFOutlinesLinksMathAndMermaid(t *testing.T) {
 func TestPDFProgressSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render export progress")
 	a, tt := newTestApp(t)
-	a.exportPDF()
-	t.Cleanup(a.cancelPDF)
+	a.pdfExports.exportPDF()
+	t.Cleanup(a.pdfExports.cancelPDF)
 	tt.Advance(2 * time.Millisecond)
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "pdf-export-progress.png"), tt)

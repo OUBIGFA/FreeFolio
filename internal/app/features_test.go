@@ -70,7 +70,7 @@ func TestWikiLinks(t *testing.T) {
 		t.Errorf("backlink opened %q", a.doc.rel)
 	}
 	// A link to a document that is not there makes it.
-	a.openWiki("Brand New")
+	a.links.openWiki("Brand New")
 	if a.doc == nil || a.doc.rel != "Brand New.md" || a.doc.ed.Doc.Blocks[0].Text() != "Brand New" {
 		t.Fatalf("missing link made %+v", a.doc)
 	}
@@ -269,14 +269,14 @@ func TestExportPDFAndPrint(t *testing.T) {
 	if !tt.HasText("已导出 Welcome.pdf（1 页）") {
 		t.Errorf("notice: %q", tt.Texts())
 	}
-	a.exportPDF()
+	a.pdfExports.exportPDF()
 	finishTestPDF(t, a, tt)
 	if _, err := os.Stat(filepath.Join(root(a), "Welcome 2.pdf")); err != nil {
 		t.Error("second export replaced the first")
 	}
 	var printed string
 	a.printFile = func(p string) { printed = p }
-	a.printDoc()
+	a.pdfExports.printDoc()
 	finishTestPDF(t, a, tt)
 	if data, _ := os.ReadFile(printed); !bytes.HasPrefix(data, []byte("%PDF")) {
 		t.Errorf("printed %q", printed)
@@ -385,7 +385,7 @@ func TestPageIconAndCover(t *testing.T) {
 	if err := tt.Click("图标：🚀"); err != nil {
 		t.Fatal(err)
 	}
-	if a.doc.ed.Doc.Icon != "🚀" || a.iconTitle(a.state.ActiveSpace().ID, "Welcome.md") != "🚀 Welcome" {
+	if a.doc.ed.Doc.Icon != "🚀" || a.links.iconTitle(a.state.ActiveSpace().ID, "Welcome.md") != "🚀 Welcome" {
 		t.Fatalf("icon %q", a.doc.ed.Doc.Icon)
 	}
 	a.doc.ed.EditCover()
@@ -411,7 +411,7 @@ func TestPageIconAndCover(t *testing.T) {
 	}
 	a.refreshSearch()
 	a.open("Journal/Ideas.md")
-	if got := a.iconTitle(a.state.ActiveSpace().ID, "Welcome.md"); got != "🚀 Welcome" {
+	if got := a.links.iconTitle(a.state.ActiveSpace().ID, "Welcome.md"); got != "🚀 Welcome" {
 		t.Errorf("indexed icon %q", got)
 	}
 }

@@ -36,14 +36,14 @@ func (a *App) View(c *ui.Context) {
 	defer a.importGuideView(c)
 	c.Root().Font(a.fonts.interfaceFont())
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
-	a.applyPendingDatabasePeekMode()
+	a.databases.applyPendingDatabasePeekMode()
 	a.frame++
 	a.rowFocus, a.rowFocusNow = a.rowFocusNow, rowFocus{}
 	a.launchTick(c)
 	// A rename ended by any other path (switching away, deleting, another
 	// rename) still offers the pending duplicate's undo.
-	if a.pendingDupUndo != nil && a.renaming == "" {
-		a.flushPendingDupUndo("", "")
+	if a.clipboard.pendingDupUndo != nil && a.renaming == "" {
+		a.clipboard.flushPendingDupUndo("", "")
 	}
 	a.cloud.cloudTick(c)
 	a.gitSync.gitTick(c)
@@ -227,9 +227,9 @@ func (a *App) View(c *ui.Context) {
 	a.unsavedPromptView(c)
 	a.tagRenameView(c)
 	a.versions.view(c)
-	a.pdfExportView(c)
+	a.pdfExports.pdfExportView(c)
 	a.pdfPages.pdfPagesView(c)
-	a.databasePeekModal(c)
+	a.databases.databasePeekModal(c)
 	a.tourView(c)
 	a.mainWindowButtons(c)
 	if a.captureSplits() {
@@ -414,7 +414,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	case a.pressed(c, "new-board"):
 		a.newWhiteboard(a.currentDir())
 	case a.pressed(c, "new-database"):
-		a.newDatabase(a.currentDir())
+		a.databases.newDatabase(a.currentDir())
 	case a.pressed(c, "new-folder"):
 		a.newFolder(a.currentDir())
 	case a.pressed(c, "daily"):
@@ -451,12 +451,12 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.toggleOutline()
 	case a.pressed(c, "full-width"):
 		a.toggleFullWidth()
-	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
-		a.stepPageZoom(1)
-	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
-		a.stepPageZoom(-1)
-	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
-		a.resetPageZoom()
+	case !a.zoom.overlayBlocksZoom() && a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
+		a.zoom.stepPageZoom(1)
+	case !a.zoom.overlayBlocksZoom() && a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
+		a.zoom.stepPageZoom(-1)
+	case !a.zoom.overlayBlocksZoom() && a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
+		a.zoom.resetPageZoom()
 	case a.pressed(c, "bookmark"):
 		a.bookmarks.toggleBookmarkAtCaret()
 	case a.pressed(c, "bookmarks"):
@@ -470,7 +470,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	case a.pressed(c, "ask"):
 		a.qa.toggleQA()
 	case a.pressed(c, "export-pdf"):
-		a.exportPDF()
+		a.pdfExports.exportPDF()
 	}
 	for i, k := range spaceKeys {
 		if i < splitLimit && c.Shortcut(ui.Ctrl|ui.Shift, k) {
@@ -680,7 +680,7 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		if d.isMDZ() {
 			a.mdzFiles.mdzView(c, d, cardWidth, false)
 		} else if d.isDatabase() {
-			a.databaseWorkspace(c, d, cardWidth)
+			a.databases.databaseWorkspace(c, d, cardWidth)
 		} else {
 			a.documentMapWorkspace(c, d, cardWidth)
 		}

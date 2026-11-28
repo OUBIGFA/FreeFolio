@@ -145,7 +145,7 @@ func TestDatabaseRecordCreationAndFrontmatterSync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.syncDatabaseEditsToDocs(a.state.ActiveSpace(), a.doc, store, affected)
+	a.databases.syncDatabaseEditsToDocs(a.state.ActiveSpace(), a.doc, store, affected)
 	tt.Frame()
 
 	flushed, err := vault.Read(root(a), "Roadmap/alpha.md")
@@ -178,22 +178,22 @@ func TestDatabasePeekTwoWaySyncAndFullPage(t *testing.T) {
 	}
 
 	// Open Side Peek.
-	a.openRecordPeek(a.doc, store, a.state.ActiveSpace(), rec, dbview.OpenSidePeek)
+	a.databases.openRecordPeek(a.doc, store, a.state.ActiveSpace(), rec, dbview.OpenSidePeek)
 	tt.Frame()
 
-	if !a.dbPeek.open || a.dbPeek.mode != dbview.OpenSidePeek || a.dbPeek.doc == nil {
-		t.Fatalf("Side Peek failed to open: %+v", a.dbPeek)
+	if !a.databases.dbPeek.open || a.databases.dbPeek.mode != dbview.OpenSidePeek || a.databases.dbPeek.doc == nil {
+		t.Fatalf("Side Peek failed to open: %+v", a.databases.dbPeek)
 	}
-	if !tt.HasText("页面属性") || !strings.Contains(a.dbPeek.doc.ed.Doc.PlainText(), "评审正文。") {
-		t.Fatalf("expected Side Peek property sheet & body, plain=%q texts=%v", a.dbPeek.doc.ed.Doc.PlainText(), tt.Texts())
+	if !tt.HasText("页面属性") || !strings.Contains(a.databases.dbPeek.doc.ed.Doc.PlainText(), "评审正文。") {
+		t.Fatalf("expected Side Peek property sheet & body, plain=%q texts=%v", a.databases.dbPeek.doc.ed.Doc.PlainText(), tt.Texts())
 	}
-	if a.dbPeek.propsExpanded || tt.HasText("添加属性") {
-		t.Fatalf("expected Side Peek properties collapsed by default, expanded=%v texts=%v", a.dbPeek.propsExpanded, tt.Texts())
+	if a.databases.dbPeek.propsExpanded || tt.HasText("添加属性") {
+		t.Fatalf("expected Side Peek properties collapsed by default, expanded=%v texts=%v", a.databases.dbPeek.propsExpanded, tt.Texts())
 	}
 
 	// Live sync Peek H1 -> Database Table.
-	h1 := a.dbPeek.doc.ed.Doc.Blocks[0]
-	a.dbPeek.doc.ed.Engine.ReplaceBlockRuns(h1.ID, []model.Run{{Text: "最终评审"}}, 0, 0, model.Style{}, false)
+	h1 := a.databases.dbPeek.doc.ed.Doc.Blocks[0]
+	a.databases.dbPeek.doc.ed.Engine.ReplaceBlockRuns(h1.ID, []model.Run{{Text: "最终评审"}}, 0, 0, model.Style{}, false)
 	tt.Frame()
 
 	if got := a.doc.dbView.Store.Record(rec.ID).Title; got != "最终评审" {
@@ -208,10 +208,10 @@ func TestDatabasePeekTwoWaySyncAndFullPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.syncDatabaseEditsToDocs(a.state.ActiveSpace(), a.doc, store, affected)
+	a.databases.syncDatabaseEditsToDocs(a.state.ActiveSpace(), a.doc, store, affected)
 	tt.Frame()
-	if !strings.Contains(a.dbPeek.doc.ed.Doc.Frontmatter, "status: 已完成") {
-		t.Fatalf("expected Peek frontmatter updated live, got %q", a.dbPeek.doc.ed.Doc.Frontmatter)
+	if !strings.Contains(a.databases.dbPeek.doc.ed.Doc.Frontmatter, "status: 已完成") {
+		t.Fatalf("expected Peek frontmatter updated live, got %q", a.databases.dbPeek.doc.ed.Doc.Frontmatter)
 	}
 
 	// Switch Side Peek -> Center Peek.
@@ -219,8 +219,8 @@ func TestDatabasePeekTwoWaySyncAndFullPage(t *testing.T) {
 		t.Fatalf("switch to Center Peek failed: %v", err)
 	}
 	tt.Frame()
-	if !a.dbPeek.open || a.dbPeek.mode != dbview.OpenCenterPeek {
-		t.Fatalf("expected Center Peek mode, got open=%v mode=%q", a.dbPeek.open, a.dbPeek.mode)
+	if !a.databases.dbPeek.open || a.databases.dbPeek.mode != dbview.OpenCenterPeek {
+		t.Fatalf("expected Center Peek mode, got open=%v mode=%q", a.databases.dbPeek.open, a.databases.dbPeek.mode)
 	}
 
 	// Switch Center Peek -> Full Page (with PagePropertiesView header above editor).
@@ -228,7 +228,7 @@ func TestDatabasePeekTwoWaySyncAndFullPage(t *testing.T) {
 		t.Fatalf("open full page failed: %v", err)
 	}
 	tt.Frame()
-	if a.dbPeek.open {
+	if a.databases.dbPeek.open {
 		t.Fatal("expected dbPeek closed after opening full page")
 	}
 	if a.doc == nil || a.doc.rel != "Tasks/spec.md" {
@@ -388,28 +388,28 @@ func TestDatabasePhase2ViewsCoverAndPersistence(t *testing.T) {
 	tt.Frame()
 
 	// Verify cover image loading, caching, negative path cache, and traversal/remote rejection.
-	bmp := a.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "assets/cover.png")
+	bmp := a.databases.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "assets/cover.png")
 	if bmp == nil {
 		t.Fatal("expected loadDatabaseRecordImage to load Roadmap/assets/cover.png")
 	}
-	if a.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "assets/cover.png") != bmp {
+	if a.databases.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "assets/cover.png") != bmp {
 		t.Fatal("expected cached *ui.Bitmap hit on repeated cover load")
 	}
-	// Linked View (dbDoc == nil) must cache decoded thumbnails in a.dbThumbCache instead of leaking a fresh Bitmap per frame.
-	embedBmp := a.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "assets/cover.png")
-	if embedBmp == nil || a.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "assets/cover.png") != embedBmp {
+	// Linked View (dbDoc == nil) must cache decoded thumbnails in a.databases.dbThumbCache instead of leaking a fresh Bitmap per frame.
+	embedBmp := a.databases.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "assets/cover.png")
+	if embedBmp == nil || a.databases.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "assets/cover.png") != embedBmp {
 		t.Fatal("expected App-level dbThumbCache hit when dbDoc == nil")
 	}
-	if a.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "missing-bare-cover.png") != nil {
+	if a.databases.loadDatabaseRecordImage(sp, nil, a.doc, "Roadmap/alpha.md", "missing-bare-cover.png") != nil {
 		t.Fatal("expected missing cover image to return nil")
 	}
 	if len(a.imgResolved) == 0 {
 		t.Fatal("expected a.imgResolved to cache resolved and negative lookup results")
 	}
-	if a.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "../../etc/passwd") != nil {
+	if a.databases.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "../../etc/passwd") != nil {
 		t.Fatal("expected traversal path ../../etc/passwd to be rejected")
 	}
-	if a.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "https://example.com/cover.png") != nil {
+	if a.databases.loadDatabaseRecordImage(sp, a.doc, nil, "Roadmap/alpha.md", "https://example.com/cover.png") != nil {
 		t.Fatal("expected remote URL to return nil")
 	}
 
@@ -500,7 +500,7 @@ func TestDatabasePhase3CalendarTimelinePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.syncDatabaseEditsToDocs(sp, a.doc, store, affected)
+	a.databases.syncDatabaseEditsToDocs(sp, a.doc, store, affected)
 	tt.Frame()
 
 	flushed, err := vault.Read(sp.Root, "Sprint/task.md")
@@ -980,7 +980,7 @@ func TestDatabaseSnapshot(t *testing.T) {
 	t.Run("side-peek", func(t *testing.T) {
 		a, tt, _ := buildShowcase(t, false)
 		rec := a.doc.dbView.Store.RecordByPath("产品路线图/database-engine.md")
-		a.openRecordPeek(a.doc, a.doc.dbView.Store, a.state.ActiveSpace(), rec, dbview.OpenSidePeek)
+		a.databases.openRecordPeek(a.doc, a.doc.dbView.Store, a.state.ActiveSpace(), rec, dbview.OpenSidePeek)
 		tt.Frame()
 		savePNG(t, filepath.Join(dir, "db-side-peek.png"), tt)
 	})
@@ -1119,7 +1119,7 @@ func TestDatabaseSnapshot(t *testing.T) {
 	t.Run("sidebar-record-peek", func(t *testing.T) {
 		a, tt, _ := buildShowcase(t, false)
 		rec := a.doc.dbView.Store.RecordByPath("产品路线图/database-engine.md")
-		a.openRecordPeek(a.doc, a.doc.dbView.Store, a.state.ActiveSpace(), rec, dbview.OpenFullPage)
+		a.databases.openRecordPeek(a.doc, a.doc.dbView.Store, a.state.ActiveSpace(), rec, dbview.OpenFullPage)
 		settle(tt)
 		savePNG(t, filepath.Join(dir, "db-sidebar-record-peek.png"), tt)
 	})
@@ -1335,7 +1335,7 @@ func TestDatabasePhase6EmbeddedLinkedViewAndExport(t *testing.T) {
 	}
 
 	// Verify Vector PDF export renders without error and produces valid PDF output.
-	a.exportPDF()
+	a.pdfExports.exportPDF()
 	finishTestPDF(t, a, tt)
 	pdfBytes, err := os.ReadFile(filepath.Join(root(a), "Weekly.pdf"))
 	if err != nil {
@@ -1424,12 +1424,12 @@ func TestDatabasePhase6SearchAndQACitation(t *testing.T) {
 	tt.Frame()
 	a.qa.openCitation(sp.ID, agent.Citation{Path: "Tasks.db.md", From: recLine, To: recLine})
 	tt.Frame()
-	if !a.dbPeek.open || a.doc == nil || a.doc.rel != "Tasks.db.md" {
-		t.Fatalf("expected Side Peek opened on cited DB record, dbPeek=%+v doc=%+v", a.dbPeek, a.doc)
+	if !a.databases.dbPeek.open || a.doc == nil || a.doc.rel != "Tasks.db.md" {
+		t.Fatalf("expected Side Peek opened on cited DB record, dbPeek=%+v doc=%+v", a.databases.dbPeek, a.doc)
 	}
 	rec := a.doc.dbView.Store.RecordByPath("Tasks/perf.md")
-	if rec == nil || a.dbPeek.recordID != rec.ID {
-		t.Fatalf("expected Side Peek recordID=%v, got %q", rec, a.dbPeek.recordID)
+	if rec == nil || a.databases.dbPeek.recordID != rec.ID {
+		t.Fatalf("expected Side Peek recordID=%v, got %q", rec, a.databases.dbPeek.recordID)
 	}
 }
 
@@ -1446,7 +1446,7 @@ func TestDatabasePhase6CSVAndNotionImportExport(t *testing.T) {
 	tt.Frame()
 
 	// 1. Export active view to CSV beside OKR看板.db.md.
-	csvRel, err := a.exportDatabaseCSV(a.doc)
+	csvRel, err := a.databases.exportDatabaseCSV(a.doc)
 	if err != nil {
 		t.Fatalf("exportDatabaseCSV: %v", err)
 	}
@@ -1464,7 +1464,7 @@ func TestDatabasePhase6CSVAndNotionImportExport(t *testing.T) {
 	if err := os.WriteFile(newCSV, []byte("Name,Status,Done\nTask X,进行中,Yes\nTask Y,已完成,No\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	newDBRel, ires, err := a.importCSVFromPath(sp, "", newCSV, nil)
+	newDBRel, ires, err := a.databases.importCSVFromPath(sp, "", newCSV, nil)
 	if err != nil || ires.CreatedRecords != 2 || !vault.IsDatabase(newDBRel) {
 		t.Fatalf("importCSVFromPath new DB failed: rel=%q res=%+v err=%v", newDBRel, ires, err)
 	}
@@ -1475,7 +1475,7 @@ func TestDatabasePhase6CSVAndNotionImportExport(t *testing.T) {
 	if err := os.WriteFile(appendCSV, []byte("名称,权重\n新增目标,77\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, ares, err := a.importCSVFromPath(sp, "", appendCSV, a.doc)
+	_, ares, err := a.databases.importCSVFromPath(sp, "", appendCSV, a.doc)
 	if err != nil || ares.CreatedRecords != 1 {
 		t.Fatalf("importCSVFromPath append failed: res=%+v err=%v", ares, err)
 	}
@@ -1502,7 +1502,7 @@ func TestDatabasePhase6CSVAndNotionImportExport(t *testing.T) {
 	_ = zw.Close()
 	_ = zf.Close()
 
-	nres, err := a.importNotionFromPath(sp, "", zipPath)
+	nres, err := a.databases.importNotionFromPath(sp, "", zipPath)
 	if err != nil {
 		t.Fatalf("importNotionFromPath: %v", err)
 	}
@@ -1520,7 +1520,7 @@ func TestDatabaseSidebarTreeViewsAndGanttCreation(t *testing.T) {
 	sp := a.state.ActiveSpace()
 
 	// Creating a new database defaults to 1 primary Table view and expands its view tree in the sidebar.
-	a.newDatabase("")
+	a.databases.newDatabase("")
 	tt.Frame()
 	if a.doc == nil || !a.doc.isDatabase() {
 		t.Fatalf("expected new database opened, got %+v", a.doc)
@@ -1556,7 +1556,7 @@ func TestDatabaseSidebarTreeViewsAndGanttCreation(t *testing.T) {
 	}
 
 	// Add a Gantt view and a Board view from the sidebar action and verify they appear under the database node and activate.
-	a.addDatabaseViewInSidebar(sp, dbRel, database.ViewTimeline)
+	a.databases.addDatabaseViewInSidebar(sp, dbRel, database.ViewTimeline)
 	tt.Frame()
 	if got := a.doc.dbView.ActiveView(); got == nil || got.Type != database.ViewTimeline {
 		t.Fatalf("expected active view to be Gantt (timeline), got %+v", got)
@@ -1565,7 +1565,7 @@ func TestDatabaseSidebarTreeViewsAndGanttCreation(t *testing.T) {
 		t.Fatalf("expected 甘特视图 child item in sidebar tree, texts=%v", tt.Texts())
 	}
 
-	a.addDatabaseViewInSidebar(sp, dbRel, database.ViewBoard)
+	a.databases.addDatabaseViewInSidebar(sp, dbRel, database.ViewBoard)
 	tt.Frame()
 	if got := a.doc.dbView.ActiveView(); got == nil || got.Type != database.ViewBoard {
 		t.Fatalf("expected active view to be Board, got %+v", got)
@@ -1575,14 +1575,14 @@ func TestDatabaseSidebarTreeViewsAndGanttCreation(t *testing.T) {
 	}
 
 	boardID := a.doc.dbView.ActiveViewID()
-	a.renameDatabaseViewInSidebar(sp, dbRel, boardID, "冲刺看板")
+	a.databases.renameDatabaseViewInSidebar(sp, dbRel, boardID, "冲刺看板")
 	tt.Frame()
 	if !tt.HasText("冲刺看板") {
 		t.Fatalf("expected renamed view 冲刺看板 in sidebar tree, texts=%v", tt.Texts())
 	}
 
 	// Clicking the primary Table view in the sidebar switches back to Table view cleanly.
-	a.openDatabaseView(sp, dbRel, "view_table")
+	a.databases.openDatabaseView(sp, dbRel, "view_table")
 	tt.Frame()
 	if got := a.doc.dbView.ActiveView(); got == nil || got.ID != "view_table" {
 		t.Fatalf("expected openDatabaseView to switch back to view_table, got %+v", got)
@@ -1654,7 +1654,7 @@ func TestDatabaseSidebarRecordOpenDoesNotExpandAndCollapseControls(t *testing.T)
 	if recAlpha == nil {
 		t.Fatalf("missing alpha record in store")
 	}
-	a.openRecordPeek(a.doc, store, sp, recAlpha, dbview.OpenFullPage)
+	a.databases.openRecordPeek(a.doc, store, sp, recAlpha, dbview.OpenFullPage)
 	tt.Frame()
 
 	if a.doc == nil || a.doc.rel != mdirRel+"/alpha.md" {
@@ -1671,7 +1671,7 @@ func TestDatabaseSidebarRecordOpenDoesNotExpandAndCollapseControls(t *testing.T)
 	}
 
 	// Returning to a database view immediately clears the peeked record row.
-	a.openDatabaseView(sp, dbRel, "view_table")
+	a.databases.openDatabaseView(sp, dbRel, "view_table")
 	tt.Frame()
 	if hasSidebarRow(a, mdirRel+"/alpha.md") || hasSidebarRow(a, mdirRel+"/beta.md") {
 		t.Fatalf("expected peeked record hidden after returning to database view, rows=%+v", a.rows)

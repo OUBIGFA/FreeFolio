@@ -14,9 +14,48 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
+
+// copyHost is what sidebar copy, paste and duplicate need from the window.
+type copyHost interface {
+	autosaveEnabled() bool
+	cancelRenameUnder(spaceID, rel string)
+	childrenOf(dir string) []*vault.Node
+	clearPicks(anchor string)
+	dismissPreview()
+	flush() bool
+	forgetPageTree(id string)
+	forgetPicks(spID, rel string)
+	invalidateResolvedImages()
+	keepDeleted(spaceID, spaceName, root, rel string) (trashbin.Item, bool)
+	markSelfWrite(full string)
+	notify(format string, args ...any)
+	offerUndo(title, name string, undo func())
+	openAfterRenaming(rel string)
+	openAnywhere(id, rel string) bool
+	refreshSearch()
+	refreshTree()
+	renameIn(sp *space.Space, rel string)
+	replaceReferences(old, replacement *document)
+	residentDocument(id, rel string) *document
+	residentDocuments() []*document
+	saveState()
+	sidebarShown() bool
+	spaces() *space.State
+	trashBin() *trashbin.Bin
+	trashItem(p string) error
+}
+
+// copyFeature copies, pastes and duplicates sidebar files and folders, and undoes them through the trash.
+type copyFeature struct {
+	host           copyHost
+	copied         []place
+	recentCopies   []*place
+	pendingDupUndo *place
+}
 
 // Sidebar copy, paste and duplicate: documents and folders copied from the
 // sidebar (single row, multi-selection, favorite tile or command bar) are
@@ -26,7 +65,7 @@ import (
 
 // copyEntries puts rels of sp onto the sidebar clipboard, deduplicating items
 // whose ancestor folder is already included.
-func (a *App) copyEntries(sp *space.Space, rels []string) {
+func (cp *copyFeature) copyEntries(sp *space.Space, rels []string) {
 	if sp == nil || len(rels) == 0 {
 		return
 	}
@@ -44,30 +83,30 @@ func (a *App) copyEntries(sp *space.Space, rels []string) {
 	for i, r := range items {
 		places[i] = place{space: sp.ID, rel: r}
 	}
-	a.copied = places
-	a.dismissPreview()
+	cp.copied = places
+	cp.host.dismissPreview()
 	if len(items) == 1 {
-		a.notify("已复制「%s」", entryDisplayName(items[0]))
+		cp.host.notify("已复制「%s」", entryDisplayName(items[0]))
 		return
 	}
-	a.notify("已复制 %d 个项目", len(items))
+	cp.host.notify("已复制 %d 个项目", len(items))
 }
 
 // copyMenu adds Copy, Duplicate and Paste for the row at rel of sp. Paste
 // fills dir, placing the copies right after the sibling after when given.
 // External spaces can be copied from but take no new files.
-func (a *App) copyMenu(m *ui.Menu, sp *space.Space, rel, dir, after string) {
+func (cp *copyFeature) copyMenu(m *ui.Menu, sp *space.Space, rel, dir, after string) {
 	if m.Item(i18n.T("复制")).Shortcut(ui.Cmd, ui.KeyC).Chosen() {
-		a.copyEntries(sp, []string{rel})
+		cp.copyEntries(sp, []string{rel})
 	}
 	if sp.IsExternal() {
 		return
 	}
 	if m.Item(i18n.T("创建副本")).Chosen() {
-		a.duplicateEntry(sp, rel)
+		cp.duplicateEntry(sp, rel)
 	}
-	if m.Item(a.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!a.canPasteInto(sp, dir)).Chosen() {
-		a.pasteInto(sp, dir, after)
+	if m.Item(cp.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!cp.canPasteInto(sp, dir)).Chosen() {
+		cp.pasteInto(sp, dir, after)
 	}
 }
 
@@ -81,9 +120,9 @@ func entryDisplayName(rel string) string {
 
 // pasteMenuLabel names the Paste menu item, showing the count when multiple
 // sidebar items are on the clipboard.
-func (a *App) pasteMenuLabel() string {
-	if len(a.copied) > 1 {
-		return fmt.Sprintf(i18n.T("粘贴 %d 项"), len(a.copied))
+func (cp *copyFeature) pasteMenuLabel() string {
+	if len(cp.copied) > 1 {
+		return fmt.Sprintf(i18n.T("粘贴 %d 项"), len(cp.copied))
 	}
 	return i18n.T("粘贴")
 }
@@ -91,13 +130,13 @@ func (a *App) pasteMenuLabel() string {
 // canPasteInto reports whether the sidebar clipboard can be pasted into the
 // folder dir ("" for root) of dst. External spaces cannot receive new files,
 // and a folder cannot be pasted into itself or one of its descendants.
-func (a *App) canPasteInto(dst *space.Space, dir string) bool {
-	if dst == nil || dst.IsExternal() || len(a.copied) == 0 {
+func (cp *copyFeature) canPasteInto(dst *space.Space, dir string) bool {
+	if dst == nil || dst.IsExternal() || len(cp.copied) == 0 {
 		return false
 	}
 	anyValid := false
-	for _, p := range a.copied {
-		if a.state.Get(p.space) == nil {
+	for _, p := range cp.copied {
+		if cp.host.spaces().Get(p.space) == nil {
 			continue
 		}
 		if p.space == dst.ID && dir != "" && under(dir, p.rel) {
@@ -111,23 +150,23 @@ func (a *App) canPasteInto(dst *space.Space, dir string) bool {
 // pasteInto copies everything on the sidebar clipboard into dir of dst. When
 // afterRel is a sibling in dir and dir uses manual ordering, the new copies
 // are placed immediately after it.
-func (a *App) pasteInto(dst *space.Space, dir, afterRel string) {
-	if !a.canPasteInto(dst, dir) {
+func (cp *copyFeature) pasteInto(dst *space.Space, dir, afterRel string) {
+	if !cp.canPasteInto(dst, dir) {
 		return
 	}
-	if a.autosaveEnabled() && !a.flush() {
+	if cp.host.autosaveEnabled() && !cp.host.flush() {
 		return
 	}
-	items := slices.Clone(a.copied)
+	items := slices.Clone(cp.copied)
 	if len(items) == 0 {
 		return
 	}
 
 	var beforeNames []string
 	insertAfter := -1
-	if dst == a.state.ActiveSpace() && dst.SortBy == "" && afterRel != "" &&
-		parentDir(afterRel) == dir && !dst.IsPinned(afterRel) && !a.state.IsFavorite(dst.ID, afterRel) {
-		kids := a.childrenOf(dir)
+	if dst == cp.host.spaces().ActiveSpace() && dst.SortBy == "" && afterRel != "" &&
+		parentDir(afterRel) == dir && !dst.IsPinned(afterRel) && !cp.host.spaces().IsFavorite(dst.ID, afterRel) {
+		kids := cp.host.childrenOf(dir)
 		beforeNames = make([]string, len(kids))
 		for i, k := range kids {
 			beforeNames[i] = k.Name
@@ -138,7 +177,7 @@ func (a *App) pasteInto(dst *space.Space, dir, afterRel string) {
 	var created []string
 	var createdNames []string
 	for _, p := range items {
-		src := a.state.Get(p.space)
+		src := cp.host.spaces().Get(p.space)
 		if src == nil {
 			continue
 		}
@@ -147,16 +186,16 @@ func (a *App) pasteInto(dst *space.Space, dir, afterRel string) {
 		}
 		full, err := resolveFile(src, p.rel)
 		if err != nil {
-			a.notify("无法粘贴「%s」：源文件已不存在", entryDisplayName(p.rel))
+			cp.host.notify("无法粘贴「%s」：源文件已不存在", entryDisplayName(p.rel))
 			continue
 		}
 		if _, err := os.Stat(full); errors.Is(err, fs.ErrNotExist) {
-			a.notify("无法粘贴「%s」：源文件已不存在", entryDisplayName(p.rel))
+			cp.host.notify("无法粘贴「%s」：源文件已不存在", entryDisplayName(p.rel))
 			continue
 		}
-		to, err := a.copyWithResources(src, p.rel, dst, dir)
+		to, err := cp.copyWithResources(src, p.rel, dst, dir)
 		if err != nil {
-			a.notify("粘贴 %s 失败，%v", path.Base(p.rel), err)
+			cp.host.notify("粘贴 %s 失败，%v", path.Base(p.rel), err)
 			continue
 		}
 		created = append(created, to)
@@ -172,16 +211,16 @@ func (a *App) pasteInto(dst *space.Space, dir, afterRel string) {
 		}
 		dst.Order[dir] = slices.Insert(beforeNames, insertAfter+1, createdNames...)
 	}
-	a.clearPicks("")
-	a.dismissPreview()
-	a.saveState()
-	delete(a.pageTrees, dst.ID)
-	a.refreshTree()
-	a.refreshSearch()
+	cp.host.clearPicks("")
+	cp.host.dismissPreview()
+	cp.host.saveState()
+	cp.host.forgetPageTree(dst.ID)
+	cp.host.refreshTree()
+	cp.host.refreshSearch()
 
-	targets := a.trackUndoCopies(dst.ID, created)
-	a.offerUndo(fmt.Sprintf(i18n.T("已粘贴到「%s」"), folderName(dst, dir)), countLabel(created), func() {
-		a.trashCopied(targets)
+	targets := cp.trackUndoCopies(dst.ID, created)
+	cp.host.offerUndo(fmt.Sprintf(i18n.T("已粘贴到「%s」"), folderName(dst, dir)), countLabel(created), func() {
+		cp.trashCopied(targets)
 	})
 }
 
@@ -189,12 +228,12 @@ func (a *App) pasteInto(dst *space.Space, dir, afterRel string) {
 // sidebar is visible on sp, inline renaming starts on the duplicate (and
 // confirming Enter on a duplicated document opens and focuses it); otherwise
 // a duplicated document opens immediately.
-func (a *App) duplicateEntry(sp *space.Space, rel string) {
+func (cp *copyFeature) duplicateEntry(sp *space.Space, rel string) {
 	if sp == nil || sp.IsExternal() || rel == "" {
 		return
 	}
-	live := a.residentDocument(sp.ID, rel)
-	if a.autosaveEnabled() && !a.flush() {
+	live := cp.host.residentDocument(sp.ID, rel)
+	if cp.host.autosaveEnabled() && !cp.host.flush() {
 		return
 	}
 	if live != nil {
@@ -204,9 +243,9 @@ func (a *App) duplicateEntry(sp *space.Space, rel string) {
 
 	var beforeNames []string
 	insertAfter := -1
-	if sp == a.state.ActiveSpace() && sp.SortBy == "" &&
-		!sp.IsPinned(rel) && !a.state.IsFavorite(sp.ID, rel) {
-		kids := a.childrenOf(dir)
+	if sp == cp.host.spaces().ActiveSpace() && sp.SortBy == "" &&
+		!sp.IsPinned(rel) && !cp.host.spaces().IsFavorite(sp.ID, rel) {
+		kids := cp.host.childrenOf(dir)
 		beforeNames = make([]string, len(kids))
 		for i, k := range kids {
 			beforeNames[i] = k.Name
@@ -214,9 +253,9 @@ func (a *App) duplicateEntry(sp *space.Space, rel string) {
 		insertAfter = slices.Index(beforeNames, path.Base(rel))
 	}
 
-	to, err := a.copyWithResources(sp, rel, sp, dir)
+	to, err := cp.copyWithResources(sp, rel, sp, dir)
 	if err != nil {
-		a.notify("创建 %s 的副本失败，%v", path.Base(rel), err)
+		cp.host.notify("创建 %s 的副本失败，%v", path.Base(rel), err)
 		return
 	}
 	expandDirChain(sp, dir)
@@ -226,46 +265,46 @@ func (a *App) duplicateEntry(sp *space.Space, rel string) {
 		}
 		sp.Order[dir] = slices.Insert(beforeNames, insertAfter+1, path.Base(to))
 	}
-	a.clearPicks("")
-	a.dismissPreview()
-	a.saveState()
-	delete(a.pageTrees, sp.ID)
-	a.refreshTree()
-	a.refreshSearch()
+	cp.host.clearPicks("")
+	cp.host.dismissPreview()
+	cp.host.saveState()
+	cp.host.forgetPageTree(sp.ID)
+	cp.host.refreshTree()
+	cp.host.refreshSearch()
 
-	sidebarVisible := sp == a.state.ActiveSpace() && !a.focus && (!a.folded() || a.peek)
+	sidebarVisible := sp == cp.host.spaces().ActiveSpace() && cp.host.sidebarShown()
 	if sidebarVisible {
-		a.renameIn(sp, to)
-		a.pendingDupUndo = &place{space: sp.ID, rel: to}
+		cp.host.renameIn(sp, to)
+		cp.pendingDupUndo = &place{space: sp.ID, rel: to}
 		if vault.IsDocument(to) {
-			a.openAfterRename = to
+			cp.host.openAfterRenaming(to)
 		}
 		return
 	}
-	targets := a.trackUndoCopies(sp.ID, []string{to})
-	a.offerUndo(i18n.T("已创建副本"), path.Base(to), func() {
-		a.trashCopied(targets)
+	targets := cp.trackUndoCopies(sp.ID, []string{to})
+	cp.host.offerUndo(i18n.T("已创建副本"), path.Base(to), func() {
+		cp.trashCopied(targets)
 	})
 	if vault.IsDocument(to) {
-		a.openAnywhere(sp.ID, to)
+		cp.host.openAnywhere(sp.ID, to)
 	}
 }
 
 // flushPendingDupUndo emits the deferred Undo toast for a freshly duplicated
 // item once its inline rename finishes or is canceled, using the final path
 // and starting a fresh timeout.
-func (a *App) flushPendingDupUndo(finalSpace, finalRel string) {
-	p := a.pendingDupUndo
+func (cp *copyFeature) flushPendingDupUndo(finalSpace, finalRel string) {
+	p := cp.pendingDupUndo
 	if p == nil {
 		return
 	}
-	a.pendingDupUndo = nil
+	cp.pendingDupUndo = nil
 	if finalSpace != "" && finalRel != "" {
 		p.space, p.rel = finalSpace, finalRel
 	}
-	targets := a.trackUndoCopies(p.space, []string{p.rel})
-	a.offerUndo(i18n.T("已创建副本"), path.Base(p.rel), func() {
-		a.trashCopied(targets)
+	targets := cp.trackUndoCopies(p.space, []string{p.rel})
+	cp.host.offerUndo(i18n.T("已创建副本"), path.Base(p.rel), func() {
+		cp.trashCopied(targets)
 	})
 }
 
@@ -283,22 +322,22 @@ func expandDirChain(sp *space.Space, dir string) {
 // trackUndoCopies registers mutable place pointers for the items created by a
 // paste or duplicate so clicking Undo still finds them even after an inline
 // rename.
-func (a *App) trackUndoCopies(spID string, rels []string) []*place {
+func (cp *copyFeature) trackUndoCopies(spID string, rels []string) []*place {
 	targets := make([]*place, len(rels))
 	for i, rel := range rels {
 		targets[i] = &place{space: spID, rel: rel}
 	}
-	a.recentCopies = append(a.recentCopies, targets...)
-	if len(a.recentCopies) > 64 {
-		a.recentCopies = a.recentCopies[len(a.recentCopies)-64:]
+	cp.recentCopies = append(cp.recentCopies, targets...)
+	if len(cp.recentCopies) > 64 {
+		cp.recentCopies = cp.recentCopies[len(cp.recentCopies)-64:]
 	}
 	return targets
 }
 
 // trashCopied moves the items created by an undone paste or duplicate to the
 // system trash (with trashbin backups), never permanently deleting user files.
-func (a *App) trashCopied(targets []*place) {
-	if len(targets) == 0 || (a.autosaveEnabled() && !a.flush()) {
+func (cp *copyFeature) trashCopied(targets []*place) {
+	if len(targets) == 0 || (cp.host.autosaveEnabled() && !cp.host.flush()) {
 		return
 	}
 	changed := false
@@ -307,7 +346,7 @@ func (a *App) trashCopied(targets []*place) {
 		if t == nil || t.rel == "" {
 			continue
 		}
-		sp := a.state.Get(t.space)
+		sp := cp.host.spaces().Get(t.space)
 		if sp == nil || sp.IsExternal() {
 			continue
 		}
@@ -318,48 +357,45 @@ func (a *App) trashCopied(targets []*place) {
 		if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
-		if a.renameSpace == sp.ID && a.renaming != "" && under(a.renaming, t.rel) {
-			a.renaming = ""
-			a.openAfterRename = ""
-		}
-		kept, ok := a.keepDeleted(sp.ID, sp.Name, sp.Root, t.rel)
-		if err := a.trashItem(p); err != nil {
+		cp.host.cancelRenameUnder(sp.ID, t.rel)
+		kept, ok := cp.host.keepDeleted(sp.ID, sp.Name, sp.Root, t.rel)
+		if err := cp.host.trashItem(p); err != nil {
 			if ok {
-				a.bin.Forget(kept)
+				cp.host.trashBin().Forget(kept)
 			}
-			a.notify("将 %s 移到废纸篓失败，%v", path.Base(t.rel), err)
+			cp.host.notify("将 %s 移到废纸篓失败，%v", path.Base(t.rel), err)
 			continue
 		}
-		for _, d := range a.residentDocuments() {
+		for _, d := range cp.host.residentDocuments() {
 			if d.space == sp && within(d.rel, t.rel) {
-				a.replaceReferences(d, nil)
+				cp.host.replaceReferences(d, nil)
 			}
 		}
-		a.forgetPicks(sp.ID, t.rel)
-		a.forgetCopied(sp.ID, t.rel)
-		a.state.Forget(sp.ID, t.rel)
-		delete(a.pageTrees, sp.ID)
+		cp.host.forgetPicks(sp.ID, t.rel)
+		cp.forgetCopied(sp.ID, t.rel)
+		cp.host.spaces().Forget(sp.ID, t.rel)
+		cp.host.forgetPageTree(sp.ID)
 		changed = true
 	}
 	if changed {
-		a.saveState()
-		a.refreshTree()
-		a.refreshSearch()
+		cp.host.saveState()
+		cp.host.refreshTree()
+		cp.host.refreshSearch()
 	}
 }
 
 // followCopied updates copied clipboard entries and active copy-undo targets
 // when a file or folder moves or is renamed.
-func (a *App) followCopied(fromSpace, fromRel, toSpace, toRel string) {
+func (cp *copyFeature) followCopied(fromSpace, fromRel, toSpace, toRel string) {
 	if fromSpace == toSpace && fromRel == toRel {
 		return
 	}
-	for i, p := range a.copied {
+	for i, p := range cp.copied {
 		if p.space == fromSpace && under(p.rel, fromRel) {
-			a.copied[i] = place{space: toSpace, rel: toRel + p.rel[len(fromRel):]}
+			cp.copied[i] = place{space: toSpace, rel: toRel + p.rel[len(fromRel):]}
 		}
 	}
-	for _, p := range a.recentCopies {
+	for _, p := range cp.recentCopies {
 		if p != nil && p.space == fromSpace && under(p.rel, fromRel) {
 			p.space = toSpace
 			p.rel = toRel + p.rel[len(fromRel):]
@@ -368,23 +404,23 @@ func (a *App) followCopied(fromSpace, fromRel, toSpace, toRel string) {
 }
 
 // forgetCopied drops rel and anything inside it from the sidebar clipboard.
-func (a *App) forgetCopied(spID, rel string) {
-	if len(a.copied) > 0 {
-		a.copied = slices.DeleteFunc(a.copied, func(p place) bool {
+func (cp *copyFeature) forgetCopied(spID, rel string) {
+	if len(cp.copied) > 0 {
+		cp.copied = slices.DeleteFunc(cp.copied, func(p place) bool {
 			return p.space == spID && under(p.rel, rel)
 		})
 	}
 }
 
 // forgetCopiedSpace drops clipboard entries belonging to a removed space.
-func (a *App) forgetCopiedSpace(spID string) {
-	if len(a.copied) > 0 {
-		a.copied = slices.DeleteFunc(a.copied, func(p place) bool {
+func (cp *copyFeature) forgetCopiedSpace(spID string) {
+	if len(cp.copied) > 0 {
+		cp.copied = slices.DeleteFunc(cp.copied, func(p place) bool {
 			return p.space == spID
 		})
 	}
-	if len(a.recentCopies) > 0 {
-		a.recentCopies = slices.DeleteFunc(a.recentCopies, func(p *place) bool {
+	if len(cp.recentCopies) > 0 {
+		cp.recentCopies = slices.DeleteFunc(cp.recentCopies, func(p *place) bool {
 			return p == nil || p.space == spID
 		})
 	}
@@ -395,14 +431,14 @@ func (a *App) forgetCopiedSpace(spID string) {
 // source document, its assets and its version history untouched. Legacy
 // .arcmd copies receive fresh block IDs. Any failure rolls back everything
 // this call created.
-func (a *App) copyWithResources(src *space.Space, rel string, dst *space.Space, dir string) (to string, err error) {
+func (cp *copyFeature) copyWithResources(src *space.Space, rel string, dst *space.Space, dir string) (to string, err error) {
 	if dst == nil || dst.IsExternal() {
 		return "", errors.New(i18n.T("外部空间只记录文件，不能作为粘贴目标"))
 	}
-	if a.autosaveEnabled() && !a.flush() {
+	if cp.host.autosaveEnabled() && !cp.host.flush() {
 		return "", errors.New(i18n.T("请先保存文档并解决文件冲突"))
 	}
-	docs, err := a.copyDocuments(src, rel)
+	docs, err := cp.copyDocuments(src, rel)
 	if err != nil {
 		return "", err
 	}
@@ -496,7 +532,7 @@ func (a *App) copyWithResources(src *space.Space, rel string, dst *space.Space, 
 					}
 					if made != "" {
 						created = append(created, made)
-						a.markSelfWrite(made)
+						cp.host.markSelfWrite(made)
 					}
 					switch {
 					case useFolder:
@@ -531,14 +567,14 @@ func (a *App) copyWithResources(src *space.Space, rel string, dst *space.Space, 
 			}
 		}
 	}
-	a.invalidateResolvedImages()
+	cp.host.invalidateResolvedImages()
 	return copiedTo, nil
 }
 
 // copyDocuments collects the current content and referenced local image/cover
 // URLs for the file or folder at rel of sp, without inspecting version history
 // (copies start with no history).
-func (a *App) copyDocuments(sp *space.Space, rel string) ([]*movingDocument, error) {
+func (cp *copyFeature) copyDocuments(sp *space.Space, rel string) ([]*movingDocument, error) {
 	file, err := resolveFile(sp, rel)
 	if err != nil {
 		return nil, err
@@ -562,7 +598,7 @@ func (a *App) copyDocuments(sp *space.Space, rel string) ([]*movingDocument, err
 		if !vault.IsDocument(p.Path) {
 			continue
 		}
-		if live := a.residentDocument(sp.ID, p.Path); live != nil {
+		if live := cp.host.residentDocument(sp.ID, p.Path); live != nil {
 			live.waitAsyncSave()
 		}
 		if vault.IsPDF(p.Path) || vault.IsMDZ(p.Path) {

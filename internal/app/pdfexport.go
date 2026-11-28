@@ -21,6 +21,26 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// pdfExportHost is what PDF export and printing need from the window.
+type pdfExportHost interface {
+	activeDocument() *document
+	cachedImageFor(d *document) func(string) editor.ImageResource
+	clock() time.Time
+	dbFeature() *databaseFeature
+	notify(format string, args ...any)
+	printHook() func(path string)
+	refreshTree()
+	remoteImage(url string) image.Image
+	spaces() *space.State
+	window() *mygo.Window
+}
+
+// pdfExportFeature exports and prints documents as PDF, one cancellable job at a time.
+type pdfExportFeature struct {
+	host pdfExportHost
+	job  *pdfExport
+}
+
 type pdfExport struct {
 	buildErr                        error
 	board                           *whiteboard.Scene
@@ -36,18 +56,18 @@ type pdfExport struct {
 	next                            time.Time
 }
 
-func (a *App) exportPDF() { a.startPDF(false) }
-func (a *App) printDoc()  { a.startPDF(true) }
+func (pe *pdfExportFeature) exportPDF() { pe.startPDF(false) }
+func (pe *pdfExportFeature) printDoc()  { pe.startPDF(true) }
 
-func (a *App) startPDF(printing bool) {
-	d := a.doc
-	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() || d.isDatabase() || a.pdfExport != nil {
+func (pe *pdfExportFeature) startPDF(printing bool) {
+	d := pe.host.activeDocument()
+	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() || d.isDatabase() || pe.job != nil {
 		return
 	}
 	d.ed.UnmarkText()
 	root, rel, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("导出 PDF 失败；%v", err)
+		pe.host.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	source := &document{space: &space.Space{Root: root}, rel: rel}
@@ -55,13 +75,13 @@ func (a *App) startPDF(printing bool) {
 	if printing {
 		dir = filepath.Join(os.TempDir(), i18n.T("FreeFolio 打印"))
 		if err := os.MkdirAll(dir, 0700); err != nil {
-			a.notify("准备打印失败；%v", err)
+			pe.host.notify("准备打印失败；%v", err)
 			return
 		}
 	}
 	file, err := os.CreateTemp(dir, ".freefolio-export-*.pdf")
 	if err != nil {
-		a.notify("导出 PDF 失败；%v", err)
+		pe.host.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	w := pdf.NewWriter(file, d.title())
@@ -71,11 +91,11 @@ func (a *App) startPDF(printing bool) {
 		w.RegisterFontData(pdf.FontMathItalic, false, true, it)
 		w.RegisterFontData(pdf.FontMathItalic, true, true, boldIt)
 	}
-	a.pdfExport = &pdfExport{source: source, title: d.title(), ed: editor.FromDocument(d.committedForRead()), file: file,
-		writer: w, open: true, printing: printing, next: a.now.Add(time.Millisecond)}
+	pe.job = &pdfExport{source: source, title: d.title(), ed: editor.FromDocument(d.committedForRead()), file: file,
+		writer: w, open: true, printing: printing, next: pe.host.clock().Add(time.Millisecond)}
 	if d.board != nil {
-		a.pdfExport.board = d.board.Scene.Clone()
-		editor.RegisterBoardPDFFonts(w, a.pdfExport.board)
+		pe.job.board = d.board.Scene.Clone()
+		editor.RegisterBoardPDFFonts(w, pe.job.board)
 	} else {
 		for _, leaf := range d.ed.Doc.Leaves() {
 			if leaf.Block.Kind == "code" && (leaf.Block.Language == "excalidraw" || leaf.Block.Language == "whiteboard") {
@@ -87,27 +107,27 @@ func (a *App) startPDF(printing bool) {
 	}
 }
 
-func (a *App) cancelPDF() {
-	job := a.pdfExport
+func (pe *pdfExportFeature) cancelPDF() {
+	job := pe.job
 	if job == nil {
 		return
 	}
 	job.open, job.cancelled = false, true
 	if !job.busy {
-		a.discardPDF(job)
+		pe.discardPDF(job)
 	}
 }
 
-func (a *App) discardPDF(job *pdfExport) {
+func (pe *pdfExportFeature) discardPDF(job *pdfExport) {
 	_ = job.file.Close()
 	_ = os.Remove(job.file.Name())
-	if a.pdfExport == job {
-		a.pdfExport = nil
+	if pe.job == job {
+		pe.job = nil
 	}
 }
 
-func (a *App) pdfExportView(c *ui.Context) {
-	job := a.pdfExport
+func (pe *pdfExportFeature) pdfExportView(c *ui.Context) {
+	job := pe.job
 	if job == nil {
 		return
 	}
@@ -128,7 +148,7 @@ func (a *App) pdfExportView(c *ui.Context) {
 		})
 	}
 	if !job.open {
-		a.cancelPDF()
+		pe.cancelPDF()
 		return
 	}
 	if job.busy {
@@ -150,17 +170,19 @@ func (a *App) pdfExportView(c *ui.Context) {
 			Width:     paperWidth,
 			Theme:     documentTheme(false),
 			Page:      pageStyle(false),
-			LoadImage: a.cachedImageFor(job.source),
+			LoadImage: pe.host.cachedImageFor(job.source),
 			LoadRawImage: func(url string) image.Image {
 				if isRemoteImage(url) {
-					return a.remote.raw(url)
+					return pe.host.remoteImage(url)
 				}
 				return job.source.rawImage(url)
 			},
 			LoadDatabase: func(target string) (*database.Store, dbview.Options, uint64, error) {
-				return a.loadDatabaseFor(job.source, target)
+				return pe.host.dbFeature().loadDatabaseFor(job.source, target)
 			},
-			DatabaseSnapshot: func(target, viewID string) string { return a.databaseSnapshotFor(job.source, target, viewID) },
+			DatabaseSnapshot: func(target, viewID string) string {
+				return pe.host.dbFeature().databaseSnapshotFor(job.source, target, viewID)
+			},
 		}
 		ui.Render(func(c *ui.Context) { job.tops = job.ed.Paginate(job.opts, paperHeight-2*paperMargin) }, 1, 1, 1)
 		job.writer.ReservePages(len(job.tops))
@@ -169,14 +191,14 @@ func (a *App) pdfExportView(c *ui.Context) {
 		return
 	}
 	if job.page >= len(job.tops) {
-		a.finishPDF(job)
+		pe.finishPDF(job)
 		return
 	}
 	vp := job.buildVectorPage()
 	if job.buildErr != nil {
 		err := job.buildErr
-		a.discardPDF(job)
-		a.notify("导出 PDF 失败；%v", err)
+		pe.discardPDF(job)
+		pe.host.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	// Vector drawing stays on the UI thread for font/layout reads; zlib
@@ -185,21 +207,21 @@ func (a *App) pdfExportView(c *ui.Context) {
 	done := func(err error) {
 		job.busy = false
 		if job.cancelled {
-			a.discardPDF(job)
+			pe.discardPDF(job)
 			return
 		}
 		if err != nil {
-			a.discardPDF(job)
-			a.notify("导出 PDF 失败；%v", err)
+			pe.discardPDF(job)
+			pe.host.notify("导出 PDF 失败；%v", err)
 			return
 		}
 		job.page++
 	}
-	if a.win == nil {
+	if pe.host.window() == nil {
 		done(job.writer.FinishVectorPage(vp))
 		c.After(time.Millisecond)
 	} else {
-		go func() { err := job.writer.FinishVectorPage(vp); a.win.Update(func() { done(err) }) }()
+		go func() { err := job.writer.FinishVectorPage(vp); pe.host.window().Update(func() { done(err) }) }()
 	}
 }
 
@@ -221,7 +243,7 @@ func (job *pdfExport) buildVectorPage() *pdf.VectorPage {
 	return vp
 }
 
-func (a *App) finishPDF(job *pdfExport) {
+func (pe *pdfExportFeature) finishPDF(job *pdfExport) {
 	err := job.writer.Close()
 	if err == nil {
 		err = job.file.Sync()
@@ -230,22 +252,22 @@ func (a *App) finishPDF(job *pdfExport) {
 		err = closeErr
 	}
 	if err != nil {
-		a.discardPDF(job)
-		a.notify("导出 PDF 失败；%v", err)
+		pe.discardPDF(job)
+		pe.host.notify("导出 PDF 失败；%v", err)
 		return
 	}
 	if job.printing {
-		a.pdfExport = nil
-		if a.printFile != nil {
-			a.printFile(job.file.Name())
+		pe.job = nil
+		if print := pe.host.printHook(); print != nil {
+			print(job.file.Name())
 		} else {
 			err = mygo.Shell.OpenPath(job.file.Name())
 		}
 		if err != nil {
 			_ = os.Remove(job.file.Name())
-			a.notify("准备打印失败；%v", err)
+			pe.host.notify("准备打印失败；%v", err)
 		} else {
-			a.notify("已在系统预览中打开，可从那里打印")
+			pe.host.notify("已在系统预览中打开，可从那里打印")
 		}
 		return
 	}
@@ -267,19 +289,19 @@ func (a *App) finishPDF(job *pdfExport) {
 		}
 		break
 	}
-	a.discardPDF(job)
+	pe.discardPDF(job)
 	if err != nil {
-		a.notify("导出 PDF 失败；%v", err)
+		pe.host.notify("导出 PDF 失败；%v", err)
 		return
 	}
-	a.notify("已导出 %s（%d 页）", rel, len(job.tops))
+	pe.host.notify("已导出 %s（%d 页）", rel, len(job.tops))
 	if full, rErr := resolveFile(job.source.space, rel); rErr == nil {
-		if sp := a.state.ActiveSpace(); sp != nil && !sp.IsExternal() && sp.Root != "" {
+		if sp := pe.host.spaces().ActiveSpace(); sp != nil && !sp.IsExternal() && sp.Root != "" {
 			if job.source.space.ID == sp.ID || isInsideDir(sp.Root, full) {
-				a.refreshTree()
+				pe.host.refreshTree()
 			}
 		}
-		if a.win != nil {
+		if pe.host.window() != nil {
 			mygo.Shell.ShowItemInFolder(full)
 		}
 	}

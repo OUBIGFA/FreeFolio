@@ -1,11 +1,14 @@
 package app
 
 import (
+	"image"
 	"strings"
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
+	"github.com/OUBIGFA/FreeFolio/internal/database"
+	model "github.com/OUBIGFA/FreeFolio/internal/document"
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
@@ -36,9 +39,112 @@ func (a *App) wirePanels() {
 	a.pdfPages.host = a
 	a.bookmarks.host = a
 	a.boardAI.host = a
+	a.databases.host = a
+	a.boardImages.host = a
+	a.pdfExports.host = a
+	a.clipboard.host = a
+	a.sourceMode.host = a
+	a.links.host = a
+	a.zoom.host = a
+}
+
+// recordPeekOpen reports whether a database record shows beside its database.
+func (a *App) recordPeekOpen() bool { return a.databases.dbPeek.open }
+
+// queryPalette opens the command bar on q, for the focused pane when split.
+func (a *App) queryPalette(q string) {
+	a.openPalette()
+	if a.split != nil {
+		a.palette.pane = a.split.panes[a.split.active]
+	}
+	a.palette.query = q
+}
+
+// setPaletteQuery shows q in the open command bar.
+func (a *App) setPaletteQuery(q string) {
+	a.palette.open = true
+	a.palette.query = q
+}
+
+// indexedLive is the revision of d the search index holds, if any.
+func (a *App) indexedLive(d *document) (liveStamp, bool) {
+	stamp, ok := a.search.liveDocs[d]
+	return stamp, ok
+}
+
+// indexedIcon is the page icon the search index knows for a document.
+func (a *App) indexedIcon(spaceID, rel string) string { return a.search.index.Icon(spaceID, rel) }
+
+// sidebarShown reports whether the sidebar is on screen.
+func (a *App) sidebarShown() bool { return !a.focus && (!a.folded() || a.peek) }
+
+// openAfterRenaming opens rel once its inline rename is confirmed.
+func (a *App) openAfterRenaming(rel string) { a.openAfterRename = rel }
+
+func (a *App) dbFeature() *databaseFeature { return &a.databases }
+
+// remoteImage is a web image already downloaded, or nil.
+func (a *App) remoteImage(url string) image.Image { return a.remote.raw(url) }
+
+// printHook is the test hook that replaces opening the PDF to print.
+func (a *App) printHook() func(path string) { return a.printFile }
+
+// interfaceFont is the interface's font family, previewed while picking.
+func (a *App) interfaceFont() string { return a.fonts.interfaceFont() }
+
+// boardFileReader reads the files of d's whiteboard AI nodes.
+func (a *App) boardFileReader(d *document) func(string) ([]byte, error) {
+	return a.boardAI.boardAI(d).ReadFile
+}
+
+// moveOpenDocuments follows a move from → to in the open documents.
+func (a *App) moveOpenDocuments(sp *space.Space, from, to string) {
+	for p, od := range a.openDocs {
+		if od != nil && od.space == sp && under(od.rel, from) {
+			delete(a.openDocs, p)
+			od.rel = to + od.rel[len(from):]
+			od.syncMovedPath()
+			a.openDocs[place{sp.ID, od.rel}] = od
+		}
+	}
+	if d := a.doc; d != nil && d.space == sp && under(d.rel, from) {
+		d.rel = to + d.rel[len(from):]
+		d.syncMovedPath()
+	}
+}
+
+// cancelRenameUnder stops renaming rel, or anything inside it, of the space.
+func (a *App) cancelRenameUnder(spaceID, rel string) {
+	if a.renameSpace == spaceID && a.renaming != "" && under(a.renaming, rel) {
+		a.renaming = ""
+		a.openAfterRename = ""
+	}
+}
+
+// relationHost lets a database store resolve and sync relations across the
+// space's open documents.
+func (a *App) relationHost(sp *space.Space, store *database.Store) *appRelationHost {
+	return &appRelationHost{app: a, sp: sp, src: store}
+}
+
+func (a *App) resolvedImageCached(key imageKey) (resolvedImage, bool) {
+	r, ok := a.imgResolved[key]
+	return r, ok
+}
+
+// keepResolvedImage caches an image lookup while its document stays open.
+func (a *App) keepResolvedImage(owner *document, key imageKey, r resolvedImage) {
+	if owner != nil && a.documentContext == 0 && !a.isResidentDocument(owner) {
+		return
+	}
+	if a.imgResolved == nil {
+		a.imgResolved = map[imageKey]resolvedImage{}
+	}
+	a.imgResolved[key] = r
 }
 
 func (a *App) optionalResources() *resourceState { return &a.resources }
+func (a *App) imageWindows() *boardImageFeature  { return &a.boardImages }
 
 // providerFactory makes model services; tests replace it.
 func (a *App) providerFactory() func(agent.Settings) agent.Provider { return a.qa.provider }
@@ -231,3 +337,29 @@ func (a *App) selectAIConnection(id string)   { a.qa.selectAIConnection(id) }
 // The whiteboard AI image tool OneBot offers in conversations.
 
 func (a *App) chatImageTool(d *document) *agent.Tool { return a.boardAI.chatImageTool(d) }
+
+// openRecordPeek shows a database record beside its database (OneBot cites
+// records this way).
+func (a *App) openRecordPeek(dbDoc *document, store *database.Store, sp *space.Space, rec *database.Record, mode string) {
+	a.databases.openRecordPeek(dbDoc, store, sp, rec, mode)
+}
+
+// documentForExport is d's content to export, a database as its snapshot.
+func (a *App) documentForExport(d *document) *model.Document { return a.databases.documentForExport(d) }
+
+// The sidebar clipboard follows moves and deletions made elsewhere.
+
+func (a *App) followCopied(fromSpace, fromRel, toSpace, toRel string) {
+	a.clipboard.followCopied(fromSpace, fromRel, toSpace, toRel)
+}
+func (a *App) forgetCopied(spID, rel string) { a.clipboard.forgetCopied(spID, rel) }
+
+func (a *App) findNamedFrom(id, name string) (*space.Space, string, bool) {
+	return a.links.findNamedFrom(id, name)
+}
+
+func (a *App) pageZoomButton(c *ui.Context, d *document) ui.Element {
+	return a.zoom.pageZoomButton(c, d)
+}
+
+func (a *App) showPageZoomButton(d *document) bool { return a.zoom.showPageZoomButton(d) }

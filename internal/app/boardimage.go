@@ -20,6 +20,23 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// boardImageHost is what the whiteboard image windows need from the app.
+type boardImageHost interface {
+	backgroundResult(work func() func())
+	boardFileReader(d *document) func(string) ([]byte, error)
+	boardOptionsWith(theme *ui.Theme, d *document) editor.BoardOptions
+	interfaceFont() string
+	makeWindow(title string, view func(*ui.Context), close func() bool) windowHandle
+	markSelfWrite(full string)
+	retireClosedDocuments(candidates ...*document)
+}
+
+// boardImageFeature keeps the whiteboard image viewer and annotator windows.
+type boardImageFeature struct {
+	host    boardImageHost
+	windows []*boardImageWindow
+}
+
 type boardImageWindow struct {
 	exportPath                                     string
 	sourceKey                                      string
@@ -32,13 +49,13 @@ type boardImageWindow struct {
 	err, message                                   string
 }
 
-func (a *App) openBoardImage(d *document, id string, edit bool) {
-	a.openBoardImageAt(d, id, edit, -1)
+func (bi *boardImageFeature) openBoardImage(d *document, id string, edit bool) {
+	bi.openBoardImageAt(d, id, edit, -1)
 }
 
 // An explicit history index opens that original attachment without selecting
 // it as the node's output. The viewer keeps its own immutable source key.
-func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
+func (bi *boardImageFeature) openBoardImageAt(d *document, id string, edit bool, index int) {
 	if d == nil || d.board == nil {
 		return
 	}
@@ -83,7 +100,7 @@ func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
 		}
 	}
 	key, _ := json.Marshal([]any{rel, dataURL, crop, flip})
-	for _, w := range a.boardImages {
+	for _, w := range bi.windows {
 		if w.doc == d && w.nodeID == id && w.sourceKey == string(key) && !w.closed {
 			w.editing = w.editing || edit
 			if w.win != nil {
@@ -96,11 +113,11 @@ func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
 	if n.ImageHistory() || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 		w.exportPath = rel
 	}
-	a.boardImages = append(a.boardImages, w)
-	w.win = a.makeWindow(i18n.T("图片查看与标注"), func(c *ui.Context) { a.boardImageView(c, w) }, func() bool { return a.closeBoardImage(w) })
-	watchBoardImageOutsidePress(w.win, func() { a.dismissBoardImageOutside(w) })
-	read := a.boardAI.boardAI(d).ReadFile
-	a.backgroundResult(func() func() {
+	bi.windows = append(bi.windows, w)
+	w.win = bi.host.makeWindow(i18n.T("图片查看与标注"), func(c *ui.Context) { bi.boardImageView(c, w) }, func() bool { return bi.closeBoardImage(w) })
+	watchBoardImageOutsidePress(w.win, func() { bi.dismissBoardImageOutside(w) })
+	read := bi.host.boardFileReader(d)
+	bi.host.backgroundResult(func() func() {
 		var data []byte
 		var err error
 		if dataURL != "" {
@@ -131,12 +148,12 @@ func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
 				}
 				w.image.Board.RequestFocus = true
 			}
-			a.redrawBoardImage(w)
+			bi.redrawBoardImage(w)
 		}
 	})
 }
 
-func (a *App) redrawBoardImage(w *boardImageWindow) {
+func (bi *boardImageFeature) redrawBoardImage(w *boardImageWindow) {
 	if win, ok := w.win.(*mygo.Window); ok {
 		win.Update(func() {})
 	}
@@ -154,9 +171,9 @@ func saveBoardImageCopy(rel string, read func(string) ([]byte, error), choose fu
 	return fsutil.WriteFileAtomic(dest, data, 0644)
 }
 
-func (a *App) saveBoardImageAs(parent *mygo.Window, rel string, read func(string) ([]byte, error), done func(error)) {
+func (bi *boardImageFeature) saveBoardImageAs(parent *mygo.Window, rel string, read func(string) ([]byte, error), done func(error)) {
 	title := i18n.T("图片另存为")
-	a.backgroundResult(func() func() {
+	bi.host.backgroundResult(func() func() {
 		err := saveBoardImageCopy(rel, read, func(name string) (string, error) {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: title, DefaultPath: name})
 		})
@@ -164,7 +181,7 @@ func (a *App) saveBoardImageAs(parent *mygo.Window, rel string, read func(string
 	})
 }
 
-func (a *App) dismissBoardImageOutside(w *boardImageWindow) {
+func (bi *boardImageFeature) dismissBoardImageOutside(w *boardImageWindow) {
 	// Only passive viewing dismisses automatically. Annotation and save
 	// sessions keep their window and the existing unsaved-changes protection.
 	if !w.closed && !w.editing && !w.saving && !w.confirmClose && w.win != nil {
@@ -174,26 +191,26 @@ func (a *App) dismissBoardImageOutside(w *boardImageWindow) {
 func (w *boardImageWindow) dirty() bool {
 	return w.image != nil && (w.image.Composing() || w.image.Board.Revision() != w.savedRevision)
 }
-func (a *App) closeBoardImage(w *boardImageWindow) bool {
+func (bi *boardImageFeature) closeBoardImage(w *boardImageWindow) bool {
 	if w.saving {
 		return false
 	}
 	if w.dirty() {
 		w.confirmClose = true
-		a.redrawBoardImage(w)
+		bi.redrawBoardImage(w)
 		return false
 	}
 	w.closed = true
-	for i, x := range a.boardImages {
+	for i, x := range bi.windows {
 		if x == w {
-			a.boardImages = append(a.boardImages[:i], a.boardImages[i+1:]...)
+			bi.windows = append(bi.windows[:i], bi.windows[i+1:]...)
 			break
 		}
 	}
-	a.retireClosedDocuments(w.doc)
+	bi.host.retireClosedDocuments(w.doc)
 	return true
 }
-func (a *App) discardBoardImage(w *boardImageWindow) {
+func (bi *boardImageFeature) discardBoardImage(w *boardImageWindow) {
 	w.image.DiscardComposition()
 	w.savedRevision = w.image.Board.Revision()
 	w.confirmClose = false
@@ -202,7 +219,7 @@ func (a *App) discardBoardImage(w *boardImageWindow) {
 	}
 }
 
-func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
+func (bi *boardImageFeature) saveBoardImage(w *boardImageWindow, generate bool) {
 	if w.image == nil || w.saving {
 		return
 	}
@@ -224,7 +241,7 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 	spaceCopy := *d.space
 	spaceCopy.ExternalFiles = maps.Clone(d.space.ExternalFiles)
 	target := &document{space: &spaceCopy, rel: d.rel}
-	a.backgroundResult(func() func() {
+	bi.host.backgroundResult(func() func() {
 		png, err := snap.PNG()
 		var rel string
 		var cfg image.Config
@@ -238,23 +255,23 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 		return func() {
 			w.saving = false
 			if written != "" {
-				a.markSelfWrite(written)
+				bi.host.markSelfWrite(written)
 			}
 			if w.closed {
 				return
 			}
 			if err != nil {
 				w.err = err.Error()
-				a.redrawBoardImage(w)
+				bi.redrawBoardImage(w)
 				return
 			}
 			source := d.board.Scene.ElementByID(w.nodeID)
 			if d.ed.ReadOnly || source == nil || source.IsDeleted || source.Locked || d.board.AIRunning() || d.rel != target.rel || d.space.Root != target.space.Root {
 				w.err = i18n.T("白板状态已变化，标注副本已保留在附件中") + " " + rel
-				a.redrawBoardImage(w)
+				bi.redrawBoardImage(w)
 				return
 			}
-			_, _, err = d.board.AddAnnotatedReference(w.nodeID, rel, cfg.Width, cfg.Height, generate, a.boardOptionsWith(nil, d))
+			_, _, err = d.board.AddAnnotatedReference(w.nodeID, rel, cfg.Width, cfg.Height, generate, bi.host.boardOptionsWith(nil, d))
 			if err != nil {
 				w.err = err.Error()
 			} else {
@@ -265,7 +282,7 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 				}
 			}
 			w.confirmClose = false
-			a.redrawBoardImage(w)
+			bi.redrawBoardImage(w)
 			if err == nil && closeAfter && w.win != nil {
 				w.win.Close()
 			}
@@ -273,8 +290,8 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 	})
 }
 
-func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
-	c.Root().Font(a.fonts.interfaceFont())
+func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) {
+	c.Root().Font(bi.host.interfaceFont())
 	t := c.Theme()
 	bar := c.TitleBar()
 	d := w.doc
@@ -324,12 +341,12 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 					if w.exportPath != "" && ui.Button(c.Key("save-image-as"), i18n.T("另存为")).Label(i18n.T("图片另存为")).Disabled(w.saving || w.loading).Clicked() {
 						w.saving, w.err = true, ""
 						parent, _ := w.win.(*mygo.Window)
-						a.saveBoardImageAs(parent, w.exportPath, a.boardAI.boardAI(w.doc).ReadFile, func(err error) {
+						bi.saveBoardImageAs(parent, w.exportPath, bi.host.boardFileReader(w.doc), func(err error) {
 							w.saving = false
 							if err != nil {
 								w.err = fmt.Sprintf(i18n.T("另存为失败；%v"), err)
 							}
-							a.redrawBoardImage(w)
+							bi.redrawBoardImage(w)
 						})
 					}
 					if ui.PrimaryButton(c.Key("start-image-annotation"), i18n.T("标注图片")).Disabled(!canEdit || w.loading || w.image == nil).Clicked() {
@@ -339,10 +356,10 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 					}
 				} else {
 					if ui.Button(c.Key("save-annotation-reference"), i18n.T("保存为参考图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
-						a.saveBoardImage(w, false)
+						bi.saveBoardImage(w, false)
 					}
 					if ui.PrimaryButton(c.Key("annotation-generate"), i18n.T("用于生图")).Disabled(!canEdit || w.saving || w.loading || w.image == nil).Clicked() {
-						a.saveBoardImage(w, true)
+						bi.saveBoardImage(w, true)
 					}
 				}
 			})
@@ -449,10 +466,10 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 						w.confirmClose = false
 					}
 					if ui.Button(c, i18n.T("放弃标注")).Clicked() {
-						a.discardBoardImage(w)
+						bi.discardBoardImage(w)
 					}
 					if ui.PrimaryButton(c, i18n.T("保存并关闭")).Disabled(!canEdit || w.saving).Clicked() {
-						a.saveBoardImage(w, false)
+						bi.saveBoardImage(w, false)
 					}
 				})
 			})

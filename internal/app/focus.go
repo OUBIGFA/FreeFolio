@@ -135,8 +135,8 @@ func (a *App) focusView(c *ui.Context) {
 				words.Opacity(words.Animate("shown", b2f(show), 150*time.Millisecond))
 			}
 			ui.Spacer(c)
-			if a.showPageZoomButton(a.doc) {
-				zb := a.pageZoomButton(c, a.doc)
+			if a.zoom.showPageZoomButton(a.doc) {
+				zb := a.zoom.pageZoomButton(c, a.doc)
 				zb.Opacity(zb.Animate("shown", b2f(show || zb.Focused()), 150*time.Millisecond))
 			}
 			exit := iconButton(c, "focus-exit", iconMinimize, i18n.T("退出专注模式"), a.withKey(i18n.T("退出专注模式"), "focus"), false)
@@ -159,7 +159,7 @@ func (a *App) focusView(c *ui.Context) {
 			}
 			if a.doc.source {
 				w, _ := c.Size()
-				a.sourceView(c, a.doc, w-18)
+				a.sourceMode.sourceView(c, a.doc, w-18)
 				return
 			}
 			w, _ := c.Size()
@@ -168,7 +168,7 @@ func (a *App) focusView(c *ui.Context) {
 				if a.doc.isMDZ() {
 					a.mdzFiles.mdzView(c, a.doc, w-18, true)
 				} else if a.doc.isDatabase() {
-					a.databaseWorkspace(c, a.doc, w-18)
+					a.databases.databaseWorkspace(c, a.doc, w-18)
 				} else {
 					editor.View(c.Key(a.doc.viewKey()), a.doc.ed, a.editorOptions(c, w-18, true))
 				}
@@ -195,7 +195,7 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		switch {
 		case a.activateDocument(d):
 			fn()
-		case a.dbPeek.open && a.dbPeek.doc == d:
+		case a.databases.dbPeek.open && a.databases.dbPeek.doc == d:
 			a.withDocument(d, fn)
 		case a.inWindow(d):
 			// A document in its own window acts as the document.
@@ -204,22 +204,22 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 	}
 	hasDB := false
 	if d != nil {
-		store, _, _, _ := a.owningDatabaseFor(d)
+		store, _, _, _ := a.databases.owningDatabaseFor(d)
 		hasDB = store != nil
 	}
 	options := editor.Options{
-		Zoom:            a.pageZoom(),
-		OnZoom:          a.setPageZoom,
+		Zoom:            a.zoom.pageZoom(),
+		OnZoom:          a.zoom.setPageZoom,
 		HideFrontmatter: hasDB,
 		LoadDatabase: func(target string) (*database.Store, dbview.Options, uint64, error) {
-			return a.loadDatabaseFor(d, target)
+			return a.databases.loadDatabaseFor(d, target)
 		},
-		OpenDatabase: func(target, viewID string, split bool) { a.openDatabaseFrom(d, target, viewID, split) },
+		OpenDatabase: func(target, viewID string, split bool) { a.databases.openDatabaseFrom(d, target, viewID, split) },
 		ListDatabases: func() []database.SpaceDBInfo {
 			if d.space == nil || d.space.IsExternal() || d.space.Root == "" {
 				return nil
 			}
-			dbs := a.databaseCatalogFor(d.space)
+			dbs := a.databases.databaseCatalogFor(d.space)
 			for i := range dbs {
 				if res := a.residentDocument(d.space.ID, dbs[i].RelPath); res != nil && res.loadErr == nil && res.isDatabase() {
 					liveDB := res.dbView.Store.Database()
@@ -240,8 +240,10 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 			}
 			return dbs
 		},
-		CreateDatabase:   func(title string) (string, string, string, error) { return a.createEmbeddedDatabaseFor(d, title) },
-		DatabaseSnapshot: func(target, viewID string) string { return a.databaseSnapshotFor(d, target, viewID) },
+		CreateDatabase: func(title string) (string, string, string, error) {
+			return a.databases.createEmbeddedDatabaseFor(d, title)
+		},
+		DatabaseSnapshot: func(target, viewID string) string { return a.databases.databaseSnapshotFor(d, target, viewID) },
 
 		CreateWhiteboard: func() { a.insertWhiteboard(d) },
 		OpenWhiteboard:   func(url string) { a.openBoardEmbed(d, url) },
@@ -270,11 +272,11 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		RevealImage:      func(url string) { a.revealImage(d, url) },
 		CropImage:        func(id, url string, r image.Rectangle) { a.cropImage(d, id, url, r) },
 		OpenLink:         func(url string) { a.navigateInPane(d, func() { a.followLink(url) }) },
-		OpenWiki:         func(name string) { a.navigateInPane(d, func() { a.openWiki(name) }) },
-		OpenTag:          func(tag string) { run(func() { a.openTag(tag) }) },
-		PreviewWiki:      func(name string) editor.WikiPreview { return a.previewWikiFor(d, name) },
-		WikiSuggest:      func(typed string) []editor.WikiItem { return a.wikiSuggestFor(d, typed) },
-		Footer:           func(c *ui.Context) { a.pageFooterFor(c, d) },
+		OpenWiki:         func(name string) { a.navigateInPane(d, func() { a.links.openWiki(name) }) },
+		OpenTag:          func(tag string) { run(func() { a.links.openTag(tag) }) },
+		PreviewWiki:      func(name string) editor.WikiPreview { return a.links.previewWikiFor(d, name) },
+		WikiSuggest:      func(typed string) []editor.WikiItem { return a.links.wikiSuggestFor(d, typed) },
+		Footer:           func(c *ui.Context) { a.links.pageFooterFor(c, d) },
 		Typewriter:       a.prefs.Typewriter,
 		DrawAnnotations:  a.prefs.DrawAnnotations,
 		Dim:              focus && !a.prefs.NoDim,

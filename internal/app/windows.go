@@ -176,14 +176,14 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		ui.Text(c, i18n.T("文档已关闭")).TextColor(t.TextMuted).Padding(80, 24)
 		return
 	}
-	if a.canZoomPage(d) {
+	if a.zoom.canZoomPage(d) {
 		switch {
 		case a.pressed(c, "zoom-in"):
-			a.stepPageZoom(1)
+			a.zoom.stepPageZoom(1)
 		case a.pressed(c, "zoom-out"):
-			a.stepPageZoom(-1)
+			a.zoom.stepPageZoom(-1)
 		case a.pressed(c, "zoom-reset"):
-			a.resetPageZoom()
+			a.zoom.resetPageZoom()
 		}
 	}
 	if a.pressed(c, "source") {
@@ -194,7 +194,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		top := ui.Row(c.Key("window-bar")).Height(max(44, bar.Height)).PaddingX(12).Gap(8).AlignItems(ui.Center).DragWindow()
 		top.Children(func() {
 			ui.Box(c).Width(bar.Left)
-			docIcon(c, a.iconTitle(d.space.ID, d.rel), 16)
+			docIcon(c, a.links.iconTitle(d.space.ID, d.rel), 16)
 			ui.Text(c, docName(d.title())).FontSize(13).FontWeight(600).SingleLine().Shrink(1).MinWidth(0)
 			ui.Text(c, d.space.Name).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 			ui.Box(c).Grow(1)
@@ -230,19 +230,19 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		}
 		if d.isDatabase() {
 			width, _ := c.Size()
-			a.databaseWorkspace(c, d, width)
+			a.databases.databaseWorkspace(c, d, width)
 			return
 		}
 		if d.source {
 			width, _ := c.Size()
-			a.sourceView(c, d, width)
+			a.sourceMode.sourceView(c, d, width)
 			return
 		}
 		width, _ := c.Size()
 		editor.View(c.Key(d.viewKey()), d.ed, a.editorOptionsFor(c, width, false, d))
 	})
 	// The window's own document asks here, where the user closed it.
-	a.databasePeekModal(c)
+	a.databases.databasePeekModal(c)
 	if a.unsaved.open && len(a.unsaved.docs) == 1 && a.unsaved.docs[0] == d {
 		a.unsavedPromptView(c)
 	}

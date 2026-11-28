@@ -19,8 +19,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 	settle(tt)
 
 	// At default 100%, the corner zoom pill stays hidden.
-	if a.pageZoom() != prefs.DefaultPageZoom {
-		t.Fatalf("initial zoom = %v; want 1.0", a.pageZoom())
+	if a.zoom.pageZoom() != prefs.DefaultPageZoom {
+		t.Fatalf("initial zoom = %v; want 1.0", a.zoom.pageZoom())
 	}
 	if _, ok := tt.Find("页面缩放"); ok {
 		t.Fatal("page zoom pill should be hidden at 100%")
@@ -36,8 +36,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 	// Cmd+= steps up to 110% and reveals the corner pill.
 	tt.Key(ui.Cmd, ui.KeyEqual)
 	tt.Frame()
-	if a.pageZoom() != 1.1 || !tt.HasText("110%") {
-		t.Fatalf("after Cmd+= zoom=%v texts=%q", a.pageZoom(), tt.Texts())
+	if a.zoom.pageZoom() != 1.1 || !tt.HasText("110%") {
+		t.Fatalf("after Cmd+= zoom=%v texts=%q", a.zoom.pageZoom(), tt.Texts())
 	}
 	// On macOS, Cmd+Shift+= (Cmd++) also steps zoom up without conflicting with split-add.
 	if ui.Cmd == ui.Super {
@@ -46,8 +46,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 		tt.Key(ui.Cmd, ui.KeyEqual)
 	}
 	tt.Frame()
-	if a.pageZoom() != 1.2 || !tt.HasText("120%") {
-		t.Fatalf("after second zoom-in zoom=%v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 || !tt.HasText("120%") {
+		t.Fatalf("after second zoom-in zoom=%v", a.zoom.pageZoom())
 	}
 
 	// Ctrl+Shift+= must still add a split pane without changing zoom.
@@ -56,8 +56,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 	if a.split == nil || len(a.split.panes) < 2 {
 		t.Fatal("Ctrl+Shift+= did not open a split pane")
 	}
-	if a.pageZoom() != 1.2 {
-		t.Fatalf("Ctrl+Shift+= unexpectedly changed zoom to %v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 {
+		t.Fatalf("Ctrl+Shift+= unexpectedly changed zoom to %v", a.zoom.pageZoom())
 	}
 	if a.palette.open {
 		tt.Key(0, ui.KeyEscape)
@@ -68,8 +68,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 	if a.split != nil {
 		t.Fatal("Ctrl+Shift+- did not close the split pane")
 	}
-	if a.pageZoom() != 1.2 {
-		t.Fatalf("Ctrl+Shift+- unexpectedly changed zoom to %v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 {
+		t.Fatalf("Ctrl+Shift+- unexpectedly changed zoom to %v", a.zoom.pageZoom())
 	}
 
 	// Clicking the corner pill opens the zoom popover menu with presets and reset.
@@ -86,8 +86,8 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.pageZoom() != 1.5 || !tt.HasText("150%") {
-		t.Fatalf("after preset 150%% zoom=%v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.5 || !tt.HasText("150%") {
+		t.Fatalf("after preset 150%% zoom=%v", a.zoom.pageZoom())
 	}
 
 	// Saved to prefs.json and restored on restart.
@@ -99,20 +99,20 @@ func TestPageZoomShortcutsPillMenuAndPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.pageZoom() != 1.5 {
-		t.Fatalf("reloaded app zoom = %v; want 1.5", reloaded.pageZoom())
+	if reloaded.zoom.pageZoom() != 1.5 {
+		t.Fatalf("reloaded app zoom = %v; want 1.5", reloaded.zoom.pageZoom())
 	}
 
 	// Cmd+- steps down to 140%; Cmd+0 resets to 100% and hides the pill.
 	tt.Key(ui.Cmd, ui.KeyMinus)
 	tt.Frame()
-	if a.pageZoom() != 1.4 || !tt.HasText("140%") {
-		t.Fatalf("after Cmd+- zoom=%v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.4 || !tt.HasText("140%") {
+		t.Fatalf("after Cmd+- zoom=%v", a.zoom.pageZoom())
 	}
 	tt.Key(ui.Cmd, ui.Key0)
 	tt.Frame()
-	if a.pageZoom() != 1.0 {
-		t.Fatalf("after Cmd+0 zoom=%v; want 1.0", a.pageZoom())
+	if a.zoom.pageZoom() != 1.0 {
+		t.Fatalf("after Cmd+0 zoom=%v; want 1.0", a.zoom.pageZoom())
 	}
 	if _, ok := tt.Find("页面缩放"); ok {
 		t.Fatal("page zoom pill should hide again after reset to 100%")
@@ -137,8 +137,8 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.pageZoom() != 1.25 {
-		t.Fatalf("more menu zoom = %v; want 1.25", a.pageZoom())
+	if a.zoom.pageZoom() != 1.25 {
+		t.Fatalf("more menu zoom = %v; want 1.25", a.zoom.pageZoom())
 	}
 
 	// Command palette zoom in (125% -> 130%) and reset (130% -> 100%).
@@ -147,20 +147,20 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.pageZoom() != 1.3 {
-		t.Fatalf("palette zoom-in = %v; want 1.3", a.pageZoom())
+	if a.zoom.pageZoom() != 1.3 {
+		t.Fatalf("palette zoom-in = %v; want 1.3", a.zoom.pageZoom())
 	}
 	a.openPalette()
 	a.palette.query = "重置页面缩放"
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.pageZoom() != 1.0 {
-		t.Fatalf("palette zoom-reset = %v; want 1.0", a.pageZoom())
+	if a.zoom.pageZoom() != 1.0 {
+		t.Fatalf("palette zoom-reset = %v; want 1.0", a.zoom.pageZoom())
 	}
 
 	// Focus mode hover bar shows the zoom pill when zoomed and resets via menu.
-	a.setPageZoom(1.4)
+	a.zoom.setPageZoom(1.4)
 	a.toggleFocus()
 	tt.Move(750, 16)
 	tt.Advance(time.Second)
@@ -173,14 +173,14 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.pageZoom() != 1.0 {
-		t.Fatalf("focus bar reset zoom = %v; want 1.0", a.pageZoom())
+	if a.zoom.pageZoom() != 1.0 {
+		t.Fatalf("focus bar reset zoom = %v; want 1.0", a.zoom.pageZoom())
 	}
 	a.toggleFocus()
 	tt.Frame()
 
 	// Source export preview hides zoom pill and ignores zoom shortcuts.
-	a.setPageZoom(1.2)
+	a.zoom.setPageZoom(1.2)
 	a.toggleSource()
 	tt.Frame()
 	if _, ok := tt.Find("页面缩放"); ok {
@@ -188,8 +188,8 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.KeyEqual)
 	tt.Frame()
-	if a.pageZoom() != 1.2 {
-		t.Fatalf("source preview should ignore zoom-in shortcut, got %v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 {
+		t.Fatalf("source preview should ignore zoom-in shortcut, got %v", a.zoom.pageZoom())
 	}
 	a.toggleSource()
 	tt.Frame()
@@ -212,8 +212,8 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.KeyEqual)
 	tt.Frame()
-	if a.pageZoom() != 1.2 {
-		t.Fatalf("whiteboard should ignore page zoom shortcut, got %v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 {
+		t.Fatalf("whiteboard should ignore page zoom shortcut, got %v", a.zoom.pageZoom())
 	}
 
 	wt := ui.NewTester(made[0].view, 1400, 800)
@@ -223,13 +223,13 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	}
 	wt.Key(ui.Cmd, ui.KeyEqual)
 	wt.Frame()
-	if a.pageZoom() != 1.3 {
-		t.Fatalf("standalone Cmd+= zoom = %v; want 1.3", a.pageZoom())
+	if a.zoom.pageZoom() != 1.3 {
+		t.Fatalf("standalone Cmd+= zoom = %v; want 1.3", a.zoom.pageZoom())
 	}
 	wt.Key(ui.Cmd, ui.Key0)
 	wt.Frame()
-	if a.pageZoom() != 1.0 {
-		t.Fatalf("standalone Cmd+0 zoom = %v; want 1.0", a.pageZoom())
+	if a.zoom.pageZoom() != 1.0 {
+		t.Fatalf("standalone Cmd+0 zoom = %v; want 1.0", a.zoom.pageZoom())
 	}
 
 	// PDF document preserves its own Cmd+= zoom and does not alter pageZoom.
@@ -244,7 +244,7 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	if a.doc == nil || !a.doc.isPDF() {
 		t.Fatal("expected PDF document open")
 	}
-	a.setPageZoom(1.2)
+	a.zoom.setPageZoom(1.2)
 	a.doc.pdf.RequestFocus = true
 	tt.Frame()
 	if _, ok := tt.Find("页面缩放"); ok {
@@ -253,8 +253,8 @@ func TestPageZoomMoreMenuPaletteFocusWindowAndIsolation(t *testing.T) {
 	pdfZoomBefore := a.doc.pdf.Zoom
 	tt.Key(ui.Cmd, ui.KeyEqual)
 	tt.Frame()
-	if a.pageZoom() != 1.2 {
-		t.Fatalf("PDF viewer Cmd+= mutated pageZoom to %v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.2 {
+		t.Fatalf("PDF viewer Cmd+= mutated pageZoom to %v", a.zoom.pageZoom())
 	}
 	if a.doc.pdf.Zoom <= pdfZoomBefore {
 		t.Fatalf("PDF viewer did not receive Cmd+= zoom: before=%v after=%v", pdfZoomBefore, a.doc.pdf.Zoom)
@@ -270,17 +270,17 @@ func TestPageZoomShortcutRebindAndEnglishUI(t *testing.T) {
 	if !a.rebind("zoom-reset", &editor.Combo{Mods: ui.Cmd | ui.Shift, Key: ui.Key0}) {
 		t.Fatal("failed to rebind zoom-reset to Cmd+Shift+0")
 	}
-	a.setPageZoom(1.3)
+	a.zoom.setPageZoom(1.3)
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.Key0)
 	tt.Frame()
-	if a.pageZoom() != 1.3 {
-		t.Fatalf("old zoom-reset binding should not fire after rebind, zoom=%v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.3 {
+		t.Fatalf("old zoom-reset binding should not fire after rebind, zoom=%v", a.zoom.pageZoom())
 	}
 	tt.Key(ui.Cmd|ui.Shift, ui.Key0)
 	tt.Frame()
-	if a.pageZoom() != 1.0 {
-		t.Fatalf("rebound zoom-reset did not reset zoom, zoom=%v", a.pageZoom())
+	if a.zoom.pageZoom() != 1.0 {
+		t.Fatalf("rebound zoom-reset did not reset zoom, zoom=%v", a.zoom.pageZoom())
 	}
 	// Restore default Cmd+0 (must not be rejected as a reserved combo).
 	if !a.rebind("zoom-reset", nil) {
@@ -292,7 +292,7 @@ func TestPageZoomShortcutRebindAndEnglishUI(t *testing.T) {
 	defer i18n.SetLanguage(prevLang)
 	a.prefs.Language = "en"
 	a.applyLanguage()
-	a.setPageZoom(1.3)
+	a.zoom.setPageZoom(1.3)
 	tt.Frame()
 
 	if err := tt.Click("Page Zoom"); err != nil {
@@ -390,7 +390,7 @@ func TestPageZoomSnapshot(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tt.SetDark(tc.dark)
-			a.setPageZoom(tc.zoom)
+			a.zoom.setPageZoom(tc.zoom)
 			tt.CloseMenu()
 			settle(tt)
 			if tc.menu {

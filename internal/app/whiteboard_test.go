@@ -192,7 +192,7 @@ func TestWhiteboardKnowledgeCitationsAndRename(t *testing.T) {
 	if !d.board.Selected[e.ID] {
 		t.Fatal("citation did not locate board element")
 	}
-	a.relink("接口文档", "接口规范", map[string]bool{d.space.ID: true})
+	a.links.relink("接口文档", "接口规范", map[string]bool{d.space.ID: true})
 	if !strings.Contains(d.board.Scene.PlainText(), "接口规范") {
 		t.Fatal("board link was not renamed")
 	}

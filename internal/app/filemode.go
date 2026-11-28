@@ -392,12 +392,12 @@ func (a *App) fileView(c *ui.Context) {
 			}
 		case a.pressed(c, "split-next"):
 			a.cyclePane()
-		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
-			a.stepPageZoom(1)
-		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
-			a.stepPageZoom(-1)
-		case a.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
-			a.resetPageZoom()
+		case a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-in"):
+			a.zoom.stepPageZoom(1)
+		case a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-out"):
+			a.zoom.stepPageZoom(-1)
+		case a.zoom.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
+			a.zoom.resetPageZoom()
 		case a.pressed(c, "source"):
 			a.toggleSource()
 		case a.pressed(c, "full-width"):
@@ -405,7 +405,7 @@ func (a *App) fileView(c *ui.Context) {
 		case a.pressed(c, "outline"):
 			a.toggleOutline()
 		case a.pressed(c, "export-pdf"):
-			a.exportPDF()
+			a.pdfExports.exportPDF()
 		case a.pressed(c, "ask"):
 			a.qa.toggleQA()
 		}
@@ -447,10 +447,10 @@ func (a *App) fileView(c *ui.Context) {
 	})
 	a.paletteView(c)
 	a.unsavedPromptView(c)
-	a.databasePeekModal(c)
+	a.databases.databasePeekModal(c)
 	a.settingsView(c)
 	a.chatgpt.chatGPTWelcomeView(c)
-	a.pdfExportView(c)
+	a.pdfExports.pdfExportView(c)
 	a.mainWindowButtons(c)
 }
 
@@ -703,7 +703,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 			a.toggleSource()
 		}
 		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(d))
-		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(d))
+		m.Submenu(i18n.T("页面缩放"), a.zoom.pageZoomMenu).Disabled(!a.zoom.canZoomPage(d))
 		if m.Item(i18n.T("导出 MDZip (.mdz)")).Disabled(noDoc || d.isPDF() || d.isMDZ() || d.isDatabase() || d.isWhiteboard()).Chosen() {
 			a.mdzFiles.exportMDZ()
 		}
@@ -714,7 +714,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 			a.toggleOutline()
 		}
 		if m.Item(i18n.T("导出 PDF")).Disabled(noText).Chosen() {
-			a.exportPDF()
+			a.pdfExports.exportPDF()
 		}
 		m.Separator()
 		if m.Item(i18n.T("复制文件路径")).Disabled(d == nil).Chosen() {

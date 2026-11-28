@@ -209,7 +209,7 @@ func (a *App) newModalItems(dir, rawQuery string) []newModalItem {
 					if named == "" {
 						a.newDoc(dir)
 					} else {
-						a.newDocNamed(dir, named)
+						a.links.newDocNamed(dir, named)
 					}
 				},
 			},
@@ -278,7 +278,7 @@ func (a *App) newModalItems(dir, rawQuery string) []newModalItem {
 		actionText: i18n.T("导入"),
 		visitHint:  i18n.T("导入") + " →",
 		keywords:   "csv import daoru 导入",
-		run:        func() { a.pickAndImportCSV(nil) },
+		run:        func() { a.databases.pickAndImportCSV(nil) },
 	})
 
 	if q == "" {

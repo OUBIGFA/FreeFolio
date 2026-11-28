@@ -313,7 +313,7 @@ func (a *App) activePickedGroup() []string {
 // is open that should handle Escape before sidebar multi-selection clears.
 func (a *App) modalOrOverlayBlocksEsc() bool {
 	return a.palette.open || a.settingsOpen || a.replace.open || a.tagRename.open ||
-		a.versions.open || a.pdfExport != nil ||
+		a.versions.open || a.pdfExports.job != nil ||
 		a.library.open || a.spaceForm.open || a.renaming != "" ||
 		(a.preview.shown != nil && !a.preview.closing) || a.carrying != nil || a.carried != nil
 }
@@ -936,7 +936,7 @@ func (a *App) pickedMenu(m *ui.Menu, sp *space.Space, rawGroup []string) {
 
 	m.Separator()
 	if m.Item(i18n.T("复制")).Shortcut(ui.Cmd, ui.KeyC).Chosen() {
-		a.copyEntries(sp, group)
+		a.clipboard.copyEntries(sp, group)
 	}
 	if sp.IsExternal() {
 		a.spacesGroupMenu(m, sp, group)

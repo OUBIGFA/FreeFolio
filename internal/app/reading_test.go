@@ -141,14 +141,14 @@ func TestWikiPreviewUsesUnsavedTarget(t *testing.T) {
 	from := a.doc
 	a.open("Target.arcmd")
 	a.doc.ed.ReplaceText(nil, "Unsaved ")
-	p := a.previewWikiFor(from, "Target")
+	p := a.links.previewWikiFor(from, "Target")
 	if p.Missing || p.Text == "" || p.Title != "Target" {
 		t.Fatal(p)
 	}
 	if p.Text[:8] != "Unsaved " {
 		t.Fatal("preview missed live text", p.Text)
 	}
-	missing := a.previewWikiFor(from, "Does not exist")
+	missing := a.links.previewWikiFor(from, "Does not exist")
 	if !missing.Missing {
 		t.Fatal("missing state")
 	}

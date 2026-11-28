@@ -18,6 +18,41 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// linksHost is what wiki links, tags and the page footer need from the window.
+type linksHost interface {
+	activateDocument(d *document) bool
+	activeDocument() *document
+	activeTree() []*vault.Node
+	currentDir() string
+	docHint(id, rel string) string
+	flushForTask() bool
+	indexedIcon(spaceID, rel string) string
+	indexedLive(d *document) (liveStamp, bool)
+	liveIndex() *search.Index
+	mapDocumentText(d *document, fn func(string) string) bool
+	navigateInPane(d *document, fn func())
+	notify(format string, args ...any)
+	open(rel string)
+	openAnywhere(id, rel string) bool
+	openTagRename(from string)
+	paperIsDark() bool
+	queryPalette(q string)
+	refreshSearch()
+	refreshTree()
+	residentDocument(id, rel string) *document
+	residentDocuments() []*document
+	setPaletteQuery(q string)
+	spaces() *space.State
+	tagCount(name string) int
+	treeOf(sp *space.Space) ([]*vault.Node, error)
+}
+
+// linkFeature resolves wiki links and tags, keeps them in step with renames,
+// and draws the page footer of backlinks.
+type linkFeature struct {
+	host linksHost
+}
+
 // Links between documents are [[Name]] in their text (package wiki): ⌘-click
 // opens the document named, or makes it when there is none; typing [[
 // offers the documents; below each document are the ones linking to it;
@@ -25,18 +60,18 @@ import (
 
 // eachDoc calls fn with every document of every space, the active space's
 // first, until fn returns false.
-func (a *App) eachDoc(fn func(sp *space.Space, n *vault.Node) bool) {
-	active := a.state.ActiveSpace()
-	order := slices.Clone(a.state.Spaces)
+func (lk *linkFeature) eachDoc(fn func(sp *space.Space, n *vault.Node) bool) {
+	active := lk.host.spaces().ActiveSpace()
+	order := slices.Clone(lk.host.spaces().Spaces)
 	slices.SortStableFunc(order, func(x, y *space.Space) int {
 		return b2i(y == active) - b2i(x == active)
 	})
 	for _, sp := range order {
 		var nodes []*vault.Node
 		if sp == active {
-			nodes = a.tree
+			nodes = lk.host.activeTree()
 		} else {
-			nodes, _ = a.treeOf(sp)
+			nodes, _ = lk.host.treeOf(sp)
 		}
 		stop := false
 		var walk func([]*vault.Node)
@@ -68,17 +103,17 @@ func b2i(b bool) int {
 
 // findNamed resolves relative to the document's own space, even when a
 // favorite is displayed in another space. Other spaces keep their saved order.
-func (a *App) findNamed(name string) (*space.Space, string, bool) {
-	id := a.state.ActiveSpace().ID
-	if a.doc != nil {
-		id = a.doc.space.ID
+func (lk *linkFeature) findNamed(name string) (*space.Space, string, bool) {
+	id := lk.host.spaces().ActiveSpace().ID
+	if lk.host.activeDocument() != nil {
+		id = lk.host.activeDocument().space.ID
 	}
-	return a.findNamedFrom(id, name)
+	return lk.findNamedFrom(id, name)
 }
 
-func (a *App) findNamedFrom(id, name string) (*space.Space, string, bool) {
+func (lk *linkFeature) findNamedFrom(id, name string) (*space.Space, string, bool) {
 	var candidates []place
-	a.eachDoc(func(sp *space.Space, n *vault.Node) bool {
+	lk.eachDoc(func(sp *space.Space, n *vault.Node) bool {
 		if wiki.Same(n.Title(), name) {
 			candidates = append(candidates, place{sp.ID, n.Path})
 		}
@@ -88,7 +123,7 @@ func (a *App) findNamedFrom(id, name string) (*space.Space, string, bool) {
 		if spaceID == id {
 			return -1
 		}
-		return slices.IndexFunc(a.state.Spaces, func(sp *space.Space) bool { return sp.ID == spaceID })
+		return slices.IndexFunc(lk.host.spaces().Spaces, func(sp *space.Space) bool { return sp.ID == spaceID })
 	}
 	slices.SortFunc(candidates, func(x, y place) int {
 		if d := priority(x.space) - priority(y.space); d != 0 {
@@ -99,15 +134,15 @@ func (a *App) findNamedFrom(id, name string) (*space.Space, string, bool) {
 	if len(candidates) == 0 {
 		return nil, "", false
 	}
-	return a.state.Get(candidates[0].space), candidates[0].rel, true
+	return lk.host.spaces().Get(candidates[0].space), candidates[0].rel, true
 }
 
 // renameSources captures resolution before the file name changes. Identical
 // labels in another space must keep referring to that space's own document.
-func (a *App) renameSources(sp *space.Space, rel string) map[string]bool {
+func (lk *linkFeature) renameSources(sp *space.Space, rel string) map[string]bool {
 	allowed := map[string]bool{}
-	for _, source := range a.state.Spaces {
-		target, file, ok := a.findNamedFrom(source.ID, vault.Title(rel))
+	for _, source := range lk.host.spaces().Spaces {
+		target, file, ok := lk.findNamedFrom(source.ID, vault.Title(rel))
 		allowed[source.ID] = ok && target == sp && file == rel
 	}
 	return allowed
@@ -115,19 +150,19 @@ func (a *App) renameSources(sp *space.Space, rel string) map[string]bool {
 
 // openWiki opens the document a [[link]] names, or makes it beside the
 // open document when there is none.
-func (a *App) openWiki(name string) {
-	if sp, rel, ok := a.findNamed(name); ok {
-		a.openAnywhere(sp.ID, rel)
+func (lk *linkFeature) openWiki(name string) {
+	if sp, rel, ok := lk.findNamed(name); ok {
+		lk.host.openAnywhere(sp.ID, rel)
 		return
 	}
-	a.newDocNamed(a.currentDir(), name)
+	lk.newDocNamed(lk.host.currentDir(), name)
 }
 
 // newDocNamed makes a document titled name in the folder dir of the active
 // space and opens it, its title written.
-func (a *App) newDocNamed(dir, name string) {
-	sp := a.state.ActiveSpace()
-	if sp == nil || sp.IsExternal() || !a.flushForTask() {
+func (lk *linkFeature) newDocNamed(dir, name string) {
+	sp := lk.host.spaces().ActiveSpace()
+	if sp == nil || sp.IsExternal() || !lk.host.flushForTask() {
 		return
 	}
 	doc := model.New()
@@ -139,21 +174,21 @@ func (a *App) newDocNamed(dir, name string) {
 		text := editor.ExportMarkdown(doc)
 		var rel string
 		if rel, err = vault.CreateFile(sp.Root, dir, name, ".md", text); err == nil {
-			a.refreshTree()
-			a.open(rel)
-			if a.doc != nil && a.doc.rel == rel {
-				a.doc.ensureBodyParagraph()
-				end := a.doc.ed.Len()
-				a.doc.ed.SetSelection(end, end)
-				a.doc.ed.RequestFocus = true
+			lk.host.refreshTree()
+			lk.host.open(rel)
+			if lk.host.activeDocument() != nil && lk.host.activeDocument().rel == rel {
+				lk.host.activeDocument().ensureBodyParagraph()
+				end := lk.host.activeDocument().ed.Len()
+				lk.host.activeDocument().ed.SetSelection(end, end)
+				lk.host.activeDocument().ed.RequestFocus = true
 			}
 			return
 		}
 	}
-	a.notify("新建「%s」失败；%v", name, err)
+	lk.host.notify("新建「%s」失败；%v", name, err)
 }
 
-func (a *App) wikiSuggestFor(d *document, typed string) []editor.WikiItem {
+func (lk *linkFeature) wikiSuggestFor(d *document, typed string) []editor.WikiItem {
 	type scored struct {
 		item  editor.WikiItem
 		score int
@@ -164,7 +199,7 @@ func (a *App) wikiSuggestFor(d *document, typed string) []editor.WikiItem {
 	if d != nil {
 		self = d.title()
 	}
-	a.eachDoc(func(sp *space.Space, n *vault.Node) bool {
+	lk.eachDoc(func(sp *space.Space, n *vault.Node) bool {
 		title := n.Title()
 		key := strings.ToLower(title)
 		if seen[key] || wiki.Same(title, self) && typed == "" {
@@ -194,32 +229,28 @@ func (a *App) wikiSuggestFor(d *document, typed string) []editor.WikiItem {
 }
 
 // openTag shows the documents of a #tag in the command bar.
-func (a *App) openTag(tag string) {
-	a.openPalette()
-	if a.split != nil {
-		a.palette.pane = a.split.panes[a.split.active]
-	}
-	a.palette.query = "#" + tag
+func (lk *linkFeature) openTag(tag string) {
+	lk.host.queryPalette("#" + tag)
 }
 
 // tagResults are the command bar's results for a query starting with #:
 // the documents of the tag typed, then the tags matching it.
-func (a *App) tagResults(q string) []action {
+func (lk *linkFeature) tagResults(q string) []action {
 	name := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(q), "#"))
 	var out []action
-	if name != "" && a.tagCount(name) > 0 {
+	if name != "" && lk.host.tagCount(name) > 0 {
 		tag := name
-		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("重命名或合并标签 #") + tag, run: func() { a.openTagRename(tag) }})
+		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("重命名或合并标签 #") + tag, run: func() { lk.host.openTagRename(tag) }})
 	}
 	if name != "" {
-		for _, h := range a.liveIndex().Tagged(name, nil) {
+		for _, h := range lk.host.liveIndex().Tagged(name, nil) {
 			id, rel := h.Space, h.Path
-			hint := a.docHint(id, rel)
+			hint := lk.host.docHint(id, rel)
 			out = append(out, action{kind: i18n.T("标签"), title: vault.Title(rel), hint: hint, doc: place{id, rel},
-				snippet: h.Snippet, match: h.Match, run: func() { a.openAnywhere(id, rel) }})
+				snippet: h.Snippet, match: h.Match, run: func() { lk.host.openAnywhere(id, rel) }})
 		}
 	}
-	for _, tc := range a.liveIndex().Tags(nil) {
+	for _, tc := range lk.host.liveIndex().Tags(nil) {
 		if name != "" {
 			if _, ok := fuzzy.Score(name, tc.Name); !ok || strings.EqualFold(tc.Name, name) {
 				continue
@@ -227,8 +258,7 @@ func (a *App) tagResults(q string) []action {
 		}
 		tag := tc.Name
 		out = append(out, action{kind: i18n.T("标签"), title: "#" + tag, hint: fmt.Sprintf(i18n.T("%d 篇文档"), tc.Count), run: func() {
-			a.palette.open = true
-			a.palette.query = "#" + tag
+			lk.host.setPaletteQuery("#" + tag)
 		}})
 	}
 	return out
@@ -254,22 +284,22 @@ const footerLong = 64 << 10
 
 // settledFooter is footerData, except that while a long page is being
 // typed in, footers keep what they last read until the typing pauses.
-func (a *App) settledFooter(c *ui.Context, d *document) *pageFooterCache {
+func (lk *linkFeature) settledFooter(c *ui.Context, d *document) *pageFooterCache {
 	cache := &d.footer
 	if cache.ready && cache.location == (place{d.space.ID, d.rel}) {
-		if wait := a.liveTyping(c); wait > 0 {
+		if wait := lk.liveTyping(c); wait > 0 {
 			c.After(wait)
 			return cache
 		}
 	}
-	return a.footerData(d)
+	return lk.footerData(d)
 }
 
 // liveTyping is how long until a long page whose edits the live index
 // has not read yet has gone unchanged for footerSettle; 0 when none has.
-func (a *App) liveTyping(c *ui.Context) time.Duration {
+func (lk *linkFeature) liveTyping(c *ui.Context) time.Duration {
 	var wait time.Duration
-	for _, d := range a.residentDocuments() {
+	for _, d := range lk.host.residentDocuments() {
 		if d.isDatabase() || d.isMDZ() || d.loadErr != nil || d.ed.ByteLen() < footerLong {
 			continue
 		}
@@ -277,7 +307,7 @@ func (a *App) liveTyping(c *ui.Context) time.Duration {
 		if rev != d.typedRev {
 			d.typedRev, d.typedAt = rev, c.Now()
 		}
-		if stamp, ok := a.search.liveDocs[d]; ok && stamp.revision == rev || !ok && !d.dirty() {
+		if stamp, ok := lk.host.indexedLive(d); ok && stamp.revision == rev || !ok && !d.dirty() {
 			continue
 		}
 		wait = max(wait, footerSettle-c.Now().Sub(d.typedAt))
@@ -285,8 +315,8 @@ func (a *App) liveTyping(c *ui.Context) time.Duration {
 	return wait
 }
 
-func (a *App) footerData(d *document) *pageFooterCache {
-	ix := a.liveIndex()
+func (lk *linkFeature) footerData(d *document) *pageFooterCache {
+	ix := lk.host.liveIndex()
 	location := place{d.space.ID, d.rel}
 	cache := &d.footer
 	if !cache.ready || cache.index != ix || cache.location != location {
@@ -301,13 +331,13 @@ func (a *App) footerData(d *document) *pageFooterCache {
 	return cache
 }
 
-func (a *App) pageFooterFor(c *ui.Context, d *document) {
+func (lk *linkFeature) pageFooterFor(c *ui.Context, d *document) {
 	if d == nil || d.isDatabase() || d.isMDZ() {
 		return
 	}
 	t := c.Theme()
-	pg := pageStyle(a.paperDark)
-	data := a.settledFooter(c, d)
+	pg := pageStyle(lk.host.paperIsDark())
+	data := lk.settledFooter(c, d)
 	tags, hits := data.tags, data.hits
 	if len(hits) == 0 && len(tags) == 0 && d.ed.Blank() {
 		return // a blank page shows its starter alone
@@ -325,16 +355,16 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 					}
 					chip.Children(func() { ui.Text(c, "#"+tag).FontSize(13).TextColor(t.Accent) })
 					if chip.Clicked() {
-						a.activateDocument(d)
-						a.openTag(tag)
+						lk.host.activateDocument(d)
+						lk.openTag(tag)
 					}
 					chip.ContextMenu(func(m *ui.Menu) {
 						if m.Item(i18n.T("查看使用此标签的文档")).Chosen() {
-							a.activateDocument(d)
-							a.openTag(tag)
+							lk.host.activateDocument(d)
+							lk.openTag(tag)
 						}
 						if m.Item(i18n.T("重命名或合并标签")).Chosen() {
-							a.openTagRename(tag)
+							lk.host.openTagRename(tag)
 						}
 					})
 				}
@@ -362,9 +392,9 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						docIcon(c, a.iconTitle(id, rel), 16)
+						docIcon(c, lk.iconTitle(id, rel), 16)
 						ui.Text(c, docName(vault.Title(rel))).FontSize(14).SingleLine().Shrink(1).MinWidth(0)
-						if hint := a.docHint(id, rel); hint != "" {
+						if hint := lk.host.docHint(id, rel); hint != "" {
 							ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 						}
 					})
@@ -377,7 +407,7 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 				})
 			})
 			if row.Clicked() {
-				a.navigateInPane(d, func() { a.openAnywhere(id, rel) })
+				lk.host.navigateInPane(d, func() { lk.host.openAnywhere(id, rel) })
 			}
 		}
 	})
@@ -385,13 +415,13 @@ func (a *App) pageFooterFor(c *ui.Context, d *document) {
 
 // iconTitle is a document's title with its page icon before it, which
 // docIcon shows in place of the letter.
-func (a *App) iconTitle(spaceID, rel string) string {
+func (lk *linkFeature) iconTitle(spaceID, rel string) string {
 	title := vault.Title(rel)
 	icon := ""
-	if d := a.residentDocument(spaceID, rel); d != nil && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() {
+	if d := lk.host.residentDocument(spaceID, rel); d != nil && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() {
 		icon = d.ed.Doc.Icon
 	} else {
-		icon = a.search.index.Icon(spaceID, rel)
+		icon = lk.host.indexedIcon(spaceID, rel)
 	}
 	if icon == "" || leadingEmoji(title) != "" {
 		return title
@@ -402,7 +432,7 @@ func (a *App) iconTitle(spaceID, rel string) string {
 // relink renames the links to the document titled from in every document
 // linking to it to to, the open one through its editor, and says how many
 // changed.
-func (a *App) relink(from, to string, allowed map[string]bool) {
+func (lk *linkFeature) relink(from, to string, allowed map[string]bool) {
 	if wiki.Same(from, to) || from == "" || to == "" {
 		return
 	}
@@ -412,14 +442,14 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 	}
 	changed := 0
 	resident := map[place]bool{}
-	for _, d := range a.residentDocuments() {
+	for _, d := range lk.host.residentDocuments() {
 		resident[place{d.space.ID, d.rel}] = true
-		if allowed[d.space.ID] && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() && wiki.LinksTo(d.plainText(), from) && a.mapDocumentText(d, rename) {
+		if allowed[d.space.ID] && d.loadErr == nil && !d.isDatabase() && !d.isMDZ() && wiki.LinksTo(d.plainText(), from) && lk.host.mapDocumentText(d, rename) {
 			changed++
 		}
 	}
 	var files []place
-	a.eachDoc(func(sp *space.Space, n *vault.Node) bool {
+	lk.eachDoc(func(sp *space.Space, n *vault.Node) bool {
 		if allowed[sp.ID] {
 			files = append(files, place{sp.ID, n.Path})
 		}
@@ -429,49 +459,49 @@ func (a *App) relink(from, to string, allowed map[string]bool) {
 		if resident[file] || vault.IsDatabase(file.rel) || vault.IsMDZ(file.rel) || !vault.IsText(file.rel) {
 			continue
 		}
-		sp := a.state.Get(file.space)
+		sp := lk.host.spaces().Get(file.space)
 		text, err := readFile(sp, file.rel)
 		if err != nil {
 			continue
 		}
 		d := openDocument(sp, file.rel, text, false)
-		if d.loadErr != nil || !wiki.LinksTo(d.plainText(), from) || !a.mapDocumentText(d, rename) {
+		if d.loadErr != nil || !wiki.LinksTo(d.plainText(), from) || !lk.host.mapDocumentText(d, rename) {
 			continue
 		}
 		if err := d.save(); err != nil {
-			a.notify("更新 %s 的双链失败；%v", file.rel, err)
+			lk.host.notify("更新 %s 的双链失败；%v", file.rel, err)
 			continue
 		}
 		changed++
 	}
 
 	if changed > 0 {
-		a.refreshSearch()
-		a.notify("已更新 %d 篇文档中指向「%s」的链接", changed, to)
+		lk.host.refreshSearch()
+		lk.host.notify("已更新 %d 篇文档中指向「%s」的链接", changed, to)
 	}
 }
 
 // previewWikiFor resolves in the source note's space and prefers live editors,
 // so previews include unsaved changes without changing navigation or selection.
-func (a *App) previewWikiFor(source *document, name string) editor.WikiPreview {
+func (lk *linkFeature) previewWikiFor(source *document, name string) editor.WikiPreview {
 	p := editor.WikiPreview{Title: name, Missing: true}
 	if source == nil {
 		return p
 	}
-	sp, rel, ok := a.findNamedFrom(source.space.ID, name)
+	sp, rel, ok := lk.findNamedFrom(source.space.ID, name)
 	if !ok {
 		return p
 	}
 	p.Location = sp.Name + " / " + rel
 	var plain string
-	if d := a.residentDocument(sp.ID, rel); d != nil {
+	if d := lk.host.residentDocument(sp.ID, rel); d != nil {
 		if d.loadErr != nil {
 			p.Text = i18n.T("无法读取这篇笔记")
 			p.Missing = false
 			return p
 		}
 		plain = d.plainText()
-	} else if indexed, ok := a.liveIndex().TextOf(sp.ID, rel); ok {
+	} else if indexed, ok := lk.host.liveIndex().TextOf(sp.ID, rel); ok {
 		plain = indexed
 	} else {
 		raw, err := readFile(sp, rel)

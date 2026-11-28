@@ -224,8 +224,8 @@ func (a *App) filesChanged(id string, events []mygo.FileEvent) {
 		a.relinkAttachments(sp, moves)
 	}
 	if len(events) > 0 {
-		a.invalidatePageDBCache(id)
-		a.refreshOpenDatabases(id)
+		a.databases.invalidatePageDBCache(id)
+		a.databases.refreshOpenDatabases(id)
 	}
 
 }

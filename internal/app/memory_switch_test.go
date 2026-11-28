@@ -245,7 +245,7 @@ func TestSidebarPreviewThumbsBoundedAndScaled(t *testing.T) {
 	tt.Frame()
 
 	// Wiki hover preview for non-resident documents must not populate preview.thumbs.
-	wp := a.previewWikiFor(a.doc, "Card05")
+	wp := a.links.previewWikiFor(a.doc, "Card05")
 	if wp.Missing || wp.Text == "" {
 		t.Fatalf("expected wiki preview text for Card05, got %+v", wp)
 	}

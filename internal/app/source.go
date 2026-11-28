@@ -11,8 +11,30 @@ import (
 
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/egoist/mygo/ui"
 )
+
+// sourceHost is what Markdown source mode needs from the window.
+type sourceHost interface {
+	activateDocument(d *document) bool
+	activeDocument() *document
+	conflictBarFor(c *ui.Context, d *document)
+	editorOptionsFor(c *ui.Context, width float32, focus bool, d *document) editor.Options
+	exportMarkdown()
+	inWindow(d *document) bool
+	modalOrOverlayBlocksEsc() bool
+	preferences() *prefs.Prefs
+	pressed(c *ui.Context, id string) bool
+	savePrefs()
+	withKey(tip, id string) string
+}
+
+// sourceFeature is Markdown source mode: its find bar, split preview and
+// editor body.
+type sourceFeature struct {
+	host sourceHost
+}
 
 const sourcePreviewDebounce = 120 * time.Millisecond
 
@@ -96,7 +118,7 @@ func findSourceMatches(text, query string) [][2]int {
 	return out
 }
 
-func (a *App) openSourceFind(d *document, replace bool) {
+func (sm *sourceFeature) openSourceFind(d *document, replace bool) {
 	if d == nil {
 		return
 	}
@@ -126,7 +148,7 @@ func (a *App) openSourceFind(d *document, replace bool) {
 	}
 }
 
-func (a *App) closeSourceFind(d *document) {
+func (sm *sourceFeature) closeSourceFind(d *document) {
 	if d == nil {
 		return
 	}
@@ -134,7 +156,7 @@ func (a *App) closeSourceFind(d *document) {
 	d.sourceFocusPending = true
 }
 
-func (a *App) toggleSourceSplit(d *document) {
+func (sm *sourceFeature) toggleSourceSplit(d *document) {
 	if d == nil || !d.source {
 		return
 	}
@@ -146,16 +168,16 @@ func (a *App) toggleSourceSplit(d *document) {
 	}
 }
 
-func (a *App) swapSourceSplit() {
-	if a.prefs == nil {
+func (sm *sourceFeature) swapSourceSplit() {
+	if sm.host.preferences() == nil {
 		return
 	}
-	a.prefs.SourceSplitSwapped = !a.prefs.SourceSplitSwapped
-	a.savePrefs()
+	sm.host.preferences().SourceSplitSwapped = !sm.host.preferences().SourceSplitSwapped
+	sm.host.savePrefs()
 }
 
-func (a *App) sourceSplitSwapped() bool {
-	return a.prefs != nil && a.prefs.SourceSplitSwapped
+func (sm *sourceFeature) sourceSplitSwapped() bool {
+	return sm.host.preferences() != nil && sm.host.preferences().SourceSplitSwapped
 }
 
 func snapSourceSplitFraction(f, total float32) float32 {
@@ -171,34 +193,34 @@ func snapSourceSplitFraction(f, total float32) float32 {
 // sourceView renders the editable Markdown source editor for d: conflict bars,
 // quiet header strip, optional inline find/replace bar, and either the single
 // source pane (default) or a resizable side-by-side rendered preview + source split.
-func (a *App) sourceView(c *ui.Context, d *document, cardWidth float32) ui.Element {
+func (sm *sourceFeature) sourceView(c *ui.Context, d *document, cardWidth float32) ui.Element {
 	d.ensureSourceInit()
 	t := c.Theme()
 	pg := pageStyle(t.Dark)
-	active := d == a.doc || a.inWindow(d)
+	active := d == sm.host.activeDocument() || sm.host.inWindow(d)
 
-	if active && !a.modalOrOverlayBlocksEsc() {
+	if active && !sm.host.modalOrOverlayBlocksEsc() {
 		switch {
-		case a.pressed(c, "find"):
-			a.openSourceFind(d, false)
-		case a.pressed(c, "replace"):
-			a.openSourceFind(d, true)
+		case sm.host.pressed(c, "find"):
+			sm.openSourceFind(d, false)
+		case sm.host.pressed(c, "replace"):
+			sm.openSourceFind(d, true)
 		}
 	}
 
 	box := ui.Column(c.Key("source-page:" + d.viewKey())).Grow(1).MinHeight(0)
 	box.Children(func() {
-		a.conflictBarFor(c, d)
-		a.sourceHeaderBar(c, d, pg, cardWidth)
+		sm.host.conflictBarFor(c, d)
+		sm.sourceHeaderBar(c, d, pg, cardWidth)
 		if d.sourceFind.open {
-			a.sourceFindBar(c, d, pg)
+			sm.sourceFindBar(c, d, pg)
 		}
-		a.sourceWorkspace(c, d, pg, cardWidth)
+		sm.sourceWorkspace(c, d, pg, cardWidth)
 	})
 	return box
 }
 
-func (a *App) sourceHeaderBar(c *ui.Context, d *document, pg editor.Page, cardWidth float32) {
+func (sm *sourceFeature) sourceHeaderBar(c *ui.Context, d *document, pg editor.Page, cardWidth float32) {
 	t := c.Theme()
 	line, col := lineColAtRune(d.preview, d.sourceCaret)
 	totalLines := 1 + strings.Count(d.preview, "\n")
@@ -226,23 +248,23 @@ func (a *App) sourceHeaderBar(c *ui.Context, d *document, pg editor.Page, cardWi
 			splitTip = i18n.T("关闭分栏预览")
 		}
 		if sourceBarToggleBtn(c, "source-split-btn", iconColumns2, i18n.T("分栏预览"), splitTip, d.sourceSplit, compact, pg).Clicked() {
-			a.activateDocument(d)
-			a.toggleSourceSplit(d)
+			sm.host.activateDocument(d)
+			sm.toggleSourceSplit(d)
 		}
 		if d.sourceSplit {
 			if sourceBarToggleBtn(c, "source-swap-btn", iconArrowLeftRight, i18n.T("对调左右"), i18n.T("对调左右分栏"), false, compact, pg).Clicked() {
-				a.activateDocument(d)
-				a.swapSourceSplit()
+				sm.host.activateDocument(d)
+				sm.swapSourceSplit()
 			}
 		}
 
-		findBtn := sourceBarIconBtn(c, "source-find-btn", iconSearch, i18n.T("查找和替换"), a.withKey(i18n.T("查找"), "find"), d.sourceFind.open, pg)
+		findBtn := sourceBarIconBtn(c, "source-find-btn", iconSearch, i18n.T("查找和替换"), sm.host.withKey(i18n.T("查找"), "find"), d.sourceFind.open, pg)
 		if findBtn.Clicked() {
-			a.activateDocument(d)
+			sm.host.activateDocument(d)
 			if d.sourceFind.open {
-				a.closeSourceFind(d)
+				sm.closeSourceFind(d)
 			} else {
-				a.openSourceFind(d, false)
+				sm.openSourceFind(d, false)
 			}
 		}
 
@@ -254,7 +276,7 @@ func (a *App) sourceHeaderBar(c *ui.Context, d *document, pg editor.Page, cardWi
 		}
 		lockBtn := sourceBarIconBtn(c, "source-lock-btn", lockIcon, lockLabel, lockLabel, d.ed.ReadOnly, pg)
 		if lockBtn.Clicked() {
-			a.activateDocument(d)
+			sm.host.activateDocument(d)
 			d.ed.SetReadOnly(d.sourceEditable())
 			if d.ed.ReadOnly {
 				d.sourceFind.replace = false
@@ -262,17 +284,17 @@ func (a *App) sourceHeaderBar(c *ui.Context, d *document, pg editor.Page, cardWi
 		}
 
 		if sourceBarTextBtn(c, "source-export-btn", i18n.T("导出 Markdown 文件"), "", false, pg).Clicked() {
-			a.activateDocument(d)
-			a.exportMarkdown()
+			sm.host.activateDocument(d)
+			sm.host.exportMarkdown()
 		}
-		if sourceBarTextBtn(c, "source-return-btn", i18n.T("返回富文本"), a.withKey(i18n.T("返回富文本编辑"), "source"), true, pg).Clicked() {
-			a.activateDocument(d)
+		if sourceBarTextBtn(c, "source-return-btn", i18n.T("返回富文本"), sm.host.withKey(i18n.T("返回富文本编辑"), "source"), true, pg).Clicked() {
+			sm.host.activateDocument(d)
 			d.toggleMode()
 		}
 	})
 }
 
-func (a *App) syncSourcePreview(c *ui.Context, d *document) {
+func (sm *sourceFeature) syncSourcePreview(c *ui.Context, d *document) {
 	if !d.sourceSplit {
 		return
 	}
@@ -327,8 +349,8 @@ func (a *App) syncSourcePreview(c *ui.Context, d *document) {
 	}
 }
 
-func (a *App) sourcePreviewOptions(c *ui.Context, d *document, width float32) editor.Options {
-	opts := a.editorOptionsFor(c, width, false, d)
+func (sm *sourceFeature) sourcePreviewOptions(c *ui.Context, d *document, width float32) editor.Options {
+	opts := sm.host.editorOptionsFor(c, width, false, d)
 	opts.Width = width
 	opts.Outline = false
 	opts.SetOutline = nil
@@ -340,30 +362,30 @@ func (a *App) sourcePreviewOptions(c *ui.Context, d *document, width float32) ed
 	return opts
 }
 
-func (a *App) sourceWorkspace(c *ui.Context, d *document, pg editor.Page, cardWidth float32) {
+func (sm *sourceFeature) sourceWorkspace(c *ui.Context, d *document, pg editor.Page, cardWidth float32) {
 	if !d.sourceSplit {
-		a.sourceEditorBody(c, d, pg)
+		sm.sourceEditorBody(c, d, pg)
 		return
 	}
-	a.syncSourcePreview(c, d)
+	sm.syncSourcePreview(c, d)
 	if d.sourceSplitFrac == 0 {
 		d.sourceSplitFrac = 0.50
 	}
 	if d.sourceSplitVFrac == 0 {
 		d.sourceSplitVFrac = 0.50
 	}
-	swapped := a.sourceSplitSwapped()
+	swapped := sm.sourceSplitSwapped()
 
 	renderPreview := func(w float32) {
 		ui.Column(c.Key("source-preview-pane:" + d.viewKey())).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() {
 			if d.sourcePreviewEd != nil {
-				editor.View(c.Key("source-preview:"+d.viewKey()), d.sourcePreviewEd, a.sourcePreviewOptions(c, d, w))
+				editor.View(c.Key("source-preview:"+d.viewKey()), d.sourcePreviewEd, sm.sourcePreviewOptions(c, d, w))
 			}
 		})
 	}
 	renderSource := func() {
 		ui.Column(c.Key("source-editor-pane:" + d.viewKey())).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() {
-			a.sourceEditorBody(c, d, pg)
+			sm.sourceEditorBody(c, d, pg)
 		})
 	}
 
@@ -548,7 +570,7 @@ func sourceBarTextBtn(c *ui.Context, key, label, tip string, accent bool, pg edi
 	return b
 }
 
-func (a *App) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
+func (sm *sourceFeature) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
 	t := c.Theme()
 	f := &d.sourceFind
 	f.refresh(d.preview)
@@ -587,7 +609,7 @@ func (a *App) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
 				f.step(1)
 			}
 			if in.Shortcut(0, ui.KeyEscape) {
-				a.closeSourceFind(d)
+				sm.closeSourceFind(d)
 			}
 
 			countText := ""
@@ -614,7 +636,7 @@ func (a *App) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
 			}
 			ui.Spacer(c)
 			if sourceBarIconBtn(c, "source-find-close", iconX, i18n.T("关闭查找"), i18n.T("关闭查找"), false, pg).Clicked() {
-				a.closeSourceFind(d)
+				sm.closeSourceFind(d)
 			}
 		})
 		if f.replace && d.sourceEditable() {
@@ -626,7 +648,7 @@ func (a *App) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
 					f.replaceOne = true
 				}
 				if rin.Shortcut(0, ui.KeyEscape) {
-					a.closeSourceFind(d)
+					sm.closeSourceFind(d)
 				}
 				if sourceBarTextBtn(c, "source-replace-one", i18n.T("替换"), "", false, pg).Disabled(len(f.matches) == 0).Clicked() {
 					f.replaceOne = true
@@ -639,9 +661,9 @@ func (a *App) sourceFindBar(c *ui.Context, d *document, pg editor.Page) {
 	})
 }
 
-func (a *App) sourceEditorBody(c *ui.Context, d *document, pg editor.Page) {
+func (sm *sourceFeature) sourceEditorBody(c *ui.Context, d *document, pg editor.Page) {
 	t := c.Theme()
-	fontSize := max(float32(12), a.prefs.ReadingSize()-2)
+	fontSize := max(float32(12), sm.host.preferences().ReadingSize()-2)
 	const (
 		lineHeightMult = float32(1.65)
 		padTop         = float32(14)

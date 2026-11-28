@@ -359,7 +359,7 @@ func TestSplitSearchAndRelink(t *testing.T) {
 	if hits := a.textHits("Needle"); len(hits) != 1 || hits[0].Path != left.rel {
 		t.Fatalf("inactive edits not searchable: %v", hits)
 	}
-	a.relink("Before", "After", map[string]bool{left.space.ID: true})
+	a.links.relink("Before", "After", map[string]bool{left.space.ID: true})
 	if !strings.Contains(left.ed.Text(), "[[After]]") || a.doc != right {
 		t.Fatal("link rewrite did not preserve inactive editor")
 	}
@@ -587,7 +587,7 @@ func TestSplitResizeKeepsSearchAndSavedLayoutStable(t *testing.T) {
 	}
 	right.ed.SetSelection(0, 0)
 	right.ed.ReplaceText(nil, "[[Left]] #changed ")
-	data := a.footerData(left)
+	data := a.links.footerData(left)
 	if a.liveIndex() == originalIndex || len(data.hits) != 1 {
 		t.Fatal("inactive edit did not invalidate backlinks")
 	}

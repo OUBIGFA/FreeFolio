@@ -38,29 +38,49 @@ and the same format verbs in both languages.
 
 ## Splitting App
 
-`App` holds the window's state. A feature can own its state and behavior in a
-type of its own that reaches the window only through a narrow host
-interface. The version history window is the template: `versionsPanel`
-(`versions.go`) keeps the window's state and methods (`show`, `view`,
-`selectVersion`, …) and asks `versionsHost` for the open document, saving,
-background work, notices and the shared chrome. `App` implements the host and
-keeps only the `versions` field, so work on the history window does not edit
-`App` or its methods. Further features move the same way one at a time,
-behind their existing tests.
+`App` is the composition root: it owns the window, the spaces, the open
+documents and the layout, and holds one field per feature panel. A panel
+keeps its feature's state and methods in a type of its own and reaches the
+window only through a narrow host interface declared beside it, which `App`
+implements:
 
-`internal/database` provides the `.db.md` engine; its nine native views live in
-`internal/editor/dbview`. `internal/mdz` owns bounded archive reading/writing.
-`internal/agentmcp` serves stdio MCP and `cmd/freefolio/control.go` provides the
-CLI. Local control reaches active windows through authenticated loopback IPC,
-or serializes headless writes with an OS file lock. See
-[database, archives and local agents](upstream-2026-11.md).
+| Panel (App field) | Type and host | Files |
+| --- | --- | --- |
+| Version history (`versions`) | `versionsPanel`, `versionsHost` | `versions.go` |
+| GitHub sync (`gitSync`) | `gitUIState`, `gitSyncHost` | `gitsync.go`, `gitsync_view.go` |
+| Cloud sync (`cloud`) | `cloudState`, `cloudHost` | `cloudsync.go` |
+| Self-update (`updates`) | `updateState`, `updateHost` | `update*.go`, `updateview.go` |
+| Optional resources (`resources`) | `resourceState`, `resourcesHost` | `optionalresources.go`, `resource_download.go` |
+| ChatGPT connection (`chatgpt`) | `chatGPTState`, `chatGPTHost` | `chatgpt.go`, `chatgptview.go` |
+| Fonts (`fonts`) | `fontState`, `fontsHost` | `fonts.go` |
+| OneBot (`qa`) | `qaState`, `oneBotHost` | `qa*.go`, `onebot*.go` |
+| Databases (`databases`) | `databaseFeature`, `databaseHost` | `database.go`, `database_load.go` |
+| Whiteboard AI (`boardAI`) | `whiteboardAIFeature`, `whiteboardAIHost` | `whiteboardai.go`, `whiteboard_model_availability.go`, `whiteboard_enhancements.go` |
+| Whiteboard image windows (`boardImages`) | `boardImageFeature`, `boardImageHost` | `boardimage*.go` |
+| MDZip (`mdzFiles`) | `mdzFeature`, `mdzHost` | `mdz.go` |
+| Library (`library`) | `library`, `libraryHost` | `library.go` |
+| PDF pages (`pdfPages`) | `pdfPagesState`, `pdfPagesHost` | `pdfpages.go` |
+| PDF export (`pdfExports`) | `pdfExportFeature`, `pdfExportHost` | `pdfexport.go` |
+| Bookmarks (`bookmarks`) | `bookmarkFeature`, `bookmarksHost` | `bookmarks.go` |
+| Sidebar copy and paste (`clipboard`) | `copyFeature`, `copyHost` | `copy.go` |
+| Markdown source mode (`sourceMode`) | `sourceFeature`, `sourceHost` | `source.go` |
+| Wiki links and tags (`links`) | `linkFeature`, `linksHost` | `links.go` |
+| Page zoom (`zoom`) | `pageZoomFeature`, `pageZoomHost` | `pagezoom.go` |
 
-`internal/mindmap` computes the native document map. `internal/cloudsync` owns
-WebDAV/S3 transport, credentials, per-file baselines and guarded synchronization;
-`internal/app/cloudsync.go` provides the native settings and marshals active-edit
-checks back to the UI thread. Cloud sync is a built-in opt-in feature, independent
-of the inactive plugin runtime. See [Cloud sync](cloud-sync.md) for configuration,
-conflict behavior and recovery paths.
+Rules for panels:
+
+- A panel reads App state only through its host. Accessors for App fields
+  (`appConfig`, `spaces`, `activeDocument`, …) and questions one feature asks
+  another (`cloudSyncsSpace`, `gitBusy`, `documentSaved`, …) live in
+  `host.go`; a panel never writes App fields.
+- When another host needs a panel's method, `host.go` adds a one-line App
+  delegator rather than handing out the panel.
+- `wirePanels` in `host.go` gives every panel its host; both App
+  constructors call it, and `TestEveryPanelHasItsHost` fails when a new panel
+  is not wired. A panel that resets its own state keeps its host
+  (`*v = versionsPanel{host: v.host, …}`).
+- The tour, the local Agent control, the sidebar, splits and the command bar
+  remain on App: they drive the whole window rather than one feature.
 
 ## The UI layer
 
@@ -95,6 +115,7 @@ snapshots cannot show the compositor's decorations.
 | `document.go` | The open rich document and read-only export preview: dirty tracking, autosave, images, links |
 | `split.go`, `splitview.go`, `splitstore.go` | Document pane lifecycle, native split cards and dividers, saved layout |
 | `copy.go` | Sidebar copy, paste and duplicate with attachments, undoable through the system trash |
+| `host.go` | Panel hosts: App accessors, cross-feature questions and `wirePanels` |
 | `versions.go` | Version history window (`versionsPanel` behind `versionsHost`) |
 | `theme.go` | Design tokens: the space-tinted theme and chrome colors |
 

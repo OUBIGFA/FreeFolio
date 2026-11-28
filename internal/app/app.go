@@ -96,15 +96,8 @@ type startupDocPrefetch struct {
 type App struct {
 	controlRead map[place]string
 
-	dbCatalog map[string]*databaseCatalog
-	dbLoads   map[string]*databaseLoad
-
-	copied          []place
-	recentCopies    []*place
-	pendingDupUndo  *place
 	openAfterRename string
 
-	boardImages  []*boardImageWindow
 	imports      noteImportState
 	quick        quickNoteState
 	cleanup      cleanupState
@@ -221,12 +214,19 @@ type App struct {
 	palette  palette
 	newModal newModalState
 	// qa is the panel of questions about the space (qa.go).
-	qa        qaState
-	resources resourceState
-	bookmarks bookmarkFeature
-	boardAI   whiteboardAIFeature
-	mdzFiles  mdzFeature // MDZip reading, export and unpacking
-	chatgpt   chatGPTState
+	qa          qaState
+	resources   resourceState
+	bookmarks   bookmarkFeature
+	boardAI     whiteboardAIFeature
+	databases   databaseFeature
+	boardImages boardImageFeature
+	pdfExports  pdfExportFeature
+	clipboard   copyFeature
+	sourceMode  sourceFeature
+	links       linkFeature
+	zoom        pageZoomFeature
+	mdzFiles    mdzFeature // MDZip reading, export and unpacking
+	chatgpt     chatGPTState
 	// pager is the strip of spaces the sidebar pages along (spaceswitch.go),
 	// and pageTrees the folders of the spaces it shows beside the active
 	// one; now and reduceMotion are this frame's clock and the system's
@@ -341,7 +341,6 @@ type App struct {
 	bin      trashbin.Bin
 	// printFile, when set, takes the PDF to print in place of the system's
 	// viewer: tests answer it.
-	pdfExport *pdfExport
 	printFile func(path string)
 	// trashFile, when set, moves a file to the trash in place of the
 	// system: tests answer it.
@@ -365,15 +364,6 @@ type App struct {
 	cachedEditorBindings map[string]editor.Combo
 	cachedReserved       []editor.Combo
 	cachedBookmarkKey    string
-
-	dbPeek            dbPeekState
-	pageDBCache       map[string]*pageDBEntry
-	embedDBs          map[string]*embedDBEntry
-	dbViewListCache   map[string]*sidebarDBMeta
-	dbThumbCache      map[string]cachedImage
-	dbThumbOrder      []string
-	dbViewRename      sidebarDBViewRename
-	pagePropsExpanded map[string]bool
 
 	agentIPC           *agentIPCServer
 	agentHomeDir       string
@@ -751,7 +741,7 @@ func (a *App) Run() error {
 				a.win.Hide()
 				return
 			}
-			a.cancelPDF()
+			a.pdfExports.cancelPDF()
 			a.cloud.cancelCloudSync()
 			a.gitSync.cancelGit()
 			a.resources.cancelResourceDownloads()
@@ -1012,7 +1002,7 @@ func (a *App) session(id string) *spaceSession {
 // refreshTree reads the active space's folder again, at once: what follows
 // a file operation looks for its result in the tree.
 func (a *App) refreshTree() {
-	a.invalidatePageDBCache("")
+	a.databases.invalidatePageDBCache("")
 	sp := a.state.ActiveSpace()
 	if sp == nil {
 		a.treeFor = ""
@@ -1301,18 +1291,18 @@ func (a *App) showIn(sp *space.Space, rel string) bool {
 		if (prev == nil || prev.space != sp || prev.rel != rel) && !sp.IsExternal() {
 			sp.SetExpanded(rel, true)
 		}
-		a.refreshOpenDatabases(sp.ID)
+		a.databases.refreshOpenDatabases(sp.ID)
 	}
-	if a.dbPeek.open && a.dbPeek.dbDoc != nil && a.dbPeek.dbDoc != a.doc {
+	if a.databases.dbPeek.open && a.databases.dbPeek.dbDoc != nil && a.databases.dbPeek.dbDoc != a.doc {
 		stillOpen := false
 		for _, r := range a.residentDocuments() {
-			if r == a.dbPeek.dbDoc {
+			if r == a.databases.dbPeek.dbDoc {
 				stillOpen = true
 				break
 			}
 		}
 		if !stillOpen {
-			a.closeRecordPeek()
+			a.databases.closeRecordPeek()
 		}
 	}
 	var oldSession *document
@@ -1378,7 +1368,7 @@ func (a *App) reveal(rel string) {
 	changed := false
 	for i := len(dirs) - 1; i >= 0; i-- {
 		dir := dirs[i]
-		if a.isFoldedDBDir(sp, dir) && !sp.IsExpanded(dir) {
+		if a.databases.isFoldedDBDir(sp, dir) && !sp.IsExpanded(dir) {
 			break
 		}
 		if !sp.IsExpanded(dir) {
@@ -1558,7 +1548,7 @@ func (a *App) followTitle() {
 		if i > 1 {
 			want = fmt.Sprintf("%s %d", title, i)
 		}
-		sources := a.renameSources(sp, d.rel)
+		sources := a.links.renameSources(sp, d.rel)
 		to, err := renameFile(sp, d.rel, want)
 		if errors.Is(err, vault.ErrExists) {
 			continue
@@ -1575,7 +1565,7 @@ func (a *App) followTitle() {
 		if to != from {
 			a.moved(sp, from, to)
 			if !isUntitled(name) {
-				a.relink(name, vault.Title(to), sources)
+				a.links.relink(name, vault.Title(to), sources)
 			}
 		}
 		if d.source {
@@ -1630,7 +1620,7 @@ func (a *App) startRename(rel string) {
 // renameIn edits the name of the file or folder at rel of the space sp: in
 // its row, or under its tile for a favorite, which may be another space's.
 func (a *App) renameIn(sp *space.Space, rel string) {
-	a.flushPendingDupUndo("", "")
+	a.clipboard.flushPendingDupUndo("", "")
 	a.renaming, a.renameSpace, a.renameFocused, a.openAfterRename = rel, sp.ID, false, ""
 	if sp.IsExternal() {
 		rel = filepath.Base(sp.ExternalFiles[rel])
@@ -1659,9 +1649,9 @@ func (a *App) finishRename(openDuplicate bool) {
 	final := rel
 	defer func() {
 		if sp != nil {
-			a.flushPendingDupUndo(sp.ID, final)
+			a.clipboard.flushPendingDupUndo(sp.ID, final)
 		} else {
-			a.flushPendingDupUndo("", "")
+			a.clipboard.flushPendingDupUndo("", "")
 		}
 	}()
 	if rel == "" || name == "" || sp == nil {
@@ -1675,7 +1665,7 @@ func (a *App) finishRename(openDuplicate bool) {
 		rel = renaming.rel
 		final = rel
 	}
-	sources := a.renameSources(sp, rel)
+	sources := a.links.renameSources(sp, rel)
 	a.releasePDFHandles(sp, rel)
 	to, err := renameFile(sp, rel, name)
 	if err != nil {
@@ -1687,7 +1677,7 @@ func (a *App) finishRename(openDuplicate bool) {
 	if to != rel {
 		a.moved(sp, rel, to)
 		if vault.IsDocument(rel) {
-			a.relink(vault.Title(rel), vault.Title(to), sources)
+			a.links.relink(vault.Title(rel), vault.Title(to), sources)
 		}
 	} else {
 		a.reopenResidentPDFs(sp, rel)
@@ -1757,7 +1747,7 @@ func (a *App) moved(sp *space.Space, from, to string) {
 	}
 	a.followOpen(sp.ID, from, sp.ID, to)
 	a.followSplitPaths(sp.ID, from, sp.ID, to)
-	a.followDatabaseRecordMove(sp, from, to)
+	a.databases.followDatabaseRecordMove(sp, from, to)
 	a.saveState()
 	a.refreshTree()
 }
@@ -1794,7 +1784,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 	a.doc = nil
 	a.renaming = ""
 	a.openAfterRename = ""
-	a.flushPendingDupUndo("", "")
+	a.clipboard.flushPendingDupUndo("", "")
 	a.syncTree()
 	a.pager.swipe = 0
 	a.pagerSettle(a.spaceIndex(id), from)
@@ -2038,7 +2028,7 @@ func (a *App) exportMarkdown() {
 		a.notify("导出失败；%v", err)
 		return
 	}
-	rel, err := vault.CreateFile(root, path.Dir(name), a.doc.title()+" Export", ".md", editor.ExportMarkdown(a.documentForExport(a.doc)))
+	rel, err := vault.CreateFile(root, path.Dir(name), a.doc.title()+" Export", ".md", editor.ExportMarkdown(a.databases.documentForExport(a.doc)))
 	if err != nil {
 		a.notify("导出失败；%v", err)
 		return

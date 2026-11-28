@@ -193,15 +193,15 @@ func (a *App) actions() []action {
 	if a.palette.pane != nil {
 		return out
 	}
-	if a.canZoomPage(a.doc) {
-		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("放大页面"), run: func() { a.stepPageZoom(1) }}, action{kind: i18n.T("命令"), title: i18n.T("缩小页面"), run: func() { a.stepPageZoom(-1) }}, action{kind: i18n.T("命令"), title: i18n.T("重置页面缩放"), run: a.resetPageZoom})
+	if a.zoom.canZoomPage(a.doc) {
+		out = append(out, action{kind: i18n.T("命令"), title: i18n.T("放大页面"), run: func() { a.zoom.stepPageZoom(1) }}, action{kind: i18n.T("命令"), title: i18n.T("缩小页面"), run: func() { a.zoom.stepPageZoom(-1) }}, action{kind: i18n.T("命令"), title: i18n.T("重置页面缩放"), run: a.zoom.resetPageZoom})
 	}
 	if d := a.doc; d != nil && d.source {
 		label := i18n.T("源码模式：开启分栏预览")
 		if d.sourceSplit {
 			label = i18n.T("源码模式：关闭分栏预览")
 		}
-		out = append(out, action{kind: i18n.T("命令"), title: label, run: func() { a.toggleSourceSplit(d) }}, action{kind: i18n.T("命令"), title: i18n.T("源码模式：对调左右分栏"), run: a.swapSourceSplit})
+		out = append(out, action{kind: i18n.T("命令"), title: label, run: func() { a.sourceMode.toggleSourceSplit(d) }}, action{kind: i18n.T("命令"), title: i18n.T("源码模式：对调左右分栏"), run: a.sourceMode.swapSourceSplit})
 	}
 
 	for _, s := range a.state.Spaces {
@@ -258,7 +258,7 @@ func (a *App) actions() []action {
 			cmd(i18n.T("在分屏中打开已选文档"), "", func() { a.openPickedInSplit(sp, docs) })
 		}
 		g := slices.Clone(group)
-		cmd(fmt.Sprintf(i18n.T("复制已选 %d 项"), len(g)), "", func() { a.copyEntries(sp, g) })
+		cmd(fmt.Sprintf(i18n.T("复制已选 %d 项"), len(g)), "", func() { a.clipboard.copyEntries(sp, g) })
 		cmd(fmt.Sprintf(i18n.T("将已选 %d 项移到废纸篓"), len(g)), "", func() { a.trashGroup(g) })
 		cmd(i18n.T("取消侧边栏多选"), "Esc", func() { a.clearPicks("") })
 	}
@@ -284,13 +284,13 @@ func (a *App) actions() []action {
 	if !active.IsExternal() {
 		cmd(i18n.T("新建文档"), a.keyLabel("new-doc"), func() { a.newDoc(dir) })
 		cmd(i18n.T("新建白板"), a.keyLabel("new-board"), func() { a.newWhiteboard(dir) })
-		cmd(i18n.T("新建数据库"), a.keyLabel("new-database"), func() { a.newDatabase(dir) })
-		cmd(i18n.T("从 CSV 导入数据库…"), "", func() { a.pickAndImportCSV(nil) })
-		cmd(i18n.T("从 Notion 导出导入 (ZIP)…"), "", a.pickAndImportNotionZIP)
-		cmd(i18n.T("从 Notion 导出导入 (文件夹)…"), "", a.pickAndImportNotionFolder)
+		cmd(i18n.T("新建数据库"), a.keyLabel("new-database"), func() { a.databases.newDatabase(dir) })
+		cmd(i18n.T("从 CSV 导入数据库…"), "", func() { a.databases.pickAndImportCSV(nil) })
+		cmd(i18n.T("从 Notion 导出导入 (ZIP)…"), "", a.databases.pickAndImportNotionZIP)
+		cmd(i18n.T("从 Notion 导出导入 (文件夹)…"), "", a.databases.pickAndImportNotionFolder)
 		cmd(i18n.T("新建文件夹"), a.keyLabel("new-folder"), func() { a.newFolder(dir) })
-		if a.canPasteInto(active, dir) {
-			cmd(i18n.T("粘贴到当前文件夹"), "", func() { a.pasteInto(active, dir, "") })
+		if a.clipboard.canPasteInto(active, dir) {
+			cmd(i18n.T("粘贴到当前文件夹"), "", func() { a.clipboard.pasteInto(active, dir, "") })
 		}
 		cmd(i18n.T("今日笔记"), a.keyLabel("daily"), a.openDaily)
 		for _, t := range a.spaceTemplates(a.state.ActiveSpace()) {
@@ -507,9 +507,9 @@ func (a *App) actions() []action {
 			}
 		} else if a.doc.isDatabase() {
 			dbDoc := a.doc
-			cmd(i18n.T("导出 CSV 文件"), "", func() { _, _ = a.exportDatabaseCSV(dbDoc) })
+			cmd(i18n.T("导出 CSV 文件"), "", func() { _, _ = a.databases.exportDatabaseCSV(dbDoc) })
 			if !sp.IsExternal() {
-				cmd(i18n.T("向当前数据库导入 CSV…"), "", func() { a.pickAndImportCSV(dbDoc) })
+				cmd(i18n.T("向当前数据库导入 CSV…"), "", func() { a.databases.pickAndImportCSV(dbDoc) })
 				cmd(i18n.T("新建记录"), "", func() {
 					if rec, err := dbDoc.dbView.Store.CreateRecord(i18n.T("无标题"), nil, ""); err == nil && rec != nil {
 						dbDoc.dbDirtySnapshot = true
@@ -519,12 +519,12 @@ func (a *App) actions() []action {
 				})
 				cmd(i18n.T("撤销"), "⌘Z", func() {
 					if paths, ok := dbDoc.dbView.Store.Undo(); ok {
-						a.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
+						a.databases.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
 					}
 				})
 				cmd(i18n.T("重做"), "⇧⌘Z", func() {
 					if paths, ok := dbDoc.dbView.Store.Redo(); ok {
-						a.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
+						a.databases.syncDatabaseEditsToDocs(sp, dbDoc, dbDoc.dbView.Store, paths)
 					}
 				})
 			}
@@ -537,16 +537,16 @@ func (a *App) actions() []action {
 			}
 			cmd(mode, a.keyLabel("source"), a.toggleSource)
 			cmd(i18n.T("版本历史"), a.keyLabel("history"), a.versions.show)
-			cmd(i18n.T("导出 PDF"), a.keyLabel("export-pdf"), a.exportPDF)
-			cmd(i18n.T("打印"), "", a.printDoc)
+			cmd(i18n.T("导出 PDF"), a.keyLabel("export-pdf"), a.pdfExports.exportPDF)
+			cmd(i18n.T("打印"), "", a.pdfExports.printDoc)
 		}
 		cmd(i18n.T("重命名文档"), "", func() { a.renameIn(sp, rel) })
 		// Only a registered space is a copy source; the file browser's
 		// locations are not one.
 		if a.state.Get(sp.ID) == sp {
-			cmd(i18n.T("复制当前文档"), "", func() { a.copyEntries(sp, []string{rel}) })
+			cmd(i18n.T("复制当前文档"), "", func() { a.clipboard.copyEntries(sp, []string{rel}) })
 			if !sp.IsExternal() {
-				cmd(i18n.T("创建当前文档副本"), "", func() { a.duplicateEntry(sp, rel) })
+				cmd(i18n.T("创建当前文档副本"), "", func() { a.clipboard.duplicateEntry(sp, rel) })
 			}
 		}
 		if formatDoc && a.doc.loadErr == nil && !a.doc.boardLoading {
@@ -591,7 +591,7 @@ func (a *App) results() []action {
 		return a.idleResults()
 	}
 	if strings.HasPrefix(strings.TrimSpace(q), "#") {
-		return a.tagResults(q)
+		return a.links.tagResults(q)
 	}
 	type scored struct {
 		action
@@ -911,7 +911,7 @@ func (a *App) editorActions(cmd func(string, string, func())) {
 	}
 	hasDB := false
 	if a.doc != nil {
-		store, _, _, _ := a.owningDatabaseFor(a.doc)
+		store, _, _, _ := a.databases.owningDatabaseFor(a.doc)
 		hasDB = store != nil
 	}
 	if !hasDB {

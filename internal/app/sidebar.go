@@ -310,11 +310,11 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 					}
 					if tree.Shortcut(ui.Cmd, ui.KeyC) {
 						if group := a.activePickedGroup(); len(group) > 0 {
-							a.copyEntries(sp, group)
+							a.clipboard.copyEntries(sp, group)
 						}
 					}
-					if tree.Shortcut(ui.Cmd, ui.KeyV) && a.canPasteInto(sp, "") {
-						a.pasteInto(sp, "", "")
+					if tree.Shortcut(ui.Cmd, ui.KeyV) && a.clipboard.canPasteInto(sp, "") {
+						a.clipboard.pasteInto(sp, "", "")
 					}
 				}
 			}
@@ -367,8 +367,8 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 							a.folderContent(c, sp, n, 1, live, prev)
 						}
 						if vault.IsDatabase(n.Path) {
-							a.databaseViewTree(c, sp, n, 1, live)
-							if mdir := a.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
+							a.databases.databaseViewTree(c, sp, n, 1, live)
+							if mdir := a.databases.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
 								a.databaseManagedFolderContent(c, sp, mdir, 1, live, prev)
 							}
 						}
@@ -707,8 +707,8 @@ func (a *App) nodes(c *ui.Context, sp *space.Space, nodes []*vault.Node, depth i
 		if n.Dir {
 			a.folderContent(c, sp, n, depth+1, live, prev)
 		} else if vault.IsDatabase(n.Path) {
-			a.databaseViewTree(c, sp, n, depth+1, live)
-			if mdir := a.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
+			a.databases.databaseViewTree(c, sp, n, depth+1, live)
+			if mdir := a.databases.managedFolderFor(sp, n); mdir != nil && !sp.IsPinned(mdir.Path) {
 				a.databaseManagedFolderContent(c, sp, mdir, depth+1, live, prev)
 			}
 		}
@@ -1143,7 +1143,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			}
 			if !n.Dir && vault.IsDatabase(n.Path) {
 				viewsOpen := sp.IsExpanded(n.Path)
-				mdir := a.managedFolderFor(sp, n)
+				mdir := a.databases.managedFolderFor(sp, n)
 				if mdir != nil && sp.IsPinned(mdir.Path) {
 					mdir = nil
 				}
@@ -1222,15 +1222,15 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	})
 	if !renaming && a.renaming == "" && !c.FocusTakesText() {
 		if row.Shortcut(ui.Cmd, ui.KeyC) {
-			a.copyEntries(sp, a.dragGroup(sp.ID, n.Path))
+			a.clipboard.copyEntries(sp, a.dragGroup(sp.ID, n.Path))
 		}
 		// Pasting on a folder fills it; on a document, or a folder that
 		// cannot take the copies, the copies land right after the row.
 		if row.Shortcut(ui.Cmd, ui.KeyV) {
-			if n.Dir && a.canPasteInto(sp, n.Path) {
-				a.pasteInto(sp, n.Path, "")
-			} else if a.canPasteInto(sp, parentDir(n.Path)) {
-				a.pasteInto(sp, parentDir(n.Path), n.Path)
+			if n.Dir && a.clipboard.canPasteInto(sp, n.Path) {
+				a.clipboard.pasteInto(sp, n.Path, "")
+			} else if a.clipboard.canPasteInto(sp, parentDir(n.Path)) {
+				a.clipboard.pasteInto(sp, parentDir(n.Path), n.Path)
 			}
 		}
 	}
@@ -1263,7 +1263,7 @@ func (a *App) renameField(c *ui.Context) {
 	switch {
 	case c.Shortcut(0, ui.KeyEscape):
 		a.renaming, a.openAfterRename = "", ""
-		a.flushPendingDupUndo("", "")
+		a.clipboard.flushPendingDupUndo("", "")
 	case in.Submitted():
 		a.commitRename()
 	case a.renameFocused && !in.Focused():
@@ -1283,7 +1283,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
-		a.copyMenu(m, sp, n.Path, n.Path, "")
+		a.clipboard.copyMenu(m, sp, n.Path, n.Path, "")
 		m.Separator()
 		if m.Item(i18n.T("新建文档")).Chosen() {
 			a.newDoc(n.Path)
@@ -1292,7 +1292,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 			a.newWhiteboard(n.Path)
 		}
 		if a.menuKey(m.Item(i18n.T("新建数据库")), "new-database").Chosen() {
-			a.newDatabase(n.Path)
+			a.databases.newDatabase(n.Path)
 		}
 		a.templateMenu(m, n.Path)
 		if m.Item(i18n.T("在其中新建文件夹")).Chosen() {
@@ -1338,7 +1338,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 			a.openInWindow(sp, n.Path)
 		}
 		if vault.IsDatabase(n.Path) {
-			a.databaseNodeMenu(m, sp, n)
+			a.databases.databaseNodeMenu(m, sp, n)
 		}
 		if inPins(sp, n.Path) && a.isOpen(sp, n.Path) {
 			if m.Item(i18n.T("关闭并保持置顶")).Chosen() {
@@ -1360,7 +1360,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
-		a.copyMenu(m, sp, n.Path, parentDir(n.Path), n.Path)
+		a.clipboard.copyMenu(m, sp, n.Path, parentDir(n.Path), n.Path)
 		m.Separator()
 		if sp.IsExternal() {
 			a.spacesMenu(m, sp, n.Path)
@@ -1433,7 +1433,7 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 		a.newWhiteboard("")
 	}
 	if a.menuKey(m.Item(i18n.T("新建数据库")), "new-database").Chosen() {
-		a.newDatabase("")
+		a.databases.newDatabase("")
 	}
 	a.templateMenu(m, "")
 	a.sortMenu(m, sp)
@@ -1443,8 +1443,8 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	if m.Item(i18n.T("新建文件夹")).Shortcut(ui.Cmd|ui.Shift, ui.KeyN).Chosen() {
 		a.newFolder("")
 	}
-	if m.Item(a.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!a.canPasteInto(sp, "")).Chosen() {
-		a.pasteInto(sp, "", "")
+	if m.Item(a.clipboard.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!a.clipboard.canPasteInto(sp, "")).Chosen() {
+		a.clipboard.pasteInto(sp, "", "")
 	}
 	m.Separator()
 	if m.Item(i18n.T("在文件管理器中显示")).Chosen() {

@@ -260,7 +260,7 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 			a.renameIn(sp, f.Path)
 		}
 		if m.Item(i18n.T("复制")).Shortcut(ui.Cmd, ui.KeyC).Disabled(sp == nil).Chosen() {
-			a.copyEntries(sp, []string{f.Path})
+			a.clipboard.copyEntries(sp, []string{f.Path})
 		}
 		if m.Item(i18n.T("从收藏中移除")).Chosen() {
 			a.toggleFavorite(sp, f.Path)
@@ -270,7 +270,7 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		}
 	})
 	if sp != nil && a.renaming == "" && !c.FocusTakesText() && tile.Shortcut(ui.Cmd, ui.KeyC) {
-		a.copyEntries(sp, []string{f.Path})
+		a.clipboard.copyEntries(sp, []string{f.Path})
 	}
 	if tile.Clicked() {
 		a.openFavorite(f)

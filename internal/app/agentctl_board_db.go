@@ -667,12 +667,12 @@ func (a *App) attachRelationHost(sp *space.Space, st *database.Store) {
 func (a *App) openDBStoreForControl(sp *space.Space, rel string) (st *database.Store, liveDoc *document, err error) {
 	if res := a.residentDocument(sp.ID, rel); res != nil && res.isDatabase() && res.loadErr == nil {
 		a.attachRelationHost(sp, res.dbView.Store)
-		_, _ = res.dbView.Store.Refresh(a.liveDocsForSpace(sp))
+		_, _ = res.dbView.Store.Refresh(a.databases.liveDocsForSpace(sp))
 		res.dbView.Store.InvalidateComputed()
 		return res.dbView.Store, res, nil
 	}
 	spaceRoot, dbRel := databaseSpaceRoot(sp, rel)
-	st, err = database.Open(spaceRoot, dbRel, a.liveDocsForSpace(sp))
+	st, err = database.Open(spaceRoot, dbRel, a.databases.liveDocsForSpace(sp))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -823,7 +823,7 @@ func (a *App) ctlDatabaseSchema(raw []byte) (any, error) {
 				}
 			}
 		}
-		_, _ = st.Refresh(a.liveDocsForSpace(sp))
+		_, _ = st.Refresh(a.databases.liveDocsForSpace(sp))
 
 		if len(p.Views) > 0 {
 			for idx, vin := range p.Views {
@@ -858,8 +858,8 @@ func (a *App) ctlDatabaseSchema(raw []byte) (any, error) {
 		}
 
 		if liveDoc != nil {
-			if a.dbPeek.open && a.dbPeek.dbDoc == liveDoc {
-				a.closeRecordPeek()
+			if a.databases.dbPeek.open && a.databases.dbPeek.dbDoc == liveDoc {
+				a.databases.closeRecordPeek()
 			}
 			liveDoc.loadErr = nil
 			liveDoc.dbView = dbview.NewState(st)
@@ -940,7 +940,7 @@ func (a *App) ctlDatabaseSchema(raw []byte) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := a.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
+		if err := a.databases.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
 			return nil, err
 		}
 		if err := a.saveDBStoreForControl(sp, dbRel, st, liveDoc); err != nil {
@@ -961,7 +961,7 @@ func (a *App) ctlDatabaseSchema(raw []byte) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := a.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
+		if err := a.databases.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
 			return nil, err
 		}
 		if err := a.saveDBStoreForControl(sp, dbRel, st, liveDoc); err != nil {
@@ -1209,7 +1209,7 @@ func (a *App) ctlDatabaseRecords(raw []byte) (any, error) {
 			if sErr != nil {
 				return nil, sErr
 			}
-			if err := a.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
+			if err := a.databases.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
 				return nil, err
 			}
 		}
@@ -1228,7 +1228,7 @@ func (a *App) ctlDatabaseRecords(raw []byte) (any, error) {
 				if err := a.commitMarkdownForControl(sp, updated.Path, nextBody); err != nil {
 					return nil, err
 				}
-				_, _ = st.Refresh(a.liveDocsForSpace(sp))
+				_, _ = st.Refresh(a.databases.liveDocsForSpace(sp))
 				updated = st.Record(rec.ID)
 			} else {
 				updated.Body = *p.Body
@@ -1237,9 +1237,9 @@ func (a *App) ctlDatabaseRecords(raw []byte) (any, error) {
 				if liveDoc != nil {
 					liveDoc.dbDirtySnapshot = true
 				}
-				if a.dbPeek.open && a.dbPeek.recordID == updated.ID &&
-					(a.dbPeek.dbDoc == nil || a.dbPeek.dbDoc == liveDoc || (a.dbPeek.dbDoc.space == sp && a.dbPeek.dbDoc.rel == dbRel)) {
-					a.dbPeek.inlineBody = *p.Body
+				if a.databases.dbPeek.open && a.databases.dbPeek.recordID == updated.ID &&
+					(a.databases.dbPeek.dbDoc == nil || a.databases.dbPeek.dbDoc == liveDoc || (a.databases.dbPeek.dbDoc.space == sp && a.databases.dbPeek.dbDoc.rel == dbRel)) {
+					a.databases.dbPeek.inlineBody = *p.Body
 				}
 			}
 		}
@@ -1274,9 +1274,9 @@ func (a *App) ctlDatabaseRecords(raw []byte) (any, error) {
 		if dErr != nil {
 			return nil, dErr
 		}
-		if a.dbPeek.open && (a.dbPeek.recordID == rec.ID || (backingPath != "" && a.dbPeek.recordID == backingPath)) &&
-			(a.dbPeek.dbDoc == nil || a.dbPeek.dbDoc == liveDoc || (a.dbPeek.dbDoc.space == sp && a.dbPeek.dbDoc.rel == dbRel)) {
-			a.closeRecordPeek()
+		if a.databases.dbPeek.open && (a.databases.dbPeek.recordID == rec.ID || (backingPath != "" && a.databases.dbPeek.recordID == backingPath)) &&
+			(a.databases.dbPeek.dbDoc == nil || a.databases.dbPeek.dbDoc == liveDoc || (a.databases.dbPeek.dbDoc.space == sp && a.databases.dbPeek.dbDoc.rel == dbRel)) {
+			a.databases.closeRecordPeek()
 		}
 		var trashInfo map[string]any
 		if backingPath != "" && !sp.IsExternal() {
@@ -1332,7 +1332,7 @@ func (a *App) createDBRecordForControl(sp *space.Space, liveDoc *document, st *d
 		if sErr != nil {
 			return nil, sErr
 		}
-		if err := a.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
+		if err := a.databases.flushDatabaseEditsToDocs(sp, liveDoc, st, affected); err != nil {
 			return nil, err
 		}
 		if updated := st.Record(rec.ID); updated != nil {

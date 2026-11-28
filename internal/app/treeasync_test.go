@@ -78,15 +78,15 @@ func TestSidebarDatabasePairingFollowsRefreshedTree(t *testing.T) {
 	folder := &vault.Node{Name: "Tasks", Path: "Tasks", Dir: true}
 	db := &vault.Node{Name: "Tasks.db.md", Path: "Tasks.db.md"}
 	a.setTree(sp, []*vault.Node{folder, db}, nil)
-	if !a.isFoldedDBFolder(sp, folder) || a.managedFolderFor(sp, db) != folder {
+	if !a.databases.isFoldedDBFolder(sp, folder) || a.databases.managedFolderFor(sp, db) != folder {
 		t.Fatal("database did not own its sibling folder")
 	}
 	a.setTree(sp, []*vault.Node{folder}, nil)
-	if a.isFoldedDBFolder(sp, folder) {
+	if a.databases.isFoldedDBFolder(sp, folder) {
 		t.Fatal("removed database still hides its folder")
 	}
 	a.setTree(sp, []*vault.Node{db}, nil)
-	if a.managedFolderFor(sp, db) != nil {
+	if a.databases.managedFolderFor(sp, db) != nil {
 		t.Fatal("removed folder still belongs to the database")
 	}
 }

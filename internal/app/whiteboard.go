@@ -403,9 +403,9 @@ func (a *App) boardOptions(c *ui.Context, d *document) editor.BoardOptions {
 // boardOptionsWith are a board's options outside a view, as OneBot's
 // whiteboard tools edit it; theme may be nil there.
 func (a *App) boardOptionsWith(theme *ui.Theme, d *document) editor.BoardOptions {
-	o := editor.BoardOptions{Theme: theme, Page: pageStyle(a.paperDark), ReadOnly: d.ed.ReadOnly, OnChange: func() { a.boardChanged(d) }, OpenLink: a.followLink, OpenWiki: func(name string, split bool) { a.withDocument(d, func() { a.openWiki(name) }) }, WikiSuggest: func(q string) []string {
+	o := editor.BoardOptions{Theme: theme, Page: pageStyle(a.paperDark), ReadOnly: d.ed.ReadOnly, OnChange: func() { a.boardChanged(d) }, OpenLink: a.followLink, OpenWiki: func(name string, split bool) { a.withDocument(d, func() { a.links.openWiki(name) }) }, WikiSuggest: func(q string) []string {
 		var names []string
-		for _, item := range a.wikiSuggestFor(d, q) {
+		for _, item := range a.links.wikiSuggestFor(d, q) {
 			names = append(names, item.Name)
 		}
 		return names

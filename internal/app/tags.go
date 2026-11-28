@@ -70,7 +70,7 @@ func (a *App) renameTag(from, to string) {
 	}
 	var files []replacedFile
 	var places []place
-	a.eachDoc(func(sp *space.Space, n *vault.Node) bool {
+	a.links.eachDoc(func(sp *space.Space, n *vault.Node) bool {
 		places = append(places, place{sp.ID, n.Path})
 		return true
 	})

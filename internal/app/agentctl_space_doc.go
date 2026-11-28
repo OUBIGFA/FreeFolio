@@ -404,7 +404,7 @@ func (a *App) ctlSpaceRemove(raw []byte) (any, error) {
 	if err := a.state.Remove(removedID); err != nil {
 		return nil, err
 	}
-	a.forgetCopiedSpace(removedID)
+	a.clipboard.forgetCopiedSpace(removedID)
 	delete(a.sessions, removedID)
 	delete(a.pageTrees, removedID)
 	if err := a.saveStateStrict(); err != nil {
@@ -990,12 +990,12 @@ func (a *App) finishDocPostActions(sp *space.Space, rel string, pin, fav, open b
 	}
 	delete(a.pageTrees, sp.ID)
 	a.invalidateResolvedImages()
-	a.invalidatePageDBCache(sp.ID)
+	a.databases.invalidatePageDBCache(sp.ID)
 	if a.state.ActiveSpace() == sp {
 		a.refreshTree()
 	}
 	if a.isLiveWindow() {
-		a.refreshOpenDatabases(sp.ID)
+		a.databases.refreshOpenDatabases(sp.ID)
 		a.refreshSearch()
 		if open {
 			if a.state.ActiveSpace() != sp {
@@ -1373,8 +1373,8 @@ func (a *App) commitMarkdownForControl(sp *space.Space, rel, nextText string) er
 			return err
 		}
 		a.refreshSearch()
-		a.invalidatePageDBCache(sp.ID)
-		a.refreshOpenDatabases(sp.ID)
+		a.databases.invalidatePageDBCache(sp.ID)
+		a.databases.refreshOpenDatabases(sp.ID)
 		return nil
 	}
 
@@ -1416,12 +1416,12 @@ func (a *App) noteExternalWrite(sp *space.Space, rel string) {
 	}
 	delete(a.pageTrees, sp.ID)
 	a.invalidateResolvedImages()
-	a.invalidatePageDBCache(sp.ID)
+	a.databases.invalidatePageDBCache(sp.ID)
 	if a.state.ActiveSpace() == sp {
 		a.refreshTree()
 	}
 	if a.isLiveWindow() {
-		a.refreshOpenDatabases(sp.ID)
+		a.databases.refreshOpenDatabases(sp.ID)
 		a.refreshSearch()
 	}
 }
@@ -1521,7 +1521,7 @@ func (a *App) ctlDocOrganize(raw []byte) (any, error) {
 		if a.isLiveWindow() && !a.flush() {
 			return nil, errors.New(i18n.T("请先保存文档并解决文件冲突"))
 		}
-		sources := a.renameSources(sp, rel)
+		sources := a.links.renameSources(sp, rel)
 		a.releasePDFHandles(sp, rel)
 		to, renErr := renameFile(sp, rel, newName)
 		if renErr != nil {
@@ -1534,7 +1534,7 @@ func (a *App) ctlDocOrganize(raw []byte) (any, error) {
 				a.relinkAttachments(sp, map[string]string{rel: to})
 			}
 			if vault.IsDocument(rel) {
-				a.relink(vault.Title(rel), vault.Title(to), sources)
+				a.links.relink(vault.Title(rel), vault.Title(to), sources)
 			}
 		} else {
 			a.reopenResidentPDFs(sp, rel)
@@ -1596,7 +1596,7 @@ func (a *App) ctlDocOrganize(raw []byte) (any, error) {
 		} else {
 			_ = history.Forget(sp.Root, rel)
 			a.state.MovedAcross(sp.ID, rel, dst.ID, to)
-			a.followCopied(sp.ID, rel, dst.ID, to)
+			a.clipboard.followCopied(sp.ID, rel, dst.ID, to)
 			a.followOpen(sp.ID, rel, dst.ID, to)
 			a.followSplitPaths(sp.ID, rel, dst.ID, to)
 			if toDir != "" {
@@ -1800,9 +1800,9 @@ func (a *App) safeTrashInSpace(sp *space.Space, rel string) (map[string]any, err
 		}
 		return nil, err
 	}
-	if a.dbPeek.open && ((a.dbPeek.doc != nil && a.dbPeek.doc.space == sp && within(a.dbPeek.doc.rel, rel)) ||
-		(a.dbPeek.dbDoc != nil && a.dbPeek.dbDoc.space == sp && (within(a.dbPeek.dbDoc.rel, rel) || within(a.dbPeek.recordID, rel)))) {
-		a.closeRecordPeek()
+	if a.databases.dbPeek.open && ((a.databases.dbPeek.doc != nil && a.databases.dbPeek.doc.space == sp && within(a.databases.dbPeek.doc.rel, rel)) ||
+		(a.databases.dbPeek.dbDoc != nil && a.databases.dbPeek.dbDoc.space == sp && (within(a.databases.dbPeek.dbDoc.rel, rel) || within(a.databases.dbPeek.recordID, rel)))) {
+		a.databases.closeRecordPeek()
 	}
 	for _, d := range a.residentDocuments() {
 		if d.space == sp && within(d.rel, rel) {
@@ -1810,7 +1810,7 @@ func (a *App) safeTrashInSpace(sp *space.Space, rel string) (map[string]any, err
 		}
 	}
 	a.forgetPicks(sp.ID, rel)
-	a.forgetCopied(sp.ID, rel)
+	a.clipboard.forgetCopied(sp.ID, rel)
 	a.state.Forget(sp.ID, rel)
 	_ = a.saveStateStrict()
 	a.noteExternalWrite(sp, rel)
