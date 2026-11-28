@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"math"
 	"slices"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
@@ -73,8 +74,16 @@ type boardGroupCache struct {
 	regions   []whiteboard.GroupRegion
 }
 
+// boardGroupHeader is the on-screen height, in px, of one group title band.
+// Titles keep one readable size at every zoom, so each band is this tall on
+// screen and the region grows or shrinks in scene units as the zoom changes.
+const boardGroupHeader = 28
+
+// boardGroupTitleFont is the group title's on-screen font.
+var boardGroupTitleFont = ui.Font{Size: 15, Weight: 500}
+
 func (b *Board) groupRegions() []whiteboard.GroupRegion {
-	signature := uint64(len(b.Scene.Elements))
+	signature := uint64(len(b.Scene.Elements)) ^ math.Float64bits(b.Zoom)
 	for _, e := range b.Scene.Elements {
 		signature = (signature ^ uint64(e.Version) ^ uint64(e.VersionNonce)) * 1099511628211
 		if e.IsDeleted {
@@ -82,7 +91,17 @@ func (b *Board) groupRegions() []whiteboard.GroupRegion {
 		}
 	}
 	if b.groups.scene != b.Scene || b.groups.signature != signature {
-		b.groups = boardGroupCache{b.Scene, signature, b.Scene.GroupRegions()}
+		regions := b.Scene.GroupRegions()
+		// The scene reserves 28 units per header level; resize them to
+		// boardGroupHeader px at this zoom. Outer groups keep containing
+		// inner ones, as they reserve more levels.
+		zoom := max(b.Zoom, 0.01)
+		for i := range regions {
+			extra := float64(regions[i].Levels) * (boardGroupHeader/zoom - 28)
+			regions[i].Bounds.Y -= extra
+			regions[i].Bounds.H += extra
+		}
+		b.groups = boardGroupCache{b.Scene, signature, regions}
 	}
 	return b.groups.regions
 }
@@ -152,8 +171,16 @@ func (b *Board) paintGroups(p *ui.Painter, viewport whiteboard.Box, dark bool) {
 		if b.isolatedGroup == group.ID {
 			name += " · " + i18n.T("组内编辑中")
 		}
-		layout := b.aiCardTextFont("group-title:"+group.ID, name, 0, ui.Font{Size: 15, Weight: 500})
-		p.Clip(ui.Rect{X: r.X + 24, Y: r.Y + 10, W: max(0, r.W-48), H: 26}, 0, func() { p.TextLayout(layout, r.X+24, r.Y+12, ink) })
+		// Draw the title unscaled around the region's corner, so it keeps
+		// its on-screen size whatever the zoom.
+		layout := b.aiCardTextFont("group-title:"+group.ID, name, 0, boardGroupTitleFont)
+		zoom := float32(max(b.Zoom, 0.01))
+		p.Transform(ui.Scaling(1/zoom, 1/zoom), r.X, r.Y, func() {
+			p.Clip(ui.Rect{X: r.X + 24, Y: r.Y + 2, W: max(0, r.W*zoom-48), H: boardGroupHeader - 4}, 0, func() {
+				_, h := layout.Size()
+				p.TextLayout(layout, r.X+24, r.Y+(boardGroupHeader-h)/2, ink)
+			})
+		})
 	}
 }
 
@@ -164,15 +191,16 @@ func (b *Board) groupControls(c *ui.Context) {
 		return
 	}
 	for _, group := range b.groupRegions() {
-		x, y, w, _ := b.canvasRect(group.Bounds.X+24, group.Bounds.Y+8, group.Bounds.W-48, 28)
-		if x+w < 0 || y+28 < 0 || x > b.lastRect.W || y > b.lastRect.H {
+		left, y, width, _ := b.canvasRect(group.Bounds.X, group.Bounds.Y, group.Bounds.W, 0)
+		x, w := left+24, max(0, width-48)
+		if x+w < 0 || y+boardGroupHeader < 0 || x > b.lastRect.W || y > b.lastRect.H {
 			continue
 		}
 		name := group.Name
 		if name == "" {
 			name = i18n.T("分组")
 		}
-		button := ui.ButtonBase(c.Key("board-group:"+group.ID)).Absolute().Left(x).Top(y).Size(w, float32(28*b.Zoom)).Focusable().FocusRing(false).Label(name)
+		button := ui.ButtonBase(c.Key("board-group:"+group.ID)).Absolute().Left(x).Top(y).Size(w, boardGroupHeader).Focusable().FocusRing(false).Label(name)
 		if button.Clicked() {
 			if b.isolatedGroup == "" {
 				b.selectIDs(group.Members)

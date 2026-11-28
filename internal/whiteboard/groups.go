@@ -12,6 +12,9 @@ type GroupRegion struct {
 	Bounds   Box
 	Members  []string
 	Locked   bool
+	// Levels is how many nested group headers the region reserves above
+	// its members, 28 scene units each here; a zoomable view may resize them.
+	Levels int
 }
 
 func (s *Scene) GroupRegions() []GroupRegion {
@@ -38,7 +41,8 @@ func (s *Scene) GroupRegions() []GroupRegion {
 		}
 	}
 	for i := range out {
-		levels := float64(depths[out[i].ID] + 1)
+		out[i].Levels = depths[out[i].ID] + 1
+		levels := float64(out[i].Levels)
 		out[i].Bounds = out[i].Bounds.Expand(24 * levels)
 		out[i].Bounds.Y -= 28 * levels
 		out[i].Bounds.H += 28 * levels

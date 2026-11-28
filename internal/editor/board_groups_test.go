@@ -176,3 +176,39 @@ func TestGroupBackgroundCancelAndReadOnlyKeepPositions(t *testing.T) {
 		t.Fatal("read-only group moved")
 	}
 }
+
+// The group title keeps one on-screen size at every zoom: its header band and
+// its clickable title stay 28 px per nesting level, and the region still
+// contains its members.
+func TestGroupTitleKeepsScreenSizeAcrossZoom(t *testing.T) {
+	b, id := groupedBoard()
+	defer b.Close()
+	b.Selected = map[string]bool{}
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 1200, 800)
+	tt.Frame() // The first frame fits the board; the loop then sets each zoom.
+	members := whiteboard.SelectionBounds(b.Scene, b.groupRegions()[0].Members)
+	for _, zoom := range []float64{0.25, 0.5, 1, 2, 4} {
+		b.Zoom, b.PanX, b.PanY = zoom, 40, 300
+		tt.Frame()
+		var region whiteboard.GroupRegion
+		for _, g := range b.groupRegions() {
+			if g.ID == id {
+				region = g
+			}
+		}
+		header := (members.Y-region.Bounds.Y)*zoom - 24*zoom
+		if diff := header - boardGroupHeader; diff > 0.01 || diff < -0.01 {
+			t.Fatalf("zoom %v: header band is %.2f px, want %v", zoom, header, boardGroupHeader)
+		}
+		if !region.Bounds.Contains(whiteboard.Point{members.X, members.Y}) || !region.Bounds.Contains(whiteboard.Point{members.X + members.W, members.Y + members.H}) {
+			t.Fatalf("zoom %v: region %+v no longer contains members %+v", zoom, region.Bounds, members)
+		}
+		title, ok := tt.Find("分组")
+		if !ok || title.H < 27.5 || title.H > 28.5 {
+			t.Fatalf("zoom %v: title control is %+v, want 28 px tall", zoom, title)
+		}
+		if top := float32(region.Bounds.Y*zoom + b.PanY); title.Y < top || title.Y+title.H > top+boardGroupHeader+1 {
+			t.Fatalf("zoom %v: title %+v outside the header band at %v", zoom, title, top)
+		}
+	}
+}
