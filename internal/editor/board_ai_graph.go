@@ -79,6 +79,21 @@ func aiWidgetHeightFor(role whiteboard.AIRole, linkedPrompt bool) float32 {
 	return promptH + 6 + 26 + 4 + 26
 }
 
+func aiPromptHeightFor(n *whiteboard.AINode) float32 {
+	if aiImageBatchCount(n) > 1 {
+		return 44
+	}
+	return aiPromptHeight
+}
+
+func aiNodeWidgetHeight(n *whiteboard.AINode, linkedPrompt bool) float32 {
+	h := aiWidgetHeightFor(n.Role, linkedPrompt)
+	if !linkedPrompt && aiImageBatchCount(n) > 1 {
+		h -= aiPromptHeight - aiPromptHeightFor(n)
+	}
+	return h
+}
+
 // aiPreviewMin is the least room a role's result needs.
 func aiPreviewMin(role whiteboard.AIRole) float32 {
 	switch role {
@@ -111,7 +126,7 @@ func aiSlotRows(slots []whiteboard.AISlot, out string) int {
 func aiMinHeight(n *whiteboard.AINode) float64 {
 	rows := aiSlotRows(whiteboard.AISlots(n), whiteboard.AIOutputType(n.Role))
 	linkedPrompt := n.AcceptsPrompt() && n.LinkAt("prompt") != ""
-	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	wh := aiNodeWidgetHeight(n, linkedPrompt)
 	if n.Role == whiteboard.AIImage && n.Params.LoRAStrength != nil {
 		wh += 30
 	}
@@ -145,7 +160,7 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	}
 	linkedPrompt := b.Scene.AILinkSource(n, "prompt") != nil
 	top := l.slotTop + float32(aiSlotRows(l.slots, l.out))*aiSlotRow + 6
-	wh := aiWidgetHeightFor(n.Role, linkedPrompt)
+	wh := aiNodeWidgetHeight(n, linkedPrompt)
 	if n.Role == whiteboard.AIImage && n.Params.LoRAStrength != nil {
 		wh += 30
 	}
@@ -164,8 +179,11 @@ func (b *Board) aiLayout(e *whiteboard.Element, n *whiteboard.AINode) aiCardLayo
 	avail := max(0, h-aiFooter-8-outTop)
 	if n.ImageHistory() && len(n.Outputs) >= 2 {
 		histH := float32(26)
-		if b.aiHistory(e, n).compare {
+		if h := b.aiHistory(e, n); h.compare {
 			histH = 56
+			if h.mode != "two" && h.mode != "four" {
+				histH = 86
+			}
 		}
 		gap := float32(6)
 		prevH := max(0, avail-histH-gap)

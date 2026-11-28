@@ -75,8 +75,11 @@ func TestSplitPickerAndControls(t *testing.T) {
 	first := a.doc
 	tt.Key(ui.Ctrl|ui.Shift, ui.KeyEqual)
 	tt.Frame()
-	if a.split == nil || len(a.split.panes) != 2 || a.doc != nil || !a.palette.open {
-		t.Fatal("add split must focus an empty picker")
+	if a.split == nil || len(a.split.panes) != 2 || a.doc != nil || a.palette.open {
+		t.Fatal("add split must focus home without search")
+	}
+	if err := tt.Click("分屏 2 文档路径"); err != nil {
+		t.Fatal(err)
 	}
 	tt.Type("Ideas")
 	tt.Key(0, ui.KeyEnter)
@@ -601,10 +604,7 @@ func TestSplitOpensWhiteboard(t *testing.T) {
 	settle(tt)
 	a.focusPane(1, false)
 	a.addSplitPane()
-	// The palette, open to choose for the new pane, closes before it fills
-	// the pane (runPaletteAction).
-	pane := a.palette.pane
-	a.palette.open, a.palette.pane = false, nil
+	pane := a.split.panes[a.split.active]
 	if !a.fillPane(pane, a.state.ActiveSpace().ID, "Other.excalidraw") || pane.doc == nil || pane.doc.board == nil {
 		t.Fatal("an empty pane opens a whiteboard")
 	}

@@ -68,14 +68,51 @@ func TestTitlebarSplitAcrossFormats(t *testing.T) {
 					t.Fatal(err)
 				}
 				settle(tt)
-				if a.split == nil || len(a.split.panes) != 2 || a.split.panes[0].doc != first || !a.palette.open {
-					t.Fatal("split did not preserve the document and open the document picker")
+				if a.split == nil || len(a.split.panes) != 2 || a.split.panes[0].doc != first || a.palette.open {
+					t.Fatal("split did not preserve the document and open home")
 				}
 				if got, err := os.ReadFile(full); err != nil || string(got) != fixture.content {
 					t.Fatalf("splitting changed the original file: %v", err)
 				}
 			})
 		}
+	}
+}
+
+func TestNewSplitShowsHomeWithoutSearch(t *testing.T) {
+	for _, files := range []bool{false, true} {
+		t.Run(map[bool]string{false: "space", true: "files"}[files], func(t *testing.T) {
+			a, tt := newTestApp(t)
+			if files && !a.openSystemFile(externalFile(t, "First.md", "# First\n")) {
+				t.Fatal("open file")
+			}
+			settle(tt)
+			first := a.doc
+			if err := tt.Click("添加分屏"); err != nil {
+				t.Fatal(err)
+			}
+			settle(tt)
+			if a.palette.open || a.doc != nil || a.split.panes[0].doc != first {
+				t.Fatal("adding a split must show its home without opening search or replacing the first document")
+			}
+			if !files {
+				if !tt.HasText("从侧边栏选择文档，或搜索空间内容") || !tt.HasText("新建白板") {
+					t.Fatal("space home is missing")
+				}
+				// Clicking an inactive home must target that pane, not the active editor.
+				a.focusPane(0, false)
+				settle(tt)
+				if err := tt.Click("新建白板"); err != nil {
+					t.Fatal(err)
+				}
+				settle(tt)
+				if a.split.panes[0].doc != first || a.split.panes[1].doc == nil || a.split.panes[1].doc.board == nil {
+					t.Fatal("home action opened in the wrong pane")
+				}
+			} else if !tt.HasText("没有打开的文件") {
+				t.Fatal("file browser home is missing")
+			}
+		})
 	}
 }
 

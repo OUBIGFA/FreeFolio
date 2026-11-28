@@ -44,6 +44,64 @@ func TestSaveScheduleWaitsAfterLastSave(t *testing.T) {
 	}
 }
 
+func TestSaveSyncOptInImmediateAndDisableClearsPending(t *testing.T) {
+	now := time.Date(2026, 11, 28, 9, 0, 0, 0, time.UTC)
+	c := DefaultSpace()
+	if c.OnSave {
+		t.Fatal("save sync must default to off")
+	}
+	c.Enabled, c.Automatic = true, true
+	c.Binding = Binding{Remote: "origin", URL: "https://github.com/example/notes.git", Branch: "main"}
+	c.SaveDelaySeconds = 0
+	if err := c.Validate(); err != nil {
+		t.Fatalf("zero seconds must allow immediate sync: %v", err)
+	}
+	var s Schedule
+	s.Configure(c, now, false)
+	planned := s.Next
+	s.Saved(now)
+	if s.Next != planned || s.Ready(now) {
+		t.Fatal("save triggered while opt-in is off")
+	}
+	c.OnSave = true
+	s.Configure(c, now, false)
+	if s.Ready(now) {
+		t.Fatal("enabling replayed a previous save")
+	}
+	s.Saved(now)
+	if !s.Ready(now) {
+		t.Fatal("zero delay did not trigger on save")
+	}
+	c.OnSave = false
+	s.Configure(c, now, false)
+	if s.Ready(now) || s.Next != planned || !s.Ready(planned) {
+		t.Fatal("disabling failed to clear the saved job or changed periodic sync")
+	}
+	c.SaveDelaySeconds = -1
+	if c.Validate() == nil {
+		t.Fatal("negative delay accepted")
+	}
+	c.SaveDelaySeconds = 10
+	c.OnSave = true
+	s.Configure(c, now, false)
+	s.Saved(now)
+	s.Saved(now.Add(5 * time.Second))
+	if s.Ready(now.Add(14*time.Second)) || !s.Ready(now.Add(15*time.Second)) {
+		t.Fatal("delay did not follow latest save")
+	}
+	for _, enabled := range []bool{false, true} {
+		c.OnSave = enabled
+		dir := t.TempDir()
+		if err := SaveConfig(dir, Config{Spaces: map[string]*SpaceConfig{"notes": c}}); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadConfig(dir)
+		if err != nil || loaded.Spaces["notes"].OnSave != enabled || loaded.Spaces["notes"].SaveDelaySeconds != 10 {
+			t.Fatalf("save preference lost: %+v %v", loaded, err)
+		}
+	}
+}
+
 func TestScheduleDailyLimitsAndRetry(t *testing.T) {
 	now := time.Date(2026, 11, 27, 9, 0, 0, 0, time.Local)
 	c := DefaultSpace()

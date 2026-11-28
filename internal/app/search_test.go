@@ -192,6 +192,8 @@ func TestPaletteLongResultsScroll(t *testing.T) {
 			typeQuery(a, tt, "反推")
 			if size.split {
 				a.addSplitPane()
+				a.openPalette()
+				a.palette.pane = a.split.panes[a.split.active]
 				a.palette.query = "反推"
 				tt.Advance(300 * time.Millisecond)
 			}

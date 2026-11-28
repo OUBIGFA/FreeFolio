@@ -33,6 +33,12 @@ type boardImageWindow struct {
 }
 
 func (a *App) openBoardImage(d *document, id string, edit bool) {
+	a.openBoardImageAt(d, id, edit, -1)
+}
+
+// An explicit history index opens that original attachment without selecting
+// it as the node's output. The viewer keeps its own immutable source key.
+func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
 	if d == nil || d.board == nil {
 		return
 	}
@@ -60,10 +66,18 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 		flip = e.Scale
 	} else {
 		out := n.Output()
+		if index >= 0 {
+			if !n.ImageHistory() || index >= len(n.Outputs) {
+				return
+			}
+			out = &n.Outputs[index]
+		}
 		if out == nil || out.Kind != "image" {
 			return
 		}
-		rel = d.board.DisplayedAIImage(id)
+		if index < 0 {
+			rel = d.board.DisplayedAIImage(id)
+		}
 		if rel == "" {
 			rel = out.Path
 		}
@@ -79,7 +93,7 @@ func (a *App) openBoardImage(d *document, id string, edit bool) {
 		}
 	}
 	w := &boardImageWindow{doc: d, nodeID: id, sourceKey: string(key), editing: edit, loading: true}
-	if n.Role == whiteboard.AIImage || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
+	if n.ImageHistory() || n.Role == whiteboard.AICutout || n.Role == whiteboard.AIUpscale {
 		w.exportPath = rel
 	}
 	a.boardImages = append(a.boardImages, w)

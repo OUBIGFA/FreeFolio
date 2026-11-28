@@ -44,7 +44,7 @@ func (c SpaceConfig) Validate() error {
 	if _, e := time.Parse("15:04", c.DailyTime); e != nil {
 		return errors.New(i18n.T("每天同步时间应为 HH:MM"))
 	}
-	if c.IntervalMinutes < 1 || c.IntervalMinutes > 1440 || c.DailyLimit < 0 || c.DailyLimit > 1440 || c.RetryLimit < 0 || c.RetryLimit > 10 || c.SaveDelaySeconds < 5 || c.SaveDelaySeconds > 3600 {
+	if c.IntervalMinutes < 1 || c.IntervalMinutes > 1440 || c.DailyLimit < 0 || c.DailyLimit > 1440 || c.RetryLimit < 0 || c.RetryLimit > 10 || c.SaveDelaySeconds < 0 || c.SaveDelaySeconds > 3600 {
 		return errors.New(i18n.T("同步间隔、保存延迟或次数无效"))
 	}
 	if c.MessageMode != "manual" && c.MessageMode != "template" && c.MessageMode != "ai" {

@@ -179,8 +179,8 @@ func (a *App) addSplitPane() {
 	a.split.panes = slices.Insert(a.split.panes, index, &splitPane{shownFactor: 0.16, shownReady: true})
 	a.equalSplit()
 	a.focusPane(index, false)
-	a.openPalette()
-	a.palette.pane = a.split.panes[index]
+	// A new pane starts at home; document search remains an explicit action.
+	a.palette = palette{}
 }
 
 func (a *App) equalSplit() {

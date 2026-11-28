@@ -261,6 +261,7 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 	ai := &editor.BoardAI{Models: a.boardAIModels, Unavailable: a.boardRoleUnavailable, Presets: a.boardEnhancementPresets, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
 	ai.ReplaceImage = func(nodeID string) { a.pickBoardNodeImage(d, nodeID) }
 	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
+	ai.OpenHistoryImage = func(id string, index int) { a.openBoardImageAt(d, id, false, index) }
 	ai.SaveImage = func(rel string) {
 		a.saveBoardImageAs(a.win, rel, read, func(err error) {
 			if err != nil {

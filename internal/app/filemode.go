@@ -731,16 +731,22 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 
 // fileEmpty is the browser kept open after its last tab closed.
 func (a *App) fileEmpty(c *ui.Context) {
+	a.fileEmptyFor(c, func() {})
+}
+
+func (a *App) fileEmptyFor(c *ui.Context, activate func()) {
 	t := c.Theme()
 	area := ui.Column(c.Key("file-empty")).Grow(1).MinHeight(0).Center().Gap(12)
 	for _, file := range area.DroppedFiles() {
+		activate()
 		a.openSystemFile(file)
 	}
 	area.Children(func() {
 		ui.Image(c, brandLogo()).Size(44, 44)
-		ui.Text(c, i18n.T("没有打开的文件")).FontSize(17).FontWeight(600)
-		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑")).FontSize(13).TextColor(t.TextMuted)
+		ui.Text(c, i18n.T("没有打开的文件")).FontSize(17).FontWeight(600).TextAlign(ui.Center)
+		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑")).FontSize(13).TextColor(t.TextMuted).TextAlign(ui.Center)
 		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Margin(6, 0, 0, 0).Clicked() {
+			activate()
 			a.chooseExternalFiles()
 		}
 	})

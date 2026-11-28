@@ -33,6 +33,8 @@ import (
 type BoardAI struct {
 	// OpenImage opens an isolated viewer or annotation window for a node image.
 	OpenImage func(nodeID string, edit bool)
+	// OpenHistoryImage views a specific result without changing downstream input.
+	OpenHistoryImage func(nodeID string, index int)
 	// ReplaceImage picks a new picture for an editable image-input node.
 	ReplaceImage func(nodeID string)
 	SaveImage    func(rel string)
@@ -287,6 +289,7 @@ func (b *Board) updateAINode(o BoardOptions, id string, fn func(*whiteboard.AINo
 	next.Outputs = slices.Clone(n.Outputs)
 	b.edit(o, func() {
 		fn(&next)
+		growAIImageGallery(e, &next)
 		b.err = whiteboard.SetAINode(e, &next)
 	})
 }
@@ -1000,6 +1003,7 @@ func (b *Board) applyAIResult(id string, res *boardAIResult, err error, o BoardO
 	n.AddOutputs(outs)
 	n.InputHash, n.Error = res.hash, ""
 	b.edit(o, func() {
+		growAIImageGallery(e, &n)
 		b.err = whiteboard.SetAINode(e, &n)
 		if n.Role == whiteboard.AIText && res.text != "" {
 			b.writeAIText(e, &n, res.text)

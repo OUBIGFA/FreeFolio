@@ -208,6 +208,38 @@ func TestBoardImageLockedNodeCanViewButCannotSave(t *testing.T) {
 	}
 }
 
+func TestBoardImageHistoryViewerKeepsOutputAndOpensRequestedAttachment(t *testing.T) {
+	a, w, _, data := boardImageFixture(t)
+	d := w.doc
+	source := whiteboard.NewAINode(whiteboard.AIImage, 400, 20)
+	n := whiteboard.AINodeOf(source)
+	var outputs []whiteboard.AIOutput
+	for _, name := range []string{"first.png", "second.png"} {
+		if err := os.WriteFile(filepath.Join(root(a), name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		outputs = append(outputs, whiteboard.AIOutput{Kind: "image", Path: name})
+	}
+	n.AddOutputs(outputs)
+	if err := whiteboard.SetAINode(source, n); err != nil {
+		t.Fatal(err)
+	}
+	d.board.Scene.Elements = append(d.board.Scene.Elements, source)
+	source.Locked = true
+	before := string(source.CustomData)
+	for i := range outputs {
+		a.boardAI(d).OpenHistoryImage(source.ID, i)
+		opened := a.boardImages[len(a.boardImages)-1]
+		if opened.image == nil || opened.editing || opened.exportPath != outputs[i].Path || string(source.CustomData) != before {
+			t.Fatalf("history viewer changed selection or loaded wrong attachment: %+v", opened)
+		}
+	}
+	a.boardAI(d).OpenHistoryImage(source.ID, 1)
+	if len(a.boardImages) != 3 {
+		t.Fatal("reopening an existing image duplicated its window")
+	}
+}
+
 func TestBoardImageAnnotationSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect image annotations")
 	a, w, win, _ := boardImageFixture(t)

@@ -126,15 +126,12 @@ func (a *App) splitPaneView(c *ui.Context, s *splitGroup, pane *splitPane, index
 		a.paneToolbar(c, s, pane, index, width)
 		if d == nil {
 			ui.Box(c).Height(1).Background(c.Theme().Border.Alpha(0.4))
-			ui.Column(c).Grow(1).MinHeight(0).Center().Padding(16).Gap(12).Children(func() {
-				ui.Icon(c, iconSplit).FontSize(28).TextColor(c.Theme().TextMuted)
-				ui.Text(c, i18n.T("打开另一篇文档")).FontSize(15).TextColor(c.Theme().TextMuted)
-				if ui.Button(c, i18n.T("选择文档")).Clicked() {
-					a.focusPane(index, false)
-					a.openPalette()
-					a.palette.pane = pane
-				}
-			})
+			activate := func() { a.focusPane(index, false) }
+			if a.files != nil {
+				a.fileEmptyFor(c, activate)
+			} else {
+				a.emptyStateFor(c, activate)
+			}
 		} else {
 			a.documentContent(c, d, width-2)
 		}
@@ -172,7 +169,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 			address.Background(t.Text.Alpha(0.05))
 		}
 		address.Children(func() {
-			name := i18n.T("搜索或打开文档")
+			name := i18n.T("首页")
 			if d != nil {
 				name = d.title()
 				if width >= 325 {

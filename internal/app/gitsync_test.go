@@ -4,12 +4,44 @@ import (
 	"context"
 	"github.com/OUBIGFA/FreeFolio/internal/gitsync"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/egoist/mygo/ui"
 	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestGitSaveSyncSwitchControlsDelay(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.initGitSync()
+	a.gitSync.loaded = true
+	cfg := a.gitSpaceConfig(a.state.Active)
+	cfg.Automatic = true
+	// Render the real settings page with all rows visible for pointer testing.
+	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.settingsGitSync(c) }) }, 1100, 2400)
+	tt.Frame()
+	switcher, ok := tt.AccessByRole(ui.RoleSwitch, "保存后同步")
+	if !ok || cfg.OnSave {
+		t.Fatal("save sync opt-in missing or enabled by default")
+	}
+	input, ok := tt.AccessByRole(ui.RoleGroup, "保存后等待（秒）")
+	if !ok || !input.Disabled {
+		t.Fatalf("delay must stay visible and disabled until enabled: found=%v input=%+v", ok, input)
+	}
+	tt.ClickAt(switcher.Bounds.X+switcher.Bounds.W/2, switcher.Bounds.Y+switcher.Bounds.H/2)
+	tt.Frame()
+	input, ok = tt.AccessByRole(ui.RoleGroup, "保存后等待（秒）")
+	if !ok || !cfg.OnSave || input.Disabled {
+		t.Fatal("enabling did not unlock delay")
+	}
+	tt.ClickAt(switcher.Bounds.X+switcher.Bounds.W/2, switcher.Bounds.Y+switcher.Bounds.H/2)
+	tt.Frame()
+	input, _ = tt.AccessByRole(ui.RoleGroup, "保存后等待（秒）")
+	if cfg.OnSave || !input.Disabled {
+		t.Fatal("disabling left delay editable")
+	}
+}
 
 func TestGitLoginStartsBrowserFlowWithoutClientID(t *testing.T) {
 	a, tt := newTestApp(t)

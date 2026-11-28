@@ -486,6 +486,7 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 			}
 			continue
 		}
+		b.aiHistoryImageControls(c, o, e, n, l, x, y, z)
 		if !fullWidgets {
 			b.aiHistoryCompareHandle(c, e, n, l, x, y, z)
 			continue
@@ -586,7 +587,7 @@ func (b *Board) aiNodeInlineControls(c *ui.Context, o BoardOptions) {
 						ph = i18n.T("描述视频画面或动作")
 					}
 					// Match the reserved area, including the text area's native minimum.
-					el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(aiPromptHeight).MinHeight(0).Disabled(disabled).Label(i18n.T("指令"))
+					el := ui.TextArea(c.Key("board-ai-inline-text-"+id), &buf.text).Placeholder(ph).FontSize(12).WidthPercent(100).Height(aiPromptHeightFor(n)).MinHeight(0).Disabled(disabled).Label(i18n.T("指令"))
 					if el.Hovered() {
 						s.hoverTextArea = true
 					}

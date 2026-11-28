@@ -944,12 +944,17 @@ func (a *App) followLink(url string) {
 
 // emptyState shows when no document is open.
 func (a *App) emptyState(c *ui.Context) {
+	a.emptyStateFor(c, func() {})
+}
+
+// Activate an empty split before its action so another pane's editor is safe.
+func (a *App) emptyStateFor(c *ui.Context, activate func()) {
 	t := c.Theme()
 	sp := a.state.ActiveSpace()
 	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(12).Children(func() {
-		ui.Scroll(c.Key("space-home")).WidthPercent(100).MaxWidth(440).MinHeight(0).Shrink(1).Padding(8).Gap(12).Children(func() {
+		ui.Scroll(c.Key("space-home")).WidthPercent(100).MaxWidth(440).MinHeight(0).Shrink(1).Padding(8).Gap(12).AlignItems(ui.Center).Children(func() {
 			if sp != nil {
-				ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+				ui.Row(c).WidthPercent(100).Justify(ui.Center).AlignItems(ui.Center).Gap(12).Children(func() {
 					a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 34, t.Accent)
 					ui.Text(c, sp.Name).FontSize(24).FontWeight(600).SingleLine().MinWidth(0)
 				})
@@ -958,39 +963,46 @@ func (a *App) emptyState(c *ui.Context) {
 			case a.treeErr != nil:
 				ui.Text(c, i18n.T("读取空间文件夹失败")+" "+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
 			case a.treeLoading && len(a.docs) == 0:
-				ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted).TextAlign(ui.Center)
 			case sp.IsExternal() && len(a.docs) == 0:
 				ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
 			case len(a.docs) == 0:
-				ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted).TextAlign(ui.Center)
 			default:
-				ui.Text(c, i18n.T("从侧边栏选择文档，或搜索空间内容")).TextColor(t.TextMuted)
+				ui.Text(c, i18n.T("从侧边栏选择文档，或搜索空间内容")).TextColor(t.TextMuted).TextAlign(ui.Center)
 			}
-			ui.Row(c).Gap(8).Wrap().Children(func() {
+			ui.Row(c).WidthPercent(100).Justify(ui.Center).Gap(8).Wrap().Children(func() {
 				if sp.IsExternal() {
 					if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Clicked() {
+						activate()
 						a.chooseExternalFiles()
 					}
 				} else {
 					if ui.PrimaryButton(c.Key("empty-new"), i18n.T("新建文档")).Tooltip(a.withKey(i18n.T("新建文档"), "new-doc")).Clicked() {
+						activate()
 						a.newDoc("")
 					}
 					// A whiteboard is the other kind of page a space starts with.
 					if ui.Button(c.Key("empty-board"), i18n.T("新建白板")).Tooltip(a.keyLabel("new-board")).Clicked() {
+						activate()
 						a.newWhiteboard("")
 					}
 				}
 				if ui.Button(c.Key("empty-palette"), i18n.T("命令栏")).Tooltip(a.withKey(i18n.T("命令栏"), "palette")).Clicked() {
+					activate()
 					a.openPalette()
+					if a.split != nil {
+						a.palette.pane = a.split.panes[a.split.active]
+					}
 				}
 			})
 			if sp == nil || a.treeErr != nil || a.treeLoading {
 				return
 			}
 			if recent := a.recentPlaces(3, sp.ID); len(recent) > 0 {
-				ui.Box(c).Height(1).Margin(0, 0, 2, 0).Background(separator(t))
-				ui.Text(c, i18n.T("最近打开")).FontSize(13).FontWeight(600).TextColor(t.TextMuted)
-				ui.Column(c).Gap(2).Children(func() {
+				ui.Box(c).WidthPercent(100).Height(1).Margin(0, 0, 2, 0).Background(separator(t))
+				ui.Text(c, i18n.T("最近打开")).WidthPercent(100).FontSize(13).FontWeight(600).TextColor(t.TextMuted)
+				ui.Column(c).WidthPercent(100).Gap(2).Children(func() {
 					for _, entry := range recent {
 						button := ui.ButtonBase(c.Key(entry.rel)).Height(34).PaddingX(8).Gap(10).AlignItems(ui.Center).Radius(controlRadius).Label(i18n.T("继续打开：") + entry.rel).Tooltip(entry.rel)
 						if button.Hovered() {
@@ -1004,6 +1016,7 @@ func (a *App) emptyState(c *ui.Context) {
 							}
 						})
 						if button.Clicked() {
+							activate()
 							a.openIn(sp, entry.rel)
 						}
 					}

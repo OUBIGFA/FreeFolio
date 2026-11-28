@@ -155,12 +155,10 @@ func (a *App) settingsGitSync(c *ui.Context) {
 			settingRow(c, "on-start", i18n.T("启动后同步一次"), i18n.T("仅在应用启动时判断"), func() {
 				ui.Switch(c.Key("switch"), &cfg.OnStart).Label(i18n.T("启动后同步一次")).Disabled(locked)
 			})
-			settingRow(c, "on-save", i18n.T("保存后延迟同步"), "", func() {
-				ui.Switch(c.Key("switch"), &cfg.OnSave).Label(i18n.T("保存后延迟同步")).Disabled(locked)
+			settingRow(c, "on-save", i18n.T("保存后同步"), i18n.T("默认关闭，开启后可设置保存后的等待时间"), func() {
+				ui.Switch(c.Key("switch"), &cfg.OnSave).Label(i18n.T("保存后同步")).Disabled(locked)
 			})
-			if cfg.OnSave {
-				cloudNumberRow(c, "delay", i18n.T("保存后等待（秒）"), "", &cfg.SaveDelaySeconds, 5, 3600, locked)
-			}
+			cloudNumberRow(c, "delay", i18n.T("保存后等待（秒）"), i18n.T("0 表示立即同步，再次保存会重新计时"), &cfg.SaveDelaySeconds, 0, 3600, locked || !cfg.OnSave)
 			cloudNumberRow(c, "limit", i18n.T("每日最多次数（0 表示不限）"), "", &cfg.DailyLimit, 0, 1440, locked)
 			cloudNumberRow(c, "retry", i18n.T("失败重试次数"), "", &cfg.RetryLimit, 0, 10, locked)
 		}

@@ -87,7 +87,7 @@ A document already visible is focused instead of receiving a second writer.
 Cra's layout provides independent rounded cards, a 2 DIP active outline,
 10 DIP gaps, 200 DIP minimum lengths where space permits, six-point equal-pair
 snapping, and draggable/keyboard-accessible dividers. The toolbar adds an empty
-pane with a document picker, flips orientation, reorders, separates and closes
+pane showing the space or file-browser home without opening search, flips orientation, reorders, separates and closes
 panes. Sidebar document drops select the nearest edge; the file stays put.
 Ordinary grouped documents occupy a segmented sidebar row; pins and favorites
 keep their own rows. Opening an unrelated document suspends the group, which
