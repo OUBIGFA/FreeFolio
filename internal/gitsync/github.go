@@ -1,6 +1,7 @@
 package gitsync
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,7 +9,6 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -117,10 +117,14 @@ func (c *GitHub) save(s *accountStore) error {
 	}
 	return fsutil.WriteFileAtomic(filepath.Join(c.dir, "github-accounts"), b, 0600)
 }
-func (c *GitHub) request(ctx context.Context, method, address, token string, form url.Values, out any) error {
+func (c *GitHub) request(ctx context.Context, method, address, token string, payload any, out any) error {
 	var body io.Reader
-	if form != nil {
-		body = strings.NewReader(form.Encode())
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
 	}
 	r, e := http.NewRequestWithContext(ctx, method, address, body)
 	if e != nil {
@@ -128,8 +132,8 @@ func (c *GitHub) request(ctx context.Context, method, address, token string, for
 	}
 	r.Header.Set("Accept", "application/json")
 	r.Header.Set("User-Agent", "FreeFolio")
-	if form != nil {
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if payload != nil {
+		r.Header.Set("Content-Type", "application/json")
 	}
 	if token != "" {
 		r.Header.Set("Authorization", "Bearer "+token)

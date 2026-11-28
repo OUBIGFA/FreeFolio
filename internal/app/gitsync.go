@@ -43,6 +43,9 @@ type gitSyncHost interface {
 
 type gitUIState struct {
 	host                                      gitSyncHost
+	creation                                  *gitRepositoryDraft
+	createRemote                              func(context.Context, string, string) (gitsync.RemoteRepository, error)
+	exclusions                                *gitExclusionDraft
 	signingIn                                 bool
 	signIn                                    func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error)
 	applyingSpace                             string
@@ -80,6 +83,7 @@ func (gs *gitUIState) initGitSync() {
 	s.config = gitsync.Config{Version: 1, Spaces: map[string]*gitsync.SpaceConfig{}}
 	s.saved = map[string]gitsync.SpaceConfig{}
 	s.client = gitsync.NewGitHub(filepath.Join(gs.host.appConfig().ConfigDir, "credentials"))
+	s.createRemote = s.client.CreatePrivateRepository
 	s.signIn = func(ctx context.Context, progress func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error) {
 		account, e := s.client.Login(ctx, progress)
 		if e != nil {
@@ -437,7 +441,7 @@ func (gs *gitUIState) applyGitRepo(id string, repo gitsync.Repository) {
 	for _, change := range repo.Changes {
 		on, exists := gs.checked[id][change.Path]
 		if !exists {
-			on = gitAutoPath(change.Path)
+			on = change.ExcludedRemoval || gitAutoPath(change.Path)
 		}
 		selected[change.Path] = on
 	}
@@ -549,11 +553,11 @@ func (gs *gitUIState) runGit(id, action string, automatic bool) {
 		if e == nil && automatic {
 			paths = nil
 			for _, change := range repo.Changes {
-				if change.Staged {
+				if change.Staged && !change.ExcludedRemoval {
 					e = errors.New(i18n.T("仓库有已暂存的改动，自动同步已暂停"))
 					break
 				}
-				if gitAutoPath(change.Path) {
+				if change.ExcludedRemoval || gitAutoPath(change.Path) {
 					paths = append(paths, change.Path)
 				}
 			}

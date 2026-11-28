@@ -244,6 +244,9 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 				if sp != nil && ui.Button(c.Key("inspect"), i18n.T("检查仓库")).Disabled(s.busy || !s.loaded).Clicked() {
 					gs.refreshGit(sp.ID)
 				}
+				if sp != nil && ui.Button(c.Key("exclusions"), i18n.T("同步排除")).Disabled(locked || gs.host.cloudSyncsSpace(sp.ID)).Clicked() {
+					gs.openGitExclusions(sp.ID)
+				}
 			})
 		})
 		if sp != nil && gs.host.cloudSyncsSpace(sp.ID) {
@@ -253,7 +256,15 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 				ui.Text(c, i18n.T("此空间已启用云端同步，无法同时启用 Git 同步")).FontSize(12).TextColor(t.Danger).LineHeight(1.4).Grow(1).MinWidth(0)
 			})
 		}
-		if sp != nil && known {
+		if sp != nil && (gs.creation == nil || gs.creation.space != sp.ID) && cfg.Binding.Remote == "" && (!known || repo.Head == "" && len(repo.Remotes) == 0) {
+			settingsSeparator(c)
+			settingRow(c, "create", i18n.T("创建私有仓库"), i18n.T("为尚未使用 Git 的空间创建仓库，先检查文件再确认上传"), func() {
+				if ui.Button(c.Key("prepare"), i18n.T("创建私有仓库")).Disabled(locked || len(s.accounts) == 0 || gs.host.cloudSyncsSpace(sp.ID)).Clicked() {
+					gs.prepareGitRepository(sp.ID)
+				}
+			})
+		}
+		if sp != nil && known && (gs.creation == nil || gs.creation.space != sp.ID) {
 			settingsSeparator(c)
 			ui.Row(c.Key("git-repo-status")).Padding(10, 12, 6, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 				ui.Icon(c, iconGitBranch).FontSize(14).TextColor(t.Accent).Shrink(0)
@@ -284,7 +295,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 					}
 				}
 			})
-		} else if sp != nil {
+		} else if sp != nil && (gs.creation == nil || gs.creation.space != sp.ID) {
 			settingsSeparator(c)
 			ui.Row(c.Key("git-repo-hint")).Padding(10, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconInfo).FontSize(14).TextColor(t.TextMuted).Shrink(0)
@@ -297,6 +308,14 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		}
 	})
 	if sp == nil {
+		return
+	}
+	if gs.exclusions != nil && gs.exclusions.space == sp.ID {
+		gs.gitExclusionsView(c, sp.ID, locked)
+		return
+	}
+	if gs.creation != nil && gs.creation.space == sp.ID {
+		gs.gitCreateRepositoryView(c, sp.ID, repo, cfg, locked)
 		return
 	}
 
@@ -509,18 +528,25 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo gitsync.Repository, cfg *gitsync.SpaceConfig, locked bool) {
 	s := gs
 	t := c.Theme()
+	creating := gs.creation != nil && gs.creation.space == id
 	settingsSection(c, i18n.T("工作区改动"))
 	settingsGroup(c, "git-workspace", func() {
 		ui.Column(c.Key("git-commit-box")).Padding(12).Gap(8).Children(func() {
 			ui.Text(c, i18n.T("本次提交说明")).FontSize(12.5).FontWeight(500)
-			ui.TextInput(c.Key("git-message"), &s.commitMessage).Multiline(true).MinHeight(64).Label(i18n.T("本次提交说明")).Placeholder(i18n.T("留空时使用所选生成方式")).Disabled(locked)
+			placeholder := i18n.T("留空时使用所选生成方式")
+			if creating {
+				placeholder = i18n.T("留空时使用初始提交说明")
+			}
+			ui.TextInput(c.Key("git-message"), &s.commitMessage).Multiline(true).MinHeight(64).Label(i18n.T("本次提交说明")).Placeholder(placeholder).Disabled(locked)
 			ui.Row(c.Key("git-message-actions")).Gap(8).Wrap().Children(func() {
-				genBtn := ui.Button(c.Key("generate"), i18n.T("OneBot 生成说明")).Disabled(locked || cfg.Connection == "" || len(repo.Changes) == 0)
-				if cfg.Connection == "" {
-					genBtn.Tooltip(i18n.T("请选择生成提交说明的 OneBot 模型"))
-				}
-				if genBtn.Clicked() {
-					gs.runGit(id, "generate", false)
+				if !creating {
+					genBtn := ui.Button(c.Key("generate"), i18n.T("OneBot 生成说明")).Disabled(locked || cfg.Connection == "" || len(repo.Changes) == 0)
+					if cfg.Connection == "" {
+						genBtn.Tooltip(i18n.T("请选择生成提交说明的 OneBot 模型"))
+					}
+					if genBtn.Clicked() {
+						gs.runGit(id, "generate", false)
+					}
 				}
 				if ui.Button(c.Key("diff"), i18n.T("查看选定改动")).Disabled(locked || len(repo.Changes) == 0).Clicked() {
 					gs.runGit(id, "diff", false)
@@ -573,7 +599,9 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 							s.checked[id][path] = on
 						}
 						settingsBadge(c, change.Code, gitChangeTone(change.Code))
-						if change.Staged {
+						if change.ExcludedRemoval {
+							settingsBadge(c, i18n.T("保留本地，待从云端移除"), "")
+						} else if change.Staged {
 							settingsBadge(c, i18n.T("已暂存"), "")
 						}
 						ui.Text(c, path).FontSize(12.5).Grow(1).MinWidth(0).SingleLine().Tooltip(path)

@@ -39,6 +39,7 @@ type Git struct {
 type Change struct {
 	Path, Original, Code string
 	Staged, Conflict     bool
+	ExcludedRemoval      bool
 }
 type Repository struct {
 	Root, Branch, Head, Fingerprint string
@@ -160,6 +161,10 @@ func (g *Git) inspect(ctx context.Context, root string) (Repository, error) {
 	if e != nil {
 		return s, e
 	}
+	_, exclusions, _, _, e := readExclusions(root)
+	if e != nil {
+		return s, e
+	}
 	h := sha256.New()
 	h.Write([]byte(s.Head))
 	h.Write(raw)
@@ -181,6 +186,11 @@ func (g *Git) inspect(ctx context.Context, root string) (Repository, error) {
 		path, e := validPath(abs, c.Path)
 		if e != nil {
 			return s, e
+		}
+		if c.Code == "D " && exclusionMatches(c.Path, exclusions) {
+			if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+				c.ExcludedRemoval = true
+			}
 		}
 		f, e := os.Open(path)
 		if e == nil {
@@ -290,15 +300,21 @@ func (g *Git) Commit(ctx context.Context, root string, b Binding, paths []string
 		}
 		selected[p] = true
 	}
-	var list []string
+	var list, add, remove []string
 	for _, c := range s.Changes {
 		if c.Conflict {
 			return ErrConflict
 		}
 		if selected[c.Path] {
 			list = append(list, c.Path)
+			if c.ExcludedRemoval {
+				remove = append(remove, c.Path)
+			} else {
+				add = append(add, c.Path)
+			}
 			if c.Original != "" {
 				list = append(list, c.Original)
+				add = append(add, c.Original)
 			}
 		}
 	}
@@ -328,8 +344,17 @@ func (g *Git) Commit(ctx context.Context, root string, b Binding, paths []string
 	if _, e = g.run(ctx, root, nil, env, args...); e != nil {
 		return e
 	}
-	if _, e = g.run(ctx, root, nil, env, append([]string{"add", "-A", "--"}, list...)...); e != nil {
-		return e
+	// Exclusions remove tracked entries while deliberately retaining their
+	// local files; git add must not put those files back into the commit.
+	if len(remove) > 0 {
+		if _, e = g.run(ctx, root, []byte(strings.Join(remove, "\x00")+"\x00"), env, "update-index", "--force-remove", "-z", "--stdin"); e != nil {
+			return e
+		}
+	}
+	if len(add) > 0 {
+		if _, e = g.run(ctx, root, nil, env, append([]string{"add", "-A", "--"}, add...)...); e != nil {
+			return e
+		}
 	}
 	tree, e := g.run(ctx, root, nil, env, "write-tree")
 	if e != nil {

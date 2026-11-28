@@ -19,6 +19,12 @@ func CredentialAllowed(query, repository string) bool {
 	for _, line := range strings.Split(query, "\n") {
 		k, v, ok := strings.Cut(strings.TrimSuffix(line, "\r"), "=")
 		if ok {
+			// Git's capability[], wwwauth[] and state[] attributes are multi-valued.
+			// They do not select the credential scope, so ignore them while keeping
+			// duplicate scalar fields (especially protocol, host and path) invalid.
+			if strings.HasSuffix(k, "[]") {
+				continue
+			}
 			if _, exists := fields[k]; exists {
 				return false
 			}
