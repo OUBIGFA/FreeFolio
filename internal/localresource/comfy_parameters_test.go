@@ -53,7 +53,7 @@ func TestComfyOptionsRejectInvalidNumericSettings(t *testing.T) {
 	nan := math.NaN()
 	infinite := math.Inf(1)
 	negative := -.1
-	for _, options := range []ComfyOptions{{Seed: &seed}, {Seed: &tooLarge}, {Guidance: &nan}, {Guidance: &infinite}, {Guidance: &negative}, {Steps: 101}} {
+	for _, options := range []ComfyOptions{{Seed: &seed}, {Seed: &tooLarge}, {Guidance: &nan}, {Guidance: &infinite}, {Guidance: &negative}, {Steps: 10001}} {
 		if _, _, _, err := options.sampling(42, 8, 1); err == nil {
 			t.Fatalf("invalid settings accepted: %+v", options)
 		}

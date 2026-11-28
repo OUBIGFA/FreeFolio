@@ -1,0 +1,83 @@
+{
+  "checked": "2026-11-28",
+  "models": [
+    {
+      "id": "z-image-int8",
+      "name": "Z-Image (INT8 ConvRot)",
+      "license": "Apache-2.0",
+      "baseModel": "Tongyi-MAI/Z-Image",
+      "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/diffusion_models/z_image_int8_convrot.safetensors",
+      "bytes": 6201001296,
+      "sha256": "eb2b470694fbd9778f15efd309000ea0091312c018c10a352c120b1da9bf4279",
+      "dependencies": [
+        {
+          "path": "text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+          "bytes": 5631994051,
+          "sha256": "72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors"
+        },
+        {
+          "path": "vae/ae.safetensors",
+          "bytes": 335304388,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/vae/ae.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "z-image-bf16",
+      "name": "Z-Image (BF16)",
+      "license": "Apache-2.0",
+      "baseModel": "Tongyi-MAI/Z-Image",
+      "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/diffusion_models/z_image_bf16.safetensors",
+      "bytes": 12309866400,
+      "sha256": "996a67d3ff666946b1c25cbc16d1b1918b6cc0ac166309e23fe3b3d830263dee",
+      "dependencies": [
+        {
+          "path": "text_encoders/qwen_3_4b.safetensors",
+          "bytes": 8044982048,
+          "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/text_encoders/qwen_3_4b.safetensors"
+        },
+        {
+          "path": "vae/ae.safetensors",
+          "bytes": 335304388,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/vae/ae.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "z-image-gguf-q8",
+      "name": "Z-Image (GGUF Q8_0)",
+      "license": "Apache-2.0",
+      "baseModel": "Tongyi-MAI/Z-Image",
+      "source": "https://huggingface.co/unsloth/Z-Image-GGUF/resolve/a84a5f4e7dcff6bc446c0a54a477a4a21aa800b0/z-image-Q8_0.gguf",
+      "bytes": 7224707136,
+      "sha256": "a51d4e36f84caa972e0eff65e8bd2961add14374d8a7038a51eefea2fe45f2c9",
+      "dependencies": [
+        {
+          "path": "text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+          "bytes": 5631994051,
+          "sha256": "72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors"
+        },
+        {
+          "path": "vae/ae.safetensors",
+          "bytes": 335304388,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+          "source": "https://huggingface.co/Comfy-Org/Z-Image/resolve/94d47a468ec820d29a5dc09d4642539d76d49542/split_files/vae/ae.safetensors"
+        }
+      ]
+    }
+  ],
+  "ggufPlugin": {
+    "repository": "https://github.com/city96/ComfyUI-GGUF",
+    "revision": "6ea2651e7df66d7585f6ffee804b20e92fb38b8a",
+    "license": "Apache-2.0",
+    "source": "https://github.com/city96/ComfyUI-GGUF/archive/6ea2651e7df66d7585f6ffee804b20e92fb38b8a.zip",
+    "bytes": 38051,
+    "sha256": "aad273a0b774684285b4496f6edff7e2293bd29d71ef89926d6861bfdf4947ac",
+    "activation": "Explicit GGUF resource download only; pin existing Python packages and verify the real loader import"
+  }
+}

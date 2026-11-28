@@ -177,6 +177,9 @@ func migrateItems(ctx context.Context, fromDir, toDir string, items []MigrationI
 		if err := restoreMigratedVoicePlugin(fromDir, toDir); err != nil {
 			return err
 		}
+		if err := restoreMigratedGGUFPlugin(fromDir, toDir); err != nil {
+			return err
+		}
 		if _, err := WriteComfyExtraModelPaths(toDir); err != nil {
 			return err
 		}

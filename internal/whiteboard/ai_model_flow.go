@@ -4,11 +4,13 @@ import "fmt"
 
 // AILoRAConfig is a model adapter in upstream-to-downstream order.
 type AILoRAConfig struct {
-	ID       string
-	Strength *float64
+	ID          string
+	Strength    *float64
+	AutoTrigger *bool
 }
 type AIModelConfig struct {
 	Connection, Model string
+	Native            map[string]any
 	LoRAs             []AILoRAConfig
 }
 
@@ -48,7 +50,7 @@ func (s *Scene) AIModelFlow(id string) (*AIModelConfig, error) {
 			if n.Connection != "comfyui-zimage" && n.Connection != "comfyui-qwen-image" {
 				return nil, fmt.Errorf("模型连线只支持 ComfyUI 底模")
 			}
-			return &AIModelConfig{Connection: n.Connection, Model: n.Model}, nil
+			return &AIModelConfig{Connection: n.Connection, Model: n.Model, Native: n.Params.Native}, nil
 		case AILoRA:
 			if n.LinkAt("model") == "" {
 				return nil, fmt.Errorf("请将底模的模型输出连接到 LoRA 的模型输入")
@@ -63,7 +65,7 @@ func (s *Scene) AIModelFlow(id string) (*AIModelConfig, error) {
 			if n.Connection != flow.Connection {
 				return nil, fmt.Errorf("LoRA 与连接的底模不匹配")
 			}
-			flow.LoRAs = append(flow.LoRAs, AILoRAConfig{ID: n.Model, Strength: n.Params.LoRAStrength})
+			flow.LoRAs = append(flow.LoRAs, AILoRAConfig{ID: n.Model, Strength: n.Params.LoRAStrength, AutoTrigger: n.Params.LoRAAutoTrigger})
 			return flow, nil
 		default:
 			return nil, fmt.Errorf("模型输入只能连接底模或 LoRA 节点")

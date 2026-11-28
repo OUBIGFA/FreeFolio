@@ -95,6 +95,10 @@ func (b *Board) aiComfySamplingParams(c *ui.Context, o BoardOptions, id string, 
 	}
 	steps, guidance := 8, 1.0
 	switch n.Connection {
+	case "comfyui-zimage":
+		if base == "z-image-int8" || base == "z-image-bf16" || base == "z-image-gguf-q8" {
+			steps, guidance = 40, 4
+		}
 	case "comfyui-seedvr2":
 		steps = 0
 	case "comfyui-rmbg3":
@@ -122,6 +126,7 @@ func (b *Board) aiComfySamplingParams(c *ui.Context, o BoardOptions, id string, 
 			p.Guidance = nil
 			p.NegativePrompt = nil
 			p.ColorCorrection = ""
+			p.Native = nil
 		})
 		fresh := *n
 		fresh.Params.NegativePrompt = nil
@@ -162,7 +167,7 @@ func (b *Board) aiComfySamplingParams(c *ui.Context, o BoardOptions, id string, 
 		if p.Steps != 0 {
 			value = p.Steps
 		}
-		number("steps", "采样步数", float64(value), 1, 100, 1, func(v float64) { set(func(p *whiteboard.AIParams) { p.Steps = int(v) }) })
+		number("steps", "采样步数", float64(value), 1, 10000, 1, func(v float64) { set(func(p *whiteboard.AIParams) { p.Steps = int(v) }) })
 	} else {
 		ui.Text(c, i18n.T("Turbo 使用固定 8 步采样")).FontSize(12).TextColor(o.Theme.TextMuted)
 		if p.Steps != 0 && p.Steps != 8 {
@@ -172,7 +177,7 @@ func (b *Board) aiComfySamplingParams(c *ui.Context, o BoardOptions, id string, 
 	if p.Guidance != nil {
 		guidance = *p.Guidance
 	}
-	number("guidance", "提示词引导强度", guidance, 0, 20, .1, func(v float64) { set(func(p *whiteboard.AIParams) { p.Guidance = &v }) })
+	number("guidance", "提示词引导强度", guidance, 0, 100, .1, func(v float64) { set(func(p *whiteboard.AIParams) { p.Guidance = &v }) })
 	negative := n.Connection == "comfyui-zimage" || n.Connection == "comfyui-qwen-image" || n.Connection == "comfyui-media" && (n.Model == "stable-audio3" || n.Model == "wan22-5b")
 	if negative {
 		ui.Text(c, i18n.T("避免内容（引导强度不为 1 时生效）")).FontSize(12).TextColor(o.Theme.TextMuted)

@@ -495,6 +495,8 @@ func (b *Board) aiProperties(c *ui.Context, o BoardOptions) {
 	if s.edit != e.ID {
 		b.flushAIEdit()
 		s.edit = e.ID
+		s.parameterView = false
+		s.nativeText = nil
 		extra := ""
 		if len(n.Params.Extra) > 0 {
 			raw, _ := json.Marshal(n.Params.Extra)
@@ -615,6 +617,15 @@ func (b *Board) aiMainParamsFields(c *ui.Context, o BoardOptions, id string, n *
 	p := n.Params
 	if n.Params.LoRAStrength != nil {
 		ui.Row(c.Key("lora-strength-prop")).Height(28).Gap(6).AlignItems(ui.Center).Children(func() { b.aiLoRAStrength(c, o, id, n, b.ReadOnly || b.Scene.ElementByID(id).Locked) })
+		trigger := "true"
+		if p.LoRAAutoTrigger != nil && !*p.LoRAAutoTrigger {
+			trigger = "false"
+		}
+		if v := aiChoiceControl(c, o, "lora-trigger", "自动添加 LoRA 触发词", trigger, []string{"true", "false"}, translated("开启", "关闭"), b.ReadOnly || b.Scene.ElementByID(id).Locked); v != trigger {
+			value := v == "true"
+			set(func(p *whiteboard.AIParams) { p.LoRAAutoTrigger = &value })
+		}
+
 	}
 	switch n.Role {
 	case whiteboard.AIEnhance:
@@ -835,6 +846,8 @@ func (b *Board) chooseAIModel(o BoardOptions, id string, n *whiteboard.AINode, m
 			node.Params.Size = ""
 		}
 		if node.Connection != model.Connection || node.Model != model.Model {
+			node.Params.Native = nil
+			node.Params.LoRAAutoTrigger = nil
 			node.Params.Steps = 0
 			node.Params.Guidance = nil
 			node.Params.NegativePrompt = nil
@@ -881,6 +894,8 @@ func (b *Board) aiNodeOverlay(c *ui.Context, o BoardOptions) {
 			s.panel = false
 		}
 		if settingsButton.Clicked() {
+			s.parameterView = false
+			s.parameterPage = 0
 			s.panel = !s.panel
 		}
 		if !b.ReadOnly && aiRunnableRole(n.Role) && !b.AIRunning() {

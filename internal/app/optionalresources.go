@@ -268,6 +268,9 @@ func (rs *resourceState) inspectResources(root string, items []localresource.Res
 		}
 		for _, pack := range packs {
 			installed[pack.ID] = localresource.PackPresent(root, pack)
+			if pack.ID == "z-image-gguf-q8" {
+				installed[pack.ID] = installed[pack.ID] && localresource.GGUFPluginInstalled(root, engineDir)
+			}
 			if pack.Kind == "audio-tts" {
 				installed[pack.ID] = installed[pack.ID] && localresource.VoicePluginInstalled(root, engineDir)
 			}
@@ -355,9 +358,9 @@ func (rs *resourceState) packAction(pack localresource.ResourcePack, remove bool
 
 	root := rs.resourceDirectory()
 	engineDir := rs.host.preferences().ComfyUI.Dir
-	if !remove && pack.Kind == "audio-tts" {
+	if !remove && (pack.Kind == "audio-tts" || pack.ID == "z-image-gguf-q8") {
 		if strings.TrimSpace(rs.host.preferences().ComfyUI.URL) != "" {
-			s.err = errors.New(i18n.T("自动安装语音插件需由 FreeFolio 启动引擎，请清空服务地址后下载"))
+			s.err = errors.New(i18n.T("自动安装模型组件需由 FreeFolio 启动引擎，请清空服务地址后下载"))
 			return
 		}
 		layout, err := localresource.DetectComfyLayout(engineDir)
@@ -400,6 +403,8 @@ func (rs *resourceState) packAction(pack localresource.ResourcePack, remove bool
 		if remove {
 			if pack.Kind == "audio-tts" {
 				err = localresource.RemoveVoicePlugin(root, rs.host.trashItem)
+			} else if pack.ID == "z-image-gguf-q8" {
+				err = localresource.RemoveGGUFPlugin(root, rs.host.trashItem)
 			}
 			if err == nil {
 				err = localresource.RemovePack(root, pack, rs.host.trashItem)
@@ -408,11 +413,15 @@ func (rs *resourceState) packAction(pack localresource.ResourcePack, remove bool
 			err = localresource.InstallPack(ctx, root, download, func(done, _ int64) {
 				s.received.Store(done)
 			})
-			if err == nil && pack.Kind == "audio-tts" {
+			if err == nil && (pack.Kind == "audio-tts" || pack.ID == "z-image-gguf-q8") {
 				if rs.host.window() != nil {
 					rs.host.window().Update(func() { s.installing = true })
 				}
-				err = localresource.InstallVoicePlugin(ctx, root, engineDir)
+				if pack.ID == "z-image-gguf-q8" {
+					err = localresource.InstallGGUFPlugin(ctx, root, engineDir)
+				} else {
+					err = localresource.InstallVoicePlugin(ctx, root, engineDir)
+				}
 				if err == nil && mgr != nil {
 					mgr.Stop()
 				}
@@ -607,6 +616,15 @@ func (rs *resourceState) packDetailAndBadge(pack localresource.ResourcePack) (ba
 		purpose = i18n.T("2× / 4× 动漫放大")
 	case "zimage":
 		purpose = i18n.T("文字生图，8 步生成")
+		if pack.ID != "z-image-turbo-int8" {
+			purpose = i18n.T("普通版文字生图，默认 40 步，支持负面提示词")
+		}
+		if pack.ID == "z-image-bf16" {
+			purpose = i18n.T("普通版原精度，12 GB 显卡需内存卸载")
+		}
+		if pack.ID == "z-image-gguf-q8" {
+			purpose = i18n.T("普通版 Q8，下载时安装 GGUF 组件")
+		}
 	case "audio-music":
 		purpose = i18n.T("音乐与歌曲，可填歌词，默认 30 秒")
 	case "audio-sfx":

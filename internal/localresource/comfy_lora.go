@@ -25,11 +25,11 @@ func prepareLoRA(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageReques
 	if !ok || pack.Kind != "lora-"+family {
 		return "", fmt.Errorf("LoRA is not compatible with this model: %s", req.LoRA)
 	}
-	if family == "qwen" && req.BaseModel != "" && pack.BaseModel != req.BaseModel {
+	if req.BaseModel != "" && pack.BaseModel != req.BaseModel {
 		return "", fmt.Errorf("LoRA %s requires base model %s", pack.Name, pack.BaseModel)
 	}
-	if math.IsNaN(req.Strength) || math.IsInf(req.Strength, 0) || req.Strength < 0 || req.Strength > 2 {
-		return "", fmt.Errorf("LoRA strength must be between 0 and 2")
+	if math.IsNaN(req.Strength) || math.IsInf(req.Strength, 0) || req.Strength < -100 || req.Strength > 100 {
+		return "", fmt.Errorf("LoRA strength must be between -100 and 100")
 	}
 	if req.Strength == 0 {
 		return "", nil
@@ -57,7 +57,7 @@ func prepareLoRA(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageReques
 			}
 		}
 	}
-	if req.Strength != 0 && pack.Trigger != "" && !strings.Contains(strings.ToLower(req.Prompt), strings.ToLower(pack.Trigger)) {
+	if (req.AutoTrigger == nil || *req.AutoTrigger) && req.Strength != 0 && pack.Trigger != "" && !strings.Contains(strings.ToLower(req.Prompt), strings.ToLower(pack.Trigger)) {
 		req.Prompt = pack.Trigger + ", " + req.Prompt
 	}
 	return name, nil
@@ -96,7 +96,7 @@ func enhancementInput(data []byte) ([]byte, error) {
 func prepareLoRAChain(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageRequest, family string) ([]ComfyLoRA, error) {
 	adapters := req.LoRAs
 	if len(adapters) == 0 && req.LoRA != "" {
-		adapters = []ComfyLoRA{{ID: req.LoRA, Strength: req.Strength}}
+		adapters = []ComfyLoRA{{ID: req.LoRA, Strength: req.Strength, AutoTrigger: req.AutoTrigger}}
 	}
 	active := 0
 	exclusive := false
@@ -121,6 +121,7 @@ func prepareLoRAChain(cfg ComfyConfig, caps *ComfyCapabilities, req *ComfyImageR
 	for _, adapter := range adapters {
 		part := *req
 		part.LoRA, part.Strength = adapter.ID, adapter.Strength
+		part.AutoTrigger = adapter.AutoTrigger
 		name, err := prepareLoRA(cfg, caps, &part, family)
 		if err != nil {
 			return nil, err

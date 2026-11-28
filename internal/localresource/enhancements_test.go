@@ -50,7 +50,7 @@ func TestLoRARejectsMissingTamperedAndInvalidStrength(t *testing.T) {
 	if _, err := prepareLoRA(ComfyConfig{ResourceDir: root}, caps, &req, "zimage"); err == nil {
 		t.Fatal("tampered local file accepted")
 	}
-	for _, strength := range []float64{-1, 3, math.NaN(), math.Inf(1)} {
+	for _, strength := range []float64{-101, 101, math.NaN(), math.Inf(1)} {
 		req.Strength = strength
 		if _, err := prepareLoRA(ComfyConfig{}, caps, &req, "zimage"); err == nil {
 			t.Fatal("invalid strength accepted")

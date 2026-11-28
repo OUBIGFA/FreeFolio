@@ -81,7 +81,7 @@ func TestLoRAPresetCreatesOneUndoableNodeAndHonorsLocks(t *testing.T) {
 	tt.Frame()
 	found := false
 	for _, field := range tt.AccessAll() {
-		if field.Name == "LoRA 强度" && field.Role == ui.RolePopUpButton {
+		if field.Min == -100 && field.Max == 100 {
 			found = true
 			if !field.Disabled {
 				t.Fatal("locked LoRA strength editable")

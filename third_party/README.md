@@ -201,3 +201,5 @@ documentation, with the request conventions OpenAI-compatible gateways such as
 new-api and LiteLLM accept; no SDK or gateway code is bundled.
 
 Optional local audio/video weights and the externally installed ComfyUI-QwenTTS plugin are recorded in [media-resources.json](manifests/media-resources.json). They are downloaded only on request and are not bundled. The pinned GPL-3.0 plugin remains a separate ComfyUI component with its upstream license.
+
+Optional undistilled Z-Image weights (INT8 ConvRot, BF16 and GGUF Q8_0), companion encoders/VAE and the pinned Apache-2.0 ComfyUI-GGUF component are recorded in [z-image.json](manifests/z-image.json). They are downloaded only on request and are not bundled.

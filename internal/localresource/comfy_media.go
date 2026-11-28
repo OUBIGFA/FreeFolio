@@ -3,7 +3,6 @@ package localresource
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -38,21 +37,18 @@ func (m *ComfyManager) GenerateLocalMedia(ctx context.Context, cfg ComfyConfig, 
 	if cfg.ResourceDir != "" && !PackPresent(cfg.ResourceDir, pack) {
 		return ComfyOutput{}, errors.New("download the media model in Optional resources first")
 	}
+	caps, _, err := m.ensureCaps(ctx, cfg)
+	if err != nil {
+		return ComfyOutput{}, err
+	}
 	graph, err := m.mediaGraph(ctx, base, pack, req)
 	if err != nil {
 		return ComfyOutput{}, err
 	}
-	raw, err := m.getJSON(ctx, base+"/object_info")
-	if err != nil {
-		return ComfyOutput{}, err
-	}
-	var schemas map[string]json.RawMessage
-	if err = json.Unmarshal(raw, &schemas); err != nil {
-		return ComfyOutput{}, err
-	}
+
 	for _, node := range graph {
 		kind := node.(map[string]any)["class_type"].(string)
-		if _, ok := schemas[kind]; !ok {
+		if !caps.NodeTypes[kind] {
 			return ComfyOutput{}, fmt.Errorf("ComfyUI node %s is unavailable; update or install the required voice plugin", kind)
 		}
 	}
@@ -162,7 +158,11 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		if language == "en" {
 			language = "English"
 		}
-		g["speech"] = mediaNode("AILab_Qwen3TTSCustomVoice", map[string]any{"text": req.Prompt, "speaker": speaker, "model_size": "1.7B", "language": language, "instruct": req.VoiceStyle, "unload_models": true, "seed": seed})
+		kind := "AILab_Qwen3TTSCustomVoice"
+		if len(req.Options.Native) > 0 {
+			kind = "AILab_Qwen3TTSCustomVoice_Advanced"
+		}
+		g["speech"] = mediaNode(kind, map[string]any{"text": req.Prompt, "speaker": speaker, "model_size": "1.7B", "language": language, "instruct": req.VoiceStyle, "unload_models": true, "seed": seed})
 		saveAudio(mediaRef("speech", 0))
 	case "video-wan":
 		seconds := req.Seconds
@@ -199,6 +199,13 @@ func (m *ComfyManager) mediaGraph(ctx context.Context, base string, pack Resourc
 		g["save"] = mediaNode("SaveVideo", map[string]any{"video": mediaRef("video", 0), "filename_prefix": "freefolio/video", "format": "mp4", "format.codec": "h264"})
 	default:
 		return nil, errors.New("media workflow is not configured")
+	}
+	if req.Model == "qwen3-tts" && len(req.Options.Native) > 0 {
+		inputs := g["speech"].(map[string]any)["inputs"].(map[string]any)
+		inputs["device"], inputs["precision"], inputs["do_sample"] = "auto", "bf16", false
+	}
+	if err := applyNativeControls(g, "comfyui-media", req.Model, req.Options.Native, m.nativeInputSpecs()); err != nil {
+		return nil, err
 	}
 	return g, nil
 }

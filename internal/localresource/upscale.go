@@ -30,7 +30,11 @@ var upscaleInference = make(chan struct{}, 1)
 
 // Upscale enlarges an image locally with Real-ESRGAN (ncnn-vulkan) by 2x or 4x.
 // Model inference runs at native 4x; 2x supersamples the 4x result cleanly.
-func Upscale(ctx context.Context, root, modelID string, scale int, input []byte) ([]byte, error) {
+func Upscale(ctx context.Context, root, modelID string, scale int, input []byte, options ...ComfyOptions) ([]byte, error) {
+	tuning, err := upscaleArgs(firstComfyOptions(options).Native)
+	if err != nil {
+		return nil, err
+	}
 	if _, ok := UpscaleModel(modelID); !ok {
 		return nil, errors.New("unknown upscale model")
 	}
@@ -119,7 +123,8 @@ func Upscale(ctx context.Context, root, modelID string, scale int, input []byte)
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, exePath, "-i", inPath, "-o", outPath, "-m", modelsDir, "-n", modelID, "-s", "4", "-f", "png")
+	args := append([]string{"-i", inPath, "-o", outPath, "-m", modelsDir, "-n", modelID, "-s", "4", "-f", "png"}, tuning...)
+	cmd := exec.CommandContext(ctx, exePath, args...)
 	cmd.Dir = scratch
 	hideConsole(cmd)
 	var outBuf bytes.Buffer

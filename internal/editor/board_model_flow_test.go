@@ -92,6 +92,18 @@ func TestLoRAFlowRunsFromFinalNodeAndInvalidatesCache(t *testing.T) {
 	if len(b.aiNode(lora).Outputs) != 0 {
 		t.Fatal("LoRA node stored an image or text result")
 	}
+	base := b.aiNode(lora).LinkAt("model")
+	b.updateAINode(o, base, func(n *whiteboard.AINode) { n.Params.Native = map[string]any{"3.device": "cpu"} })
+	b.RunAI([]string{id}, false, false, o)
+	if len(f.jobs) != 4 || f.jobs[3].ModelFlow.Native["3.device"] != "cpu" {
+		t.Fatal("base parameter change reused stale output")
+	}
+	b.updateAINode(o, lora.ID, func(n *whiteboard.AINode) { v := false; n.Params.LoRAAutoTrigger = &v })
+	b.RunAI([]string{id}, false, false, o)
+	if len(f.jobs) != 5 || f.jobs[4].ModelFlow.LoRAs[0].AutoTrigger == nil || *f.jobs[4].ModelFlow.LoRAs[0].AutoTrigger {
+		t.Fatal("LoRA trigger change reused stale output")
+	}
+
 }
 
 func TestModelSelectorUsesSourceMarksAndKeyboard(t *testing.T) {

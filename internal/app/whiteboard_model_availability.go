@@ -47,6 +47,9 @@ func (wa *whiteboardAIFeature) boardModelAvailability(m editor.BoardAIModel) edi
 	switch m.Connection {
 	case "comfyui-zimage":
 		supported = caps.ZImageNative
+		if m.Model == "z-image-gguf-q8" {
+			supported = caps.ZImageGGUF
+		}
 	case "comfyui-qwen-image":
 		base := m.Model
 		if pack.BaseModel != "" {

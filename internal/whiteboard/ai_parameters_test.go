@@ -10,7 +10,7 @@ func TestGenerationSettingsSurviveBoardSaveAndInvalidateCache(t *testing.T) {
 	cfg := 2.5
 	negative := ""
 	threshold := .7
-	n := &AINode{V: 1, Role: AIAudio, Connection: "comfyui-media", Model: "ace15-turbo", Params: AIParams{BPM: 86, KeyScale: "A minor", TimeSignature: "3", VoiceStyle: "calm", FPS: 16, Seconds: 15, Seed: &seed, Steps: 12, Guidance: &cfg, NegativePrompt: &negative, ColorCorrection: "lab", MaskThreshold: &threshold, MaskBlur: 4, MaskOffset: -2}}
+	n := &AINode{V: 1, Role: AIAudio, Connection: "comfyui-media", Model: "ace15-turbo", Params: AIParams{Native: map[string]any{"text.temperature": .67, "text.generate_audio_codes": false}, BPM: 86, KeyScale: "A minor", TimeSignature: "3", VoiceStyle: "calm", FPS: 16, Seconds: 15, Seed: &seed, Steps: 12, Guidance: &cfg, NegativePrompt: &negative, ColorCorrection: "lab", MaskThreshold: &threshold, MaskBlur: 4, MaskOffset: -2}}
 	s := NewScene()
 	e := NewAINode(AIAudio, 0, 0)
 	s.Elements = append(s.Elements, e)
@@ -30,7 +30,7 @@ func TestGenerationSettingsSurviveBoardSaveAndInvalidateCache(t *testing.T) {
 		t.Fatalf("settings lost: %+v", got.Params)
 	}
 	hash := AIHash(got, nil)
-	got.Params.BPM = 87
+	got.Params.Native["text.temperature"] = .71
 	if hash == AIHash(got, nil) {
 		t.Fatal("tempo change reused previous generation")
 	}

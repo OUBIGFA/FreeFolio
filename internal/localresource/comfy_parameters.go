@@ -10,6 +10,7 @@ import (
 // ComfyOptions carries user controls shared by native workflows. Pointer fields
 // distinguish an explicit zero/empty value from a legacy board's default.
 type ComfyOptions struct {
+	Native               map[string]any
 	Seed                 *int64
 	Steps                int
 	Guidance             *float64
@@ -35,15 +36,15 @@ func (o ComfyOptions) sampling(seed uint64, steps int, guidance float64) (uint64
 		seed = uint64(*o.Seed)
 	}
 	if o.Steps != 0 {
-		if o.Steps < 1 || o.Steps > 100 {
-			return 0, 0, 0, errors.New("sampling steps must be between 1 and 100")
+		if o.Steps < 1 || o.Steps > 10000 {
+			return 0, 0, 0, errors.New("sampling steps must be between 1 and 10000")
 		}
 		steps = o.Steps
 	}
 	if o.Guidance != nil {
 		guidance = *o.Guidance
-		if math.IsNaN(guidance) || math.IsInf(guidance, 0) || guidance < 0 || guidance > 20 {
-			return 0, 0, 0, errors.New("guidance must be between 0 and 20")
+		if math.IsNaN(guidance) || math.IsInf(guidance, 0) || guidance < 0 || guidance > 100 {
+			return 0, 0, 0, errors.New("guidance must be between 0 and 100")
 		}
 	}
 	return seed, steps, guidance, nil

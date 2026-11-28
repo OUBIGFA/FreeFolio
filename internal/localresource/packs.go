@@ -267,7 +267,7 @@ var ComfyPacks = append([]ResourcePack{
 			},
 		},
 	},
-}, append(append(enhancementPacks, qwenAdapterPacks...), mediaPacks...)...)
+}, append(append(append(enhancementPacks, qwenAdapterPacks...), mediaPacks...), zImagePacks...)...)
 
 // ComfyPack returns the resource pack matching id.
 func ComfyPack(id string) (ResourcePack, bool) {

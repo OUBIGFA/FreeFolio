@@ -51,6 +51,7 @@ type ComfyLayout struct {
 
 // ComfyCapabilities records the GPU device and models exposed by ComfyUI.
 type ComfyCapabilities struct {
+	InputSpecs          ComfyInputSpecs
 	NodeTypes           map[string]bool
 	ModelFiles          map[string][]string
 	BaseURL             string
@@ -71,6 +72,7 @@ type ComfyCapabilities struct {
 	SeedVR2Native       bool
 	SeedVR2Models       []string
 	ZImageNative        bool
+	ZImageGGUF          bool
 	ZImageModels        []string
 	QwenImageNative     bool
 	QwenImageBaseNative bool
@@ -1087,20 +1089,32 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	var info map[string]struct {
 		Input struct {
 			Required map[string][]json.RawMessage `json:"required"`
+			Optional map[string][]json.RawMessage `json:"optional"`
 		} `json:"input"`
 		Output []string `json:"output"`
 	}
 	if err := json.Unmarshal(rawInfo, &info); err != nil {
 		return nil, err
 	}
+	caps.InputSpecs = ComfyInputSpecs{}
+	for name, node := range info {
+		fields := map[string][]json.RawMessage{}
+		for k, v := range node.Input.Required {
+			fields[k] = v
+		}
+		for k, v := range node.Input.Optional {
+			fields[k] = v
+		}
+		caps.InputSpecs[name] = fields
+	}
 	caps.NodeTypes = map[string]bool{}
 	caps.ModelFiles = map[string][]string{}
 	for name := range info {
 		caps.NodeTypes[name] = true
 	}
-	for _, loader := range []struct{ node, key, folder string }{{"UNETLoader", "unet_name", "diffusion_models"}, {"CLIPLoader", "clip_name", "text_encoders"}, {"VAELoader", "vae_name", "vae"}, {"LoraLoaderModelOnly", "lora_name", "loras"}, {"CheckpointLoaderSimple", "ckpt_name", "checkpoints"}, {"UpscaleModelLoader", "model_name", "upscale_models"}} {
+	for _, loader := range []struct{ node, key, folder string }{{"UNETLoader", "unet_name", "diffusion_models"}, {"UnetLoaderGGUFAdvanced", "unet_name", "diffusion_models"}, {"CLIPLoader", "clip_name", "text_encoders"}, {"VAELoader", "vae_name", "vae"}, {"LoraLoaderModelOnly", "lora_name", "loras"}, {"CheckpointLoaderSimple", "ckpt_name", "checkpoints"}, {"UpscaleModelLoader", "model_name", "upscale_models"}} {
 		if node, ok := info[loader.node]; ok {
-			caps.ModelFiles[loader.folder] = parseComfyChoiceList(node.Input.Required[loader.key])
+			caps.ModelFiles[loader.folder] = append(caps.ModelFiles[loader.folder], parseComfyChoiceList(node.Input.Required[loader.key])...)
 		}
 	}
 	if _, hasApply := info["ImageUpscaleWithModel"]; hasApply {
@@ -1141,8 +1155,9 @@ func (m *ComfyManager) Probe(ctx context.Context, cfg ComfyConfig) (*ComfyCapabi
 	if hasAll("UNETLoader", "CLIPLoader", "VAELoader", "TextEncodeQwenImage21", "QwenImage21Cache", "KSampler", "EmptyLatentImage", "VAEDecode") {
 		caps.QwenImageBaseNative = true
 	}
-	if unet, ok := info["UNETLoader"]; ok {
-		for _, name := range parseComfyChoiceList(unet.Input.Required["unet_name"]) {
+	caps.ZImageGGUF = hasAll("UnetLoaderGGUFAdvanced", "CLIPLoader", "VAELoader", "ModelSamplingAuraFlow", "CLIPTextEncode", "EmptySD3LatentImage", "KSampler", "VAEDecode")
+	{
+		for _, name := range caps.ModelFiles["diffusion_models"] {
 			low := strings.ToLower(name)
 			switch {
 			case strings.Contains(low, "rmbg3") || strings.Contains(low, "rmbg-3"):
@@ -1385,6 +1400,9 @@ func (m *ComfyManager) Cutout(ctx context.Context, cfg ComfyConfig, model string
 		}},
 		"3": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"2", 0}, "filename_prefix": "freefolio_cutout"}},
 	}
+	if err := applyNativeControls(graph, "comfyui", model, opts.Native, m.nativeInputSpecs()); err != nil {
+		return nil, err
+	}
 	return m.runImageWorkflow(ctx, base, graph)
 }
 
@@ -1582,6 +1600,9 @@ func (m *ComfyManager) CutoutRMBG3(ctx context.Context, cfg ComfyConfig, subject
 	graph["11"] = map[string]any{"class_type": "InvertMask", "inputs": map[string]any{"mask": []any{"10", 0}}}
 	graph["12"] = map[string]any{"class_type": "JoinImageWithAlpha", "inputs": map[string]any{"image": []any{"1", 0}, "alpha": []any{"11", 0}}}
 	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_rmbg3"}}
+	if err := applyNativeControls(graph, "comfyui-rmbg3", "rmbg3-fp8", opts.Native, caps.InputSpecs); err != nil {
+		return nil, err
+	}
 	return m.runImageWorkflow(ctx, base, graph)
 }
 
@@ -1650,12 +1671,16 @@ func (m *ComfyManager) CutoutSa2VA(ctx context.Context, cfg ComfyConfig, modelNa
 		"4": map[string]any{"class_type": "JoinImageWithAlpha", "inputs": map[string]any{"image": []any{"1", 0}, "alpha": []any{"3", 0}}},
 		"5": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"4", 0}, "filename_prefix": "freefolio_sa2va"}},
 	}
+	if err := applyNativeControls(graph, "comfyui-sa2va", modelName, opts.Native, caps.InputSpecs); err != nil {
+		return nil, err
+	}
 	return m.runImageWorkflow(ctx, base, graph)
 }
 
 // ComfyImageRequest configures text-to-image or reference-image editing via ComfyUI.
 type ComfyImageRequest struct {
 	Options     ComfyOptions
+	AutoTrigger *bool
 	BaseModel   string
 	Prompt      string
 	Size        string
@@ -1670,8 +1695,9 @@ type ComfyImageRequest struct {
 
 // ComfyLoRA is an ordered model-only patch in a native workflow.
 type ComfyLoRA struct {
-	ID       string
-	Strength float64
+	ID          string
+	Strength    float64
+	AutoTrigger *bool
 }
 
 func randomComfySeed() uint64 {
@@ -1892,12 +1918,31 @@ func (m *ComfyManager) UpscaleSeedVR2Model(ctx context.Context, cfg ComfyConfig,
 		"11": map[string]any{"class_type": "SeedVR2PostProcessing", "inputs": postInputs},
 		"12": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"11", 0}, "filename_prefix": "freefolio_seedvr2"}},
 	}
+	if err := applyNativeControls(graph, "comfyui-seedvr2", modelID, opts.Native, caps.InputSpecs); err != nil {
+		return nil, err
+	}
 	return m.runImageWorkflow(ctx, base, graph)
 }
 
-// GenerateZImageTurbo generates images with Z-Image-Turbo (INT8) via ComfyUI native core nodes.
+// GenerateZImageTurbo retains the legacy API while dispatching explicit base selections.
 func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
-	seed, steps, guidance, optionErr := req.Options.sampling(randomComfySeed(), 8, 1)
+	return m.GenerateZImage(ctx, cfg, req)
+}
+
+// GenerateZImage selects the exact ordinary or Turbo checkpoint and companion encoder.
+func (m *ComfyManager) GenerateZImage(ctx context.Context, cfg ComfyConfig, req ComfyImageRequest) ([][]byte, error) {
+	if req.BaseModel == "" {
+		req.BaseModel = "z-image-turbo-int8"
+	}
+	pack, ok := ComfyPack(req.BaseModel)
+	if !ok || pack.Kind != "zimage" {
+		return nil, fmt.Errorf("unknown Z-Image model: %s", req.BaseModel)
+	}
+	defaultSteps, defaultCFG := 8, 1.0
+	if req.BaseModel != "z-image-turbo-int8" {
+		defaultSteps, defaultCFG = 40, 4
+	}
+	seed, steps, guidance, optionErr := req.Options.sampling(randomComfySeed(), defaultSteps, defaultCFG)
 	if optionErr != nil {
 		return nil, optionErr
 	}
@@ -1913,7 +1958,7 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 	if err != nil {
 		return nil, err
 	}
-	if !caps.ZImageNative {
+	if req.BaseModel == "z-image-gguf-q8" && !caps.ZImageGGUF || req.BaseModel != "z-image-gguf-q8" && !caps.ZImageNative {
 		return nil, errors.New("ComfyUI does not expose native Z-Image nodes; update ComfyUI first")
 	}
 	loras, err := prepareLoRAChain(cfg, caps, &req, "zimage")
@@ -1921,11 +1966,27 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 		return nil, err
 	}
 	prompt = strings.TrimSpace(req.Prompt)
-	unetName := pickComfyModel([]string{"z_image_turbo_int8_convrot.safetensors", "z_image_turbo_bf16.safetensors"}, caps.ZImageModels, "z_image_turbo")
+	unetName := ""
+	want := filepath.Base(pack.Files[0].RelPath)
+	for _, name := range caps.ZImageModels {
+		if filepath.Base(name) == want {
+			unetName = name
+			break
+		}
+	}
 	if unetName == "" {
-		return nil, errors.New("Z-Image-Turbo diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
+		return nil, errors.New("selected Z-Image diffusion model not found in ComfyUI; download it in Settings -> Optional Resources")
 	}
 	clipName := pickComfyModel([]string{"qwen_3_4b_fp8_mixed.safetensors", "qwen_3_4b.safetensors"}, caps.TextEncoders, "qwen_3_4b")
+	if req.BaseModel == "z-image-bf16" {
+		clipName = ""
+		for _, name := range caps.TextEncoders {
+			if filepath.Base(name) == "qwen_3_4b.safetensors" {
+				clipName = name
+				break
+			}
+		}
+	}
 	if clipName == "" {
 		return nil, errors.New("Qwen3-4B text encoder for Z-Image-Turbo not found in ComfyUI; download the Z-Image-Turbo pack in Settings -> Optional Resources")
 	}
@@ -1964,10 +2025,27 @@ func (m *ComfyManager) GenerateZImageTurbo(ctx context.Context, cfg ComfyConfig,
 		"9":  map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"8", 0}, "vae": []any{"6", 0}}},
 		"10": map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"9", 0}, "filename_prefix": "freefolio_zimage"}},
 	}
-	if negative := req.Options.negative(""); negative != "" {
+	if req.BaseModel == "z-image-gguf-q8" {
+		graph["1"] = mediaNode("UnetLoaderGGUFAdvanced", map[string]any{"unet_name": unetName, "dequant_dtype": "default", "patch_dtype": "default", "patch_on_device": false})
+	}
+	if negative := req.Options.negative(""); negative != "" || req.BaseModel != "z-image-turbo-int8" {
 		graph["5"] = map[string]any{"class_type": "CLIPTextEncode", "inputs": map[string]any{"clip": []any{"3", 0}, "text": negative}}
 	}
 	graph["2"].(map[string]any)["inputs"].(map[string]any)["model"] = attachLoRAChain(graph, loras)
+	if req.BaseModel != "z-image-turbo-int8" {
+		_, strength := req.Options.Native["cfg_norm.strength"]
+		_, pre := req.Options.Native["cfg_norm.pre_cfg"]
+		if strength || pre {
+			if !caps.NodeTypes["CFGNorm"] {
+				return nil, errors.New("ComfyUI CFGNorm is unavailable; update the engine")
+			}
+			graph["cfg_norm"] = mediaNode("CFGNorm", map[string]any{"model": []any{"2", 0}, "strength": 0.0, "pre_cfg": false})
+			graph["8"].(map[string]any)["inputs"].(map[string]any)["model"] = []any{"cfg_norm", 0}
+		}
+	}
+	if err := applyNativeControls(graph, "comfyui-zimage", req.BaseModel, req.Options.Native, caps.InputSpecs); err != nil {
+		return nil, err
+	}
 	return m.runImagesWorkflow(ctx, base, graph)
 }
 
@@ -2153,6 +2231,9 @@ func (m *ComfyManager) GenerateQwenImage21(ctx context.Context, cfg ComfyConfig,
 	}
 	graph["12"] = map[string]any{"class_type": "VAEDecode", "inputs": map[string]any{"samples": []any{"11", 0}, "vae": []any{"4", 0}}}
 	graph["13"] = map[string]any{"class_type": "SaveImage", "inputs": map[string]any{"images": []any{"12", 0}, "filename_prefix": "freefolio_qwen21"}}
+	if err := applyNativeControls(graph, "comfyui-qwen-image", req.BaseModel, req.Options.Native, caps.InputSpecs); err != nil {
+		return nil, err
+	}
 	return m.runImagesWorkflow(ctx, base, graph)
 }
 

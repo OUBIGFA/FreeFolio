@@ -73,7 +73,7 @@ func (rs *resourceState) resourceDownloadControls(c *ui.Context, s *resourceTran
 	t := c.Theme()
 	if s.installing {
 		ui.Row(c.Key("install-progress")).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, i18n.T("正在安装语音插件")).FontSize(12).TextColor(t.TextMuted).Grow(1)
+			ui.Text(c, i18n.T("正在安装模型组件")).FontSize(12).TextColor(t.TextMuted).Grow(1)
 			if ui.Button(c.Key("stop"), i18n.T("停止")).Disabled(s.stopping).Clicked() {
 				rs.stopResourceDownload(s)
 			}

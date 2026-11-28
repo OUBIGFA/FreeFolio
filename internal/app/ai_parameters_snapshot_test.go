@@ -71,3 +71,32 @@ func TestAINodeErrorSnapshot(t *testing.T) {
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "node-full-error.png"), tt)
 }
+
+// Render the actual advanced controls, including small-window paging.
+func TestAdvancedAIParametersSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to inspect advanced model parameters")
+	a, tt := newTestApp(t)
+	tt.SetSize(1440, 1000)
+	a.newWhiteboard("")
+	tt.Frame()
+	b := a.doc.board
+	id := b.AddAINode(whiteboard.AIImage, whiteboard.Point{600, 360}, a.boardOptionsWith(nil, a.doc))
+	e := b.Scene.ElementByID(id)
+	n := whiteboard.AINodeOf(e)
+	n.Connection = "comfyui-zimage"
+	n.Model = "z-image-gguf-q8"
+	whiteboard.SetAINode(e, n)
+	tt.Frame()
+	if err := tt.Click("全部设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("更多模型参数"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	savePNG(t, filepath.Join(dir, "zimage-advanced.png"), tt)
+	tt.SetSize(640, 420)
+	settle(tt)
+	savePNG(t, filepath.Join(dir, "zimage-advanced-small.png"), tt)
+}

@@ -161,7 +161,7 @@ func (wa *whiteboardAIFeature) boardAIModels(role whiteboard.AIRole) (out []edit
 			installed := wa.host.optionalResources().installed[pack.ID]
 			switch pack.Kind {
 			case "zimage":
-				if role == whiteboard.AIImage && (installed || (caps != nil && caps.ZImageNative && len(caps.ZImageModels) > 0)) {
+				if role == whiteboard.AIImage && (installed || (caps != nil && (caps.ZImageNative || pack.ID == "z-image-gguf-q8" && caps.ZImageGGUF) && len(caps.ZImageModels) > 0)) {
 					out = append(out, editor.BoardAIModel{Connection: "comfyui-zimage", ConnectionName: "ComfyUI", Model: pack.ModelID, Name: pack.Name})
 				}
 			case "qwen-image":
@@ -190,6 +190,9 @@ func (wa *whiteboardAIFeature) boardAIModels(role whiteboard.AIRole) (out []edit
 				item := editor.BoardAIModel{Connection: c.ID, ConnectionName: c.Name, Model: m.ID, Name: m.Name}
 				// Ollama can also point to a remote host; only a loopback
 				// Ollama connection identifies a model on this computer.
+				if role == whiteboard.AIText {
+					item.TextControls = agent.NodeParameters(c.Protocol, c.Vendor, m.Capabilities, c.Parameters)
+				}
 				item.Local = c.Protocol == agent.Ollama && agent.IsLocal(c.BaseURL)
 				if role == whiteboard.AIImage && c.Protocol == agent.Gemini && !strings.HasPrefix(strings.TrimPrefix(m.ID, "models/"), "imagen") {
 					item.ImageSizes = []string{"1K", "2K", "4K"}
@@ -281,7 +284,13 @@ func (wa *whiteboardAIFeature) boardAI(d *document) *editor.BoardAI {
 		}
 		return readBoardBytes(f, 256<<20)
 	}
-	ai := &editor.BoardAI{Models: wa.boardAIModels, Unavailable: wa.boardRoleUnavailable, Presets: wa.boardEnhancementPresets, Default: wa.boardAIDefault, Remember: wa.rememberBoardAIModel, ReadFile: read}
+	ai := &editor.BoardAI{NativeSpecs: func() localresource.ComfyInputSpecs {
+		caps := wa.host.optionalResources().comfyCaps
+		if caps != nil {
+			return caps.InputSpecs
+		}
+		return nil
+	}, Models: wa.boardAIModels, Unavailable: wa.boardRoleUnavailable, Presets: wa.boardEnhancementPresets, Default: wa.boardAIDefault, Remember: wa.rememberBoardAIModel, ReadFile: read}
 	ai.ReplaceImage = func(nodeID string) { wa.host.pickBoardNodeImage(d, nodeID) }
 	ai.OpenImage = func(id string, edit bool) { wa.host.imageWindows().openBoardImage(d, id, edit) }
 	ai.OpenHistoryImage = func(id string, index int) { wa.host.imageWindows().openBoardImageAt(d, id, false, index) }
@@ -356,6 +365,10 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 		}
 		if s.Protocol == agent.Media {
 			return "", errors.New(i18n.T("图像/视频供应商不能生成文字，请为文本节点选择对话模型"))
+		}
+		s, err = s.WithNodeParameters(job.Node.Params.Native)
+		if err != nil {
+			return "", err
 		}
 		var provider agent.Provider = s.NewProvider()
 		if providerFor != nil {
@@ -481,7 +494,7 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 				if !ok || !localresource.Present(resourceDir, engine) {
 					return nil, errors.New(i18n.T("请在设置的可选资源中下载图片放大资源"))
 				}
-				data, err = localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data)
+				data, err = localresource.Upscale(ctx, resourceDir, model.ID, job.Node.Params.Scale, job.Images[0].Data, boardComfyOptions(job.Node.Params))
 			case "comfyui-seedvr2":
 				if comfyCfg.Dir == "" && comfyCfg.URL == "" {
 					return nil, errors.New(i18n.T("请先在设置的可选资源中配置 ComfyUI 目录或服务地址"))
@@ -525,6 +538,7 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 			if pack, ok := localresource.ComfyPackByModel(job.Node.Model); ok && pack.BaseModel != "" {
 				req.BaseModel = pack.BaseModel
 				req.LoRA, req.Strength = pack.ID, pack.DefaultStrength
+				req.AutoTrigger = p.LoRAAutoTrigger
 				if p.LoRAStrength != nil {
 					req.Strength = *p.LoRAStrength
 				}
@@ -541,6 +555,14 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 				req.Images = append(req.Images, img.Data)
 			}
 			if job.ModelFlow != nil {
+				merged := map[string]any{}
+				for k, v := range job.ModelFlow.Native {
+					merged[k] = v
+				}
+				for k, v := range req.Options.Native {
+					merged[k] = v
+				}
+				req.Options.Native = merged
 				req.LoRA = ""
 				for _, patch := range job.ModelFlow.LoRAs {
 					if patch.ID == "qwen-detail" {
@@ -554,7 +576,7 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 					if patch.Strength != nil {
 						strength = *patch.Strength
 					}
-					req.LoRAs = append(req.LoRAs, localresource.ComfyLoRA{ID: pack.ID, Strength: strength})
+					req.LoRAs = append(req.LoRAs, localresource.ComfyLoRA{ID: pack.ID, Strength: strength, AutoTrigger: patch.AutoTrigger})
 					if strings.TrimSpace(req.Prompt) == "" {
 						req.Prompt = pack.Instruction
 					}
@@ -563,7 +585,7 @@ func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner
 			var imgs [][]byte
 			var err error
 			if job.Node.Connection == "comfyui-zimage" {
-				imgs, err = comfyMgr.GenerateZImageTurbo(ctx, comfyCfg, req)
+				imgs, err = comfyMgr.GenerateZImage(ctx, comfyCfg, req)
 			} else {
 				imgs, err = comfyMgr.GenerateQwenImage21(ctx, comfyCfg, req)
 			}
@@ -729,5 +751,5 @@ func (wa *whiteboardAIFeature) chatImageTool(d *document) *agent.Tool {
 
 // Keep the saved controls identical across native image and media requests.
 func boardComfyOptions(p whiteboard.AIParams) localresource.ComfyOptions {
-	return localresource.ComfyOptions{Seed: p.Seed, Steps: p.Steps, Guidance: p.Guidance, NegativePrompt: p.NegativePrompt, ColorCorrection: p.ColorCorrection, MaskThreshold: p.MaskThreshold, Sensitivity: p.Sensitivity, MaskBlur: p.MaskBlur, MaskOffset: p.MaskOffset}
+	return localresource.ComfyOptions{Seed: p.Seed, Steps: p.Steps, Guidance: p.Guidance, NegativePrompt: p.NegativePrompt, ColorCorrection: p.ColorCorrection, MaskThreshold: p.MaskThreshold, Sensitivity: p.Sensitivity, MaskBlur: p.MaskBlur, MaskOffset: p.MaskOffset, Native: p.Native}
 }

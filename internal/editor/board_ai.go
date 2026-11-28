@@ -5,8 +5,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/localresource"
 	"image"
 	"image/png"
 	"math"
@@ -31,6 +34,7 @@ import (
 // BoardAI is what the host lends the board to run AI nodes. A nil BoardAI
 // hides the AI tools.
 type BoardAI struct {
+	NativeSpecs func() localresource.ComfyInputSpecs
 	// OpenImage opens an isolated viewer or annotation window for a node image.
 	OpenImage func(nodeID string, edit bool)
 	// OpenHistoryImage views a specific result without changing downstream input.
@@ -65,6 +69,7 @@ type BoardAI struct {
 
 // BoardAIModel is a model of a connection.
 type BoardAIModel struct {
+	TextControls                            []agent.NodeParameter
 	Connection, ConnectionName, Model, Name string
 	// Local identifies a host-managed local model connection, such as Ollama.
 	Local         bool
@@ -186,6 +191,9 @@ type boardAIState struct {
 	picker *aiPicker
 	// panel shows the selected node's full settings beside the board.
 	panel                 bool
+	parameterView         bool
+	parameterPage         int
+	nativeText            map[string]*string
 	settingsAnchor        ui.Element
 	errorOpen             bool
 	errorFocus            bool
@@ -692,14 +700,9 @@ func (b *Board) runAINode(ctx context.Context, snap *whiteboard.Scene, id string
 	var texts, labels, hashes []string
 	if modelFlow != nil {
 		// Upstream model settings must invalidate a downstream cached image.
-		hashes = append(hashes, fmt.Sprintf("model:%s:%s", modelFlow.Connection, modelFlow.Model))
-		for _, lora := range modelFlow.LoRAs {
-			strength := "default"
-			if lora.Strength != nil {
-				strength = fmt.Sprint(*lora.Strength)
-			}
-			hashes = append(hashes, "lora:"+lora.ID+":"+strength)
-		}
+		flowJSON, _ := json.Marshal(modelFlow)
+		hashes = append(hashes, string(flowJSON))
+
 	}
 	var images []BoardAIImage
 	var mask *BoardAIImage

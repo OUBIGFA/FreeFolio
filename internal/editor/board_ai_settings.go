@@ -46,6 +46,9 @@ func (b *Board) aiSettingsPopup(c *ui.Context, o BoardOptions, e *whiteboard.Ele
 	}
 	winW, winH := c.Size()
 	width := min(float32(columns)*300+28, max(240, winW-24))
+	if s.parameterView {
+		width = min(960, max(240, winW-24))
+	}
 	gap := float32(10)
 	padding := float32(12)
 	if winH < 600 {
@@ -56,7 +59,30 @@ func (b *Board) aiSettingsPopup(c *ui.Context, o BoardOptions, e *whiteboard.Ele
 		boardSurface(popup, st).Width(width)
 		popup.AttachTo(s.settingsAnchor, ui.AnchorStart, ui.AnchorStart)
 		ui.Column(c.Key("board-ai-props")).WidthPercent(100).Padding(padding).Gap(gap).Role(ui.RoleGroup).Label(i18n.T("节点属性")).Children(func() {
-			boardPanelHeader(c, st, i18n.T(aiRoleNames[n.Role]), aiRoleIcons[n.Role], n.Kind(), o.Theme.Dark, func() { s.panel = false })
+			ui.Row(c.Key("settings-heading")).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, i18n.T(aiRoleNames[n.Role])).FontSize(14).TextColor(st.text).Grow(1)
+				if b.hasNativeControls(o, n) {
+					label := "更多模型参数"
+					if s.parameterView {
+						label = "返回常用设置"
+					}
+					if ui.Button(c.Key("native-settings-view"), i18n.T(label)).Height(26).Clicked() {
+						s.parameterView = !s.parameterView
+						s.parameterPage = 0
+						s.nativeText = nil
+					}
+				} else {
+					s.parameterView = false
+				}
+				if boardIconButton(c, "close", "close", i18n.T("关闭"), false).Size(26, 26).Clicked() {
+					s.panel = false
+				}
+			})
+			if s.parameterView {
+				b.aiNativeParameterFields(c, o, id, n, disabled)
+				return
+			}
+
 			ui.Row(c.Key("settings-identity")).Gap(10).AlignItems(ui.Start).Children(func() {
 				ui.Column(c.Key("identity-name")).Grow(1).MinWidth(0).Gap(3).Children(func() {
 					ui.Text(c, i18n.T("名称")).FontSize(12).TextColor(st.muted)

@@ -94,7 +94,7 @@ func runVoicePython(ctx context.Context, layout ComfyLayout, args ...string) err
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return fmt.Errorf("speech plugin setup failed: %w\n%s", err, logs.String())
+		return fmt.Errorf("ComfyUI plugin setup failed: %w\n%s", err, logs.String())
 	}
 	return nil
 }
@@ -102,7 +102,11 @@ func runVoicePython(ctx context.Context, layout ComfyLayout, args ...string) err
 // RemoveVoicePlugin recycles only files that still match the verified archive.
 // Shared Python packages and generated caches are retained for other nodes.
 func RemoveVoicePlugin(root string, trash func(string) error) error {
-	archive, err := verifyPackFile(root, voicePluginArchive)
+	return removeComfyPlugin(root, voicePluginArchive, voicePluginDir(root), "ComfyUI-QwenTTS-"+voicePluginRevision+"/", trash)
+}
+
+func removeComfyPlugin(root string, file PackFile, dst, prefix string, trash func(string) error) error {
+	archive, err := verifyPackFile(root, file)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -114,7 +118,6 @@ func RemoveVoicePlugin(root string, trash func(string) error) error {
 		return err
 	}
 	defer z.Close()
-	prefix := "ComfyUI-QwenTTS-" + voicePluginRevision + "/"
 	var targets []string
 	for _, f := range z.File {
 		if f.FileInfo().IsDir() {
@@ -134,7 +137,7 @@ func RemoveVoicePlugin(root string, trash func(string) error) error {
 		if err != nil {
 			return err
 		}
-		local, _ := filepath.Rel(root, filepath.Join(voicePluginDir(root), filepath.FromSlash(rel)))
+		local, _ := filepath.Rel(root, filepath.Join(dst, filepath.FromSlash(rel)))
 		target, err := verifyPackFile(root, PackFile{RelPath: local, Size: int64(f.UncompressedSize64), SHA: fmt.Sprintf("%x", h.Sum(nil))})
 		if os.IsNotExist(err) {
 			continue
@@ -179,6 +182,16 @@ func restoreMigratedVoicePlugin(fromDir, toDir string) error {
 }
 
 func configureVoicePlugin(ctx context.Context, layout ComfyLayout, dst string, run voicePythonRunner) error {
+	const check = `import runpy, sys
+sys.path.insert(0, sys.argv[1])
+v = runpy.run_path(sys.argv[2])
+assert v['_load_qwen3_model']() is not None, 'Qwen3-TTS model loader import failed'
+assert 'AILab_Qwen3TTSCustomVoice' in v['NODE_CLASS_MAPPINGS']`
+	return configureComfyPlugin(ctx, layout, dst, run, check, layout.Root, filepath.Join(dst, "AILab_QwenTTS.py"))
+}
+
+// Pin all installed versions while adding only missing integration dependencies.
+func configureComfyPlugin(ctx context.Context, layout ComfyLayout, dst string, run voicePythonRunner, check string, checkArgs ...string) error {
 	if err := os.WriteFile(filepath.Join(dst, ".freefolio-ready"), nil, 0600); err != nil {
 		return err
 	}
@@ -193,14 +206,7 @@ pathlib.Path(sys.argv[1]).write_text('\n'.join(n+'=='+v for n,v in sorted(packag
 	if err := run(ctx, layout, "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--upgrade-strategy", "only-if-needed", "-c", constraints, "-r", filepath.Join(dst, "requirements.txt")); err != nil {
 		return err
 	}
-	// Import the actual integration, including its bundled model loader. Its
-	// outer module catches import errors, so checking exit status alone is wrong.
-	const check = `import runpy, sys
-sys.path.insert(0, sys.argv[1])
-v = runpy.run_path(sys.argv[2])
-assert v['_load_qwen3_model']() is not None, 'Qwen3-TTS model loader import failed'
-assert 'AILab_Qwen3TTSCustomVoice' in v['NODE_CLASS_MAPPINGS']`
-	if err := run(ctx, layout, "-c", check, layout.Root, filepath.Join(dst, "AILab_QwenTTS.py")); err != nil {
+	if err := run(ctx, layout, append([]string{"-c", check}, checkArgs...)...); err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dst, ".freefolio-ready"), []byte(layout.Python), 0600)
@@ -209,12 +215,15 @@ assert 'AILab_Qwen3TTSCustomVoice' in v['NODE_CLASS_MAPPINGS']`
 // Validate the whole ZIP before writing anything. Only the pinned repository
 // root is accepted, with no links, traversal, duplicate paths or oversized files.
 func extractVoicePlugin(archive, dst string) error {
+	return extractComfyPlugin(archive, dst, "ComfyUI-QwenTTS-"+voicePluginRevision+"/", []string{"__init__.py", "AILab_QwenTTS.py", "requirements.txt", "LICENSE"})
+}
+
+func extractComfyPlugin(archive, dst, prefix string, required []string) error {
 	z, err := zip.OpenReader(archive)
 	if err != nil {
 		return err
 	}
 	defer z.Close()
-	prefix := "ComfyUI-QwenTTS-" + voicePluginRevision + "/"
 	type entry struct {
 		f   *zip.File
 		rel string
@@ -248,7 +257,7 @@ func extractVoicePlugin(archive, dst string) error {
 		}
 		entries = append(entries, entry{f, rel})
 	}
-	for _, name := range []string{"__init__.py", "AILab_QwenTTS.py", "requirements.txt", "LICENSE"} {
+	for _, name := range required {
 		if !seen[strings.ToLower(name)] {
 			return fmt.Errorf("speech plugin is missing %s", name)
 		}
