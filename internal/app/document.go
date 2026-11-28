@@ -38,6 +38,7 @@ type document struct {
 	boardOverlay     *document
 	boardLoading     bool
 	boardGen         uint64
+	boardCheck       uint64
 	boardBase        [32]byte
 	boardDigestRev   uint64
 	boardDigestKnown bool

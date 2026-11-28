@@ -22,6 +22,7 @@ func newTestApp(t testing.TB) (*App, *ui.Tester) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(a.waitNavigationSave)
 	// The first run's tour would cover the window: tests of it start it
 	// again (tour_test.go).
 	a.tour = tour{}

@@ -148,6 +148,7 @@ func (a *App) resolveTargetSpace(arg string) (*space.Space, error) {
 }
 
 func (a *App) saveStateStrict() error {
+	a.waitNavigationSave()
 	a.captureSplits()
 	return a.store.Save(a.state)
 }

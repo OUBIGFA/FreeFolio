@@ -147,6 +147,17 @@ func boardMeasure(text string, font whiteboard.Font) float64 {
 	w, _ := layout.Size()
 	return float64(w)
 }
+
+// PrepareText runs while an opened scene still belongs to its loading worker.
+// Font decompression, registration and initial shaping must finish before the
+// board is handed to the view; ordinary edits invalidate the same text cache.
+func (b *Board) PrepareText() {
+	for _, e := range b.Scene.Elements {
+		if !e.IsDeleted && e.Kind == whiteboard.KindText {
+			b.elementText(e)
+		}
+	}
+}
 func BoardFontData(id int) ([]byte, error) {
 	f := boardFont(id)
 	if f.err != nil {

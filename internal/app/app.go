@@ -151,10 +151,11 @@ type App struct {
 	spaceIcons map[string]*ui.Bitmap
 	// closeMain closes the main window, as the file browser does when its
 	// last tab closes; nil in tests, which leaves the empty browser.
-	closeMain func()
-	store     *space.Store
-	state     *space.State
-	plugins   *plugin.Manager
+	closeMain     func()
+	store         *space.Store
+	stateSaveDone chan struct{}
+	state         *space.State
+	plugins       *plugin.Manager
 
 	installed     []*plugin.Installed
 	brokenPlugins []plugin.Broken
@@ -761,6 +762,7 @@ func (a *App) Run() error {
 		})
 	})
 	defer a.stopComfyUI()
+	defer a.waitNavigationSave()
 	defer a.waitGitShutdown()
 	defer a.stopAgentIPC()
 	return mygo.App.Run()
@@ -898,6 +900,7 @@ func (a *App) savePrefs() {
 
 // saveState writes spaces.json, telling the user when it fails.
 func (a *App) saveState() {
+	a.waitNavigationSave()
 	if a.files != nil {
 		return
 	}
@@ -1768,7 +1771,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 	}
 	a.suspendSplit()
 	a.state.SetActive(id)
-	a.saveState()
+	a.saveNavigationState()
 	a.restoreSpaceSplit(next)
 	a.syncOpen()
 	a.doc = nil
@@ -1820,6 +1823,9 @@ func (a *App) resumeSpace() {
 		}
 	}
 	if sp.LastOpen != "" {
+		if a.resumeResidentBoard(sp) {
+			return
+		}
 		a.open(sp.LastOpen)
 	}
 }

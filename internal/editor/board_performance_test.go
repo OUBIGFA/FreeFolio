@@ -14,6 +14,24 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestPreparedBoardTextStillUpdatesAfterEditing(t *testing.T) {
+	b := NewBoard(nil)
+	defer b.Close()
+	e := whiteboard.NewElement(whiteboard.KindText, 0, 0, 1000, 60)
+	e.Text, e.FontFamily, e.FontSize = "Short", 5, 20
+	b.Scene.Elements = append(b.Scene.Elements, e)
+	b.PrepareText()
+	before := b.elementText(e)
+	w, _ := before[0].Size()
+	e.Text = "A considerably longer line"
+	whiteboard.Touch(e)
+	after := b.elementText(e)
+	wider, _ := after[0].Size()
+	if after[0] == before[0] || wider <= w {
+		t.Fatal("background-prepared text hid a later text edit")
+	}
+}
+
 func TestBoardModelListsAreSharedWithinOneView(t *testing.T) {
 	b := NewBoard(nil)
 	defer b.Close()

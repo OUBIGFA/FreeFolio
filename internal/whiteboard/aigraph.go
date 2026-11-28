@@ -270,12 +270,14 @@ func (s *Scene) AISourceType(e *Element) string {
 // AILinkSource is the live element linked into a slot, or nil when the
 // link names an element that is gone or the selected model disables it.
 func (s *Scene) AILinkSource(n *AINode, slot string) *Element {
-	// Keep stored links intact so switching back restores the user's graph.
-	if sl, ok := AISlotByName(s.AIInputNode(n), slot); ok && sl.Disabled {
-		return nil
-	}
+	// Most displayed ports are unconnected. Resolve their source before
+	// inspecting upstream model capabilities, which can parse a LoRA chain.
 	e := s.ElementByID(n.LinkAt(slot))
 	if e == nil || e.IsDeleted {
+		return nil
+	}
+	// Keep stored links intact so switching back restores the user's graph.
+	if sl, ok := AISlotByName(s.AIInputNode(n), slot); ok && sl.Disabled {
 		return nil
 	}
 	return e

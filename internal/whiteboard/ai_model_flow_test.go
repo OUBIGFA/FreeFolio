@@ -2,6 +2,27 @@ package whiteboard
 
 import "testing"
 
+func TestUnconnectedAISlotDoesNotParseModelChain(t *testing.T) {
+	s := NewScene()
+	base := NewAINode(AIModel, 0, 0)
+	bn := AINodeOf(base)
+	bn.Connection, bn.Model = "comfyui-zimage", "base"
+	if err := SetAINode(base, bn); err != nil {
+		t.Fatal(err)
+	}
+	gen := NewAINode(AIImage, 400, 0)
+	n := AINodeOf(gen)
+	n.Links = []AILink{{Slot: "model", From: base.ID}}
+	s.Elements = []*Element{base, gen}
+	if count := testing.AllocsPerRun(10, func() {
+		if s.AILinkSource(n, "prompt") != nil {
+			t.Fatal("an unconnected prompt resolved to a source")
+		}
+	}); count != 0 {
+		t.Fatalf("an unconnected slot performed %v allocations resolving a model", count)
+	}
+}
+
 func TestAIModelFlowResolvesBaseAndOrderedLoRAChain(t *testing.T) {
 	s := NewScene()
 	base := NewAINode(AIRole("model"), 0, 0)

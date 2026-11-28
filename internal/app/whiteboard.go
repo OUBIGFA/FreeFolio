@@ -30,6 +30,7 @@ func (d *document) loadWhiteboard(text string) {
 		return
 	}
 	d.board = editor.NewBoard(s)
+	d.board.PrepareText()
 	canonical, _ := s.Encode()
 	d.boardBase = sha256.Sum256([]byte(canonical))
 	d.boardDigestValue = d.boardBase
@@ -415,7 +416,9 @@ func (a *App) boardOptionsWith(theme *ui.Theme, d *document) editor.BoardOptions
 		}
 		return names
 	}, PickImage: func() { a.pickBoardImages(d) }, DropFiles: func(paths []string) { a.insertBoardFiles(d, paths) }, UserLibrary: a.userBoardLibrary, SaveLibrary: a.saveBoardLibrary, ImportLibrary: a.importBoardLibrary, ExportLibrary: a.exportBoardLibrary}
-	if a.win != nil {
+	if a.runAsync != nil {
+		o.Dispatch = a.runAsync
+	} else if a.win != nil {
 		o.Dispatch = func(fn func()) { a.win.Update(fn) }
 	}
 	// Only a board document owns its results' paths; a Markdown document's
