@@ -11,6 +11,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestSkippedSidebarRowsDoNotAllocatePerFrame(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.Frame()
+	w := &rowWindow{a: a, space: "large-space", on: true, lo: -100, hi: -10}
+	// Prime the row history once; pointer movement must reuse it.
+	w.skip("a long folder/a long document name.md", 32)
+	if got := testing.AllocsPerRun(10, func() {
+		w.skip("a long folder/a long document name.md", 32)
+	}); got != 0 {
+		t.Fatalf("skipping an unchanged offscreen row allocated %v times", got)
+	}
+}
+
 // longSpaceApp is an app whose space holds 300 documents in three open
 // folders, one of them empty, and a fourth folder closed.
 func longSpaceApp(t *testing.T) (*App, *ui.Tester) {

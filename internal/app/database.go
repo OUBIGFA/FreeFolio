@@ -1389,29 +1389,15 @@ func (a *App) pagePropertiesHeader(c *ui.Context, d *document) {
 	a.pagePropsExpanded[key] = !collapsed
 }
 
-func siblingsInNodes(tree []*vault.Node, dir string) []*vault.Node {
-	if dir == "" || dir == "." {
-		return tree
-	}
-	if parent := vault.Find(tree, dir); parent != nil && parent.Dir {
-		return parent.Children
-	}
-	return nil
-}
-
 // managedFolderFor returns the sibling folder managed by dbNode (i.e. "<stem>/"
 // alongside "<stem>.db.md") so the sidebar can fold it cleanly underneath.
 func (a *App) managedFolderFor(sp *space.Space, dbNode *vault.Node) *vault.Node {
 	if sp == nil || dbNode == nil || dbNode.Dir || !vault.IsDatabase(dbNode.Path) {
 		return nil
 	}
-	tree, _ := a.treeOf(sp)
-	sibs := siblingsInNodes(tree, parentDir(dbNode.Path))
 	target := strings.TrimSuffix(dbNode.Path, vault.ExtDatabase)
-	for _, s := range sibs {
-		if s.Dir && s.Path == target {
-			return s
-		}
+	if n := a.findTreeNode(sp, target); n != nil && n.Dir {
+		return n
 	}
 	return nil
 }
@@ -1766,16 +1752,9 @@ func (a *App) isFoldedDBDir(sp *space.Space, dir string) bool {
 	if sp == nil || dir == "" || dir == "." || sp.IsPinned(dir) {
 		return false
 	}
-	tree, _ := a.treeOf(sp)
-	sibs := siblingsInNodes(tree, parentDir(dir))
 	dbPath := dir + vault.ExtDatabase
-	for _, s := range sibs {
-		if !s.Dir && s.Path == dbPath {
-			if a.state.IsFavorite(sp.ID, dbPath) || a.grouped(sp, dbPath) {
-				return false
-			}
-			return true
-		}
+	if n := a.findTreeNode(sp, dbPath); n != nil && !n.Dir {
+		return !a.state.IsFavorite(sp.ID, dbPath) && !a.grouped(sp, dbPath)
 	}
 	return false
 }

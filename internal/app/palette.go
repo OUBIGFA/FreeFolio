@@ -141,7 +141,7 @@ func (a *App) openPalette() {
 							nodes = dropTreeFolder(nodes, attachmentFolder(sp))
 						}
 						arrangeNodes(sp, "", nodes)
-						a.pageTrees[res.id] = pageTree{nodes, res.err}
+						a.pageTrees[res.id] = pageTree{nodes: nodes, err: res.err}
 					}
 				}
 			})

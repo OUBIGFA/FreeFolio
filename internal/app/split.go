@@ -232,7 +232,7 @@ func (a *App) openSplit(sp *space.Space, rel string, leading bool, vertical bool
 	}
 	d := a.residentDocument(sp.ID, rel)
 	if d == nil {
-		d = openDocument(sp, rel, text, false)
+		d = a.openDocumentForView(sp, rel, text, false)
 	}
 	index := s.active + 1
 	if leading {

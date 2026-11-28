@@ -9,10 +9,79 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestStartupDefersWhiteboardDecodeUntilWindowIsShown(t *testing.T) {
+	seed, _ := newTestApp(t)
+	seed.newWhiteboard("")
+	rel := seed.doc.rel
+	cfg := seed.cfg
+	cfg.DeferStartup = true
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.doc == nil || a.doc.rel != rel || !a.doc.boardLoading || a.doc.board != nil {
+		t.Fatal("startup decoded the whiteboard before showing the window")
+	}
+	a.finishLaunch()
+	if a.doc == nil || a.doc.boardLoading || a.doc.board == nil || a.doc.dirty() {
+		t.Fatal("deferred startup did not restore the saved whiteboard")
+	}
+}
+
+func TestDeferredWhiteboardDoesNotReopenAfterLeaving(t *testing.T) {
+	seed, _ := newTestApp(t)
+	seed.newWhiteboard("")
+	cfg := seed.cfg
+	cfg.DeferStartup = true
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.showSpaceHome() {
+		t.Fatal("could not leave the loading whiteboard")
+	}
+	a.finishLaunch()
+	if a.doc != nil {
+		t.Fatal("deferred load reopened a whiteboard after leaving it")
+	}
+}
+
+func TestRestoringSplitLoadsWhiteboardOffMainThread(t *testing.T) {
+	a, _ := newTestApp(t)
+	sp := a.state.ActiveSpace()
+	scene := whiteboard.NewScene()
+	scene.Elements = append(scene.Elements, whiteboard.NewElement(whiteboard.KindRectangle, 10, 20, 100, 80))
+	raw, err := scene.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Write(sp.Root, "Board.excalidraw", raw); err != nil {
+		t.Fatal(err)
+	}
+	sp.Split = &space.Split{Shown: true, Panes: []space.SplitPane{{Space: sp.ID, Path: "Board.excalidraw"}, {Space: sp.ID, Path: "Welcome.md"}}}
+	a.session(sp.ID).splitRestored = false
+	updates := make(chan func(), 1)
+	a.runAsync = func(fn func()) { updates <- fn }
+	a.restoreSpaceSplit(sp)
+	group := a.session(sp.ID).split
+	if group == nil || group.panes[0].doc == nil || !group.panes[0].doc.boardLoading {
+		t.Fatal("restoring a split decoded the whiteboard on the main thread")
+	}
+	awaitTreeUpdate(t, updates)()
+	d := group.panes[0].doc
+	if d.boardLoading || d.loadErr != nil || d.board == nil || len(d.board.Scene.Elements) != 1 {
+		t.Fatal("restored pane did not receive the decoded whiteboard")
+	}
+	if d.dirty() {
+		t.Fatal("background load changed the saved board")
+	}
+}
 
 func TestWhiteboardSearchShortcutInApp(t *testing.T) {
 	a, tt := newTestApp(t)

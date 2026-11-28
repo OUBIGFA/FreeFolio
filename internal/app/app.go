@@ -168,11 +168,12 @@ type App struct {
 
 	// tree and docs are the folders and documents of treeFor, the space
 	// they were read for; docs lists the documents in tree order.
-	tree     []*vault.Node
-	docs     []*vault.Node
-	docPaths map[string]bool
-	treeFor  string
-	treeErr  error
+	tree      []*vault.Node
+	docs      []*vault.Node
+	docPaths  map[string]bool
+	treeNodes map[string]*vault.Node
+	treeFor   string
+	treeErr   error
 	// treeLoading is set while the active space's folder is read off the
 	// main thread; treeGen tells a read still wanted from one overtaken by
 	// a later read or a switch. readTreesAsync reads folders so, as the
@@ -266,7 +267,7 @@ type App struct {
 	// row's place in the frame before, rowFocusNow in this one. rowsAll
 	// builds every row: tests compare against it.
 	rowWin      *rowWindow
-	spaced      map[string]spacedRow
+	spaced      map[place]spacedRow
 	rowFocus    rowFocus
 	rowFocusNow rowFocus
 	rowsAll     bool
@@ -465,6 +466,7 @@ func New(cfg Config) (*App, error) {
 		a.launch.migrateSpaces = true
 		a.launch.loadPlugins = true
 		a.launch.deferSearch = true
+		a.launch.deferTree = true
 	} else {
 		// Spaces made before the rebrand keep their versions and templates in
 		// the legacy system folder; it moves once, before anything reads it.
@@ -1036,7 +1038,7 @@ func (a *App) refreshTree() {
 // disk, off the main thread when it can, the rows shown meanwhile.
 func (a *App) reloadTree() {
 	sp := a.state.ActiveSpace()
-	if post := a.treePost(); post != nil && sp != nil && !sp.IsExternal() && a.treeFor == sp.ID {
+	if post := a.treePost(); post != nil && sp != nil && a.treeFor == sp.ID {
 		a.treeGen++
 		a.loadTreeAsync(sp, post, true)
 		return
@@ -1048,13 +1050,18 @@ func (a *App) reloadTree() {
 // folder is read off the main thread, so that entering a new space does
 // not freeze the window while every folder of it is listed.
 func (a *App) syncTree() {
+	// The first frame needs a loading row, not a full directory scan.
+	if a.launch.deferTree {
+		a.treeLoading = true
+		return
+	}
 	sp := a.state.ActiveSpace()
 	if sp == nil || a.treeFor == sp.ID {
 		return
 	}
 	a.treeFor = sp.ID
 	a.treeGen++
-	if post := a.treePost(); post != nil && !sp.IsExternal() {
+	if post := a.treePost(); post != nil {
 		a.loadTreeAsync(sp, post, false)
 		return
 	}
@@ -1083,6 +1090,7 @@ func (a *App) treePost() func(func()) {
 // overtaken by another read, or by a switch, is dropped.
 func (a *App) loadTreeAsync(sp *space.Space, post func(func()), keep bool) {
 	gen, id, root := a.treeGen, sp.ID, sp.Root
+	snapshot := treeSpaceSnapshot(sp)
 	if !keep {
 		a.tree, a.treeErr = nil, nil
 		if pt, ok := a.pageTrees[id]; ok && pt.err == nil {
@@ -1092,16 +1100,12 @@ func (a *App) loadTreeAsync(sp *space.Space, post func(func()), keep bool) {
 	}
 	a.treeLoading = true
 	go func() {
-		nodes, err := vault.Tree(root)
+		nodes, err := readTree(snapshot)
 		post(func() {
 			cur := a.state.ActiveSpace()
 			if gen != a.treeGen || cur == nil || cur.ID != id || cur.Root != root {
 				return
 			}
-			if err == nil {
-				nodes = dropTreeFolder(nodes, attachmentFolder(cur))
-			}
-			arrangeNodes(cur, "", nodes)
 			a.setTree(cur, nodes, err)
 		})
 	}()
@@ -1130,6 +1134,7 @@ func (a *App) setTree(sp *space.Space, nodes []*vault.Node, err error) {
 // collectDocs lists the documents of the tree in tree order.
 func (a *App) collectDocs() {
 	a.docs = a.docs[:0]
+	a.treeNodes = indexTreeNodes(a.tree)
 	if a.docPaths == nil {
 		a.docPaths = make(map[string]bool)
 	} else {
@@ -1758,7 +1763,7 @@ func (a *App) switchSpaceOnly(id string) bool {
 			if a.pageTrees == nil {
 				a.pageTrees = map[string]pageTree{}
 			}
-			a.pageTrees[cur.ID] = pageTree{a.tree, nil}
+			a.pageTrees[cur.ID] = pageTree{nodes: a.tree, byPath: a.treeNodes}
 		}
 	}
 	a.suspendSplit()

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -37,8 +38,54 @@ var listAnim = ui.Animation{Duration: 220 * time.Millisecond, Ease: listEase}
 
 // pageTree is a space's folders as read for the strip of spaces.
 type pageTree struct {
-	nodes []*vault.Node
-	err   error
+	nodes  []*vault.Node
+	err    error
+	byPath map[string]*vault.Node
+	// The snapshot identifies a pending read, so invalidated reads cannot
+	// replace a newer result after a switch, move or folder change.
+	pending *space.Space
+}
+
+// Directory snapshots are indexed once. Folder/database pairing must not scan
+// every sibling again for every folder on every animation frame.
+func indexTreeNodes(nodes []*vault.Node) map[string]*vault.Node {
+	index := make(map[string]*vault.Node)
+	var walk func([]*vault.Node)
+	walk = func(nodes []*vault.Node) {
+		for _, n := range nodes {
+			index[n.Path] = n
+			walk(n.Children)
+		}
+	}
+	walk(nodes)
+	return index
+}
+
+func (a *App) findTreeNode(sp *space.Space, rel string) *vault.Node {
+	nodes, _ := a.treeOf(sp)
+	if sp == a.state.ActiveSpace() {
+		if a.treeNodes == nil {
+			a.treeNodes = indexTreeNodes(nodes)
+		}
+		return a.treeNodes[rel]
+	}
+	pt := a.pageTrees[sp.ID]
+	if pt.byPath == nil {
+		pt.byPath = indexTreeNodes(nodes)
+		a.pageTrees[sp.ID] = pt
+	}
+	return pt.byPath[rel]
+}
+
+// Tree workers own the sorting and file lists they read; UI edits may continue.
+func treeSpaceSnapshot(sp *space.Space) *space.Space {
+	copy := *sp
+	copy.ExternalFiles = maps.Clone(sp.ExternalFiles)
+	copy.Order = make(map[string][]string, len(sp.Order))
+	for dir, names := range sp.Order {
+		copy.Order[dir] = slices.Clone(names)
+	}
+	return &copy
 }
 
 // readTree reads the space's folder in the order the space keeps. The
@@ -143,8 +190,23 @@ func (a *App) treeOf(sp *space.Space) ([]*vault.Node, error) {
 	if a.pageTrees == nil {
 		a.pageTrees = map[string]pageTree{}
 	}
+	if post := a.treePost(); post != nil {
+		snapshot := treeSpaceSnapshot(sp)
+		a.pageTrees[sp.ID] = pageTree{pending: snapshot}
+		go func() {
+			nodes, err := readTree(snapshot)
+			post(func() {
+				current := a.state.Get(snapshot.ID)
+				if current == nil || current.Root != snapshot.Root || a.pageTrees[snapshot.ID].pending != snapshot {
+					return
+				}
+				a.pageTrees[snapshot.ID] = pageTree{nodes: nodes, err: err}
+			})
+		}()
+		return nil, nil
+	}
 	nodes, err := readTree(sp)
-	a.pageTrees[sp.ID] = pageTree{nodes, err}
+	a.pageTrees[sp.ID] = pageTree{nodes: nodes, err: err}
 	return nodes, err
 }
 

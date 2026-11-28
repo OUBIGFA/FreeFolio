@@ -65,7 +65,7 @@ func (a *App) restoreSpaceSplit(sp *space.Space) {
 			if text, err := readFile(source, ref.Path); err == nil {
 				p.doc = a.residentDocument(ref.Space, ref.Path)
 				if p.doc == nil {
-					p.doc = openDocument(source, ref.Path, text, false)
+					p.doc = a.openDocumentForView(source, ref.Path, text, false)
 				}
 				p.history = []place{key}
 				seen[key] = true

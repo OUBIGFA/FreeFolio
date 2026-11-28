@@ -9,6 +9,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/plugin"
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
+	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
 
 // The window's icon and the tray icon wait for the first frame to show,
@@ -34,6 +35,29 @@ func TestLaunchFinishesAfterTheFirstFrame(t *testing.T) {
 	tt.Frame()
 	if finished != 1 {
 		t.Fatalf("the launch finished %d times", finished)
+	}
+}
+
+func TestDeferredStartupDoesNotReadSpaceTreeBeforeWindow(t *testing.T) {
+	seed, _ := newTestApp(t)
+	sp := seed.state.ActiveSpace()
+	sp.Pins = []string{"Welcome.md"}
+	seed.saveState()
+	cfg := seed.cfg
+	cfg.DeferStartup = true
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.tree) != 0 || !a.treeLoading {
+		t.Fatalf("startup read the folder before showing a window: %d nodes, loading %v", len(a.tree), a.treeLoading)
+	}
+	if len(a.state.ActiveSpace().Pins) != 1 {
+		t.Fatal("pending tree load pruned pins")
+	}
+	a.finishLaunch()
+	if a.treeLoading || vault.Find(a.tree, "Welcome.md") == nil {
+		t.Fatal("deferred folder read did not finish")
 	}
 }
 

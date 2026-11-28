@@ -14,6 +14,42 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestBoardModelListsAreSharedWithinOneView(t *testing.T) {
+	b := NewBoard(nil)
+	defer b.Close()
+	for i := range 4 {
+		b.Scene.Elements = append(b.Scene.Elements, whiteboard.NewAINode(whiteboard.AIText, float64(i*350), 0))
+	}
+	calls := 0
+	name := "First model"
+	var maxCalls int
+	tt := ui.NewTester(func(c *ui.Context) {
+		calls = 0
+		BoardView(c, b, BoardOptions{AI: &BoardAI{Models: func(role whiteboard.AIRole) []BoardAIModel {
+			calls++
+			return []BoardAIModel{{Connection: "test", Model: "model", Name: name}}
+		}}})
+		maxCalls = max(maxCalls, calls)
+	}, 1600, 900)
+	tt.Frame()
+	if maxCalls != 1 {
+		t.Fatalf("one view fetched the same model list %d times", maxCalls)
+	}
+	// A new view must ask again so changed connections are visible immediately.
+	name = "Updated model"
+	for _, e := range b.Scene.Elements {
+		n := whiteboard.AINodeOf(e)
+		n.Connection, n.Model = "test", "model"
+		if err := whiteboard.SetAINode(e, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Frame()
+	if calls != 1 || !tt.HasText("Updated model") {
+		t.Fatal("the next view retained a stale model list")
+	}
+}
+
 // BenchmarkBoardResize isolates FreeFolio's gesture work from the app shell,
 // native rendering and disk I/O. Unselected elements must not be copied for
 // every pointer move.

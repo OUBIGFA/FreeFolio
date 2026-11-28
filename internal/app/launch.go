@@ -21,6 +21,8 @@ type launch struct {
 	loadPlugins   bool
 	migrateSpaces bool
 	deferSearch   bool
+	deferTree     bool
+	boards        []*document // Parse restored boards after the window appears.
 	// shown is when the first frame was built, and asked whether the
 	// window's thread was asked to finish.
 	shown time.Time
@@ -84,6 +86,17 @@ func (a *App) finishLaunch() {
 }
 
 func (a *App) runDeferredStartup() {
+	if a.launch.deferTree {
+		a.launch.deferTree = false
+		a.syncTree()
+	}
+	boards := a.launch.boards
+	a.launch.boards = nil
+	for _, d := range boards {
+		if !d.closed.Load() && a.isResidentDocument(d) {
+			a.loadWhiteboardForView(d)
+		}
+	}
 	if a.win != nil {
 		a.loadGitSync()
 	}

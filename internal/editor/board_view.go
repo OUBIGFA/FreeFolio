@@ -34,6 +34,22 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 	}
 	b.ReadOnly = o.ReadOnly
 	b.options = o
+	// Visible nodes share one list per role within this view. Discard the
+	// cache next view so connection and download changes appear immediately.
+	if o.AI != nil && o.AI.Models != nil {
+		ai := *o.AI
+		models := ai.Models
+		lists := make(map[whiteboard.AIRole][]BoardAIModel)
+		ai.Models = func(role whiteboard.AIRole) []BoardAIModel {
+			if list, ok := lists[role]; ok {
+				return list
+			}
+			list := models(role)
+			lists[role] = list
+			return list
+		}
+		o.AI = &ai
+	}
 	b.services = c.Services()
 	b.ShowGrid = b.Scene.AppState.GridModeEnabled
 	root := ui.Box(c.Key("whiteboard-root")).Grow(1).WidthPercent(100).MinWidth(0).MinHeight(0).Clip()

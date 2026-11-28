@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 )
@@ -21,6 +22,73 @@ func asyncTreeApp(t *testing.T) (*App, chan func()) {
 		a.runAsync = nil
 	})
 	return a, updates
+}
+
+func awaitTreeUpdate(t *testing.T, updates <-chan func()) func() {
+	t.Helper()
+	select {
+	case fn := <-updates:
+		return fn
+	case <-time.After(5 * time.Second):
+		t.Fatal("folder scan did not return")
+		return nil
+	}
+}
+
+func TestInactiveSpaceTreeLoadsOffMainThread(t *testing.T) {
+	a, updates := asyncTreeApp(t)
+	id := addSpace(t, a, "Other", map[string]string{"Note.md": "# Note"})
+	sp := a.state.Get(id)
+	nodes, err := a.treeOf(sp)
+	if err != nil || len(nodes) != 0 {
+		t.Fatalf("inactive space was scanned before a background result: %d nodes, %v", len(nodes), err)
+	}
+	// Repeated animation frames share one pending read.
+	a.treeOf(sp)
+	awaitTreeUpdate(t, updates)()
+	nodes, err = a.treeOf(sp)
+	if err != nil || vault.Find(nodes, "Note.md") == nil {
+		t.Fatalf("background tree did not arrive: %v", err)
+	}
+}
+
+func TestInactiveSpaceTreeDropsInvalidatedRead(t *testing.T) {
+	a, updates := asyncTreeApp(t)
+	id := addSpace(t, a, "Other", map[string]string{"Note.md": "# Note"})
+	sp := a.state.Get(id)
+	a.treeOf(sp)
+	old := awaitTreeUpdate(t, updates)
+	delete(a.pageTrees, id)
+	if err := os.WriteFile(filepath.Join(sp.Root, "New.md"), []byte("# New"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.treeOf(sp)
+	current := awaitTreeUpdate(t, updates)
+	current()
+	old()
+	nodes, err := a.treeOf(sp)
+	if err != nil || vault.Find(nodes, "New.md") == nil {
+		t.Fatal("stale scan replaced a newer folder tree")
+	}
+}
+
+func TestSidebarDatabasePairingFollowsRefreshedTree(t *testing.T) {
+	a, _ := newTestApp(t)
+	sp := a.state.ActiveSpace()
+	folder := &vault.Node{Name: "Tasks", Path: "Tasks", Dir: true}
+	db := &vault.Node{Name: "Tasks.db.md", Path: "Tasks.db.md"}
+	a.setTree(sp, []*vault.Node{folder, db}, nil)
+	if !a.isFoldedDBFolder(sp, folder) || a.managedFolderFor(sp, db) != folder {
+		t.Fatal("database did not own its sibling folder")
+	}
+	a.setTree(sp, []*vault.Node{folder}, nil)
+	if a.isFoldedDBFolder(sp, folder) {
+		t.Fatal("removed database still hides its folder")
+	}
+	a.setTree(sp, []*vault.Node{db}, nil)
+	if a.managedFolderFor(sp, db) != nil {
+		t.Fatal("removed folder still belongs to the database")
+	}
 }
 
 func folderWith(t *testing.T, name string, files ...string) string {

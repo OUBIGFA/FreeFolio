@@ -40,20 +40,42 @@ func (a *App) openDocumentForView(sp *space.Space, rel, text string, preferSourc
 	if vault.IsConverted(rel) && a.win != nil {
 		return a.openConvertedAsync(sp, rel, text)
 	}
-	if !vault.IsWhiteboard(rel) || a.win == nil {
+	if !vault.IsWhiteboard(rel) || a.win == nil && a.runAsync == nil && !a.launch.deferTree {
 		return openDocument(sp, rel, text, preferSource)
 	}
 	d := &document{space: sp, rel: rel, diskText: text, boardLoading: true, ed: editor.FromOwnedDocument(model.New())}
 	d.initLazyBaseline()
+	if a.win == nil && a.runAsync == nil {
+		a.launch.boards = append(a.launch.boards, d)
+	} else {
+		a.loadWhiteboardForView(d)
+	}
+	return d
+}
+
+// Startup and split restoration use the same loader as ordinary navigation.
+// Capture the source before dispatch; a later switch must not revive a closed pane.
+func (a *App) loadWhiteboardForView(d *document) {
+	sp, rel, text := d.space, d.rel, d.diskText
+	apply := func(loaded *document) {
+		if !d.closed.Load() && a.isResidentDocument(d) {
+			a.replaceReferences(d, loaded)
+		} else {
+			loaded.close()
+		}
+	}
+	post := a.runAsync
+	if post == nil && a.win != nil {
+		post = a.win.Update
+	}
+	if post == nil {
+		apply(openDocument(sp, rel, text, false)) // Headless callers complete inline.
+		return
+	}
 	go func() {
 		loaded := openDocument(sp, rel, text, false)
-		a.win.Update(func() {
-			if !d.closed.Load() && a.isResidentDocument(d) {
-				a.replaceReferences(d, loaded)
-			}
-		})
+		post(func() { apply(loaded) })
 	}()
-	return d
 }
 func (d *document) contentVersion() uint64 {
 	if d.board != nil {

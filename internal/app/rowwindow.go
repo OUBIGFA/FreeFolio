@@ -83,7 +83,7 @@ func (a *App) beginRows(c *ui.Context, spaceID, section string, col, tree ui.Ele
 		w.top = view.Y - ss.Y
 	}
 	if a.spaced == nil {
-		a.spaced = map[string]spacedRow{}
+		a.spaced = map[place]spacedRow{}
 	} else if len(a.spaced) > 1<<14 {
 		clear(a.spaced) // rows long gone; at worst one fades in once more
 	}
@@ -110,7 +110,7 @@ func (w *rowWindow) skip(key string, h float32) bool {
 	}
 	w.run += h
 	w.runRows++
-	w.a.spaced[w.space+"\x00"+key] = spacedRow{spaced: true, at: w.now}
+	w.a.spaced[place{w.space, key}] = spacedRow{spaced: true, at: w.now}
 	return true
 }
 
@@ -150,7 +150,7 @@ func (w *rowWindow) focused() {
 // because the list scrolled to it, rather than because it came into the
 // list: it then shows at once, without the fade of a row coming in.
 func (a *App) scrolledIn(spaceID, key string, now time.Time) bool {
-	k := spaceID + "\x00" + key
+	k := place{spaceID, key}
 	e, ok := a.spaced[k]
 	switch {
 	case !ok:
