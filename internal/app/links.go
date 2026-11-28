@@ -342,13 +342,12 @@ func (lk *linkFeature) pageFooterFor(c *ui.Context, d *document) {
 	if len(hits) == 0 && len(tags) == 0 && d.ed.Blank() {
 		return // a blank page shows its starter alone
 	}
-	ui.Column(c).Gap(10).Children(func() {
-		ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
+	ui.Column(c).Gap(16).Children(func() {
 		if len(tags) > 0 {
-			ui.Row(c.Key("page-tags")).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("page-tags")).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconHash).FontSize(14).TextColor(t.TextMuted)
 				for _, tag := range tags {
-					chip := ui.ButtonBase(c.Key("tag:" + tag)).Height(24).PaddingX(8).Radius(6).Label(i18n.T("标签 ") + tag).
+					chip := ui.ButtonBase(c.Key("tag:" + tag)).Height(24).PaddingX(12).Radius(8).Label(i18n.T("标签 ") + tag).
 						Cursor(ui.CursorPointer).Background(pg.TagFill)
 					if chip.Hovered() {
 						chip.Background(t.Accent.Alpha(0.18))
@@ -370,7 +369,7 @@ func (lk *linkFeature) pageFooterFor(c *ui.Context, d *document) {
 				}
 			})
 		}
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconLink).FontSize(14).TextColor(t.TextMuted)
 			label := i18n.T("反向链接")
 			if len(hits) > 0 {
@@ -384,14 +383,14 @@ func (lk *linkFeature) pageFooterFor(c *ui.Context, d *document) {
 		}
 		for _, h := range hits {
 			id, rel := h.Space, h.Path
-			row := ui.ButtonBase(c.Key("backlink:"+id+"/"+rel)).Padding(8, 10).Radius(8).Gap(4).Label(i18n.T("打开 ") + vault.Title(rel)).
+			row := ui.ButtonBase(c.Key("backlink:"+id+"/"+rel)).Padding(12, 16).Radius(8).Gap(8).Label(i18n.T("打开 ") + vault.Title(rel)).
 				Cursor(ui.CursorPointer).AlignItems(ui.Stretch)
 			if row.Hovered() {
 				row.Background(pg.Hover)
 			}
 			row.Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 						docIcon(c, lk.iconTitle(id, rel), 16)
 						ui.Text(c, docName(vault.Title(rel))).FontSize(14).SingleLine().Shrink(1).MinWidth(0)
 						if hint := lk.host.docHint(id, rel); hint != "" {

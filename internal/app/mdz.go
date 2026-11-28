@@ -648,7 +648,7 @@ func (mz *mdzFeature) mdzCorner(c *ui.Context, d *document) {
 	}
 	m := d.mdz
 	t := c.Theme()
-	ui.Row(c.Key("mdz-corner")).Gap(4).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("mdz-corner")).Gap(8).AlignItems(ui.Center).Children(func() {
 		if mz.host.showPageZoomButton(d) {
 			mz.host.pageZoomButton(c, d)
 		}
@@ -656,7 +656,7 @@ func (mz *mdzFeature) mdzCorner(c *ui.Context, d *document) {
 			mz.host.pageWidthButton(c, d)
 		}
 		if m.hasActivePage() && len(m.pages) > 1 {
-			ui.Row(c.Key("mdz-page-count")).Height(28).PaddingX(8).Radius(7).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("mdz-page-count")).Height(28).PaddingX(12).Radius(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf(i18n.T("%d / %d 页"), m.currentIndex()+1, len(m.pages))).
 					FontSize(12).TextColor(t.TextMuted).NoWrap()
 			})
@@ -687,11 +687,11 @@ func (mz *mdzFeature) mdzCorner(c *ui.Context, d *document) {
 				}
 			}
 		}
-		ui.Row(c.Key("mdz-badge")).Height(22).PaddingX(7).Radius(6).Background(t.Text.Alpha(0.08)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("mdz-badge")).Height(22).PaddingX(12).Radius(8).Background(t.Text.Alpha(0.08)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "MDZ").FontSize(10.5).FontWeight(600).TextColor(t.TextMuted).NoWrap()
 		})
 		if m.hasActivePage() {
-			unpack := ui.ButtonBase(c.Key("mdz-unpack")).Height(28).PaddingX(10).Radius(8).Center().
+			unpack := ui.ButtonBase(c.Key("mdz-unpack")).Height(28).PaddingX(16).Radius(8).Center().
 				Cursor(ui.CursorPointer).Role(ui.RoleButton).Label(i18n.T("解包另存为文档")).
 				Tooltip(i18n.T("将当前 MDZip 页面及附件解包为可编辑的 Markdown 文档"))
 			if unpack.Hovered() {
@@ -742,7 +742,7 @@ func (mz *mdzFeature) mdzView(c *ui.Context, d *document, width float32, focus b
 
 	// Case 1: Fatal load or spec validation error.
 	if m.archive == nil {
-		ui.Column(c.Key("mdz-error")).Grow(1).Center().Padding(32).Gap(12).Children(func() {
+		ui.Column(c.Key("mdz-error")).Grow(1).Center().Padding(48).Gap(20).Children(func() {
 			ui.Icon(c, iconAlert).FontSize(28).TextColor(dt.TextMuted)
 			ui.Text(c, i18n.T("无法打开 MDZip 文档")).FontSize(16).FontWeight(600).TextColor(dt.Text)
 			ui.Text(c, mdzErrorMessage(m.loadErr)).FontSize(13).TextColor(dt.TextMuted).MaxWidth(440).TextAlign(ui.Center)
@@ -757,7 +757,7 @@ func (mz *mdzFeature) mdzView(c *ui.Context, d *document, width float32, focus b
 
 	// Case 2: Valid archive, but no unambiguous entry point (Spec §5.5 rule 4).
 	if !m.hasActivePage() {
-		ui.Column(c.Key("mdz-picker")).Grow(1).Center().Padding(32).Gap(14).Children(func() {
+		ui.Column(c.Key("mdz-picker")).Grow(1).Center().Padding(48).Gap(20).Children(func() {
 			ui.Icon(c, iconFileArchive).FontSize(28).TextColor(dt.Accent)
 			if len(m.pages) == 0 {
 				ui.Text(c, i18n.T("压缩包内没有 Markdown 文档")).FontSize(16).FontWeight(600).TextColor(dt.Text)
@@ -774,10 +774,10 @@ func (mz *mdzFeature) mdzView(c *ui.Context, d *document, width float32, focus b
 				FontSize(13).TextColor(dt.TextMuted).MaxWidth(440).TextAlign(ui.Center)
 			boxW := min(float32(460), max(float32(260), width-64))
 			ui.Scroll(c.Key("mdz-picker-list")).Width(boxW).MaxHeight(300).
-				Radius(10).Border(1, dt.Border).Background(dt.Background.Mix(dt.Text, 0.02)).Padding(6).Children(func() {
+				Radius(10).Border(1, dt.Border).Background(dt.Background.Mix(dt.Text, 0.02)).Padding(8).Children(func() {
 				for _, pagePath := range m.pages {
 					p := pagePath
-					row := ui.Row(c.Key("pick:" + p)).Height(36).PaddingX(10).Radius(7).Gap(8).
+					row := ui.Row(c.Key("pick:" + p)).Height(36).PaddingX(16).Radius(8).Gap(12).
 						AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(p)
 					if row.Hovered() {
 						row.Background(dt.Text.Alpha(0.06))
@@ -831,14 +831,14 @@ func (mz *mdzFeature) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
 	railBg := dt.Background.Mix(dt.Text, 0.025)
 	ui.Column(c.Key("mdz-rail-pane")).Width(mdzRailWidth).Shrink(0).MinHeight(0).AlignSelf(ui.Stretch).
 		Background(railBg).Children(func() {
-		ui.Row(c.Key("mdz-rail-head")).Height(40).PaddingX(12).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("mdz-rail-head")).Height(40).PaddingX(20).Gap(8).AlignItems(ui.Center).Children(func() {
 			label := i18n.T("包内文件")
 			if m.archive != nil && m.archive.Mode() == mdz.ModeProject {
 				label = i18n.T("项目文档")
 			}
 			ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(dt.TextMuted).SingleLine().Grow(1).MinWidth(0)
 			if m.canBack() {
-				back := ui.Box(c.Key("mdz-rail-back")).Size(24, 24).Radius(6).Center().
+				back := ui.Box(c.Key("mdz-rail-back")).Size(24, 24).Radius(8).Center().
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("返回上一页")).Tooltip(i18n.T("返回上一页"))
 				if back.Hovered() {
 					back.Background(dt.Text.Alpha(0.08))
@@ -850,12 +850,11 @@ func (mz *mdzFeature) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
 					m.goBack()
 				}
 			}
-			ui.Box(c).Padding(2, 6).Radius(5).Background(dt.Text.Alpha(0.06)).Children(func() {
+			ui.Box(c).Padding(4, 8).Radius(8).Background(dt.Text.Alpha(0.06)).Children(func() {
 				ui.Text(c, fmt.Sprintf("%d", len(m.pages))).FontSize(10.5).FontWeight(500).TextColor(dt.TextMuted).NoWrap()
 			})
 		})
-		ui.Box(c).Height(1).Shrink(0).Background(dt.Border.Alpha(0.6))
-		ui.Scroll(c.Key("mdz-rail-scroll")).Grow(1).MinHeight(0).Padding(6).Children(func() {
+		ui.Scroll(c.Key("mdz-rail-scroll")).Grow(1).MinHeight(0).Padding(8).Children(func() {
 			lastDir := ""
 			for i, pagePath := range m.pages {
 				p := pagePath
@@ -864,7 +863,7 @@ func (mz *mdzFeature) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
 					dir = ""
 				}
 				if dir != "" && dir != lastDir {
-					ui.Row(c.Key(fmt.Sprintf("mdz-dir:%d:%s", i, dir))).Height(24).Padding(6, 8, 2, 8).Gap(5).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key(fmt.Sprintf("mdz-dir:%d:%s", i, dir))).Height(24).Padding(8, 12, 4, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 						ui.Icon(c, iconFolder).FontSize(12).TextColor(dt.TextMuted.Alpha(0.75))
 						ui.Text(c, dir).FontSize(11).FontWeight(500).TextColor(dt.TextMuted).SingleLine().Grow(1).MinWidth(0)
 					})
@@ -877,7 +876,7 @@ func (mz *mdzFeature) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
 				if dir != "" {
 					padLeft = 18
 				}
-				row := ui.Row(c.Key("mdz-page:"+p)).Height(30).Padding(0, 8, 0, padLeft).Radius(7).Gap(6).
+				row := ui.Row(c.Key("mdz-page:"+p)).Height(30).Padding(0, 12, 0, padLeft).Radius(8).Gap(8).
 					AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(p).Tooltip(p)
 				switch {
 				case active:

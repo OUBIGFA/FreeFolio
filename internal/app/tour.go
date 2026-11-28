@@ -394,7 +394,7 @@ func (a *App) tourCard(c *ui.Context, step tourStep, target ui.Rect, has bool, t
 	th := documentTheme(a.paperDark)
 	card := ui.Themed(c.Key("tour-card"), th).Absolute().Width(tourCardWidth).Radius(18).
 		Background(th.Background).Border(1, th.Border.Alpha(0.7)).
-		Shadow(0, 18, 48, 0, black.Alpha(0.3)).Clip().TransformOrigin(0.5, 0.5)
+		Shadow(0, 8, 24, 0, floatShadow(c.Theme())).Clip().TransformOrigin(0.5, 0.5)
 	ch := card.LayoutBounds().H
 	if ch < 1 {
 		ch = 404 // before the first layout
@@ -445,32 +445,28 @@ func (a *App) tourCard(c *ui.Context, step tourStep, target ui.Rect, has bool, t
 				}
 			}
 		})
-		text := ui.Column(c.Key("text-"+step.id)).Padding(18, 22, 0, 22).Gap(8)
+		text := ui.Column(c.Key("text-"+step.id)).Padding(28, 32, 0, 32).Gap(12)
 		enter(text, 18)
 		text.Children(func() {
-			label := i18n.T(step.label)
-			if t.step > 0 && t.step < last {
-				label = fmt.Sprintf("%s · %d / %d", i18n.T(step.label), t.step, last-1)
-			}
-			ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(th.Accent)
-			ui.Text(c, i18n.T(step.title)).FontSize(20).FontWeight(650)
+			// The dots below show the progress, so no eyebrow label repeats it.
+			ui.Text(c, i18n.T(step.title)).FontSize(20).FontWeight(600)
 			ui.Text(c, step.body(a)).FontSize(13.5).LineHeight(1.65).TextColor(th.TextMuted)
 			if step.keys != nil {
-				ui.Row(c.Key("keys")).Gap(6).Padding(4, 0, 0, 0).Wrap().Children(func() {
+				ui.Row(c.Key("keys")).Gap(8).Padding(8, 0, 0, 0).Wrap().Children(func() {
 					for _, k := range step.keys(a) {
-						ui.Box(c.Key(k)).Height(24).PaddingX(8).Radius(7).Center().
-							Background(th.Surface).Border(1, th.Border.Alpha(0.8)).Children(func() {
+						ui.Box(c.Key(k)).Height(24).PaddingX(12).Radius(8).Center().
+							Background(th.Surface).Children(func() {
 							ui.Text(c, k).FontSize(11.5).TextColor(th.Text.Alpha(0.72)).NoWrap()
 						})
 					}
 				})
 			}
 		})
-		ui.Row(c.Key("foot")).Padding(18, 22, 20, 22).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Row(c.Key("dots")).Gap(5).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("foot")).Padding(28, 32, 32, 32).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("dots")).Gap(8).AlignItems(ui.Center).Children(func() {
 				for i, s := range tourSteps {
 					on := i == t.step
-					dot := ui.Box(c.Key(i)).Height(6).Radius(3).Role(ui.RoleButton).Label(i18n.T("第 ") + fmt.Sprint(i+1) + i18n.T(" 步：") + i18n.T(s.label)).
+					dot := ui.Box(c.Key(i)).Height(6).Radius(8).Role(ui.RoleButton).Label(i18n.T("第 ") + fmt.Sprint(i+1) + i18n.T(" 步：") + i18n.T(s.label)).
 						Tooltip(i18n.T(s.label)).Cursor(ui.CursorPointer)
 					width, ink := float32(6), th.Text.Alpha(0.16)
 					if on {
@@ -509,7 +505,7 @@ func (a *App) tourCard(c *ui.Context, step tourStep, target ui.Rect, has bool, t
 // accent, the other quiet.
 func tourButton(c *ui.Context, key, label string, primary bool) ui.Element {
 	t := c.Theme()
-	b := ui.Box(c.Key(key)).Height(34).PaddingX(16).Radius(10).Center().Cursor(ui.CursorPointer).
+	b := ui.Box(c.Key(key)).Height(34).PaddingX(24).Radius(10).Center().Cursor(ui.CursorPointer).
 		Focusable().Role(ui.RoleButton).Label(label)
 	ink := t.Text.Alpha(0.72)
 	switch {

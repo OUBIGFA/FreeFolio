@@ -876,7 +876,7 @@ func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder,
 	look := dragCardColors(t, a.look)
 	rad, insetY := a.sidebarRowRadius(), a.sidebarRowInsetY()
 	card := ui.Row(c.Key("drag-card")).Absolute().Left(x).Top(y).Size(max(48, w), rowHeight).
-		PaddingStart(rowIconStart).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).IgnoreInput(true).Background(ui.Transparent)
+		PaddingStart(rowIconStart).PaddingEnd(12).Gap(rowGlyphGap).AlignItems(ui.Center).IgnoreInput(true).Background(ui.Transparent)
 	if intoFolder {
 		card.Opacity(0.68)
 	}
@@ -896,12 +896,11 @@ func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder,
 					W: max(32, fr.W-6*lf),
 					H: fr.H,
 				}
-				p.Shadow(sr, rad, 0, 1+3*lift, 2+8*lift, 0, scaleAlpha(look.shadow, 0.45*lift))
 				p.Fill(sr, scaleAlpha(look.fill, 0.92), rad)
 				p.Stroke(sr, scaleAlpha(look.rim, 0.85*lift), rad, 1)
 			}
 		}
-		p.Shadow(fr, rad, 0, 1+5*lift, 3+15*lift, 0, scaleAlpha(look.shadow, 0.2+0.8*lift))
+		p.Shadow(fr, rad, 0, 8*lift, 24*lift, 0, scaleAlpha(look.shadow, lift))
 		p.Fill(fr, look.fill, rad)
 		if lift > 0.01 {
 			p.Stroke(fr, scaleAlpha(look.rim, lift), rad, 1)
@@ -926,7 +925,7 @@ func (a *App) floatingDragCard(c *ui.Context, x, y, w, lift float32, intoFolder,
 			name.FontWeight(500)
 		}
 		if count > 1 {
-			ui.Box(c.Key("drag-count")).Height(19).MinWidth(19).PaddingX(6).Radius(9.5).Shrink(0).
+			ui.Box(c.Key("drag-count")).Height(19).MinWidth(19).PaddingX(8).Radius(9.5).Shrink(0).
 				Center().Background(look.badgeFill).Children(func() {
 				ui.Text(c, fmt.Sprint(count)).FontSize(11).FontWeight(600).TextColor(look.badgeText).NoWrap()
 			})
@@ -942,8 +941,8 @@ func intoBadge(c *ui.Context) {
 	if t.Dark {
 		fill = white.Alpha(0.14)
 	}
-	ui.Row(c.Key("into-badge")).Absolute().Right(8).Top(6).Height(22).PaddingX(8).Gap(4).Radius(11).
-		AlignItems(ui.Center).Background(fill).Shadow(0, 1, 2, 0, black.Alpha(0.08)).Children(func() {
+	ui.Row(c.Key("into-badge")).Absolute().Right(8).Top(6).Height(22).PaddingX(12).Gap(8).Radius(11).
+		AlignItems(ui.Center).Background(fill).Children(func() {
 		ui.Icon(c, iconFolder).FontSize(12).TextColor(t.Text)
 		ui.Text(c, i18n.T("移到文件夹")).FontSize(11).FontWeight(600).TextColor(t.Text).NoWrap()
 	})

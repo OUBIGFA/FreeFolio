@@ -259,9 +259,9 @@ func (a *App) replaceView(c *ui.Context) {
 	t := c.Theme()
 	w, h := c.Size()
 	ui.Modal(c.Key("replace-all"), &r.open, func() {
-		ui.Column(c.Key("replace-body")).Size(min(620, w-t.Space(20)), min(520, h-t.Space(20))).Gap(12).Children(func() {
+		ui.Column(c.Key("replace-body")).Size(min(620, w-80), min(520, h-80)).Gap(20).Children(func() {
 			ui.Text(c, i18n.T("在所有文档中查找和替换")).FontSize(16).FontWeight(600)
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("查找")).Width(36).TextColor(t.TextMuted)
 				placeholder := i18n.T("要查找的文字")
 				if r.opts.Regex {
@@ -269,7 +269,7 @@ func (a *App) replaceView(c *ui.Context) {
 				}
 				ui.TextInput(c.Key("replace-find"), &r.find).Grow(1).AutoFocus().Placeholder(placeholder).Label(i18n.T("查找"))
 			})
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("替换")).Width(36).TextColor(t.TextMuted)
 				placeholder := i18n.T("替换为（留空即删除）")
 				if r.opts.Regex {
@@ -277,7 +277,7 @@ func (a *App) replaceView(c *ui.Context) {
 				}
 				ui.TextInput(c.Key("replace-with"), &r.with).Grow(1).Placeholder(placeholder).Label(i18n.T("替换为"))
 			})
-			ui.Row(c.Key("replace-options")).Gap(16).AlignItems(ui.Center).PaddingStart(46).Children(func() {
+			ui.Row(c.Key("replace-options")).Gap(24).AlignItems(ui.Center).PaddingStart(68).Children(func() {
 				ui.Checkbox(c.Key("replace-case"), &r.opts.CaseSensitive, i18n.T("区分大小写"))
 				ui.Checkbox(c.Key("replace-word"), &r.opts.WholeWord, i18n.T("全词匹配"))
 				ui.Checkbox(c.Key("replace-regex"), &r.opts.Regex, i18n.T("使用正则表达式"))
@@ -286,7 +286,7 @@ func (a *App) replaceView(c *ui.Context) {
 			if r.everywhere {
 				scope = 1
 			}
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("范围")).Width(36).TextColor(t.TextMuted)
 				segmentedChoice(c.Key("replace-scope"), &scope, i18n.T("当前空间"), i18n.T("所有空间")).Label(i18n.T("范围"))
 			})
@@ -297,21 +297,21 @@ func (a *App) replaceView(c *ui.Context) {
 				total += hit.Count
 			}
 			ui.Scroll(c.Key("replace-hits")).Grow(1).MinHeight(0).Children(func() {
-				ui.Column(c).Gap(2).Children(func() {
+				ui.Column(c).Gap(4).Children(func() {
 					switch {
 					case r.opts.Regex && r.find != "" && r.findMatcher().Err() != nil:
-						ui.Text(c, i18n.T("正则表达式无效：")+r.findMatcher().Err().Error()).FontSize(13).TextColor(t.Danger).Padding(16, 4)
+						ui.Text(c, i18n.T("正则表达式无效：")+r.findMatcher().Err().Error()).FontSize(13).TextColor(t.Danger).Padding(24, 8)
 					case !r.worth():
-						ui.Text(c, i18n.T("输入至少两个字符（或一个汉字）开始查找")).FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
+						ui.Text(c, i18n.T("输入至少两个字符（或一个汉字）开始查找")).FontSize(13).TextColor(t.TextMuted).Padding(24, 8)
 					case len(hits) == 0:
-						ui.Text(c, i18n.T("没有找到「")+r.query()+"」").FontSize(13).TextColor(t.TextMuted).Padding(16, 4)
+						ui.Text(c, i18n.T("没有找到「")+r.query()+"」").FontSize(13).TextColor(t.TextMuted).Padding(24, 8)
 					}
 					for _, hit := range hits {
 						a.replaceRow(c, hit)
 					}
 				})
 			})
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				summary := ""
 				if len(hits) > 0 {
 					summary = fmt.Sprintf(i18n.T("%d 篇文档，共 %d 处"), len(hits), total)
@@ -336,14 +336,14 @@ func (a *App) replaceRow(c *ui.Context, hit search.Hit) {
 	if sp == nil {
 		return
 	}
-	row := ui.ButtonBase(c.Key("replace-hit:" + hit.Space + ":" + hit.Path)).PaddingX(10).PaddingY(6).Gap(10).Radius(8).
+	row := ui.ButtonBase(c.Key("replace-hit:" + hit.Space + ":" + hit.Path)).PaddingX(16).PaddingY(8).Gap(16).Radius(8).
 		AlignItems(ui.Center).Label(i18n.T("打开 ") + vault.Title(hit.Path)).Cursor(ui.CursorPointer)
 	if row.Hovered() {
 		row.Background(hoverFill(t))
 	}
 	row.Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, docName(vault.Title(hit.Path))).FontSize(14).SingleLine().Shrink(1).MinWidth(0)
 				ui.Text(c, placeHint(sp, hit.Path)).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 			})

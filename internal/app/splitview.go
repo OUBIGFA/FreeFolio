@@ -123,7 +123,7 @@ func (a *App) splitPaneView(c *ui.Context, s *splitGroup, pane *splitPane, index
 	t := c.Theme()
 	d := pane.doc
 	card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinWidth(0).MinHeight(0).Radius(panelRadius).Clip().
-		Shadow(0, 1, 4, 0, cardShadow(t)).Label(fmt.Sprintf(i18n.T("分屏 %d"), index+1))
+		Label(fmt.Sprintf(i18n.T("分屏 %d"), index+1))
 	if d == nil {
 		card.Background(splitEmpty(t))
 	}
@@ -131,7 +131,6 @@ func (a *App) splitPaneView(c *ui.Context, s *splitGroup, pane *splitPane, index
 	card.Children(func() {
 		a.paneToolbar(c, s, pane, index, width)
 		if d == nil {
-			ui.Box(c).Height(1).Background(c.Theme().Border.Alpha(0.4))
 			activate := func() { a.focusPane(index, false) }
 			if a.files != nil {
 				a.fileEmptyFor(c, activate)
@@ -158,7 +157,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 		}
 	}
 	t := c.Theme()
-	bar := ui.Row(c.Key("pane-toolbar")).Height(36).PaddingX(5).Gap(2).MinWidth(0).AlignItems(ui.Center)
+	bar := ui.Row(c.Key("pane-toolbar")).Height(36).PaddingX(8).Gap(4).MinWidth(0).AlignItems(ui.Center)
 	full := s.active == index || bar.Hovered()
 	bar.Children(func() {
 		if a.files == nil && d != nil && width >= 260 {
@@ -169,7 +168,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 				run(func() { a.goHistory(1) })
 			}
 		}
-		address := ui.Row(c.Key("pane-address")).Grow(1).MinWidth(0).Height(28).PaddingX(6).Gap(6).Radius(6).AlignItems(ui.Center).
+		address := ui.Row(c.Key("pane-address")).Grow(1).MinWidth(0).Height(28).PaddingX(8).Gap(8).Radius(8).AlignItems(ui.Center).
 			Focusable().Role(ui.RoleButton).Label(fmt.Sprintf(i18n.T("分屏 %d 文档路径"), index+1)).Cursor(ui.CursorPointer)
 		if address.Hovered() {
 			address.Background(t.Text.Alpha(0.05))
@@ -350,8 +349,8 @@ func (a *App) splitDivider(c *ui.Context, s *splitGroup, index int, offset float
 		ui.Overlay(c, func() {
 			scrim := pageStyle(a.paperDark)
 			pill := ui.Box(c.Key(fmt.Sprintf("split-pill-%d", index))).Absolute().
-				Left(hb.X + hb.W/2 - 38).Top(hb.Y + hb.H/2 - 12).Height(24).MinWidth(76).PaddingX(8).
-				Radius(6).Center().Background(scrim.Scrim)
+				Left(hb.X + hb.W/2 - 38).Top(hb.Y + hb.H/2 - 12).Height(24).MinWidth(76).PaddingX(12).
+				Radius(8).Center().Background(scrim.Scrim)
 			if s.dragSnapped {
 				pill.Border(1, t.Accent.Alpha(0.9))
 			}

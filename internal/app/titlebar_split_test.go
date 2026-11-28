@@ -96,7 +96,7 @@ func TestNewSplitShowsHomeWithoutSearch(t *testing.T) {
 				t.Fatal("adding a split must show its home without opening search or replacing the first document")
 			}
 			if !files {
-				if !tt.HasText("从侧边栏选择文档，或搜索空间内容") || !tt.HasText("新建白板") {
+				if !tt.HasText("新建白板") {
 					t.Fatal("space home is missing")
 				}
 				// Clicking an inactive home must target that pane, not the active editor.

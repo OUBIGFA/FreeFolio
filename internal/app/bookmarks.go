@@ -403,7 +403,7 @@ func (bk *bookmarkFeature) bookmarkRow(c *ui.Context, row ui.Element, act action
 	}
 	row.Children(func() {
 		ui.Text(c, act.kind).FontSize(11).TextColor(c.Theme().TextMuted).Width(64).NoWrap()
-		input := ui.TextInput(c.Key("bookmark-label"), &p.newLabel).Placeholder(b.Excerpt).Label(i18n.T("书签名称")).Grow(1).Padding(4, 8)
+		input := ui.TextInput(c.Key("bookmark-label"), &p.newLabel).Placeholder(b.Excerpt).Label(i18n.T("书签名称")).Grow(1).Padding(8, 12)
 		// The field asks for the focus until it has it; only then does
 		// leaving it keep the name.
 		if !p.renameFocused {

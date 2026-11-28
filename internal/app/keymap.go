@@ -305,9 +305,9 @@ func reservedCombos() []editor.Combo {
 // for it.
 func (a *App) settingsShortcuts(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+	ui.Row(c).AlignItems(ui.Center).Gap(20).Children(func() {
 		ui.Column(c).Grow(1).Children(func() {
-			settingsHeading(c, i18n.T("快捷键"), i18n.T("点击快捷键后按下新的组合键；Esc 取消，⌫ 清除；所有功能也都能从命令栏找到"))
+			settingsHeading(c, i18n.T("快捷键"))
 		})
 		if ui.Button(c.Key("keys-reset-all"), i18n.T("全部恢复默认")).Disabled(a.prefs == nil || len(a.prefs.Keys) == 0).Clicked() {
 			a.resetKeys("")
@@ -321,7 +321,7 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 				if i > 0 {
 					settingsSeparator(c)
 				}
-				row := ui.Row(c.Key("key-row:" + id)).Height(40).PaddingX(16).Gap(8).AlignItems(ui.Center)
+				row := ui.Row(c.Key("key-row:" + id)).Height(40).PaddingX(0).Gap(12).AlignItems(ui.Center)
 				row.Children(func() {
 					ui.Text(c, i18n.T(b.label)).FontSize(13).Grow(1).MinWidth(0)
 					_, custom := a.prefs.Keys[id]
@@ -347,7 +347,7 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 				if i > 0 {
 					settingsSeparator(c)
 				}
-				row := ui.Row(c.Key(s.keys)).Height(36).PaddingX(16).AlignItems(ui.Center)
+				row := ui.Row(c.Key(s.keys)).Height(36).PaddingX(0).AlignItems(ui.Center)
 				row.Children(func() {
 					ui.Text(c, i18n.T(s.label)).FontSize(13).Grow(1).MinWidth(0)
 					ui.Text(c, i18n.T(s.keys)).FontSize(12).TextColor(t.TextMuted).NoWrap()
@@ -361,7 +361,7 @@ func (a *App) settingsShortcuts(c *ui.Context) {
 func (a *App) keyField(c *ui.Context, b binding) {
 	t := c.Theme()
 	recording := a.recording == b.id
-	f := ui.Box(c.Key("key-field:" + b.id)).Height(26).MinWidth(96).PaddingX(10).Radius(controlRadius).Center().Focusable().
+	f := ui.Box(c.Key("key-field:" + b.id)).Height(26).MinWidth(96).PaddingX(16).Radius(controlRadius).Center().Focusable().
 		Role(ui.RoleButton).Label(i18n.T("更改快捷键：") + i18n.T(b.label)).Cursor(ui.CursorPointer).Background(t.Text.Alpha(0.06))
 	if recording {
 		f.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.1))

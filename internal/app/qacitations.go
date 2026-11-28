@@ -541,8 +541,8 @@ func (ob *qaState) qaCitationPreview(c *ui.Context, s *qaSession) {
 
 	ui.Overlay(c, func() {
 		card := ui.Column(c.Key("qa-cite-preview")).Absolute().Left(p.renderedX).Width(cardW).
-			Padding(4).Radius(12).Background(cols.cardFill).
-			Border(1, cols.cardBorder).Shadow(0, 8, 24, -4, cols.cardShadow).
+			Padding(8).Radius(12).Background(cols.cardFill).
+			Border(1, cols.cardBorder).Shadow(0, 8, 24, 0, floatShadow(c.Theme())).
 			IgnoreInput(true).Transition(ui.ElementTransition{
 			Duration: 140 * time.Millisecond,
 			Ease:     qaCiteEase,
@@ -563,8 +563,8 @@ func (ob *qaState) qaCitationPreview(c *ui.Context, s *qaSession) {
 		card.Children(func() {
 			ui.Column(c.Key("body")).Children(func() {
 				for _, ref := range refs {
-					ui.Column(c.Key(fmt.Sprintf("src-%d", ref.n))).Padding(10).Radius(8).Gap(5).Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Column(c.Key(fmt.Sprintf("src-%d", ref.n))).Padding(16).Radius(8).Gap(8).Children(func() {
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 							qaMonogram(c, ref.title, 16, 4, cols)
 							ui.Text(c, qaPreviewOrigin(ref)).FontSize(11.5).TextColor(cols.cardMuted).
 								SingleLine().Shrink(1).MinWidth(0)
@@ -644,9 +644,9 @@ func (ob *qaState) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 	cols := qaCitationColors(t)
 	countLabel := qaSourcesCountLabel(len(refs))
 
-	ui.Column(c.Key("sources")).Padding(4, 0, 0, 0).Children(func() {
+	ui.Column(c.Key("sources")).Padding(8, 0, 0, 0).Children(func() {
 		ui.Row(c).Children(func() {
-			btn := ui.Row(c.Key("sources-toggle")).Padding(4, 10, 4, 4).Gap(8).Radius(999).
+			btn := ui.Row(c.Key("sources-toggle")).Padding(8, 16, 8, 8).Gap(12).Radius(999).
 				AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
 				Role(ui.RoleButton).Label(countLabel)
 			if btn.Hovered() {
@@ -694,7 +694,7 @@ func (ob *qaState) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 			return
 		}
 
-		ui.Column(c.Key("sources-list")).Padding(6, 0, 0, 0).Gap(2).Clip().
+		ui.Column(c.Key("sources-list")).Padding(8, 0, 0, 0).Gap(4).Clip().
 			Transition(ui.ElementTransition{
 				Duration: 220 * time.Millisecond,
 				Ease:     qaCiteEase,
@@ -704,7 +704,7 @@ func (ob *qaState) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 			for _, ref := range refs {
 				title := qaSourceRowTitle(ref)
 				lines := humanLines(ref.cite.From, ref.cite.To)
-				row := ui.Row(c.Key(fmt.Sprintf("src-%d", ref.n))).Padding(6, 8).Radius(8).Gap(9).
+				row := ui.Row(c.Key(fmt.Sprintf("src-%d", ref.n))).Padding(8, 12).Radius(8).Gap(12).
 					AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
 					Role(ui.RoleLink).Label(fmt.Sprintf("%d %s %s", ref.n, title, lines))
 				focused := row.Focused() && row.FocusVisible()
@@ -720,7 +720,7 @@ func (ob *qaState) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 					ui.Text(c, title).FontSize(13).TextColor(cols.rowTitle).
 						SingleLine().Grow(1).Shrink(1).MinWidth(0)
 					if sf := qaSourceShortFolder(ref.folder); sf != "" {
-						ui.Row(c).Gap(3).AlignItems(ui.Center).Shrink(0).Children(func() {
+						ui.Row(c).Gap(4).AlignItems(ui.Center).Shrink(0).Children(func() {
 							ui.Text(c, sf).FontSize(11.5).TextColor(cols.rowMeta).SingleLine().MaxWidth(56).Shrink(1).MinWidth(0)
 							ui.Text(c, "·").FontSize(11.5).TextColor(cols.rowMeta).NoWrap().Shrink(0)
 							ui.Text(c, lines).FontSize(11.5).TextColor(cols.rowMeta).NoWrap().Shrink(0)

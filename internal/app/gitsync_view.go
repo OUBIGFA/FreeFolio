@@ -42,7 +42,7 @@ func gitStatusBanner(c *ui.Context, key, text, tone string, busy bool, dismiss f
 	case "success":
 		bg, border = t.Success.Alpha(0.08), t.Success.Alpha(0.24)
 	}
-	ui.Row(c.Key(key)).WidthPercent(100).Padding(10, 14).Gap(10).Radius(controlRadius).
+	ui.Row(c.Key(key)).WidthPercent(100).Padding(16, 20).Gap(16).Radius(controlRadius).
 		Background(bg).Border(1, border).AlignItems(ui.Center).Children(func() {
 		switch {
 		case busy:
@@ -54,7 +54,7 @@ func gitStatusBanner(c *ui.Context, key, text, tone string, busy bool, dismiss f
 		}
 		ui.Text(c, text).FontSize(12.5).TextColor(ink).LineHeight(1.45).Grow(1).MinWidth(0)
 		if action != nil {
-			ui.Row(c).Shrink(0).Gap(6).AlignItems(ui.Center).Children(action)
+			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(action)
 		} else if !busy && dismiss != nil {
 			closeBtn := ui.Box(c.Key("dismiss")).Size(22, 22).Radius(controlRadius).Shrink(0).Center().
 				Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
@@ -82,9 +82,9 @@ type gitFieldSpec struct {
 
 func gitFieldRow(c *ui.Context, key, label, note, placeholder string, value *string, disabled bool) {
 	t := c.Theme()
-	ui.Column(c.Key(key)).Padding(settingsRowInset(c)+2, 12).Gap(6).Children(func() {
-		ui.Column(c).Gap(2).Children(func() {
-			ui.Text(c, label).FontSize(13).FontWeight(500)
+	ui.Column(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(8).Children(func() {
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, label).FontSize(14)
 			if note != "" {
 				ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).LineHeight(1.4)
 			}
@@ -100,14 +100,14 @@ func gitFieldPair(c *ui.Context, key string, twoCol, disabled bool, left, right 
 		gitFieldRow(c, right.key, right.label, "", right.placeholder, right.value, disabled)
 		return
 	}
-	ui.Row(c.Key(key)).Padding(settingsRowInset(c)+2, 12).Gap(12).Children(func() {
+	ui.Row(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(20).Children(func() {
 		for _, spec := range []gitFieldSpec{left, right} {
 			w := spec.weight
 			if w <= 0 {
 				w = 1
 			}
-			ui.Column(c.Key(spec.key)).Grow(w).MinWidth(0).Gap(6).Children(func() {
-				ui.Text(c, spec.label).FontSize(13).FontWeight(500)
+			ui.Column(c.Key(spec.key)).Grow(w).MinWidth(0).Gap(8).Children(func() {
+				ui.Text(c, spec.label).FontSize(14)
 				ui.TextInput(c.Key("input"), spec.value).FillWidth().Placeholder(spec.placeholder).Label(spec.label).Disabled(disabled)
 			})
 		}
@@ -142,7 +142,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		s.selected = gs.host.spaces().Active
 	}
 	sp := gs.host.spaces().Get(s.selected)
-	settingsHeading(c, i18n.T("GitHub 仓库同步"), i18n.T("登录授权后同步仓库空间，支持计划同步和 OneBot 提交说明"))
+	settingsHeading(c, i18n.T("GitHub 仓库同步"))
 	if s.busy {
 		msg := s.message
 		if msg == "" {
@@ -180,12 +180,12 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		})
 		for _, account := range s.accounts {
 			settingsSeparator(c)
-			ui.Row(c.Key(account.ID)).Padding(settingsRowInset(c), 12).Gap(10).AlignItems(ui.Center).MinHeight(48).Children(func() {
-				ui.Box(c).Size(28, 28).Radius(controlRadius).Center().Background(t.Accent.Alpha(0.12)).Shrink(0).Children(func() {
+			ui.Row(c.Key(account.ID)).Padding(settingsRowInset(c), 0).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
+				ui.Box(c).Size(24, 24).Center().Shrink(0).Children(func() {
 					ui.Text(c, gitInitial(account.Login)).FontSize(12).FontWeight(600).TextColor(t.Accent).NoWrap()
 				})
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, account.Login).FontSize(13).FontWeight(500).SingleLine()
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					ui.Text(c, account.Login).FontSize(14).SingleLine()
 					sub := account.Email
 					if sub == "" && account.Name != "" && account.Name != account.Login {
 						sub = account.Name
@@ -214,20 +214,20 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		if sp != nil {
 			label = sp.Name
 		}
-		ui.Row(c.Key("space")).Padding(settingsRowInset(c), 12).Gap(12).AlignItems(ui.Center).MinHeight(52).Children(func() {
+		ui.Row(c.Key("space")).Padding(settingsRowInset(c), 0).Gap(20).AlignItems(ui.Center).MinHeight(52).Children(func() {
 			if sp != nil {
 				accent := spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark)
-				ui.Box(c).Size(30, 30).Radius(controlRadius).Center().Background(accent.Alpha(0.12)).Shrink(0).Children(func() {
+				ui.Box(c).Size(24, 24).Center().Shrink(0).Children(func() {
 					gs.host.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 15, accent)
 				})
-				ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
-					ui.Text(c, sp.Name).FontSize(13).FontWeight(500).SingleLine()
+				ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(4).Children(func() {
+					ui.Text(c, sp.Name).FontSize(14).SingleLine()
 					ui.Text(c, shortPath(sp.Root)).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(sp.Root)
 				})
 			} else {
 				ui.Text(c, i18n.T("暂无可同步的空间")).FontSize(13).TextColor(t.TextMuted).Grow(1).MinWidth(0)
 			}
-			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.PopoverMenuButton(c.Key("pick"), label, func(m *ui.Menu) {
 					for _, item := range gs.host.spaces().Spaces {
 						if item.IsExternal() {
@@ -251,7 +251,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		})
 		if sp != nil && gs.host.cloudSyncsSpace(sp.ID) {
 			settingsSeparator(c)
-			ui.Row(c.Key("git-cloud-overlap")).Padding(8, 12).Gap(8).Background(t.Danger.Alpha(0.06)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("git-cloud-overlap")).Padding(12, 20).Gap(12).Radius(controlRadius).Background(t.Danger.Alpha(0.06)).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Shrink(0)
 				ui.Text(c, i18n.T("此空间已启用云端同步，无法同时启用 Git 同步")).FontSize(12).TextColor(t.Danger).LineHeight(1.4).Grow(1).MinWidth(0)
 			})
@@ -266,7 +266,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		}
 		if sp != nil && known && (gs.creation == nil || gs.creation.space != sp.ID) {
 			settingsSeparator(c)
-			ui.Row(c.Key("git-repo-status")).Padding(10, 12, 6, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Row(c.Key("git-repo-status")).Padding(16, 0, 8, 0).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 				ui.Icon(c, iconGitBranch).FontSize(14).TextColor(t.Accent).Shrink(0)
 				if repo.Branch != "" {
 					settingsBadge(c, repo.Branch, "accent")
@@ -279,7 +279,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 					settingsBadge(c, fmt.Sprintf(i18n.T("%d 处冲突"), len(repo.Pending.Conflicts)), "danger")
 				}
 			})
-			ui.Row(c.Key("git-repo-actions")).Padding(4, 12, 12, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Row(c.Key("git-repo-actions")).Padding(8, 0, 20, 0).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 				if ui.PrimaryButton(c.Key("sync"), i18n.T("立即同步")).Disabled(locked).Clicked() {
 					gs.runGit(sp.ID, "sync", false)
 				}
@@ -297,7 +297,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 			})
 		} else if sp != nil && (gs.creation == nil || gs.creation.space != sp.ID) {
 			settingsSeparator(c)
-			ui.Row(c.Key("git-repo-hint")).Padding(10, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("git-repo-hint")).Padding(16, 0).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconInfo).FontSize(14).TextColor(t.TextMuted).Shrink(0)
 				hint := i18n.T("点击「检查仓库」识别本地 Git 仓库、分支与远端")
 				if cfg.Binding.Remote != "" {
@@ -326,7 +326,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		gs.gitWorkspaceChangesView(c, sp.ID, repo, cfg, locked)
 	}
 
-	ui.Row(c.Key("git-config-heading")).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("git-config-heading")).Gap(12).AlignItems(ui.Center).Children(func() {
 		settingsSection(c, i18n.T("同步配置"))
 		if gs.gitConfigDirty(sp.ID) {
 			settingsBadge(c, i18n.T("未保存"), "accent")
@@ -347,7 +347,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		if len(s.accounts) == 0 {
 			accountNote = i18n.T("请先连接 GitHub 账号")
 		}
-		settingRow(c, "account", i18n.T("同步账号"), accountNote, func() {
+		settingDetailRow(c, "account", i18n.T("同步账号"), accountNote, func() {
 			ui.PopoverMenuButton(c.Key("pick"), accountName, func(m *ui.Menu) {
 				for _, account := range s.accounts {
 					if m.Item(account.Login).Checked(account.ID == cfg.Account).Chosen() {
@@ -361,7 +361,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		if !known && remoteNote == "" {
 			remoteNote = i18n.T("检查仓库后可选择远端")
 		}
-		settingRow(c, "remote", i18n.T("远端仓库"), remoteNote, func() {
+		settingDetailRow(c, "remote", i18n.T("远端仓库"), remoteNote, func() {
 			label := cfg.Binding.Remote
 			if label == "" {
 				label = i18n.T("检查仓库后选择")
@@ -387,7 +387,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		if branchNote == "" {
 			branchNote = i18n.T("尚未绑定分支")
 		}
-		settingRow(c, "branch", i18n.T("当前分支"), branchNote, func() {
+		settingDetailRow(c, "branch", i18n.T("当前分支"), branchNote, func() {
 			if known {
 				if repo.Branch != "" && cfg.Binding.Branch != "" && repo.Branch != cfg.Binding.Branch {
 					settingsBadge(c, fmt.Sprintf(i18n.T("当前分支：%s"), repo.Branch), "accent")
@@ -440,7 +440,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 				ui.Switch(c.Key("switch"), &cfg.OnStart).Label(i18n.T("启动后同步一次")).Disabled(locked)
 			})
 			settingsSeparator(c)
-			settingRow(c, "on-save", i18n.T("保存后同步"), i18n.T("默认关闭，开启后可设置保存后的等待时间"), func() {
+			settingRow(c, "on-save", i18n.T("保存后同步"), "", func() {
 				ui.Switch(c.Key("switch"), &cfg.OnSave).Label(i18n.T("保存后同步")).Disabled(locked)
 			})
 			settingsSeparator(c)
@@ -459,7 +459,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		}
 		if len(meta) > 0 {
 			settingsSeparator(c)
-			ui.Row(c.Key("schedule-meta")).Padding(10, 12).Gap(12).Background(t.Text.Alpha(0.025)).Wrap().Children(func() {
+			ui.Row(c.Key("schedule-meta")).Padding(16, 20).Gap(20).Radius(controlRadius).Background(t.Text.Alpha(0.025)).Wrap().Children(func() {
 				for _, item := range meta {
 					ui.Text(c, item).FontSize(12).TextColor(t.TextMuted)
 				}
@@ -477,7 +477,7 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 		})
 		if cfg.Automatic && cfg.MessageMode == "manual" && cfg.Mode != "pull" {
 			settingsSeparator(c)
-			ui.Row(c.Key("manual-auto-warn")).Padding(8, 12).Gap(8).Background(t.Danger.Alpha(0.06)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("manual-auto-warn")).Padding(12, 20).Gap(12).Radius(controlRadius).Background(t.Danger.Alpha(0.06)).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Shrink(0)
 				ui.Text(c, i18n.T("自动提交需要固定模板或 OneBot 说明")).FontSize(12).TextColor(t.Danger).LineHeight(1.4).Grow(1).MinWidth(0)
 			})
@@ -497,14 +497,14 @@ func (gs *gitUIState) settingsGitSync(c *ui.Context) {
 				ui.Switch(c.Key("switch"), &cfg.TemplateOnFailure).Label(i18n.T("生成失败时使用模板")).Disabled(locked)
 			})
 			settingsSeparator(c)
-			ui.Row(c.Key("ai-cost-note")).Padding(10, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("ai-cost-note")).Padding(16, 0).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconInfo).FontSize(13).TextColor(t.TextMuted).Shrink(0)
 				ui.Text(c, i18n.T("启用后，本次改动将发送给所选供应商，可能产生调用费用；大改动会限制发送长度")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45).Grow(1).MinWidth(0)
 			})
 		}
 	})
 
-	ui.Row(c.Key("git-save-bar")).Padding(6, 2, 12, 2).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c.Key("git-save-bar")).Padding(8, 4, 20, 4).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 		if ui.Button(c.Key("backups"), i18n.T("打开 Git 恢复备份")).Clicked() {
 			mygo.Shell.OpenPath(filepath.Join(gs.host.appConfig().ConfigDir, "git-sync-state"))
 		}
@@ -531,14 +531,14 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 	creating := gs.creation != nil && gs.creation.space == id
 	settingsSection(c, i18n.T("工作区改动"))
 	settingsGroup(c, "git-workspace", func() {
-		ui.Column(c.Key("git-commit-box")).Padding(12).Gap(8).Children(func() {
+		ui.Column(c.Key("git-commit-box")).Padding(20).Gap(12).Children(func() {
 			ui.Text(c, i18n.T("本次提交说明")).FontSize(12.5).FontWeight(500)
 			placeholder := i18n.T("留空时使用所选生成方式")
 			if creating {
 				placeholder = i18n.T("留空时使用初始提交说明")
 			}
 			ui.TextInput(c.Key("git-message"), &s.commitMessage).Multiline(true).MinHeight(64).Label(i18n.T("本次提交说明")).Placeholder(placeholder).Disabled(locked)
-			ui.Row(c.Key("git-message-actions")).Gap(8).Wrap().Children(func() {
+			ui.Row(c.Key("git-message-actions")).Gap(12).Wrap().Children(func() {
 				if !creating {
 					genBtn := ui.Button(c.Key("generate"), i18n.T("OneBot 生成说明")).Disabled(locked || cfg.Connection == "" || len(repo.Changes) == 0)
 					if cfg.Connection == "" {
@@ -555,7 +555,7 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 		})
 		settingsSeparator(c)
 		if len(repo.Changes) == 0 {
-			ui.Text(c, i18n.T("没有未提交的改动")).FontSize(12.5).TextColor(t.TextMuted).Padding(12)
+			ui.Text(c, i18n.T("没有未提交的改动")).FontSize(12.5).TextColor(t.TextMuted).Padding(20)
 		} else {
 			selectedCount := 0
 			for _, change := range repo.Changes {
@@ -563,7 +563,7 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 					selectedCount++
 				}
 			}
-			ui.Row(c.Key("git-changes-toolbar")).Padding(8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("git-changes-toolbar")).Padding(12, 0).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf(i18n.T("已选 %d / %d 个文件"), selectedCount, len(repo.Changes))).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(0)
 				if ui.Button(c.Key("select-all"), i18n.T("全选")).Disabled(locked).Clicked() {
 					if s.checked[id] == nil {
@@ -587,7 +587,7 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 				for _, change := range repo.Changes {
 					path := change.Path
 					on := s.checked[id][path]
-					row := ui.Row(c.Key("change:"+path)).Padding(5, 6).Radius(controlRadius).Gap(8).AlignItems(ui.Center)
+					row := ui.Row(c.Key("change:"+path)).Padding(8, 8).Radius(controlRadius).Gap(12).AlignItems(ui.Center)
 					if row.Hovered() {
 						row.Background(hoverFill(t))
 					}
@@ -609,15 +609,15 @@ func (gs *gitUIState) gitWorkspaceChangesView(c *ui.Context, id string, repo git
 				}
 			}
 			if len(repo.Changes) > 6 {
-				ui.Scroll(c.Key("git-changes")).MaxHeight(260).MinHeight(0).Padding(4, 8).Gap(2).Children(renderRows)
+				ui.Scroll(c.Key("git-changes")).MaxHeight(260).MinHeight(0).Padding(8, 12).Gap(4).Children(renderRows)
 			} else {
-				ui.Column(c.Key("git-changes")).Padding(4, 8).Gap(2).Children(renderRows)
+				ui.Column(c.Key("git-changes")).Padding(8, 12).Gap(4).Children(renderRows)
 			}
 		}
 		if s.preview != "" {
 			settingsSeparator(c)
-			ui.Column(c.Key("git-diff-box")).Padding(12).Gap(6).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Column(c.Key("git-diff-box")).Padding(20).Gap(8).Children(func() {
+				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, i18n.T("选定文件的改动")).FontSize(12).FontWeight(500).TextColor(t.TextMuted).Grow(1)
 					if ui.Button(c.Key("hide-diff"), i18n.T("收起预览")).Clicked() {
 						s.preview = ""
@@ -649,7 +649,7 @@ func (gs *gitUIState) gitModelPicker(c *ui.Context, cfg *gitsync.SpaceConfig, lo
 	if available == 0 {
 		note = i18n.T("请先在「设置 → OneBot」中启用文本模型")
 	}
-	settingRow(c, "git-model", i18n.T("OneBot 模型"), note, func() {
+	settingDetailRow(c, "git-model", i18n.T("OneBot 模型"), note, func() {
 		ui.PopoverMenuButton(c.Key("choose"), label, func(m *ui.Menu) {
 			for _, conn := range gs.host.preferences().AI.Connections {
 				if conn.Protocol == agent.Media {
@@ -679,10 +679,10 @@ func (gs *gitUIState) gitConflictsView(c *ui.Context, id string, p *gitsync.Merg
 	}
 	settingsSection(c, fmt.Sprintf(i18n.T("合并冲突（%d/%d 已解决）"), resolved, len(p.Conflicts)))
 	settingsGroup(c, "git-conflicts", func() {
-		ui.Text(c, i18n.T("原文件保持不变，选择冲突版本后完成合并")).FontSize(12.5).TextColor(t.TextMuted).Padding(10, 12)
+		ui.Text(c, i18n.T("原文件保持不变，选择冲突版本后完成合并")).FontSize(12.5).TextColor(t.TextMuted).Padding(16, 0)
 		for _, conflict := range p.Conflicts {
 			settingsSeparator(c)
-			row := ui.Row(c.Key("conflict:"+conflict.Path)).Padding(settingsRowInset(c), 12).Gap(8).AlignItems(ui.Center)
+			row := ui.Row(c.Key("conflict:"+conflict.Path)).Padding(settingsRowInset(c), 0).Gap(12).AlignItems(ui.Center)
 			if conflict.Path == s.conflictPath {
 				row.Background(t.Accent.Alpha(0.06))
 			}
@@ -705,16 +705,16 @@ func (gs *gitUIState) gitConflictsView(c *ui.Context, id string, p *gitsync.Merg
 		}
 		if s.conflictPath != "" {
 			settingsSeparator(c)
-			ui.Column(c.Key("conflict-detail")).Padding(12).Gap(8).Children(func() {
-				ui.Text(c, s.conflictPath).FontSize(13.5).FontWeight(500)
+			ui.Column(c.Key("conflict-detail")).Padding(20).Gap(12).Children(func() {
+				ui.Text(c, s.conflictPath).FontSize(14)
 				if !s.versions.Binary {
 					ui.Text(c, i18n.T("共同版本")).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
 					base := s.versions.Base
 					ui.TextInput(c.Key("共同版本"), &base).Multiline(true).ReadOnly(true).Height(84).Label(i18n.T("共同版本"))
 					if twoCol {
-						ui.Row(c.Key("conflict-sides")).Gap(10).Children(func() {
+						ui.Row(c.Key("conflict-sides")).Gap(16).Children(func() {
 							for _, v := range []struct{ label, value string }{{"本地版本", s.versions.Local}, {"远端版本", s.versions.Remote}} {
-								ui.Column(c.Key("col-" + v.label)).Grow(1).MinWidth(0).Gap(4).Children(func() {
+								ui.Column(c.Key("col-" + v.label)).Grow(1).MinWidth(0).Gap(8).Children(func() {
 									ui.Text(c, i18n.T(v.label)).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
 									text := v.value
 									ui.TextInput(c.Key(v.label), &text).Multiline(true).ReadOnly(true).Height(120).Label(i18n.T(v.label))
@@ -733,7 +733,7 @@ func (gs *gitUIState) gitConflictsView(c *ui.Context, id string, p *gitsync.Merg
 				} else {
 					ui.Text(c, i18n.T("此文件为二进制或内容过大，请选择完整版本")).FontSize(12.5).TextColor(t.TextMuted)
 				}
-				ui.Row(c.Key("resolve-actions")).Gap(8).Wrap().Children(func() {
+				ui.Row(c.Key("resolve-actions")).Gap(12).Wrap().Children(func() {
 					for _, v := range []struct{ id, label string }{{"local", "采用本地版本"}, {"remote", "采用远端版本"}, {"edit", "采用编辑内容"}} {
 						if v.id == "edit" && s.versions.Binary {
 							continue
@@ -747,7 +747,7 @@ func (gs *gitUIState) gitConflictsView(c *ui.Context, id string, p *gitsync.Merg
 		}
 		all := resolved == len(p.Conflicts)
 		settingsSeparator(c)
-		ui.Row(c.Key("merge-actions")).Padding(10, 12).Gap(8).Justify(ui.End).Children(func() {
+		ui.Row(c.Key("merge-actions")).Padding(16, 0).Gap(12).Justify(ui.End).Children(func() {
 			if ui.Button(c.Key("abort"), i18n.T("取消合并")).Disabled(locked).Clicked() {
 				gs.runGit(id, "cancel-merge", false)
 			}

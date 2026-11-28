@@ -377,13 +377,13 @@ func (pp *pdfPagesState) pdfPagesView(c *ui.Context) {
 	}
 	t := c.Theme()
 	ui.Modal(c.Key("pdf-pages"), &s.open, func() {
-		ui.Column(c.Key("pdf-pages-body")).Width(420).Gap(12).Children(func() {
+		ui.Column(c.Key("pdf-pages-body")).Width(420).Gap(20).Children(func() {
 			ui.Text(c, i18n.T("编辑 PDF 页面")).FontSize(16).FontWeight(600)
 			if s.doc != nil {
 				ui.Text(c, s.doc.title()).FontSize(12).TextColor(t.TextMuted).SingleLine().MinWidth(0)
 			}
 			for row, ops := range [][]int{{0, 1, 2, 3}, {4, 5, 6}} {
-				ui.Row(c.Key(fmt.Sprintf("pdf-ops-%d", row))).Gap(6).Children(func() {
+				ui.Row(c.Key(fmt.Sprintf("pdf-ops-%d", row))).Gap(8).Children(func() {
 					for _, i := range ops {
 						op := pdfOps[i]
 						var b ui.Element
@@ -421,7 +421,7 @@ func (pp *pdfPagesState) pdfPagesView(c *ui.Context) {
 				}
 			}
 			if s.op == pdfOpRotate {
-				ui.Row(c.Key("pdf-degrees")).Gap(6).Children(func() {
+				ui.Row(c.Key("pdf-degrees")).Gap(8).Children(func() {
 					for _, deg := range []int{90, 180, 270} {
 						label := fmt.Sprintf(i18n.T("顺时针 %d°"), deg)
 						key := c.Key(fmt.Sprintf("pdf-deg-%d", deg))
@@ -450,7 +450,7 @@ func (pp *pdfPagesState) pdfPagesView(c *ui.Context) {
 			if s.err != "" {
 				ui.Text(c, s.err).FontSize(12).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
 				if ui.Button(c.Key("pdf-pages-cancel"), i18n.T("取消")).Clicked() {
 					s.open = false
 				}

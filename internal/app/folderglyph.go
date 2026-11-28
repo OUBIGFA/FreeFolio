@@ -126,8 +126,9 @@ func paintFolder(pt *ui.Painter, ox, oy float32, p float64, outline, front, back
 	backPath := shape(backPts, backCorners, 28, h, 0)
 	pt.FillPath(backPath, back)
 	shade := float32(0.2 + 0.8*p)
-	pt.FillPathGradient(backPath, ui.LinearGradient{Angle: 150, Stops: []ui.GradientStop{
-		{Color: black.Alpha(0), At: 0}, {Color: black.Alpha(0.36 * shade), At: 1}}})
+	// A flat shade, deeper as the folder opens, keeps the back panel apart
+	// from the front without a gradient.
+	pt.FillPath(backPath, black.Alpha(0.18*shade))
 	pt.StrokePath(backPath, line, outline)
 	// The front panel, under the tab.
 	fh := h - tabH
@@ -135,8 +136,7 @@ func paintFolder(pt *ui.Painter, ox, oy float32, p float64, outline, front, back
 	frontPath := shape(frontPts, []bool{true, true, true, true}, -30, fh, tabH)
 	pt.FillPath(frontPath, front)
 	if p > 0 {
-		pt.FillPathGradient(frontPath, ui.LinearGradient{Angle: 150, Stops: []ui.GradientStop{
-			{Color: black.Alpha(0), At: 0}, {Color: black.Alpha(0.15 * float32(p)), At: 1}}})
+		pt.FillPath(frontPath, black.Alpha(0.075*float32(p)))
 	}
 	pt.StrokePath(frontPath, line, outline)
 	if dots {

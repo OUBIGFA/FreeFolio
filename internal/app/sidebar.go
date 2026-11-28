@@ -100,7 +100,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 	bar := a.titleBar(c)
 	// The strip of spaces runs edge to edge, so the sidebar's margins are
 	// its parts' own.
-	col := ui.Column(c.Key("sidebar")).Grow(1).MinHeight(0).Padding(0, 0, 10, 0).Gap(6)
+	col := ui.Column(c.Key("sidebar")).Grow(1).MinHeight(0).Padding(0, 0, 16, 0).Gap(8)
 	// A sideways swipe over the sidebar pages through the spaces.
 	col.HandleInput(a.pagerScroll)
 	col.Children(func() {
@@ -138,16 +138,16 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		// Keep navigation, search and document actions on one row. Compact
 		// labels give the search room without moving either edge's controls.
 		newDocHere := sp != nil && !(a.spaceForm.open && a.spaceForm.id == "")
-		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(2).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("workspace-actions")).PaddingX(12).Gap(4).AlignItems(ui.Center).Children(func() {
 			if newDocHere {
-				ui.Row(c.Key("history-bar")).Gap(2).Shrink(0).Children(func() { a.historyButtons(c) })
+				ui.Row(c.Key("history-bar")).Gap(0).Shrink(0).Children(func() { a.historyButtons(c) })
 			}
 			label := i18n.T("搜索或打开文档")
-			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(8).Grow(1).MinWidth(32).Border(1, separator(t)).Background(field(t))
+			search := ui.Button(c.Key("search"), "").Label(label).Tooltip(a.withKey(label, "palette")).Justify(ui.Start).Height(32).PaddingX(12).Grow(1).MinWidth(32).Background(field(t))
 			width := search.Bounds().W
 			search.Children(func() {
 				ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
-				if width >= 62 {
+				if width >= 72 {
 					text := label
 					if width < 150 {
 						text = i18n.T("搜索")
@@ -170,21 +170,21 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		if sp == nil {
 			return
 		}
-		padded := func(key string, fn func()) { ui.Column(c.Key(key)).PaddingX(12).Children(fn) }
+		padded := func(key string, fn func()) { ui.Column(c.Key(key)).PaddingX(20).Children(fn) }
 		if f := &a.spaceForm; f.open && f.id == "" {
-			ui.Column(c.Key("space-form-pad")).Grow(1).MinHeight(0).PaddingX(12).Children(func() { a.spaceDraft(c, f) })
+			ui.Column(c.Key("space-form-pad")).Grow(1).MinHeight(0).PaddingX(20).Children(func() { a.spaceDraft(c, f) })
 			padded("foot", func() { a.spaceBar(c) })
 			return
 		}
 		if len(a.state.Favorites) > 0 {
-			ui.Text(c, i18n.T("收藏文档")).PaddingStart(14).FontSize(12).FontWeight(500).TextColor(c.Theme().TextMuted)
+			ui.Text(c, i18n.T("收藏文档")).PaddingStart(20).FontSize(12).FontWeight(500).TextColor(c.Theme().TextMuted)
 		}
 		a.favorites(c)
 		a.pagerView(c)
 		a.updates.updateBanner(c)
 		// The spaces sit at the foot, over the settings, as Arc's.
-		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
-		ui.Row(c.Key("sidebar-settings")).Padding(2, 12, 0, 12).Gap(2).AlignItems(ui.Center).Children(func() {
+		ui.Column(c.Key("space-switcher")).PaddingX(20).Children(func() { a.spaceBar(c) })
+		ui.Row(c.Key("sidebar-settings")).Padding(4, 20, 0, 20).Gap(4).AlignItems(ui.Center).Children(func() {
 			showWord := hasWordCount(a.doc)
 			// Keep "设置" labeled when the sidebar has enough room; otherwise
 			// collapse it to an icon button so the word count and utility icons fit.
@@ -278,7 +278,7 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 			}
 			pins := pinnedNodes(sp, nodes)
 			if header {
-				ui.Column(c.Key("header-pad")).Margin(8, 0, 0, 0).Children(func() { a.spaceHeader(c, sp, live, len(pins) > 0) })
+				ui.Column(c.Key("header-pad")).Margin(12, 0, 0, 0).Children(func() { a.spaceHeader(c, sp, live, len(pins) > 0) })
 			}
 			scroll := &a.session(sp.ID).tree
 			tree := ui.Scroll(c.Key("tree")).Grow(1).MinHeight(0).TrackScroll(scroll)
@@ -320,9 +320,9 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 			}
 			tree.Children(func() {
 				if err != nil {
-					ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 10)
+					ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(8, 16)
 				} else if len(nodes) == 0 && (a.treeLoading && sp == a.state.ActiveSpace() || a.pageTrees[sp.ID].pending != nil) {
-					ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted).FontSize(12).Padding(4, 10)
+					ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted).FontSize(12).Padding(8, 16)
 				}
 				// Cra's sections: 3 DIPs on top, the pinned rows (with the
 				// placeholder taking a drag while there are none), the line,
@@ -423,11 +423,8 @@ var sectionMove = ui.ElementTransition{Animation: &listAnim, Position: true, Col
 // when one or more registered external files no longer exist on disk.
 func (a *App) externalMissingBar(c *ui.Context, sp *space.Space, missing int, live bool) {
 	t := c.Theme()
-	bar := ui.Row(c.Key("external-missing-bar")).Height(30).Margin(4, 0, 2, 0).Padding(0, 5, 0, 10).Gap(6).
+	bar := ui.Row(c.Key("external-missing-bar")).Height(30).Margin(8, 0, 4, 0).Padding(0, 8, 0, 16).Gap(8).
 		Radius(8).AlignItems(ui.Center).Background(hoverFill(t))
-	bar.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Stroke(r, separator(t), 8, 1)
-	})
 	bar.Children(func() {
 		ui.Icon(c, iconAlert).FontSize(13).TextColor(t.TextMuted).Shrink(0)
 		label := fmt.Sprintf(i18n.T("%d 个文件已不存在"), missing)
@@ -435,7 +432,7 @@ func (a *App) externalMissingBar(c *ui.Context, sp *space.Space, missing int, li
 			label = i18n.T("1 个文件已不存在")
 		}
 		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
-		btn := ui.Box(c.Key("external-clean-btn")).Height(22).PaddingX(8).Radius(6).Shrink(0).Center()
+		btn := ui.Box(c.Key("external-clean-btn")).Height(22).PaddingX(12).Radius(8).Shrink(0).Center()
 		if live {
 			btn.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
 				Label(i18n.T("清理不存在的文件")).Tooltip(i18n.T("仅从外部空间移除，不删除磁盘文件"))
@@ -444,12 +441,7 @@ func (a *App) externalMissingBar(c *ui.Context, sp *space.Space, missing int, li
 		if live && btn.Hovered() {
 			fill = glassHover(t)
 		}
-		btn.Background(fill).Draw(func(p *ui.Painter, r ui.Rect) {
-			if !t.Dark {
-				p.Shadow(r, 6, 0, 1, 2, 0, black.Alpha(0.06))
-			}
-			p.Stroke(r, separator(t), 6, 1)
-		})
+		btn.Background(fill)
 		btn.Children(func() {
 			ui.Text(c, i18n.T("清理")).FontSize(11.5).FontWeight(500).TextColor(t.Text).SingleLine()
 		})
@@ -491,7 +483,7 @@ func (a *App) pinPlaceholder(c *ui.Context, active bool) {
 	t := c.Theme()
 	rh, rad, insetY := a.sidebarRowHeight(), a.sidebarRowRadius(), a.sidebarRowInsetY()
 	_ = rad
-	row := ui.Row(c.Key("pin-placeholder")).Height(rh).Radius(rad).Gap(6).Center().
+	row := ui.Row(c.Key("pin-placeholder")).Height(rh).Radius(rad).Gap(8).Center().
 		Transition(ui.ElementTransition{Animation: &listAnim, Position: true, Enter: &ui.Motion{Scale: 0.98}})
 	a.rows = append(a.rows, rowFrame{placeholder: true, parent: pinRoot, r: row.Bounds()})
 	border := t.TextMuted.Alpha(0.3)
@@ -569,7 +561,7 @@ func monogram(title string) string {
 // Files dropped on the header move to the root.
 func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 	t := c.Theme()
-	h := ui.Row(c.Key("space-header")).Height(36).PaddingEnd(5).Radius(12).AlignItems(ui.Center).
+	h := ui.Row(c.Key("space-header")).Height(36).PaddingEnd(8).Radius(12).AlignItems(ui.Center).
 		Label(i18n.T("空间标题"))
 	if live {
 		a.tourMark("theme", h)
@@ -589,7 +581,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 	ink := t.Text
 	collapsed := sp.PinsCollapsed
 	h.Children(func() {
-		icon := ui.Box(c.Key("header-icon")).Size(26, 26).Margin(0, 0, 0, 5).Center()
+		icon := ui.Box(c.Key("header-icon")).Size(26, 26).Margin(0, 0, 0, 8).Center()
 		if live && hasPins {
 			icon.Focusable().Cursor(ui.CursorPointer).Role(ui.RoleButton).Label(i18n.T("折叠或展开置顶")).Expanded(!collapsed).Tooltip(i18n.T("折叠或展开置顶"))
 		}
@@ -615,7 +607,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 		if live && f.open && f.id == sp.ID && f.edit == "name" {
 			a.spaceNameField(c, f)
 		} else {
-			name := ui.Box(c.Key("space-title")).Grow(1).MinWidth(0).Height(30).Justify(ui.Center).Margin(0, 0, 0, 5)
+			name := ui.Box(c.Key("space-title")).Grow(1).MinWidth(0).Height(30).Justify(ui.Center).Margin(0, 0, 0, 8)
 			if live {
 				name.Label(sp.Name)
 			}
@@ -634,7 +626,7 @@ func (a *App) spaceHeader(c *ui.Context, sp *space.Space, live, hasPins bool) {
 		if sp.IsExternal() {
 			addLabel, addTip = i18n.T("在外部空间打开文件"), i18n.T("只添加选中的文件，保留原位置")
 		}
-		add := iconButton(c, "space-new", iconPlus, addLabel, addTip, false).Size(24, 24).Shrink(0).Margin(0, 0, 0, 2)
+		add := iconButton(c, "space-new", iconPlus, addLabel, addTip, false).Size(24, 24).Shrink(0).Margin(0, 0, 0, 4)
 		if !live {
 			add.Opacity(0)
 		} else if !lit && !add.Hovered() && !a.newModal.open {
@@ -753,7 +745,7 @@ func (a *App) databaseManagedFolderContent(c *ui.Context, sp *space.Space, mdir 
 	indent := float32(depth * rowIndent)
 	count := docCount(mdir)
 	hdr := ui.Row(c.Key("db-files-hdr:"+sp.ID+"/"+mdir.Path)).Height(28).
-		Margin(2, 0, 0, indent).Padding(0, 8, 0, 10).Radius(8).Gap(6).
+		Margin(4, 0, 0, indent).Padding(0, 12, 0, 16).Radius(8).Gap(8).
 		AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
 		Role(ui.RoleButton).Label(i18n.T("收起数据文件")).Tooltip(i18n.T("收起数据文件")).
 		Transition(ui.ElementTransition{Animation: &listAnim, Position: true, Enter: &ui.Motion{Y: -6}, Exit: &ui.Motion{}})
@@ -928,7 +920,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	if n.Dir {
 		leading = inset + rowLeading
 	}
-	row.Height(rh).PaddingStart(leading).PaddingEnd(8).Gap(rowGlyphGap).AlignItems(ui.Center).
+	row.Height(rh).PaddingStart(leading).PaddingEnd(12).Gap(rowGlyphGap).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTreeItem).Level(depth + 1).Selected(highlighted).Label(n.Title())
 	if n.Dir {
 		row.Expanded(open)
@@ -1059,7 +1051,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	hovered := live && !settling && row.Hovered() && a.listDrop == nil && !a.listDragging
 	minus := opened && hovered && !renaming
 	if minus {
-		row.PaddingEnd(6)
+		row.PaddingEnd(8)
 	}
 	a.rowBounce(c, row, place{sp.ID, n.Path})
 	if hovered && !renaming {
@@ -1078,11 +1070,10 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		row.Opacity(0.45)
 	}
 	var fill ui.Color
-	lifted := false
 	switch {
 	case settling:
 	case highlighted:
-		fill = t.Accent.Alpha(0.12)
+		fill = t.Accent.Alpha(0.10)
 	case hovered:
 		fill = hoverFill(t)
 	}
@@ -1102,9 +1093,6 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			return
 		}
 		fr := ui.Rect{X: r.X + inset, Y: r.Y + insetY, W: r.W - inset, H: max(0, r.H-2*insetY)}
-		if lifted {
-			p.Shadow(fr, rad, 0, 1, 3, 0, black.Alpha(0.06))
-		}
 		if fill.A > 0 {
 			p.Fill(fr, fill, controlRadius)
 		}
@@ -1160,7 +1148,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 							tip = i18n.T("收起数据文件")
 						}
 					}
-					fb := ui.Box(c.Key("db-views-fold")).Size(20, 20).Radius(5).Shrink(0).Center().Cursor(ui.CursorPointer).
+					fb := ui.Box(c.Key("db-views-fold")).Size(20, 20).Radius(8).Shrink(0).Center().Cursor(ui.CursorPointer).
 						Focusable().Role(ui.RoleButton).Label(tip).Tooltip(tip)
 					if fb.Hovered() {
 						fb.Background(hoverFill(t))
@@ -1184,7 +1172,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 			case minus:
 				// The button takes the dot's place while hovered, as Arc's.
 				closeSize := min(float32(24), rh-6)
-				b := ui.Box(c.Key("close-open")).Size(closeSize, closeSize).Radius(6).Shrink(0).Cursor(ui.CursorPointer).
+				b := ui.Box(c.Key("close-open")).Size(closeSize, closeSize).Radius(8).Shrink(0).Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleButton).Label(i18n.T("关闭并保持置顶")).Tooltip(i18n.T("关闭并保持置顶"))
 				if b.Hovered() {
 					b.Background(hoverFill(t))
@@ -1201,7 +1189,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 					closed = true
 				}
 			case chosen && a.doc.dirty():
-				ui.Box(c).Size(6, 6).Radius(3).Background(t.Accent).Tooltip(i18n.T("已修改"))
+				ui.Box(c).Size(6, 6).Radius(8).Background(t.Accent).Tooltip(i18n.T("已修改"))
 			case missing:
 				ui.Icon(c, iconAlert).FontSize(12).TextColor(t.TextMuted.Alpha(0.75)).Shrink(0)
 			}
@@ -1258,7 +1246,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 // renameField edits the name of the row being renamed: Enter or leaving
 // it keeps the name, Escape gives up.
 func (a *App) renameField(c *ui.Context) {
-	in := ui.TextInput(c.Key("rename"), &a.newName).Grow(1).MinWidth(0).Height(26).Padding(2, 6).
+	in := ui.TextInput(c.Key("rename"), &a.newName).Grow(1).MinWidth(0).Height(26).Padding(4, 8).
 		AutoFocus().Label(i18n.T("名称"))
 	switch {
 	case c.Shortcut(0, ui.KeyEscape):
@@ -1497,10 +1485,9 @@ func (a *App) spaceBar(c *ui.Context) {
 		a.spaceBarFor = active.ID
 	}
 	draft := a.spaceForm.open && a.spaceForm.id == ""
-	// The bar stands on a rounded surface card of its own, apart from the
-	// list above and the settings below; the chosen space is a tint on it.
-	foot := ui.Row(c.Key("spaces")).Height(40).Padding(3, 4).Gap(2).AlignItems(ui.Center).
-		Radius(10).Background(t.Surface).Border(1, separator(t))
+	// The bar sits on the chrome itself, without a card of its own; the
+	// chosen space is a tint.
+	foot := ui.Row(c.Key("spaces")).Height(40).Padding(4, 0).Gap(4).AlignItems(ui.Center)
 	a.tourMark("spaces", foot)
 	foot.Children(func() {
 		list := ui.ScrollHorizontal(c.Key("space-list")).Grow(1).MinWidth(0).Height(34).
@@ -1532,7 +1519,7 @@ func (a *App) spaceBar(c *ui.Context) {
 		}
 		list.Children(func() {
 			// As wide as the bar at least, so a few spaces spread across it.
-			ui.Row(c.Key("space-row")).MinWidth(width).Height(34).Gap(4).Justify(ui.Start).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("space-row")).MinWidth(width).Height(34).Gap(8).Justify(ui.Start).AlignItems(ui.Center).Children(func() {
 				for i, s := range a.state.Spaces {
 					tip := s.Name
 					if i < 9 {
@@ -1556,10 +1543,7 @@ func (a *App) spaceBar(c *ui.Context) {
 						b.Background(hoverFill(t))
 					}
 					if on {
-						b.Background(t.Accent.Alpha(0.14)).Border(1, t.Accent.Alpha(0.28))
-						b.Draw(func(p *ui.Painter, r ui.Rect) {
-							p.Fill(ui.Rect{X: r.X + (r.W-12)/2, Y: r.Y + r.H - 3.5, W: 12, H: 2}, t.Accent, 1)
-						})
+						b.Background(t.Accent.Alpha(0.10))
 					}
 					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, on, b.Hovered()) })
 
@@ -1607,8 +1591,8 @@ func (a *App) spaceBar(c *ui.Context) {
 			a.spaceBarFor = "draft"
 		}
 		if overflow || len(a.state.Spaces) > 5 {
-			ui.Box(c).Size(1, 16).Background(separator(t)).Shrink(0)
-			picker := ui.ButtonBase(c.Key("all-spaces")).Height(28).PaddingX(5).Gap(3).Radius(7).Center().Shrink(0).
+			ui.Box(c).Width(8).Shrink(0)
+			picker := ui.ButtonBase(c.Key("all-spaces")).Height(28).PaddingX(8).Gap(4).Radius(8).Center().Shrink(0).
 				Cursor(ui.CursorPointer).Focusable().Role(ui.RoleMenuButton).
 				Label(i18n.T("全部空间")).Tooltip(fmt.Sprintf(i18n.T("全部空间（共 %d 个）"), len(a.state.Spaces)))
 			if picker.Hovered() {
@@ -1704,7 +1688,7 @@ func (a *App) newDocRow(c *ui.Context) {
 	}
 	if a.state.ActiveSpace().IsExternal() {
 		label := i18n.T("打开文件")
-		row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(9).Gap(5).Radius(controlRadius).Center().
+		row := ui.Row(c.Key("new-doc-row")).Height(32).Shrink(0).PaddingX(12).Gap(8).Radius(controlRadius).Center().
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(i18n.T("只添加选中的文件，保留原位置"))
 		alpha := slot(row)
 		row.Children(func() {
@@ -1738,7 +1722,7 @@ func (a *App) newDocRow(c *ui.Context) {
 	alpha := slot(row)
 	wide := a.sidebarW() >= 400
 	part := func(key string, icon *ui.SVG, label, tip, short string) ui.Element {
-		b := ui.Row(c.Key(key)).Height(32).MinWidth(30).PaddingX(8).Gap(5).Radius(controlRadius).Center().
+		b := ui.Row(c.Key(key)).Height(32).MinWidth(30).PaddingX(12).Gap(8).Radius(controlRadius).Center().
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip)
 		if b.Hovered() {
 			b.Background(t.Text.Alpha(0.06))
@@ -1755,7 +1739,7 @@ func (a *App) newDocRow(c *ui.Context) {
 		if part("new-doc-row", iconFilePlus, i18n.T("新建文档"), a.withKey(i18n.T("新建文档"), "new-doc"), i18n.T("文档")).Clicked() {
 			newDoc()
 		}
-		ui.Box(c).Size(1, 14).Background(separator(t)).Shrink(0)
+		ui.Box(c).Width(8).Shrink(0)
 		if part("new-board-row", iconBoardPlus, i18n.T("新建白板"), a.withKey(i18n.T("新建白板"), "new-board"), i18n.T("白板")).Clicked() {
 			a.newWhiteboard("")
 		}

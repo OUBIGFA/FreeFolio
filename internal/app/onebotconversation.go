@@ -53,11 +53,11 @@ func (ob *qaState) oneBotHeaderMenu(c *ui.Context) {
 }
 
 func quietOneBotAction(c *ui.Context, key, label string) ui.Element {
-	e := ui.Row(c.Key(key)).Height(26).Padding(2, 4).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
+	e := ui.Row(c.Key(key)).Height(26).Padding(4, 8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
 	ink := c.Theme().TextMuted
 	if e.Hovered() {
 		ink = c.Theme().Text
-		e.Background(c.Theme().Text.Alpha(0.04)).Radius(4)
+		e.Background(c.Theme().Text.Alpha(0.04)).Radius(8)
 	}
 	e.Children(func() { ui.Text(c, label).FontSize(12).TextColor(ink).NoWrap() })
 	return e
@@ -67,7 +67,7 @@ func quietOneBotAction(c *ui.Context, key, label string) ui.Element {
 // on a faint accent tint, so it reads as the next step without a heavy fill.
 func oneBotApplyButton(c *ui.Context, key, label string) ui.Element {
 	t := c.Theme()
-	e := ui.Row(c.Key(key)).Height(26).Padding(2, 9).Radius(5).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
+	e := ui.Row(c.Key(key)).Height(26).Padding(4, 12).Radius(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
 	fill := t.Accent.Alpha(0.1)
 	if e.Hovered() {
 		fill = t.Accent.Alpha(0.18)
@@ -79,20 +79,18 @@ func oneBotApplyButton(c *ui.Context, key, label string) ui.Element {
 func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 	t := c.Theme()
 	if ob.editHistoryOpen {
-		ui.Box(c).Height(1).Background(separator(t))
 		ui.Column(c.Key("history-drawer")).Background(t.Text.Alpha(0.024)).Children(func() {
-			ui.Row(c.Key("history-head")).Padding(8, 12, 4, 12).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("history-head")).Padding(12, 20, 8, 20).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("编辑记录与恢复")).FontSize(12.5).FontWeight(600).Grow(1)
 				if quietOneBotAction(c, "close-history", i18n.T("关闭记录")).Clicked() {
 					ob.editHistoryOpen = false
 				}
 			})
-			ui.Scroll(c.Key("history-popover")).Height(200).Padding(4, 12, 10, 12).Children(func() { ob.oneBotHistoryView(c) })
+			ui.Scroll(c.Key("history-popover")).Height(200).Padding(8, 20, 16, 20).Children(func() { ob.oneBotHistoryView(c) })
 		})
 	}
 	if ob.editOptionsOpen {
-		ui.Box(c).Height(1).Background(separator(t))
-		ui.Column(c.Key("edit-options")).Background(t.Text.Alpha(0.024)).Padding(10, 12).Gap(8).Children(func() {
+		ui.Column(c.Key("edit-options")).Background(t.Text.Alpha(0.024)).Padding(16, 20).Gap(12).Children(func() {
 			ob.oneBotScopeView(c)
 			ui.Row(c).Justify(ui.End).Children(func() {
 				if quietOneBotAction(c, "close-options", i18n.T("完成")).Clicked() {
@@ -101,9 +99,9 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 			})
 		})
 	}
-	ui.Column(c.Key("composer-margin")).Padding(8, 12, 12, 12).Shrink(0).Children(func() {
+	ui.Column(c.Key("composer-margin")).Padding(12, 20, 20, 20).Shrink(0).Children(func() {
 		ob.host.chatGPT().chatGPTUsageView(c)
-		composer := ui.Column(c.Key("composer")).Radius(panelRadius).Border(1, t.Border).Background(field(t)).Padding(8, 10, 6, 10).Gap(4)
+		composer := ui.Column(c.Key("composer")).Radius(panelRadius).Border(1, t.Border).Background(field(t)).Padding(12, 16, 8, 16).Gap(8)
 		if ob.dropHover {
 			composer.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.06))
 		} else if composer.FocusWithin() {
@@ -111,7 +109,7 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 		}
 		composer.Children(func() {
 			if ob.dropHover {
-				ui.Row(c.Key("drop-hint")).Gap(6).Padding(4, 8).Radius(7).AlignItems(ui.Center).
+				ui.Row(c.Key("drop-hint")).Gap(8).Padding(8, 12).Radius(8).AlignItems(ui.Center).
 					Background(t.Accent.Alpha(0.10)).Children(func() {
 					ui.Icon(c, iconPlus).FontSize(13).TextColor(t.Accent)
 					ui.Text(c, i18n.T("松开以引用到 OneBot（支持多文件、图片）")).FontSize(12).FontWeight(500).TextColor(t.Accent)
@@ -128,9 +126,9 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 					}
 					label += " · " + string(excerpt)
 				}
-				ui.Row(c.Key("selection-context")).Gap(6).Padding(4, 6, 4, 8).Radius(7).AlignItems(ui.Center).
+				ui.Row(c.Key("selection-context")).Gap(8).Padding(8, 8, 8, 12).Radius(8).AlignItems(ui.Center).
 					Background(t.Accent.Alpha(0.07)).Border(1, t.Accent.Alpha(0.16)).Children(func() {
-					ui.Box(c).Width(2.5).Height(18).Radius(1.5).Background(t.Accent.Alpha(0.75)).Shrink(0)
+					ui.Box(c).Width(2.5).Height(18).Radius(8).Background(t.Accent.Alpha(0.75)).Shrink(0)
 					ui.Text(c, label).FontSize(12).TextColor(t.Text.Alpha(0.82)).SingleLine().Grow(1).MinWidth(0)
 					if quietOneBotAction(c, "clear-context", "×").Height(22).Tooltip(i18n.T("清除编辑上下文")).Clicked() {
 						ob.editMode = false
@@ -141,7 +139,7 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 			}
 			if len(ob.quotes) > 0 || len(ob.attachments) > 0 {
 				_, height := c.Size()
-				ui.Scroll(c.Key("draft-references")).MinHeight(0).MaxHeight(min(108, height/5)).Gap(4).Children(func() {
+				ui.Scroll(c.Key("draft-references")).MinHeight(0).MaxHeight(min(108, height/5)).Gap(8).Children(func() {
 					ob.oneBotQuoteBadges(c, "quotes", ob.quotes, true)
 					badges := make([]oneBotAttachmentBadge, len(ob.attachments))
 					for i, item := range ob.attachments {
@@ -153,7 +151,7 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 				})
 			}
 			svc := c.Services()
-			in := ui.TextAreaBase(c.Key("qa-question"), &ob.input).Lines(1, 6).MinHeight(24).FontSize(14).Padding(2, 0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或拖入附件")).OnTextKey(func(key ui.TextKey) bool {
+			in := ui.TextAreaBase(c.Key("qa-question"), &ob.input).Lines(1, 6).MinHeight(24).FontSize(14).Padding(4, 0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或拖入附件")).OnTextKey(func(key ui.TextKey) bool {
 				if key.Key != ui.KeyEnter || key.Mods != 0 {
 					return false
 				}
@@ -181,7 +179,7 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 				ob.focusInput = false
 				in.Focus()
 			}
-			ui.Row(c.Key("composer-toolbar")).Gap(5).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("composer-toolbar")).Gap(8).AlignItems(ui.Center).Children(func() {
 				iconButton(c, "context-add", iconPlus, i18n.T("添加上下文"), i18n.T("添加附件或编辑范围"), false).Size(28, 28).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 					if m.Item(i18n.T("添加附件")).Chosen() {
 						ob.pickOneBotAttachments()
@@ -227,7 +225,7 @@ func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 					if n := activeContextTurns(s); n > 0 {
 						ctxLabel = fmt.Sprintf(i18n.T("%d 轮上下文"), n)
 					}
-					ui.Text(c, ctxLabel).FontSize(11).TextColor(t.TextMuted.Alpha(0.68)).NoWrap().Padding(0, 4, 0, 0)
+					ui.Text(c, ctxLabel).FontSize(11).TextColor(t.TextMuted.Alpha(0.68)).NoWrap().Padding(0, 8, 0, 0)
 				}
 				sendDisabled := strings.TrimSpace(ob.input) == "" && (ob.editMode || len(ob.attachments) == 0)
 				if busy {
@@ -258,28 +256,28 @@ func (ob *qaState) oneBotAttachmentBadges(c *ui.Context, key string, badges []on
 		return
 	}
 	t := c.Theme()
-	ui.Row(c.Key(key)).Gap(6).Wrap().Children(func() {
+	ui.Row(c.Key(key)).Gap(8).Wrap().Children(func() {
 		for i, b := range badges {
 			clickable := b.SpaceID != "" && b.RelPath != ""
 			var removed bool
-			ui.Row(c.Key(fmt.Sprint(i))).Height(24).Radius(6).AlignItems(ui.Center).
-				Background(t.Text.Alpha(0.055)).Border(1, t.Border.Alpha(0.45)).Children(func() {
+			ui.Row(c.Key(fmt.Sprint(i))).Height(24).Radius(8).AlignItems(ui.Center).
+				Background(t.Text.Alpha(0.055)).Children(func() {
 				var body ui.Element
 				if clickable {
-					body = ui.Row(c.Key("open")).Height(24).PaddingX(7).Gap(5).Radius(6).AlignItems(ui.Center).
+					body = ui.Row(c.Key("open")).Height(24).PaddingX(12).Gap(8).Radius(8).AlignItems(ui.Center).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("打开附件：") + b.Name).Tooltip(b.RelPath)
 					if body.Hovered() {
 						body.Background(hoverFill(t))
 					}
 				} else {
-					body = ui.Row(c.Key("info")).Height(24).PaddingX(7).Gap(5).Radius(6).AlignItems(ui.Center)
+					body = ui.Row(c.Key("info")).Height(24).PaddingX(12).Gap(8).Radius(8).AlignItems(ui.Center)
 					if b.MIME != "" {
 						body.Tooltip(b.MIME)
 					}
 				}
 				body.Children(func() {
 					if b.Thumb != nil {
-						ui.Image(c, b.Thumb).Size(16, 16).Radius(3).Shrink(0)
+						ui.Image(c, b.Thumb).Size(16, 16).Radius(8).Shrink(0)
 					} else {
 						ui.Icon(c, oneBotAttachmentIcon(b.Kind)).FontSize(12).TextColor(t.TextMuted)
 					}
@@ -289,7 +287,7 @@ func (ob *qaState) oneBotAttachmentBadges(c *ui.Context, key string, badges []on
 					ob.host.openAnywhere(b.SpaceID, b.RelPath)
 				}
 				if onRemove != nil {
-					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(6).Center().Cursor(ui.CursorPointer).
+					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(8).Center().Cursor(ui.CursorPointer).
 						Focusable().Role(ui.RoleButton).Label(i18n.T("移除附件：") + b.Name)
 					if x.Hovered() {
 						x.Background(hoverFill(t))
@@ -351,7 +349,7 @@ func (ob *qaState) oneBotCompactModel(c *ui.Context) {
 		if m.Item(i18n.T("管理供应商")).Chosen() {
 			ob.host.openSettings(tabAI)
 		}
-	}).Height(26).Padding(2, 8).Radius(6).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型")).Tooltip(label)
+	}).Height(26).Padding(4, 12).Radius(8).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型")).Tooltip(label)
 	if b.Hovered() {
 		b.Background(hoverFill(t)).TextColor(t.Text)
 	}
@@ -383,7 +381,7 @@ func (ob *qaState) oneBotReply(c *ui.Context, task *oneBotTask) {
 		return
 	}
 	t := c.Theme()
-	ui.Column(c.Key("onebot-edit-reply")).Gap(8).Children(func() {
+	ui.Column(c.Key("onebot-edit-reply")).Gap(12).Children(func() {
 		if task.Error != "" {
 			ui.Text(c, task.Error).TextColor(t.Danger).FontSize(13)
 		}
@@ -409,21 +407,21 @@ func (ob *qaState) oneBotReply(c *ui.Context, task *oneBotTask) {
 			task.Selected = 0
 		}
 		if len(task.Candidates) > 1 {
-			ui.Row(c.Key("alternatives")).Gap(6).Wrap().Children(func() {
+			ui.Row(c.Key("alternatives")).Gap(8).Wrap().Children(func() {
 				for i := range task.Candidates {
 					label := fmt.Sprintf(i18n.T("方案 %d"), i+1)
 					selected := i == task.Selected
-					el := ui.Row(c.Key(fmt.Sprint(i))).Height(26).Padding(0, 10).Radius(6).AlignItems(ui.Center).
+					el := ui.Row(c.Key(fmt.Sprint(i))).Height(26).Padding(0, 16).Radius(8).AlignItems(ui.Center).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(label)
 					ink := t.TextMuted
 					if selected {
 						ink = t.Accent
 						el.Background(t.Accent.Alpha(0.12)).Border(1, t.Accent.Alpha(0.28))
 					} else {
-						el.Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.45))
+						el.Background(t.Text.Alpha(0.035))
 						if el.Hovered() {
 							ink = t.Text
-							el.Background(hoverFill(t)).Border(1, t.Border.Alpha(0.75))
+							el.Background(hoverFill(t))
 						}
 					}
 					el.Children(func() {
@@ -490,8 +488,8 @@ func (ob *qaState) oneBotReply(c *ui.Context, task *oneBotTask) {
 		if saved == len(candidate.Changes) {
 			label = i18n.T("已保存") + " · " + label
 		}
-		ui.Row(c.Key("change-summary")).Gap(6).Padding(5, 8, 5, 10).Radius(8).AlignItems(ui.Center).
-			Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.45)).Children(func() {
+		ui.Row(c.Key("change-summary")).Gap(8).Padding(8, 12, 8, 16).Radius(8).AlignItems(ui.Center).
+			Background(t.Text.Alpha(0.032)).Children(func() {
 			ui.Icon(c, iconListTree).FontSize(13).TextColor(t.TextMuted)
 			if quietOneBotAction(c, "diff", label).Clicked() {
 				task.ShowDiff = !task.ShowDiff

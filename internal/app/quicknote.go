@@ -117,28 +117,15 @@ func (a *App) settingsQuickNote(c *ui.Context) {
 	t := c.Theme()
 	settingsSection(c, i18n.T("快速笔记"))
 	settingsGroup(c, "quick-note", func() {
-		badgeBg := t.Border.Alpha(0.4)
-		badgeFg := t.TextMuted
-		statusText := i18n.T("独立小窗口随时记录想法，不打断当前文档")
-		statusColor := t.TextMuted
+		statusText := ""
 		if a.prefs.QuickNoteEnabled {
-			badgeBg = t.Accent.Alpha(0.10)
-			badgeFg = t.Accent
 			if a.quick.registered != "" {
 				statusText = i18n.T("全局快捷键已生效 · ") + a.quick.registered
-				statusColor = t.Success
 			} else {
 				statusText = i18n.T("全局快捷键：") + a.quickShortcut()
 			}
 		}
-		ui.Row(c.Key("quick-note-header")).Padding(12, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(34, 34).Radius(8).Shrink(0).Center().Background(badgeBg).Children(func() {
-				ui.Icon(c, iconPencil).FontSize(16).TextColor(badgeFg)
-			})
-			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				ui.Text(c, i18n.T("快速笔记")).FontSize(13.5).FontWeight(600)
-				ui.Text(c, statusText).FontSize(12).TextColor(statusColor).SingleLine()
-			})
+		settingDetailRow(c, "quick-note-header", i18n.T("快速笔记"), statusText, func() {
 			if ui.Button(c.Key("open-quick-note"), i18n.T("打开快速笔记")).Clicked() {
 				a.savePrefs()
 				a.openQuickNote()
@@ -160,8 +147,7 @@ func (a *App) settingsQuickNote(c *ui.Context) {
 			}
 		})
 		if a.quick.err != "" {
-			ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-			ui.Row(c.Key("quick-error")).Padding(10, 16).Gap(8).AlignItems(ui.Center).Background(t.Danger.Alpha(0.06)).Children(func() {
+			ui.Row(c.Key("quick-error")).Padding(16, 24).Gap(12).AlignItems(ui.Center).Radius(controlRadius).Background(t.Danger.Alpha(0.06)).Children(func() {
 				ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Shrink(0)
 				ui.Text(c, a.quick.err).FontSize(12.5).TextColor(t.Danger).Grow(1).MinWidth(0).LineHeight(1.4)
 			})
@@ -179,7 +165,7 @@ func (a *App) settingsQuickNote(c *ui.Context) {
 				}
 			}
 		}
-		settingRow(c, "quick-space", i18n.T("保存空间"), i18n.T("快速笔记默认保存的目标空间"), func() {
+		settingRow(c, "quick-space", i18n.T("保存空间"), "", func() {
 			choice := labels[at]
 			before := choice
 			ui.Select(c.Key("space"), &choice, labels).Label(i18n.T("快速笔记保存空间")).Width(220)

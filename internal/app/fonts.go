@@ -397,7 +397,7 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 		}
 		modalW := min(800, w-64)
 		modalH := min(580, h-64)
-		ui.Column(c.Key("font-picker-dialog")).Font(chromeFont).Width(modalW).Height(modalH).Gap(10).Children(func() {
+		ui.Column(c.Key("font-picker-dialog")).Font(chromeFont).Width(modalW).Height(modalH).Gap(16).Children(func() {
 			title := i18n.T("正文字体")
 			if f.targetUI {
 				title = i18n.T("界面字体")
@@ -406,9 +406,9 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 			if activeLabel == "" {
 				activeLabel = i18n.T("跟随系统字体")
 			}
-			ui.Row(c.Key("font-picker-header")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("font-picker-header")).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, title).FontSize(17).FontWeight(600)
-				ui.Row(c).Padding(2, 8).Radius(5).Background(t.Surface).Border(1, t.Border.Alpha(0.75)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Row(c).Padding(4, 12).Radius(8).Background(t.Surface).AlignItems(ui.Center).Shrink(0).Children(func() {
 					ui.Text(c, i18n.T("当前：")+activeLabel).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 				})
 				ui.Spacer(c)
@@ -422,7 +422,7 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 					fs.closeFontPicker()
 				}
 			})
-			ui.Column(c.Key("font-picker-filters")).Shrink(0).Gap(8).Children(func() {
+			ui.Column(c.Key("font-picker-filters")).Shrink(0).Gap(12).Children(func() {
 				input := ui.TextInput(c.Key("font-query"), &f.query).Placeholder(i18n.T("搜索字体")).Label(i18n.T("搜索字体")).AutoFocus()
 				if input.Submitted() && len(rows) > 0 {
 					choose(rows[f.index])
@@ -437,17 +437,17 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 					{"等宽", "等宽"},
 					{"可下载字体", "可下载"},
 				}
-				ui.Row(c.Key("font-categories")).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("font-categories")).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, cat := range cats {
 						active := f.category == cat.id
-						chip := ui.ButtonBase(c.Key("font-cat-" + cat.id)).Height(26).PaddingX(10).Radius(6).Center().Focusable().
+						chip := ui.ButtonBase(c.Key("font-cat-" + cat.id)).Height(26).PaddingX(16).Radius(8).Center().Focusable().
 							Cursor(ui.CursorPointer).Label(i18n.T(cat.label))
 						if active {
 							chip.Background(t.Accent.Alpha(0.14)).Border(1, t.Accent.Alpha(0.45))
 						} else if chip.Hovered() {
-							chip.Background(hoverFill(t)).Border(1, t.Border.Alpha(0.7))
+							chip.Background(hoverFill(t))
 						} else {
-							chip.Background(t.Surface).Border(1, t.Border.Alpha(0.7))
+							chip.Background(t.Surface)
 						}
 						ink := t.TextMuted
 						if active {
@@ -465,13 +465,13 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 				})
 			})
 			if f.loading {
-				ui.Row(c.Key("font-loading")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("font-loading")).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c.Key("font-load-spinner")).TextColor(t.Accent).Label(i18n.T("正在读取字体"))
 					ui.Text(c, i18n.T("正在读取字体")).FontSize(12.5).TextColor(t.TextMuted)
 				})
 			}
 			if f.err != "" {
-				ui.Row(c.Key("font-err")).Shrink(0).Padding(8, 12).Gap(8).AlignItems(ui.Center).
+				ui.Row(c.Key("font-err")).Shrink(0).Padding(12, 20).Gap(12).AlignItems(ui.Center).
 					Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.35)).Radius(8).Children(func() {
 					ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Shrink(0)
 					ui.Text(c, f.err).TextColor(t.Danger).FontSize(12.5).Grow(1).MinWidth(0).LineHeight(1.4)
@@ -486,8 +486,8 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 					progressVal = float64(f.progress.Load()) / float64(f.total)
 					text = fmt.Sprintf(i18n.T("正在下载字体：%d%%"), pct)
 				}
-				ui.Column(c.Key("font-busy")).Shrink(0).Padding(8, 12).Gap(6).Background(t.Surface).Border(1, t.Border).Radius(8).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Column(c.Key("font-busy")).Shrink(0).Padding(12, 20).Gap(8).Background(t.Surface).Radius(8).Children(func() {
+					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, text).FontSize(12.5).Grow(1)
 						if f.cancel != nil && ui.Button(c.Key("font-cancel-download"), i18n.T("取消下载")).Clicked() {
 							f.cancel()
@@ -500,9 +500,8 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 
 			renderList := func() {
 				if len(rows) == 0 {
-					ui.Column(c.Key("font-empty")).Grow(1).MinHeight(0).Center().Gap(6).Children(func() {
+					ui.Column(c.Key("font-empty")).Grow(1).MinHeight(0).Center().Gap(8).Children(func() {
 						ui.Text(c, i18n.T("没有匹配的字体")).FontSize(13).FontWeight(500)
-						ui.Text(c, i18n.T("尝试调整搜索关键词或切换分类")).FontSize(12).TextColor(t.TextMuted)
 					})
 					return
 				}
@@ -512,9 +511,9 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 				ui.List(c.Key("font-list"), &f.list, len(rows)).Grow(1).MinHeight(0).ItemKey(func(i int) any { return rows[i].group + "\x00" + rows[i].name }).Rows(func(item ui.ListRow) {
 					i, row, c := item.Index, rows[item.Index], item.Context
 					if row.group != "" && (i == 0 || row.group != rows[i-1].group) {
-						ui.Text(c, i18n.T(row.group)).FontSize(11.5).FontWeight(600).TextColor(t.TextMuted).Padding(8, 4, 4, 4)
+						ui.Text(c, i18n.T(row.group)).FontSize(11.5).FontWeight(600).TextColor(t.TextMuted).Padding(12, 8, 8, 8)
 					}
-					line := ui.Row(c.Key(fmt.Sprintf("font-%s-%s", row.group, row.name))).Padding(6, 8).Gap(8).Radius(6).AlignItems(ui.Center)
+					line := ui.Row(c.Key(fmt.Sprintf("font-%s-%s", row.group, row.name))).Padding(8, 12).Gap(12).Radius(8).AlignItems(ui.Center)
 					if i == f.index {
 						line.Background(t.Accent.Alpha(.12))
 						if f.reveal {
@@ -528,8 +527,8 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 						}
 						b := ui.ButtonBase(c.Key("pick")).Label(row.label).Grow(1).MinWidth(0).Justify(ui.Start).Cursor(ui.CursorPointer)
 						b.Children(func() {
-							ui.Column(c).Gap(2).Children(func() {
-								ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							ui.Column(c).Gap(4).Children(func() {
+								ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 									ui.Text(c, row.label).FontSize(12.5).FontWeight(500).SingleLine()
 									if row.name == activeFont {
 										ui.Icon(c, iconCheck).FontSize(12).TextColor(t.Accent).Shrink(0)
@@ -603,10 +602,10 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 						}
 					}
 				}
-				ui.Row(c.Key("font-preview-head")).Height(26).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("font-preview-head")).Height(26).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, previewTitle).FontSize(13).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 					if previewGroup != "" {
-						ui.Row(c).Padding(2, 6).Radius(4).Background(t.Surface).Border(1, t.Border.Alpha(0.7)).Shrink(0).Children(func() {
+						ui.Row(c).Padding(4, 8).Radius(8).Background(t.Surface).Shrink(0).Children(func() {
 							ui.Text(c, i18n.T(previewGroup)).FontSize(10.5).TextColor(t.TextMuted).SingleLine()
 						})
 					}
@@ -614,7 +613,7 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 				if f.targetUI {
 					// Fixed-height slots and fixed-width buttons keep every preview control
 					// at stable coordinates regardless of the previewed font's line metrics.
-					ui.Column(c.Key("font-ui-preview")).Grow(1).MinHeight(0).Padding(14).Background(t.Background).
+					ui.Column(c.Key("font-ui-preview")).Grow(1).MinHeight(0).Padding(20).Background(t.Background).
 						Border(1, t.Border).Radius(8).Font(previewUIFont).Clip().Children(func() {
 						ui.Row(c).Height(28).Shrink(0).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, i18n.T("界面字体")).FontSize(16).FontWeight(600).SingleLine()
@@ -625,14 +624,13 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 						ui.Row(c).Height(22).Shrink(0).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, i18n.T("0123456789 · 菜单与按钮排版")).FontSize(12).TextColor(t.TextMuted).SingleLine()
 						})
-						ui.Box(c).Height(1).Shrink(0).Margin(8, 0).Background(t.Border.Alpha(0.6))
-						ui.Row(c).Height(30).Shrink(0).PaddingX(8).Radius(6).Background(t.Surface).Gap(6).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Height(30).Shrink(0).PaddingX(12).Radius(8).Background(t.Surface).Gap(8).AlignItems(ui.Center).Children(func() {
 							ui.Icon(c, iconFile).FontSize(12).TextColor(t.TextMuted).Shrink(0)
 							ui.Text(c, i18n.T("文档列表")).FontSize(12.5).SingleLine().Grow(1).MinWidth(0)
 							ui.Text(c, "⌘K").FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
 						})
 						ui.Spacer(c)
-						ui.Row(c.Key("font-ui-preview-actions")).Height(36).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Row(c.Key("font-ui-preview-actions")).Height(36).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 							ui.Button(c.Key("preview-btn-settings"), i18n.T("设置")).Width(80).Height(32)
 							ui.PrimaryButton(c.Key("preview-btn-save"), i18n.T("保存")).Width(80).Height(32)
 						})
@@ -648,26 +646,24 @@ func (fs *fontState) fontPickerView(c *ui.Context) {
 						editor.View(c.Key("font-sample"), f.sample, editor.Options{Width: previewW, Theme: paper, Page: pageStyle(fs.host.paperIsDark()), FontFamily: fs.bodyFont(), FontSize: fs.host.preferences().ReadingSize(), LineHeight: fs.host.preferences().ReadingLine(), Column: -1})
 					})
 				}
-				ui.Row(c.Key("font-preview-footer")).Height(34).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, i18n.T("↑↓ 预览 · Enter 应用")).FontSize(11.5).TextColor(t.TextMuted).Grow(1).SingleLine()
+				ui.Row(c.Key("font-preview-footer")).Height(34).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
+					ui.Spacer(c)
 					if ui.PrimaryButton(c.Key("font-apply"), i18n.T("应用字体")).Disabled(len(rows) == 0).Clicked() && len(rows) > 0 {
 						choose(rows[f.index])
 					}
 				})
 			}
 
-			ui.Box(c).Height(1).Shrink(0).Background(t.Border.Alpha(0.6))
 			if modalW >= 620 {
-				ui.Row(c.Key("font-picker-body")).Grow(1).MinHeight(0).Gap(12).AlignItems(ui.Stretch).Children(func() {
+				ui.Row(c.Key("font-picker-body")).Grow(1).MinHeight(0).Gap(20).AlignItems(ui.Stretch).Children(func() {
 					ui.Column(c.Key("font-list-pane")).Grow(1).MinWidth(0).MinHeight(0).Children(renderList)
 					ui.Box(c).Width(1).Shrink(0).Background(t.Border.Alpha(0.6))
-					ui.Column(c.Key("font-preview-pane")).Width(320).Shrink(0).MinHeight(0).Gap(8).Children(renderPreview)
+					ui.Column(c.Key("font-preview-pane")).Width(320).Shrink(0).MinHeight(0).Gap(12).Children(renderPreview)
 				})
 			} else {
-				ui.Column(c.Key("font-picker-body")).Grow(1).MinHeight(0).Gap(10).Children(func() {
+				ui.Column(c.Key("font-picker-body")).Grow(1).MinHeight(0).Gap(16).Children(func() {
 					ui.Column(c.Key("font-list-pane")).Grow(1).MinHeight(0).Children(renderList)
-					ui.Box(c).Height(1).Shrink(0).Background(t.Border.Alpha(0.6))
-					ui.Column(c.Key("font-preview-pane")).Height(220).Shrink(0).Gap(6).Children(renderPreview)
+					ui.Column(c.Key("font-preview-pane")).Height(220).Shrink(0).Gap(8).Children(renderPreview)
 				})
 			}
 		})

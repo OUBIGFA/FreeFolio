@@ -80,21 +80,21 @@ func (ob *qaState) qaPanel(c *ui.Context, docked float32) {
 			bar.Right = max(0, bar.Right-docked)
 		}
 		flat := ob.host.fileLocations() != nil
-		fill := pick(t, white.Alpha(0.88), t.Surface)
+		fill := pick(t, white, t.Surface)
 		qaCol := ui.Column(c.Key("qa")).Width(ob.oneBotWidth(docked)).Grow(1).MinHeight(0)
 		if flat {
 			qaCol.Background(fill).BorderWidth(0, 0, 0, 1).BorderColor(t.Border)
 		} else {
-			qaCol.Padding(0, 8, 8, 0)
+			qaCol.Padding(0, 12, 12, 0)
 		}
 		qaCol.Children(func() {
 			s := ob.qaSession(sp.ID)
 			name := ob.oneBotSpaceName(sp)
-			head := ui.Row(c.Key("qa-head")).Height(ob.oneBotHeadHeight(c)).Gap(6).AlignItems(ui.Center)
+			head := ui.Row(c.Key("qa-head")).Height(ob.oneBotHeadHeight(c)).Gap(8).AlignItems(ui.Center)
 			if flat {
-				head.Padding(0, 8, 0, 12).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.6))
+				head.Padding(0, 12, 0, 20).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.6))
 			} else {
-				head.Padding(0, bar.Right, 0, 8).DragWindow()
+				head.Padding(0, bar.Right, 0, 12).DragWindow()
 			}
 			head.Children(func() {
 				ui.Icon(c, iconAsk).FontSize(15).TextColor(t.Accent.Alpha(0.88))
@@ -119,7 +119,7 @@ func (ob *qaState) qaPanel(c *ui.Context, docked float32) {
 			})
 			card := ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Clip()
 			if !flat {
-				card.Radius(panelRadius).Background(fill).Border(1, t.Border)
+				card.Radius(panelRadius).Background(fill)
 			}
 			if !ob.historyOpen {
 				fileOver := card.FileDragOver()
@@ -165,7 +165,7 @@ func (ob *qaState) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 	if len(s.turns) == 0 {
 		s.finishCitationFrame(c)
 		ui.Box(c.Key("welcome-above")).Grow(1)
-		ui.Scroll(c.Key("qa-welcome")).MinHeight(0).Shrink(1).PaddingX(14).AlignItems(ui.Center).Children(func() { ob.qaEmpty(c, name) })
+		ui.Scroll(c.Key("qa-welcome")).MinHeight(0).Shrink(1).PaddingX(20).AlignItems(ui.Center).Children(func() { ob.qaEmpty(c, name) })
 		ui.Box(c.Key("welcome-below")).Grow(1)
 		return
 	}
@@ -194,7 +194,7 @@ func (ob *qaState) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 		s.preview.panelRect = r
 	})
 	wrap.Children(func() {
-		list := ui.List(c.Key("qa-scroll-"+spaceID+"-"+s.id), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(16, 18).
+		list := ui.List(c.Key("qa-scroll-"+spaceID+"-"+s.id), &s.list, len(rows)).Grow(1).MinHeight(0).Padding(24, 28).
 			Label(i18n.T("OneBot")).ItemKey(func(i int) any { return rows[i] })
 		list.Rows(func(row ui.ListRow) {
 			c := row.Context
@@ -231,8 +231,8 @@ func (ob *qaState) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 					Enter:    &ui.Motion{Y: 6, Opacity: 0},
 					Exit:     &ui.Motion{Y: 6, Opacity: 0},
 				}).Children(func() {
-				pill := ui.Row(c.Key("qa-jump-latest")).Height(28).Padding(0, 11).Gap(5).Radius(14).AlignItems(ui.Center).
-					Background(col.fill).Border(1, t.Accent.Alpha(0.42)).Shadow(0, 4, 14, 0, col.shadow).
+				pill := ui.Row(c.Key("qa-jump-latest")).Height(28).Padding(0, 16).Gap(8).Radius(14).AlignItems(ui.Center).
+					Background(col.fill).Border(1, t.Accent.Alpha(0.42)).Shadow(0, 8, 24, 0, floatShadow(t)).
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("回到最新"))
 				if pill.Hovered() {
 					pill.Background(col.fill.Mix(t.Accent, 0.08)).Border(1, t.Accent.Alpha(0.72))
@@ -240,7 +240,7 @@ func (ob *qaState) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 				pill.Children(func() {
 					if s.running() {
 						pulse := float32(0.55 + 0.45*math.Sin(float64(c.Now().UnixMilli())/260.0))
-						ui.Box(c.Key("dot")).Size(6, 6).Radius(3).Background(t.Accent.Alpha(pulse)).Shrink(0)
+						ui.Box(c.Key("dot")).Size(6, 6).Radius(8).Background(t.Accent.Alpha(pulse)).Shrink(0)
 						if !c.Preferences().ReduceMotion {
 							c.After(33 * time.Millisecond)
 						}
@@ -277,11 +277,11 @@ func qaRoundButton(c *ui.Context, key string, icon *ui.SVG, label string, disabl
 
 func (ob *qaState) qaEmpty(c *ui.Context, name string) {
 	t := c.Theme()
-	ui.Column(c.Key("qa-empty")).Role(ui.RoleGroup).Label(i18n.T("新对话")).WidthPercent(100).MaxWidth(320).Gap(10).Padding(8, 2).AlignItems(ui.Center).Children(func() {
+	ui.Column(c.Key("qa-empty")).Role(ui.RoleGroup).Label(i18n.T("新对话")).WidthPercent(100).MaxWidth(320).Gap(16).Padding(12, 4).AlignItems(ui.Center).Children(func() {
 		ui.Box(c.Key("qa-badge")).Size(34, 34).Radius(9).Background(t.Accent.Alpha(0.09)).Center().Children(func() {
 			ui.Icon(c, iconAsk).FontSize(19).TextColor(t.Accent)
 		})
-		ui.Column(c).Gap(4).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("搜索这个空间的文档，并在回答中标出来源")
 			if ob.host.fileLocations() != nil {
 				title, hint = i18n.T("向打开的文件提问"), i18n.T("搜索已打开的文件，并在回答中标出来源")
@@ -291,8 +291,8 @@ func (ob *qaState) qaEmpty(c *ui.Context, name string) {
 				FontSize(13).LineHeight(1.45).TextColor(t.TextMuted).TextAlign(ui.Center)
 		})
 		if err := ob.qaReady(); err != nil {
-			ui.Column(c.Key("qa-unset-card")).Gap(10).Padding(12, 16).Radius(10).AlignItems(ui.Center).
-				Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.5)).Children(func() {
+			ui.Column(c.Key("qa-unset-card")).Gap(16).Padding(20, 24).Radius(10).AlignItems(ui.Center).
+				Background(t.Text.Alpha(0.035)).Children(func() {
 				ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 				if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型")).Clicked() {
 					ob.host.openSettings(tabAI)
@@ -300,14 +300,14 @@ func (ob *qaState) qaEmpty(c *ui.Context, name string) {
 			})
 			return
 		}
-		ui.Column(c).Gap(6).AlignItems(ui.Stretch).WidthPercent(100).Children(func() {
+		ui.Column(c).Gap(8).AlignItems(ui.Stretch).WidthPercent(100).Children(func() {
 			examples := qaExamples
 			if ob.host.fileLocations() != nil {
 				examples = fileQAExamples
 			}
 			for i, ex := range examples {
 				ex := i18n.T(ex)
-				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(7, 10).Radius(controlRadius).Gap(8).Center().
+				row := ui.Row(c.Key(fmt.Sprintf("qa-example-%d", i))).Padding(12, 16).Radius(controlRadius).Gap(12).Center().
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(ex)
 				ink := t.Text
 				if row.Hovered() || row.Focused() {
@@ -329,7 +329,7 @@ func (ob *qaState) qaEmpty(c *ui.Context, name string) {
 
 func qaQuietIconAction(c *ui.Context, key string, icon *ui.SVG, label, tooltip string, active, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.Box(c.Key(key)).Size(24, 24).Radius(6).Center().Focusable().
+	b := ui.Box(c.Key(key)).Size(24, 24).Radius(8).Center().Focusable().
 		Role(ui.RoleButton).Label(label).Tooltip(tooltip).Disabled(disabled)
 	ink := t.TextMuted.Alpha(0.72)
 	switch {
@@ -354,15 +354,15 @@ func qaQuietIconAction(c *ui.Context, key string, icon *ui.SVG, label, tooltip s
 
 func (ob *qaState) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
-	ui.Column(c.Key("q")).Gap(5).AlignItems(ui.End).Transition(ui.ElementTransition{
+	ui.Column(c.Key("q")).Gap(8).AlignItems(ui.End).Transition(ui.ElementTransition{
 		Duration: 180 * time.Millisecond,
 		Enter:    &ui.Motion{Y: 5, Opacity: 0},
 	}).Children(func() {
 		ob.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
 		ob.oneBotAttachmentBadges(c, "q-attachments", turn.attachments, nil)
 		if ob.editingTurn == turn {
-			ui.Column(c.Key("q-edit")).WidthPercent(100).MaxWidth(520).Padding(10, 12).Radius(12).
-				Background(field(t)).Border(1, t.Accent.Alpha(0.55)).Gap(8).Children(func() {
+			ui.Column(c.Key("q-edit")).WidthPercent(100).MaxWidth(520).Padding(16, 20).Radius(12).
+				Background(field(t)).Border(1, t.Accent.Alpha(0.55)).Gap(12).Children(func() {
 				edIn := ui.TextInput(c.Key("edit-turn-input"), &ob.editingText).Multiline(true).MinHeight(56).
 					Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("编辑问题"))
 				if ob.focusEditTurn {
@@ -378,7 +378,7 @@ func (ob *qaState) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn 
 					ob.submitEditQATurn(spaceID)
 					return
 				}
-				ui.Row(c.Key("edit-actions")).Gap(6).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("edit-actions")).Gap(8).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 					if ui.Button(c.Key("edit-cancel"), i18n.T("取消")).FontSize(12).Clicked() {
 						ob.cancelEditQATurn()
 					}
@@ -390,14 +390,14 @@ func (ob *qaState) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn 
 			return
 		}
 		if turn.question != "" {
-			ui.Box(c.Key("bubble")).Padding(9, 13).Radius(14).
+			ui.Box(c.Key("bubble")).Padding(12, 20).Radius(14).
 				Background(t.Accent.Alpha(0.11)).Border(1, t.Accent.Alpha(0.18)).MaxWidth(520).Children(func() {
 				ui.Text(c, turn.question).FontSize(13.5).LineHeight(1.5).Selectable()
 			})
 			if !turn.running && !turn.revealing {
 				copyKey := fmt.Sprintf("qcopy-%p", turn)
 				copied := ob.isQACopied(c, copyKey)
-				ui.Row(c.Key("q-actions")).Gap(2).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("q-actions")).Gap(4).AlignItems(ui.Center).Children(func() {
 					copyTip, copyIcon := i18n.T("复制问题"), iconCopy
 					if copied {
 						copyTip, copyIcon = i18n.T("已复制"), iconCheck
@@ -416,13 +416,13 @@ func (ob *qaState) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn 
 
 func (ob *qaState) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
-	ui.Column(c.Key("turn-footer")).Gap(6).Children(func() {
+	ui.Column(c.Key("turn-footer")).Gap(8).Children(func() {
 		if len(turn.view.refs) > 0 {
 			ob.qaSources(c, spaceID, turn)
 		}
 		isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
 		canRegen := turn.answer != "" || turn.stopped || turn.err != nil || len(turn.steps) > 0
-		ui.Row(c.Key("qa-actions")).Gap(2).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("qa-actions")).Gap(4).Wrap().AlignItems(ui.Center).Children(func() {
 			if turn.answer != "" {
 				copyKey := fmt.Sprintf("acopy-%p", turn)
 				copied := ob.isQACopied(c, copyKey)
@@ -440,7 +440,7 @@ func (ob *qaState) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, tur
 				}
 			}
 			if !s.running() && isLast && (turn.stopped || turn.finishReason == "length") {
-				cont := ui.Row(c.Key("continue")).Height(24).Padding(0, 8).Gap(4).Radius(6).AlignItems(ui.Center).
+				cont := ui.Row(c.Key("continue")).Height(24).Padding(0, 12).Gap(8).Radius(8).AlignItems(ui.Center).
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("继续生成"))
 				if cont.Hovered() {
 					cont.Background(hoverFill(t))
@@ -500,14 +500,14 @@ func (ob *qaState) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, tur
 func (ob *qaState) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
 	isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
-	ui.Row(c.Key("context-break")).Gap(8).Padding(4, 0).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("context-break")).Gap(12).Padding(8, 0).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Grow(1).Height(1).Background(separator(t).Alpha(0.7))
-		ui.Row(c.Key("pill")).Gap(6).Padding(2, 9).Radius(999).AlignItems(ui.Center).
-			Background(t.Text.Alpha(0.045)).Border(1, t.Border.Alpha(0.35)).Children(func() {
+		ui.Row(c.Key("pill")).Gap(8).Padding(4, 12).Radius(999).AlignItems(ui.Center).
+			Background(t.Text.Alpha(0.045)).Children(func() {
 			ui.Icon(c, iconEraser).FontSize(11).TextColor(t.TextMuted)
 			ui.Text(c, i18n.T("以上上下文已清除 · 重新开始")).FontSize(11).TextColor(t.TextMuted).NoWrap()
 			if isLast && !s.running() {
-				undo := ui.Row(c.Key("undo")).Padding(1, 5).Radius(4).Cursor(ui.CursorPointer).
+				undo := ui.Row(c.Key("undo")).Padding(4, 8).Radius(8).Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleButton).Label(i18n.T("撤销"))
 				if undo.Hovered() {
 					undo.Background(t.Accent.Alpha(0.12))
@@ -534,8 +534,8 @@ func (ob *qaState) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 		case turn.thinking:
 			label = i18n.T("思考中")
 		}
-		ui.Row(c.Key("working")).Gap(9).Padding(8, 11).Radius(11).AlignItems(ui.Center).
-			Background(t.Text.Alpha(0.032)).Border(1, t.Border.Alpha(0.32)).
+		ui.Row(c.Key("working")).Gap(12).Padding(12, 16).Radius(11).AlignItems(ui.Center).
+			Background(t.Text.Alpha(0.032)).
 			Transition(ui.ElementTransition{
 				Duration: 160 * time.Millisecond,
 				Enter:    &ui.Motion{Y: 4, Opacity: 0},
@@ -548,19 +548,19 @@ func (ob *qaState) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 		})
 	}
 	if turn.stopped {
-		ui.Row(c.Key("stopped")).Gap(6).AlignItems(ui.Center).Padding(2, 0).Children(func() {
-			ui.Box(c).Size(6, 6).Radius(3).Background(t.TextMuted.Alpha(0.55))
+		ui.Row(c.Key("stopped")).Gap(8).AlignItems(ui.Center).Padding(4, 0).Children(func() {
+			ui.Box(c).Size(6, 6).Radius(8).Background(t.TextMuted.Alpha(0.55))
 			ui.Text(c, i18n.T("已停止")).FontSize(12).TextColor(t.TextMuted)
 		})
 	}
 	if turn.err != nil {
-		ui.Column(c.Key("error")).Gap(8).Padding(10, 12).Radius(10).
+		ui.Column(c.Key("error")).Gap(12).Padding(16, 20).Radius(10).
 			Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.22)).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-				ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Padding(2, 0, 0, 0)
+			ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+				ui.Icon(c, iconAlert).FontSize(14).TextColor(t.Danger).Padding(4, 0, 0, 0)
 				ui.Text(c, qaErrorText(turn.err)).FontSize(13).LineHeight(1.45).TextColor(t.Danger).Selectable().Shrink(1).MinWidth(0)
 			})
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(12).Children(func() {
 				if chatGPTUsageLimit(turn.err) && ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
 					ob.host.chatGPT().openChatGPTUsage()
 				}
@@ -583,13 +583,13 @@ func qaPulseDots(c *ui.Context, color ui.Color) {
 	}
 	c.After(45 * time.Millisecond)
 	sec := float64(c.Now().UnixNano()) / 1e9
-	ui.Row(c.Key("dots")).Gap(3).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("dots")).Gap(4).AlignItems(ui.Center).Children(func() {
 		for i := range 3 {
 			phase := sec*4.6 - float64(i)*0.65
 			wave := float32(0.5 + 0.5*math.Sin(phase))
 			alpha := 0.25 + 0.65*wave
 			lift := -1.4 * wave
-			ui.Box(c.Key(i)).Size(3.5, 3.5).Radius(2).Background(color.Alpha(alpha)).
+			ui.Box(c.Key(i)).Size(3.5, 3.5).Radius(8).Background(color.Alpha(alpha)).
 				Translate(0, lift)
 		}
 	})
@@ -675,7 +675,7 @@ func (ob *qaState) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 					Enter:    &ui.Motion{Collapse: true, Opacity: 0},
 					Exit:     &ui.Motion{Collapse: true, Opacity: 0},
 				}).Children(func() {
-				ui.Row(c.Key("live-row")).Gap(8).Padding(7, 10).AlignItems(ui.Center).
+				ui.Row(c.Key("live-row")).Gap(12).Padding(12, 16).AlignItems(ui.Center).
 					Background(t.Accent.Alpha(0.05)).Children(func() {
 					qaLoader(c, &turn.loader, turn.loaderStyle(c.Now()))
 					ui.Text(c, turn.liveStepHeadline()).FontSize(12.5).FontWeight(550).
@@ -683,11 +683,10 @@ func (ob *qaState) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 					ui.Spacer(c)
 					qaPulseDots(c, t.Accent)
 				})
-				ui.Box(c).Height(1).Background(separator(t))
 			})
 		}
 
-		head := ui.Row(c.Key("steps-head")).Gap(8).Padding(7, 10).MinHeight(32).AlignItems(ui.Center).
+		head := ui.Row(c.Key("steps-head")).Gap(12).Padding(12, 16).MinHeight(32).AlignItems(ui.Center).
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("查找过程"))
 		if head.Hovered() {
 			head.Background(hoverFill(t).Alpha(0.65))
@@ -695,13 +694,13 @@ func (ob *qaState) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 		head.Children(func() {
 			titles := turn.consultedTitles()
 			if len(titles) > 0 {
-				ui.Row(c.Key("doc-stack")).Gap(3).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Row(c.Key("doc-stack")).Gap(4).AlignItems(ui.Center).Shrink(0).Children(func() {
 					for idx, title := range titles {
 						ui.Box(c.Key(idx)).Children(func() { docIcon(c, title, 15) })
 					}
 				})
 			} else {
-				ui.Box(c.Key("search-badge")).Size(17, 17).Radius(5).Background(t.Accent.Alpha(0.12)).Center().Shrink(0).Children(func() {
+				ui.Box(c.Key("search-badge")).Size(17, 17).Radius(8).Background(t.Accent.Alpha(0.12)).Center().Shrink(0).Children(func() {
 					ui.Icon(c, iconSparkles).FontSize(10.5).TextColor(t.Accent)
 				})
 			}
@@ -732,8 +731,7 @@ func (ob *qaState) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 				Enter:    &ui.Motion{Collapse: true, Y: -4},
 				Exit:     &ui.Motion{Collapse: true, Y: -4},
 			}).Children(func() {
-			ui.Box(c).Height(1).Background(separator(t))
-			ui.Column(c.Key("timeline")).Padding(6, 8, 7, 10).Children(func() {
+			ui.Column(c.Key("timeline")).Padding(8, 12, 12, 16).Children(func() {
 				for i, st := range turn.steps {
 					ob.qaStepItem(c, spaceID, st, i, len(turn.steps))
 				}
@@ -750,7 +748,7 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 	canExpand := meta.docPath == "" && len(hits) > 0
 	interactive := canJump || canExpand
 
-	ui.Row(c.Key(fmt.Sprintf("step-%d", index))).Gap(8).AlignItems(ui.Stretch).
+	ui.Row(c.Key(fmt.Sprintf("step-%d", index))).Gap(12).AlignItems(ui.Stretch).
 		Transition(ui.ElementTransition{
 			Duration: 160 * time.Millisecond,
 			Enter:    &ui.Motion{Collapse: true, Y: -3, Opacity: 0},
@@ -771,8 +769,8 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 		})
 
 		// Right step body + optional inline hit preview drawer.
-		ui.Column(c.Key("main")).Grow(1).MinWidth(0).Padding(1, 0, 2, 0).Children(func() {
-			row := ui.Row(c.Key("bar")).Gap(5).Padding(4, 6).Radius(7).MinHeight(24).AlignItems(ui.Center)
+		ui.Column(c.Key("main")).Grow(1).MinWidth(0).Padding(4, 0, 4, 0).Children(func() {
+			row := ui.Row(c.Key("bar")).Gap(8).Padding(8, 8).Radius(8).MinHeight(24).AlignItems(ui.Center)
 			if interactive {
 				row.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
 					Label(strings.TrimSpace(meta.verb + " " + meta.subject))
@@ -793,7 +791,7 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 						SingleLine().Shrink(1).MinWidth(0).Tooltip(meta.subject)
 				}
 				if meta.scope != "" {
-					ui.Box(c.Key("scope")).Padding(1, 5).Radius(4).Background(t.Text.Alpha(0.055)).
+					ui.Box(c.Key("scope")).Padding(4, 8).Radius(8).Background(t.Text.Alpha(0.055)).
 						Shrink(2).MinWidth(0).MaxWidth(96).Clip().Children(func() {
 						ui.Text(c, meta.scope).FontSize(10.5).TextColor(t.TextMuted).SingleLine().Tooltip(meta.scope)
 					})
@@ -809,7 +807,7 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 						resInk = t.Accent
 						resBg = t.Accent.Alpha(0.10)
 					}
-					ui.Box(c.Key("res")).Padding(1, 6).Radius(5).Background(resBg).Shrink(0).Children(func() {
+					ui.Box(c.Key("res")).Padding(4, 8).Radius(8).Background(resBg).Shrink(0).Children(func() {
 						ui.Text(c, r).FontSize(10.5).FontWeight(500).TextColor(resInk).NoWrap()
 					})
 				}
@@ -837,14 +835,14 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 			}
 
 			if canExpand && st.open {
-				ui.Column(c.Key("hits")).Gap(2).Padding(3, 2, 4, 4).
+				ui.Column(c.Key("hits")).Gap(4).Padding(4, 4, 8, 8).
 					Transition(ui.ElementTransition{
 						Duration: 150 * time.Millisecond,
 						Enter:    &ui.Motion{Collapse: true, Y: -3, Opacity: 0},
 						Exit:     &ui.Motion{Collapse: true, Y: -3, Opacity: 0},
 					}).Children(func() {
 					for hi, h := range hits {
-						hRow := ui.Column(c.Key(hi)).Gap(2).Padding(4, 7).Radius(6).
+						hRow := ui.Column(c.Key(hi)).Gap(4).Padding(8, 12).Radius(8).
 							Background(t.Text.Alpha(0.028)).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleLink).Label(h.head)
 						if hRow.Hovered() {
 							hRow.Background(hoverFill(t))
@@ -854,7 +852,7 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 							if h.path != "" {
 								iconTitle = vault.Title(h.path)
 							}
-							ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+							ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 								docIcon(c, iconTitle, 13)
 								ui.Text(c, docName(h.head)).FontSize(11.5).FontWeight(500).TextColor(t.Text.Alpha(0.84)).
 									SingleLine().Shrink(1).MinWidth(0)
@@ -864,7 +862,7 @@ func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, 
 								}
 							})
 							if h.text != "" {
-								ui.Text(c, h.text).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0).Padding(0, 0, 0, 18)
+								ui.Text(c, h.text).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0).Padding(0, 0, 0, 28)
 							}
 						})
 						if hRow.Clicked() && h.path != "" {

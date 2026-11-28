@@ -47,7 +47,7 @@ func (a *App) installAgentSkillsAction() {
 
 func (a *App) settingsLocalAgents(c *ui.Context, sep func(), row func(key, label, note string, control func())) {
 	t := c.Theme()
-	settingsHeading(c, i18n.T("本地 Agent 接入"), i18n.T("允许 Claude Code、Codex、Cursor、Antigravity 等本机 Agent 通过 CLI 或 MCP 操作空间、富文本文档、手绘白板与多维数据库"))
+	settingsHeading(c, i18n.T("本地 Agent 接入"))
 	if !a.agentSkillsChecked {
 		a.refreshAgentSkillsCache()
 	}
@@ -76,9 +76,9 @@ func (a *App) settingsLocalAgents(c *ui.Context, sep func(), row func(key, label
 		})
 		if len(a.agentSkillTargets) > 0 {
 			sep()
-			ui.Column(c.Key("agent-targets")).Padding(10, 12).Gap(8).Children(func() {
+			ui.Column(c.Key("agent-targets")).Padding(16, 0).Gap(12).Children(func() {
 				ui.Text(c, i18n.T("本机 Agent 检测状态")).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
-				ui.Row(c.Key("agent-target-chips")).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("agent-target-chips")).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, tgt := range a.agentSkillTargets {
 						tone := ""
 						state := i18n.T("未检测到")
@@ -86,8 +86,8 @@ func (a *App) settingsLocalAgents(c *ui.Context, sep func(), row func(key, label
 							tone = "accent"
 							state = i18n.T("已检测")
 						}
-						ui.Row(c.Key("tgt-"+tgt.Agent)).Padding(4, 10).Gap(6).Radius(controlRadius).
-							Background(t.Text.Alpha(0.03)).Border(1, separator(t)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c.Key("tgt-"+tgt.Agent)).Padding(8, 16).Gap(8).Radius(controlRadius).
+							Background(t.Text.Alpha(0.03)).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, tgt.Agent).FontSize(12.5).FontWeight(500)
 							settingsBadge(c, state, tone)
 						})
@@ -106,10 +106,10 @@ func (a *App) settingsLocalAgents(c *ui.Context, sep func(), row func(key, label
 			}
 		})
 		sep()
-		ui.Column(c.Key("mcp-preview-wrap")).Padding(10, 12).Gap(6).Children(func() {
+		ui.Column(c.Key("mcp-preview-wrap")).Padding(16, 0).Gap(8).Children(func() {
 			ui.Text(c, i18n.T("配置片段预览")).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
-			ui.Box(c.Key("mcp-preview")).WidthPercent(100).Padding(10, 12).Radius(controlRadius).
-				Background(t.Text.Alpha(0.03)).Border(1, separator(t)).Children(func() {
+			ui.Box(c.Key("mcp-preview")).WidthPercent(100).Padding(16, 20).Radius(controlRadius).
+				Background(t.Text.Alpha(0.03)).Children(func() {
 				ui.Text(c, agentmcp.MCPConfigJSON(binCmd)).FontSize(12).TextColor(t.Text).LineHeight(1.45).Selectable()
 			})
 		})

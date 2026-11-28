@@ -72,7 +72,7 @@ func (rs *resourceState) finishResourceDownload(s *resourceTransfer, err error) 
 func (rs *resourceState) resourceDownloadControls(c *ui.Context, s *resourceTransfer) {
 	t := c.Theme()
 	if s.installing {
-		ui.Row(c.Key("install-progress")).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("install-progress")).WidthPercent(100).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.T("正在安装模型组件")).FontSize(12).TextColor(t.TextMuted).Grow(1)
 			if ui.Button(c.Key("stop"), i18n.T("停止")).Disabled(s.stopping).Clicked() {
 				rs.stopResourceDownload(s)
@@ -90,8 +90,8 @@ func (rs *resourceState) resourceDownloadControls(c *ui.Context, s *resourceTran
 	if s.total > 0 {
 		value = float64(ownDone) / float64(s.total)
 	}
-	ui.Column(c.Key("download-progress")).WidthPercent(100).Gap(6).Padding(8, 10).Radius(controlRadius).
-		Background(t.Text.Alpha(0.025)).Border(1, separator(t)).Children(func() {
+	ui.Column(c.Key("download-progress")).WidthPercent(100).Gap(8).Padding(12, 16).Radius(controlRadius).
+		Background(t.Text.Alpha(0.025)).Children(func() {
 		label := fmt.Sprintf("%.0f%%", value*100)
 		switch {
 		case s.stopping:
@@ -101,15 +101,15 @@ func (rs *resourceState) resourceDownloadControls(c *ui.Context, s *resourceTran
 		case s.paused:
 			label = i18n.T("已暂停") + " · " + label
 		}
-		ui.Row(c.Key("main-bar-row")).WidthPercent(100).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Column(c.Key("main-bar-col")).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				ui.Row(c).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("main-bar-row")).WidthPercent(100).Gap(16).AlignItems(ui.Center).Children(func() {
+			ui.Column(c.Key("main-bar-col")).Grow(1).MinWidth(0).Gap(8).Children(func() {
+				ui.Row(c).WidthPercent(100).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, label).FontSize(11.5).FontWeight(500).TextColor(t.Text).Grow(1)
 					ui.Text(c, fmt.Sprintf("%s / %s", formatResourceBytes(ownDone), formatResourceBytes(s.total))).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 				})
 				ui.Progress(c.Key("bar"), value).WidthPercent(100).Label(i18n.T("下载进度"))
 			})
-			ui.Row(c.Key("dl-buttons")).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("dl-buttons")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 				if s.paused {
 					if ui.PrimaryButton(c.Key("resume"), i18n.T("继续下载")).Clicked() {
 						s.resume()
@@ -128,8 +128,8 @@ func (rs *resourceState) resourceDownloadControls(c *ui.Context, s *resourceTran
 				done -= s.total
 			}
 			done = max(int64(0), min(s.dependencyTotal, done))
-			ui.Column(c.Key("dep-bar-col")).WidthPercent(100).Gap(4).Children(func() {
-				ui.Row(c).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Column(c.Key("dep-bar-col")).WidthPercent(100).Gap(8).Children(func() {
+				ui.Row(c).WidthPercent(100).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, i18n.T(s.dependencyLabel)).FontSize(11.5).TextColor(t.TextMuted).Grow(1)
 					ui.Text(c, fmt.Sprintf("%s / %s", formatResourceBytes(done), formatResourceBytes(s.dependencyTotal))).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 				})

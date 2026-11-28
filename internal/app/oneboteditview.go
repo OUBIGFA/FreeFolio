@@ -17,7 +17,7 @@ import (
 )
 
 func (ob *qaState) oneBotScopeView(c *ui.Context) {
-	ui.Row(c.Key("scope")).Gap(6).Wrap().Children(func() {
+	ui.Row(c.Key("scope")).Gap(8).Wrap().Children(func() {
 		label := i18n.T("选择修改范围")
 		if task := ob.editTask; task != nil {
 			label = oneBotScopeLabel(task.Scope)
@@ -43,7 +43,7 @@ func (ob *qaState) oneBotScopeView(c *ui.Context) {
 			ob.host.savePrefs()
 		}
 	})
-	ui.Row(c.Key("candidate-count")).Gap(8).Children(func() {
+	ui.Row(c.Key("candidate-count")).Gap(12).Children(func() {
 		ui.Text(c, i18n.T("候选数量"))
 		n := ob.editCount
 		if n < 1 {
@@ -130,9 +130,9 @@ func oneBotChangeStatus(s string) string {
 
 func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index int, ch *oneBotChange) {
 	t := c.Theme()
-	ui.Column(c.Key("change")).Gap(8).Padding(9, 10).Radius(9).
-		Background(t.Text.Alpha(0.02)).Border(1, t.Border.Alpha(0.55)).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c.Key("change")).Gap(12).Padding(12, 16).Radius(9).
+		Background(t.Text.Alpha(0.02)).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, ch.Path).FontSize(12.5).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 			statusInk, statusBg := t.TextMuted, t.Text.Alpha(0.06)
 			switch ch.Status {
@@ -141,7 +141,7 @@ func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, 
 			case "conflict", "stale":
 				statusInk, statusBg = t.Danger, t.Danger.Alpha(0.10)
 			}
-			ui.Box(c.Key("status")).Padding(1, 7).Radius(5).Background(statusBg).Shrink(0).Children(func() {
+			ui.Box(c.Key("status")).Padding(4, 12).Radius(8).Background(statusBg).Shrink(0).Children(func() {
 				ui.Text(c, oneBotChangeStatus(ch.Status)).FontSize(11).FontWeight(500).TextColor(statusInk).NoWrap()
 			})
 		})
@@ -162,7 +162,7 @@ func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, 
 			}
 			ch.Diff = history.Diff(strings.Split(before, "\n"), strings.Split(after, "\n"))
 		}
-		ui.Column(c.Key("diff-lines")).Radius(7).Border(1, t.Border.Alpha(0.45)).Background(t.Surface).Clip().Children(func() {
+		ui.Column(c.Key("diff-lines")).Radius(8).Background(t.Surface).Clip().Children(func() {
 			for i, line := range ch.Diff {
 				prefix := "  "
 				ink := t.Text
@@ -177,7 +177,7 @@ func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, 
 					ink = t.Danger
 					fill = t.Danger.Alpha(0.08)
 				}
-				ui.Box(c.Key(i)).Background(fill).Padding(4, 8).Children(func() {
+				ui.Box(c.Key(i)).Background(fill).Padding(8, 12).Children(func() {
 					ui.Text(c, prefix+line.Text).FontSize(12.5).LineHeight(1.45).TextColor(ink)
 				})
 			}
@@ -185,7 +185,7 @@ func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, 
 		if ch.Error != "" {
 			ui.Text(c, ch.Error).TextColor(t.Danger).FontSize(12)
 		}
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if ch.Status == "pending" {
 				if oneBotApplyButton(c, "accept", i18n.T("应用这处")).Disabled(task.Applying).Clicked() {
 					if err := ob.applyOneBotCandidate(task, candidate, index); err != nil {
@@ -430,14 +430,14 @@ func (ob *qaState) loadOneBotHistory() {
 func (ob *qaState) oneBotHistoryView(c *ui.Context) {
 	t := c.Theme()
 	if len(ob.editHistory) == 0 {
-		ui.Text(c, i18n.T("暂无编辑记录")).FontSize(12.5).TextColor(t.TextMuted).Padding(6, 0)
+		ui.Text(c, i18n.T("暂无编辑记录")).FontSize(12.5).TextColor(t.TextMuted).Padding(8, 0)
 		return
 	}
-	ui.Column(c).Gap(6).Children(func() {
+	ui.Column(c).Gap(8).Children(func() {
 		for _, task := range ob.editHistory {
-			ui.Row(c.Key(task.ID)).Gap(8).Padding(7, 9).Radius(7).AlignItems(ui.Center).
-				Background(t.Surface).Border(1, t.Border.Alpha(0.55)).Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Row(c.Key(task.ID)).Gap(12).Padding(12, 12).Radius(8).AlignItems(ui.Center).
+				Background(t.Surface).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 					ui.Text(c, task.Instruction).FontSize(12.5).FontWeight(500).SingleLine()
 					ui.Text(c, task.Created.Format("2006-01-02 15:04")).FontSize(11).TextColor(t.TextMuted)
 				})
@@ -449,7 +449,7 @@ func (ob *qaState) oneBotHistoryView(c *ui.Context) {
 					ob.editNewPath = task.NewPath
 					task.Stopped = false
 				}
-				del := ui.Box(c.Key("delete")).Size(26, 26).Radius(6).Center().Shrink(0).
+				del := ui.Box(c.Key("delete")).Size(26, 26).Radius(8).Center().Shrink(0).
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
 					Label(i18n.T("删除记录：") + task.Instruction).Tooltip(i18n.T("删除记录"))
 				delInk := t.TextMuted.Alpha(0.65)

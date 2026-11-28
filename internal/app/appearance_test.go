@@ -155,8 +155,9 @@ func TestAppearancePreviewTitleCentersOverPage(t *testing.T) {
 	a.prefs.SidebarLeft = true
 	tt := ui.NewTester(a.appearancePreview, 680, 350)
 	title, found := tt.Find("留一点空白.md")
-	// 9-DIP frame inset, 136-DIP sidebar, 8-DIP gap and 9-DIP trailing inset.
-	center := float32((153 + 671) / 2)
+	// 13-DIP frame inset (12 padding, 1 border), 136-DIP sidebar, 12-DIP gap
+	// and 13-DIP trailing inset.
+	center := float32((161 + 667) / 2)
 	if !found || math.Abs(float64(title.X+title.W/2-center)) > 1 {
 		t.Fatalf("preview title %+v is not centered over the page at %g", title, center)
 	}

@@ -299,7 +299,7 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 	canEdit := !d.ed.ReadOnly && source != nil && !source.IsDeleted && !source.Locked && !d.board.AIRunning()
 
 	pill := func(key, text string, bg, fg, border ui.Color) {
-		b := ui.Row(c.Key(key)).Padding(3, 8).Radius(5).Background(bg).AlignItems(ui.Center).Shrink(0)
+		b := ui.Row(c.Key(key)).Padding(4, 12).Radius(8).Background(bg).AlignItems(ui.Center).Shrink(0)
 		if border != ui.Transparent {
 			b.Border(1, border)
 		}
@@ -310,15 +310,15 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 
 	ui.Column(c.Key("board-image-window")).Fill().Background(t.Background).Children(func() {
 		ui.Row(c.Key("board-image-header")).Height(max(52, bar.Height)).Background(t.Surface).
-			Padding(0, bar.Right+16, 0, bar.Left+16).Gap(10).AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Row(c.Key("board-image-title-group")).Grow(1).MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
+			Padding(0, bar.Right+16, 0, bar.Left+16).Gap(16).AlignItems(ui.Center).DragWindow().Children(func() {
+			ui.Row(c.Key("board-image-title-group")).Grow(1).MinWidth(0).Gap(16).AlignItems(ui.Center).Children(func() {
 				badgeIcon := iconImage
 				title := i18n.T("图片查看")
 				if w.editing {
 					badgeIcon = iconPencil
 					title = i18n.T("图片标注")
 				}
-				ui.Box(c.Key("board-image-badge")).Size(28, 28).Radius(7).Shrink(0).Center().
+				ui.Box(c.Key("board-image-badge")).Size(28, 28).Radius(8).Shrink(0).Center().
 					Background(t.Accent.Alpha(0.10)).Children(func() {
 					ui.Icon(c, badgeIcon).FontSize(15).TextColor(t.Accent)
 				})
@@ -327,7 +327,7 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 					pill("board-image-dims", fmt.Sprintf("%d × %d", w.image.Width, w.image.Height), t.Background, t.TextMuted, t.Border.Alpha(0.75))
 				}
 				if !canEdit {
-					ui.Row(c.Key("board-image-readonly")).Padding(3, 8).Gap(4).Radius(5).Background(t.Background).Border(1, t.Border.Alpha(0.75)).AlignItems(ui.Center).Shrink(0).Children(func() {
+					ui.Row(c.Key("board-image-readonly")).Padding(4, 12).Gap(8).Radius(8).Background(t.Background).AlignItems(ui.Center).Shrink(0).Children(func() {
 						ui.Icon(c, iconLocked).FontSize(11).TextColor(t.TextMuted)
 						ui.Text(c, i18n.T("只读")).FontSize(11.5).FontWeight(500).TextColor(t.TextMuted).SingleLine()
 					})
@@ -336,7 +336,7 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 					pill("board-image-dirty", i18n.T("未保存"), t.Accent.Alpha(0.12), t.Accent, ui.Transparent)
 				}
 			})
-			ui.Row(c.Key("board-image-actions")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("board-image-actions")).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				if !w.editing {
 					if w.exportPath != "" && ui.Button(c.Key("save-image-as"), i18n.T("另存为")).Label(i18n.T("图片另存为")).Disabled(w.saving || w.loading).Clicked() {
 						w.saving, w.err = true, ""
@@ -364,11 +364,10 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 				}
 			})
 		})
-		ui.Box(c).Height(1).Shrink(0).Background(t.Border)
 
 		ui.Box(c.Key("board-image-stage")).Grow(1).MinHeight(0).Background(imageStageBg(t)).Clip().Children(func() {
 			if w.loading {
-				ui.Column(c.Key("board-image-loading")).Fill().Center().Gap(10).Children(func() {
+				ui.Column(c.Key("board-image-loading")).Fill().Center().Gap(16).Children(func() {
 					ui.Spinner(c.Key("board-image-spinner")).TextColor(t.Accent).Label(i18n.T("正在加载图片"))
 					ui.Text(c, i18n.T("正在加载图片")).FontSize(13).TextColor(t.TextMuted)
 				})
@@ -376,9 +375,9 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 				return
 			}
 			if w.image == nil {
-				ui.Column(c.Key("board-image-empty")).Fill().Center().Padding(24).Children(func() {
-					ui.Column(c).MaxWidth(360).Padding(20).Gap(12).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Children(func() {
-						ui.Box(c).Size(36, 36).Radius(18).Center().Background(t.Danger.Alpha(0.12)).Children(func() {
+				ui.Column(c.Key("board-image-empty")).Fill().Center().Padding(36).Children(func() {
+					ui.Column(c).MaxWidth(360).Padding(32).Gap(20).AlignItems(ui.Center).Background(t.Surface).Radius(panelRadius).Children(func() {
+						ui.Box(c).Size(24, 24).Center().Children(func() {
 							ui.Icon(c, iconAlert).FontSize(18).TextColor(t.Danger)
 						})
 						errText := w.err
@@ -408,9 +407,9 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 				case w.message != "":
 					borderCol = t.Success.Alpha(0.5)
 				}
-				ui.Row(c.Key("board-image-status")).Absolute().Top(12).Right(14).MaxWidth(380).Padding(8, 12).Gap(8).
+				ui.Row(c.Key("board-image-status")).Absolute().Top(12).Right(14).MaxWidth(380).Padding(12, 20).Gap(12).
 					AlignItems(ui.Center).Background(t.Surface).Border(1, borderCol).Radius(8).
-					Shadow(0, 4, 14, 0, black.Alpha(0.12)).Children(func() {
+					Shadow(0, 8, 24, 0, floatShadow(t)).Children(func() {
 					switch {
 					case w.saving:
 						ui.Spinner(c.Key("board-image-save-spinner")).TextColor(t.Accent).Label(i18n.T("正在保存标注图片"))
@@ -442,8 +441,8 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 			if max(w.image.Width, w.image.Height) > 4096 {
 				hint += " · " + i18n.T("导出上限 4096 像素")
 			}
-			ui.Row(c.Key("board-image-hint")).Absolute().Bottom(12).Right(12).Padding(6, 10).Radius(8).
-				Background(t.Surface.Alpha(0.92)).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("board-image-hint")).Absolute().Bottom(12).Right(12).Padding(8, 16).Radius(8).
+				Background(t.Surface.Alpha(0.92)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, hint).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 			})
 		})
@@ -453,15 +452,15 @@ func (bi *boardImageFeature) boardImageView(c *ui.Context, w *boardImageWindow) 
 	}
 	if w.confirmClose {
 		ui.Modal(c.Key("annotation-unsaved"), &w.confirmClose, func() {
-			ui.Column(c).Width(380).Gap(14).Children(func() {
-				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(32, 32).Radius(8).Center().Shrink(0).Background(t.Warning.Alpha(0.14)).Children(func() {
+			ui.Column(c).Width(380).Gap(20).Children(func() {
+				ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(24, 24).Center().Shrink(0).Children(func() {
 						ui.Icon(c, iconAlert).FontSize(17).TextColor(t.Warning)
 					})
 					ui.Text(c, i18n.T("标注尚未保存")).FontSize(16).FontWeight(600)
 				})
 				ui.Text(c, i18n.T("保存为参考图后关闭，或放弃这次标注")).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
 					if ui.Button(c, i18n.T("继续编辑")).Clicked() {
 						w.confirmClose = false
 					}

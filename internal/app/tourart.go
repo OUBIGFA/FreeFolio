@@ -94,9 +94,8 @@ func (d *tourDraw) dot(cx, cy, radius float32, c ui.Color) {
 	d.p.Fill(ui.Rect{X: cx - radius, Y: cy - radius, W: 2 * radius, H: 2 * radius}, c, radius)
 }
 
-// panel is a glass surface of the mock, with its shadow.
+// panel is a flat surface of the mock.
 func (d *tourDraw) panel(r ui.Rect, radius float32) {
-	d.p.Shadow(r, radius, 0, 6, 20, 0, d.tl.shadow)
 	d.p.Fill(r, d.tl.panel, radius)
 }
 
@@ -191,8 +190,7 @@ func (d *tourDraw) spaces() {
 	k := thereAndBack(t, 1.25, 1.75, 3.7, 4.2)
 	tint := tl.accent.Mix(tl.alt, k)
 	win := d.centered(156, 78, -24)
-	d.p.Shadow(win, 10, 0, 6, 20, 0, tl.shadow)
-	d.p.FillGradient(win, ui.LinearGradient{From: tint.Alpha(0.9), To: tint.Alpha(0.55), Angle: 160}, 10)
+	d.p.Fill(win, tint.Alpha(0.72), 10)
 	for i := range 3 {
 		d.p.Fill(ui.Rect{X: win.X + 8, Y: win.Y + 14 + float32(i)*11, W: 34, H: 6}, white.Alpha(0.45), 3)
 	}
@@ -245,8 +243,7 @@ func (d *tourDraw) theme() {
 	d.dot(hx, hy, 7.5, col)
 
 	win := ui.Rect{X: pad.X + pad.W + 24, Y: pad.Y, W: 136, H: 108}
-	d.p.Shadow(win, 12, 0, 6, 20, 0, tl.shadow)
-	d.p.FillGradient(win, ui.LinearGradient{From: col, To: col.Mix(tl.alt2, 0.35).Alpha(0.7), Angle: 170}, 12)
+	d.p.Fill(win, col, 12)
 	for i := range 4 {
 		d.p.Fill(ui.Rect{X: win.X + 9, Y: win.Y + 22 + float32(i)*12, W: 30 - float32(i%2)*6, H: 6}, white.Alpha(0.5), 3)
 	}
@@ -316,7 +313,6 @@ func (d *tourDraw) ribbon(x, y, w, h float32, c ui.Color, filled bool) {
 func (d *tourDraw) bookmarks() {
 	tl, t := d.tl, d.t
 	page := d.centered(236, 124, -6)
-	d.p.Shadow(page, 10, 0, 6, 20, 0, tl.shadow)
 	d.p.Fill(page, tl.paper, 10)
 	ink := tl.paperInk
 	x, y := page.X+18, page.Y+18
@@ -342,7 +338,6 @@ func (d *tourDraw) bookmarks() {
 	// The outline's bookmarks, with the paragraph listed.
 	if k := thereAndBack(t, 2.1, 2.5, 4.4, 4.8); k > 0 {
 		list := ui.Rect{X: page.X - 22, Y: page.Y + page.H - 50 + (1-k)*8, W: 150, H: 64}
-		d.p.Shadow(list, 10, 0, 8, 24, 0, faded(tl.shadow, k*1.4))
 		d.p.Fill(list, faded(tl.paper, k), 10)
 		d.p.Stroke(list, ink.Alpha(0.12*k), 10, 1)
 		d.p.Text(list.X+12, list.Y+9, i18n.T("书签 · 1"), 11, ink.Alpha(0.55*k))
@@ -442,7 +437,6 @@ func (d *tourDraw) done() {
 	tl, t := d.tl, d.t
 	cx, cy := d.r.X+d.r.W/2, d.r.Y+d.r.H/2
 	radius := 34 * pop(seg(t, 0, 0.5))
-	d.p.Shadow(ui.Rect{X: cx - radius, Y: cy - radius, W: 2 * radius, H: 2 * radius}, radius, 0, 8, 24, 0, tl.shadow)
 	d.dot(cx, cy, radius+7, tl.accent.Alpha(0.18))
 	d.dot(cx, cy, radius, tl.accent)
 	if f := smooth(seg(t, 0.35, 0.85)); f > 0 {

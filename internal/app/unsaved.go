@@ -131,12 +131,12 @@ func (a *App) unsavedPromptView(c *ui.Context) {
 	}
 	t := c.Theme()
 	ui.Modal(c.Key("unsaved-prompt"), &a.unsaved.open, func() {
-		ui.Column(c.Key("unsaved-body")).Width(390).Gap(14).Children(func() {
-			ui.Column(c).Gap(6).Children(func() {
+		ui.Column(c.Key("unsaved-body")).Width(390).Gap(20).Children(func() {
+			ui.Column(c).Gap(8).Children(func() {
 				ui.Text(c, title).FontSize(16).FontWeight(600)
 				ui.Text(c, i18n.T("已关闭自动保存，如果不保存，未保存的修改将会丢失")).FontSize(13).LineHeight(1.5).TextColor(t.TextMuted)
 			})
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 				if ui.Button(c.Key("discard"), i18n.T("不保存")).Clicked() {
 					a.unsaved = unsavedPrompt{}
 					for _, d := range docs {

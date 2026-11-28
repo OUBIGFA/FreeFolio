@@ -155,13 +155,13 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 	fill, _, rim := spaceEditorSurface(c.Theme().Dark)
 	ui.Overlay(c, func() {
 		pop := ui.PopoverBase(c.Key("space-icons"), anchor, &f.iconsOpen, func(panel ui.Element) {
-			panel.Width(pickerW).Height(348).Padding(10, 10, 8, 10).Radius(panelRadius).
-				LinearGradient(fill).Border(1, rim).Shadow(0, 8, 24, 0, black.Alpha(0.14)).
+			panel.Width(pickerW).Height(348).Padding(16, 16, 12, 16).Radius(panelRadius).
+				Background(fill).Border(1, rim).Shadow(0, 8, 24, 0, floatShadow(c.Theme())).
 				Role(ui.RoleDialog).Label(i18n.T("选择空间图标"))
 			if f.id != "" {
-				panel.AttachTo(anchor, ui.AnchorBottom, ui.AnchorTop).Margin(8, 0, 0, 0)
+				panel.AttachTo(anchor, ui.AnchorBottom, ui.AnchorTop).Margin(12, 0, 0, 0)
 			} else if !a.prefs.SidebarLeft {
-				panel.AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight).Margin(6, 0, 0, 0)
+				panel.AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight).Margin(8, 0, 0, 0)
 			}
 			panel.Children(func() {
 				a.pickerHeader(c, f)
@@ -183,7 +183,7 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 					tail.MoveTo(x-7, r.Y+1)
 					tail.LineTo(x, r.Y-6)
 					tail.LineTo(x+7, r.Y+1)
-					p.FillPath(&tail, fill.To)
+					p.FillPath(&tail, fill)
 				})
 			}
 		})
@@ -202,7 +202,7 @@ func (a *App) iconPicker(c *ui.Context, f *spaceForm, anchor ui.Element) {
 
 // pickerHeader is the Emoji / Icon tabs and the button removing the icon.
 func (a *App) pickerHeader(c *ui.Context, f *spaceForm) {
-	ui.Row(c).Padding(0, 0, 0, 2).Gap(2).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(0, 0, 0, 4).Gap(4).AlignItems(ui.Center).Children(func() {
 		ui.Tabs(c.Key("icon-tabs"), &f.picker.tab, i18n.T("表情符号"), i18n.T("图标集"), i18n.T("自定义")).Label(i18n.T("图标类型")).Shrink(1).MinWidth(0)
 		ui.Spacer(c)
 		if iconButton(c, "remove-icon", symbolIcon("trash"), i18n.T("移除图标"), i18n.T("移除图标"), f.icon == "" && f.symbol == "" && f.image == "").Size(28, 28).Clicked() {
@@ -218,7 +218,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 	ensureEmojiData()
 	t := c.Theme()
 	p := &f.picker
-	query := ui.TextInput(c.Key("emoji-query"), &p.query).Height(26).Margin(8, 0, 0, 0).Padding(2, 6).Radius(10).
+	query := ui.TextInput(c.Key("emoji-query"), &p.query).Height(26).Margin(12, 0, 0, 0).Padding(4, 8).Radius(10).
 		Placeholder(i18n.T("搜索表情符号")).Label(i18n.T("搜索表情")).Tooltip(i18n.T("按英文名称搜索表情")).AutoFocus().
 		Background(t.Background.Alpha(0.3)).Border(1, t.Text.Alpha(0.14))
 	if query.Changed() {
@@ -231,7 +231,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 		n = len(items)
 	}
 	if searching && n == 0 {
-		ui.Text(c, i18n.T("未能找到相关表情")).FontSize(12).TextColor(t.TextMuted).Padding(24, 0).AlignSelf(ui.Center).Grow(1)
+		ui.Text(c, i18n.T("未能找到相关表情")).FontSize(12).TextColor(t.TextMuted).Padding(36, 0).AlignSelf(ui.Center).Grow(1)
 	} else {
 		at := func(i int) int {
 			if searching {
@@ -262,7 +262,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 				f.icon, f.symbol, f.image = e.emoji, "", ""
 				f.iconsOpen = false
 			}
-		}).Grow(1).MinHeight(0).Margin(8, 0, 0, 0)
+		}).Grow(1).MinHeight(0).Margin(12, 0, 0, 0)
 		if query.Shortcut(0, ui.KeyDown) {
 			p.selected = 0
 			grid.Focus()
@@ -276,7 +276,6 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 		}
 	}
 	p.scroll = -1
-	ui.Box(c).Height(1).Background(t.Text.Alpha(0.08))
 	ui.Row(c.Key("emoji-categories")).Justify(ui.SpaceBetween).Children(func() {
 		for _, cat := range emojiCategories {
 			b := ui.Box(c.Key("cat-"+cat.id)).Size(28, 26).Center().Cursor(ui.CursorPointer).
@@ -298,7 +297,7 @@ func emojiGrid(c *ui.Context, f *spaceForm) {
 func symbolGrid(c *ui.Context, f *spaceForm) {
 	t := c.Theme()
 	p := &f.picker
-	ui.TextInput(c.Key("symbol-query"), &p.symbolQuery).Height(26).Margin(8, 0, 0, 0).Padding(2, 6).Radius(10).
+	ui.TextInput(c.Key("symbol-query"), &p.symbolQuery).Height(26).Margin(12, 0, 0, 0).Padding(4, 8).Radius(10).
 		Placeholder(i18n.T("搜索图标")).Label(i18n.T("搜索图标")).
 		Background(t.Background.Alpha(0.3)).Border(1, t.Text.Alpha(0.14))
 	q := strings.ToLower(strings.TrimSpace(p.symbolQuery))
@@ -309,11 +308,11 @@ func symbolGrid(c *ui.Context, f *spaceForm) {
 		}
 	}
 	if len(matches) == 0 {
-		ui.Text(c, i18n.T("未能找到相关图标")).FontSize(12).TextColor(t.TextMuted).Padding(24, 0).AlignSelf(ui.Center).Grow(1)
+		ui.Text(c, i18n.T("未能找到相关图标")).FontSize(12).TextColor(t.TextMuted).Padding(36, 0).AlignSelf(ui.Center).Grow(1)
 		return
 	}
-	ui.Scroll(c.Key("symbol-scroll")).Grow(1).MinHeight(0).Margin(8, 0, 0, 0).Children(func() {
-		ui.Grid(c.Key("symbols")).Columns(6).Gap(8).AlignSelf(ui.Center).Label(i18n.T("图标列表")).FocusGroup(ui.Horizontal).Children(func() {
+	ui.Scroll(c.Key("symbol-scroll")).Grow(1).MinHeight(0).Margin(12, 0, 0, 0).Children(func() {
+		ui.Grid(c.Key("symbols")).Columns(6).Gap(12).AlignSelf(ui.Center).Label(i18n.T("图标列表")).FocusGroup(ui.Horizontal).Children(func() {
 			for _, name := range matches {
 				on := name == f.symbol && f.image == ""
 				b := ui.Box(c.Key("symbol:"+name)).Size(pickerCell, pickerCell).Center().Cursor(ui.CursorPointer).

@@ -363,7 +363,7 @@ func (a *App) conflictBarFor(c *ui.Context, d *document) {
 		msg = "「" + d.title() + i18n.T("」的文件已被移动或删除，这里还有未保存的修改")
 		mine, theirs = i18n.T("重新保存到原位置"), i18n.T("放弃修改并关闭")
 	}
-	ui.Row(c.Key("conflict")).Padding(10, 16).Gap(10).AlignItems(ui.Center).
+	ui.Row(c.Key("conflict")).Padding(16, 24).Gap(16).AlignItems(ui.Center).
 		Background(t.Warning.Alpha(0.14)).Role(ui.RoleStatus).Children(func() {
 		ui.Icon(c, iconAlert).FontSize(15).TextColor(t.Warning)
 		ui.Text(c, msg).Grow(1).MinWidth(0)

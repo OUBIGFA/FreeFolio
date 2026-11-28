@@ -366,8 +366,8 @@ func (v *versionsPanel) view(c *ui.Context) {
 		return
 	}
 	ui.Column(c.Key("versions")).Fill().Background(t.Background).Children(func() {
-		ui.Column(c.Key("versions-body")).Size(w, h).Padding(12).Gap(12).Children(func() {
-			ui.Row(c).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
+		ui.Column(c.Key("versions-body")).Size(w, h).Padding(20).Gap(20).Children(func() {
+			ui.Row(c).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left).AlignItems(ui.Center).Gap(16).DragWindow().Children(func() {
 				ui.Icon(c, iconHistory).FontSize(16).TextColor(t.TextMuted)
 				if ui.Button(c.Key("history-return"), i18n.T("返回当前文档")).Clicked() {
 					v.open = false
@@ -385,11 +385,11 @@ func (v *versionsPanel) view(c *ui.Context) {
 				}
 			})
 			if v.creating {
-				ui.Row(c.Key("version-milestone-bar")).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Row(c.Key("version-milestone-bar")).AlignItems(ui.Center).Gap(12).Children(func() {
 					in := ui.TextInput(c.Key("version-milestone-input"), &v.createLabel).
 						Placeholder(i18n.T("里程碑名称（如：定稿 v1）")).
 						Label(i18n.T("里程碑名称（如：定稿 v1）")).
-						Background(field(t)).Grow(1).MinWidth(0).Padding(6, 10)
+						Background(field(t)).Grow(1).MinWidth(0).Padding(8, 16)
 					if !v.createFocused {
 						in.Focus()
 					}
@@ -410,7 +410,7 @@ func (v *versionsPanel) view(c *ui.Context) {
 				})
 			}
 			if len(v.versions) == 0 {
-				ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
+				ui.Column(c).Grow(1).Center().Gap(12).Children(func() {
 					switch {
 					case v.loading:
 						ui.Text(c, i18n.T("正在读取历史版本"))
@@ -424,11 +424,11 @@ func (v *versionsPanel) view(c *ui.Context) {
 				})
 				return
 			}
-			ui.Row(c).Grow(1).MinHeight(0).Gap(12).AlignItems(ui.Stretch).Reverse().Children(func() {
-				ui.Column(c).Width(210).MinHeight(0).Gap(8).Children(func() {
-					ui.Row(c.Key("version-filter")).Gap(4).Padding(2).Radius(8).Background(t.Text.Alpha(0.05)).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(20).AlignItems(ui.Stretch).Reverse().Children(func() {
+				ui.Column(c).Width(210).MinHeight(0).Gap(12).Children(func() {
+					ui.Row(c.Key("version-filter")).Gap(8).Padding(4).Radius(8).Background(t.Text.Alpha(0.05)).Children(func() {
 						filterBtn := func(key, label string, active bool, onClick func()) {
-							b := ui.ButtonBase(c.Key(key)).Grow(1).Radius(6).Padding(4, 8).Cursor(ui.CursorPointer)
+							b := ui.ButtonBase(c.Key(key)).Grow(1).Radius(8).Padding(8, 12).Cursor(ui.CursorPointer)
 							if active {
 								b.Background(t.Background)
 							} else if b.Hovered() {
@@ -457,11 +457,11 @@ func (v *versionsPanel) view(c *ui.Context) {
 							}
 							shownCount++
 							if v.renamingFile == ver.File {
-								ui.Row(c.Key("version-rename-row:"+ver.File)).Padding(4, 6).Children(func() {
+								ui.Row(c.Key("version-rename-row:"+ver.File)).Padding(8, 8).Children(func() {
 									in := ui.TextInput(c.Key("version-rename:"+ver.File), &v.renameLabel).
 										Placeholder(i18n.T("里程碑名称（如：定稿 v1）")).
 										Label(i18n.T("命名里程碑")).
-										Background(field(t)).Grow(1).MinWidth(0).Padding(4, 8)
+										Background(field(t)).Grow(1).MinWidth(0).Padding(8, 12)
 									if !v.renameFocused {
 										in.Focus()
 									}
@@ -476,7 +476,7 @@ func (v *versionsPanel) view(c *ui.Context) {
 								continue
 							}
 							on := i == v.sel
-							rowWrap := ui.Row(c.Key("version-row:"+ver.File)).AlignItems(ui.Center).Radius(8).Gap(4).Padding(2, 4)
+							rowWrap := ui.Row(c.Key("version-row:"+ver.File)).AlignItems(ui.Center).Radius(8).Gap(8).Padding(4, 8)
 							switch {
 							case on:
 								rowWrap.Background(t.Accent.Alpha(0.14))
@@ -489,12 +489,12 @@ func (v *versionsPanel) view(c *ui.Context) {
 								}
 							})
 							rowWrap.Children(func() {
-								row := ui.ButtonBase(c.Key("version:"+ver.File)).Grow(1).MinWidth(0).Padding(6, 6).Radius(6).Gap(2).
+								row := ui.ButtonBase(c.Key("version:"+ver.File)).Grow(1).MinWidth(0).Padding(8, 8).Radius(8).Gap(4).
 									Label(i18n.T("版本 ") + versionTime(ver.Time, now)).Cursor(ui.CursorPointer).Justify(ui.Start)
 								row.Children(func() {
-									ui.Column(c).Grow(1).MinWidth(0).Gap(3).AlignItems(ui.Start).Children(func() {
+									ui.Column(c).Grow(1).MinWidth(0).Gap(4).AlignItems(ui.Start).Children(func() {
 										if ver.Label != "" {
-											ui.Row(c.Key("version-badge:"+ver.File)).AlignItems(ui.Center).Gap(4).Padding(2, 6).Radius(5).Background(t.Accent.Alpha(0.12)).Children(func() {
+											ui.Row(c.Key("version-badge:"+ver.File)).AlignItems(ui.Center).Gap(8).Padding(4, 8).Radius(8).Background(t.Accent.Alpha(0.12)).Children(func() {
 												ui.Icon(c, iconStar).FontSize(11).TextColor(t.Accent)
 												ui.Text(c, ver.Label).FontSize(11).FontWeight(600).TextColor(t.Accent).SingleLine().MinWidth(0)
 											})
@@ -511,7 +511,7 @@ func (v *versionsPanel) view(c *ui.Context) {
 									v.selectVersion(i)
 								}
 								if on || rowWrap.Hovered() {
-									editBtn := ui.ButtonBase(c.Key("version-rename-btn:" + ver.File)).Padding(4).Radius(6).Cursor(ui.CursorPointer).Tooltip(i18n.T("命名里程碑"))
+									editBtn := ui.ButtonBase(c.Key("version-rename-btn:" + ver.File)).Padding(8).Radius(8).Cursor(ui.CursorPointer).Tooltip(i18n.T("命名里程碑"))
 									if on {
 										editBtn.Label(i18n.T("命名里程碑"))
 									}
@@ -528,19 +528,19 @@ func (v *versionsPanel) view(c *ui.Context) {
 							})
 						}
 						if v.milestonesOnly && shownCount == 0 {
-							ui.Column(c.Key("version-milestones-empty")).Padding(24, 8).Center().Children(func() {
+							ui.Column(c.Key("version-milestones-empty")).Padding(36, 12).Center().Children(func() {
 								ui.Text(c, i18n.T("还没有命名的里程碑")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 							})
 						}
 					})
 				})
 				ui.Box(c).Width(1).Background(t.Text.Alpha(0.08))
-				ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(12).Children(func() {
 					if v.loading {
 						ui.Text(c, i18n.T("正在读取历史版本"))
 						return
 					}
-					ui.Row(c.Key("history-display")).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key("history-display")).Gap(12).AlignItems(ui.Center).Children(func() {
 						mode := 0
 						if v.showDiff {
 							mode = 1
@@ -579,12 +579,12 @@ func (v *versionsPanel) view(c *ui.Context) {
 					}
 					pg := pageStyle(v.host.paperIsDark())
 					ui.Scroll(c.Key("version-diff:" + v.shown)).Grow(1).MinHeight(0).Children(func() {
-						ui.Column(c).Gap(1).Children(func() {
+						ui.Column(c).Gap(4).Children(func() {
 							for i, l := range v.diff {
 								if l.Op == history.Same && !nearChange(v.diff, i) {
 									continue
 								}
-								row := ui.Row(c.Key(i)).Padding(3, 8).Radius(4).Gap(8)
+								row := ui.Row(c.Key(i)).Padding(4, 12).Radius(8).Gap(12)
 								sign, color := " ", t.Text
 								switch l.Op {
 								case history.Added:

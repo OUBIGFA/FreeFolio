@@ -123,7 +123,7 @@ func (a *App) toggleDim() {
 // top to drag the window by and to leave.
 func (a *App) focusView(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c.Key("focus")).Grow(1).MinWidth(0).Padding(0, 8, 8, 8).Children(func() {
+	ui.Column(c.Key("focus")).Grow(1).MinWidth(0).Padding(0, 12, 12, 12).Children(func() {
 		bar := a.titleBar(c)
 		top := ui.Row(c.Key("focus-bar")).Height(max(bar.Height, 36)).Padding(0, bar.Right, 0, bar.Left).AlignItems(ui.Center).DragWindow()
 		_, py, inside := c.Root().PointerPosition()
@@ -146,10 +146,10 @@ func (a *App) focusView(c *ui.Context) {
 			}
 		})
 		card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(10).
-			Shadow(0, 1, 4, 0, cardShadow(t)).Border(1, t.Border.Alpha(0.35)).Clip()
+			Clip()
 		card.Children(func() {
 			if a.doc == nil || a.doc.loadErr != nil {
-				ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
+				ui.Column(c).Grow(1).Center().Gap(16).Children(func() {
 					ui.Text(c, i18n.T("专注模式下没有可编辑的文档")).TextColor(c.Theme().TextMuted)
 					if ui.Button(c.Key("focus-leave"), i18n.T("退出专注模式")).Clicked() {
 						a.toggleFocus()

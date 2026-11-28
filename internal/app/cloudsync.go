@@ -472,7 +472,7 @@ func (cs *cloudState) cloudOverwriteChoices(c *ui.Context) {
 	}
 	valid := cs.cloudRecoveryValid() && s.config.Enabled && !s.broken
 	ui.Text(c, fmt.Sprintf(i18n.T("覆盖范围：%s，单侧文件保留并补齐"), s.recovery.name)).FontSize(12).TextColor(c.Theme().TextMuted)
-	ui.Row(c).Gap(8).Wrap().Children(func() {
+	ui.Row(c).Gap(12).Wrap().Children(func() {
 		if ui.Button(c.Key("prefer-remote"), i18n.T("以云端为准")).Disabled(!valid).Clicked() {
 			s.confirmReconcile = "remote"
 		}
@@ -491,7 +491,7 @@ func (cs *cloudState) cloudOverwriteChoices(c *ui.Context) {
 		hint = i18n.T("同步目标已改变，请先重新同步")
 	}
 	ui.Text(c, hint).FontSize(12).TextColor(c.Theme().Text)
-	ui.Row(c).Gap(8).Children(func() {
+	ui.Row(c).Gap(12).Children(func() {
 		if ui.PrimaryButton(c.Key("confirm-overwrite"), i18n.T("确认覆盖并同步")).Disabled(!valid).Clicked() {
 			direction := s.confirmReconcile
 			if cs.saveCloudSync() {
@@ -532,12 +532,12 @@ func (cs *cloudState) cloudRecoveryActions(c *ui.Context) {
 			hint = "请检查网络、代理和服务地址，先测试连接，再重试同步"
 		}
 	}
-	ui.Column(c.Key("cloud-recovery")).Padding(0, 16, 12, 16).Gap(8).Children(func() {
+	ui.Column(c.Key("cloud-recovery")).Padding(0, 0, 20, 0).Gap(12).Children(func() {
 		if remoteChanged {
 			cs.cloudOverwriteChoices(c)
 		}
 		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(c.Theme().TextMuted)
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		ui.Row(c).Gap(12).Wrap().Children(func() {
 			if remoteChanged && ui.PrimaryButton(c.Key("recheck"), i18n.T("重新核对并同步")).Disabled(s.broken || !s.config.Enabled).Clicked() {
 				if cs.saveCloudSync() {
 					s.recheck = true
@@ -560,15 +560,15 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 	w, _ := c.Size()
 	twoCol := w >= 720
 
-	settingsHeading(c, i18n.T("云端同步"), i18n.T("将选定空间的笔记和附件同步到自己的 WebDAV 或 S3；冲突保留两份"))
+	settingsHeading(c, i18n.T("云端同步"))
 
 	// Overview: enable switch, primary actions, and immediate status feedback.
 	settingsGroup(c, "cloud-overview", func() {
-		settingRow(c, "enabled", i18n.T("启用云端同步"), cs.cloudSummary(), func() {
+		settingDetailRow(c, "enabled", i18n.T("启用云端同步"), cs.cloudSummary(), func() {
 			ui.Switch(c.Key("control"), &cfg.Enabled).Label(i18n.T("启用云端同步")).Disabled(locked)
 		})
 		settingsSeparator(c)
-		ui.Row(c.Key("cloud-actions")).Padding(settingsRowInset(c), 16).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("cloud-actions")).Padding(settingsRowInset(c), 0).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
 			if ui.PrimaryButton(c.Key("sync"), i18n.T("立即同步")).Disabled(locked || !cfg.Enabled).Clicked() {
 				if cs.saveCloudSync() {
 					cs.startCloudSync(false, true)
@@ -594,7 +594,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 				col = t.Danger
 				bg = t.Danger.Alpha(0.08)
 			}
-			ui.Row(c.Key("status-bar")).Padding(10, 16).Background(bg).Children(func() {
+			ui.Row(c.Key("status-bar")).Padding(16, 24).Radius(controlRadius).Background(bg).Children(func() {
 				ui.Text(c.Key("status"), s.message).FontSize(12).TextColor(col).LineHeight(1.45).Grow(1)
 			})
 			if s.failed && !s.busy {
@@ -617,7 +617,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 					note = i18n.T("云端已删除该文件，本地仍有修改")
 					remoteLabel = i18n.T("采用云端删除")
 				}
-				settingRow(c, fmt.Sprintf("conflict:%d", i), conflict.name+" / "+conflict.detail.Path, note, func() {
+				settingDetailRow(c, fmt.Sprintf("conflict:%d", i), conflict.name+" / "+conflict.detail.Path, note, func() {
 					choose := func(local bool) {
 						s.resolve = map[string]map[string]cloudsync.Resolution{
 							conflict.space: {conflict.detail.Path: {UseLocal: local, RemoteHash: conflict.detail.RemoteHash}},
@@ -647,7 +647,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 		if cfg.Provider == "s3" {
 			provider = 1
 		}
-		settingRow(c, "provider-row", i18n.T("同步服务"), i18n.T("选择 WebDAV 或兼容 S3 的对象存储"), func() {
+		settingRow(c, "provider-row", i18n.T("同步服务"), "", func() {
 			if segmentedChoice(c.Key("provider"), &provider, "WebDAV", "S3").Label(i18n.T("同步服务")).Disabled(locked).Changed() {
 				cfg.Provider = []string{"webdav", "s3"}[provider]
 			}
@@ -700,14 +700,13 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 			shown++
 			remote, on := cfg.Spaces[sp.ID]
 			ui.Column(c.Key("space:" + sp.ID)).Children(func() {
-				ui.Row(c).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().
-						Background(spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark).Alpha(0.12)).Children(func() {
-						cs.host.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 15, spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark))
+				ui.Row(c).Padding(16, 0).Gap(20).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(24, 24).Center().Shrink(0).Children(func() {
+						cs.host.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 18, spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark))
 					})
-					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
-						ui.Text(c, sp.Name).FontSize(13).FontWeight(500).SingleLine()
-						ui.Text(c, shortPath(sp.Root)).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(sp.Root)
+					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(4).Children(func() {
+						ui.Text(c, sp.Name).FontSize(14).SingleLine()
+						ui.Text(c, shortPath(sp.Root)).FontSize(13).TextColor(t.TextMuted).SingleLine().Tooltip(sp.Root)
 					})
 					if ui.Switch(c.Key("control"), &on).Label(sp.Name).Disabled(locked).Changed() {
 						if on {
@@ -719,7 +718,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 					}
 				})
 				if on {
-					ui.Row(c.Key("remote-row")).Padding(0, 16, 12, 58).Gap(10).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key("remote-row")).Padding(0, 0, 20, 44).Gap(16).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, i18n.T("远端空间目录")).FontSize(12).TextColor(t.TextMuted).Shrink(0)
 						if ui.TextInput(c.Key("remote"), &remote).Grow(1).MinWidth(0).Placeholder(sp.Name).
 							Label(i18n.T("远端空间目录") + " · " + sp.Name).Disabled(locked).Changed() {
@@ -730,7 +729,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 			})
 		}
 		if shown == 0 {
-			ui.Row(c).Padding(14, 16).Children(func() {
+			ui.Row(c).Padding(20, 0).Children(func() {
 				ui.Text(c, i18n.T("暂无可同步的空间")).FontSize(13).TextColor(t.TextMuted)
 			})
 		}
@@ -784,7 +783,7 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 			}
 		})
 		settingsSeparator(c)
-		settingRow(c, "encrypt", i18n.T("加密云端文件内容"), i18n.T("加密时文件名仍可见；每台电脑需填写相同密码，忘记密码无法恢复内容"), func() {
+		settingDetailRow(c, "encrypt", i18n.T("加密云端文件内容"), i18n.T("加密时文件名仍可见；每台电脑需填写相同密码，忘记密码无法恢复内容"), func() {
 			ui.Switch(c.Key("control"), &cfg.Encrypt).Label(i18n.T("加密云端文件内容")).Disabled(locked)
 		})
 		if cfg.Encrypt {
@@ -792,9 +791,6 @@ func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 			cloudFieldRow(c, "encryption-password", i18n.T("内容加密密码"), i18n.T("输入加密密码"), &cfg.EncryptPassword, true, locked)
 		}
 	})
-
-	ui.Text(c, i18n.T("设置和凭据仅保存在本机；其他电脑选择相同的远端目录即可同步")).
-		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
 }
 
 func (cs *cloudState) cloudSummary() string {
@@ -977,8 +973,8 @@ type cloudFieldSpec struct {
 }
 
 func cloudFieldRow(c *ui.Context, key, label, placeholder string, value *string, password, disabled bool) {
-	ui.Column(c.Key(key)).Padding(settingsRowInset(c)+2, 16).Gap(6).Children(func() {
-		ui.Text(c, label).FontSize(13).FontWeight(500)
+	ui.Column(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(8).Children(func() {
+		ui.Text(c, label).FontSize(14)
 		in := ui.TextInput(c.Key("input"), value).FillWidth().Placeholder(placeholder).Label(label).Disabled(disabled)
 		if password {
 			in.Password()
@@ -993,10 +989,10 @@ func cloudFieldPair(c *ui.Context, key string, twoCol, disabled bool, left, righ
 		cloudFieldRow(c, right.key, right.label, right.placeholder, right.value, right.password, disabled)
 		return
 	}
-	ui.Row(c.Key(key)).Padding(settingsRowInset(c)+2, 16).Gap(12).Children(func() {
+	ui.Row(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(20).Children(func() {
 		for _, spec := range []cloudFieldSpec{left, right} {
-			ui.Column(c.Key(spec.key)).Grow(1).MinWidth(0).Gap(6).Children(func() {
-				ui.Text(c, spec.label).FontSize(13).FontWeight(500)
+			ui.Column(c.Key(spec.key)).Grow(1).MinWidth(0).Gap(8).Children(func() {
+				ui.Text(c, spec.label).FontSize(14)
 				in := ui.TextInput(c.Key("input"), spec.value).FillWidth().Placeholder(spec.placeholder).Label(spec.label).Disabled(disabled)
 				if spec.password {
 					in.Password()

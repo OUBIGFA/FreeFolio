@@ -54,6 +54,7 @@ var (
 	iconEllipsis   = solar.Must("menu-dots")
 	iconMinimize   = solar.Must("minimize")
 	iconHistory    = solar.Must("history")
+	iconCommand    = solar.Must("command")
 	iconTrash      = solar.Must("trash-bin-minimalistic")
 	iconLink       = solar.Must("link")
 	iconMove       = solar.Must("move")

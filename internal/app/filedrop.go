@@ -206,8 +206,8 @@ func (a *App) fileDropOverlay(c *ui.Context) {
 			}
 			root.Background(black.Alpha(scrim * v)).Center()
 			root.Children(func() {
-				card := ui.Column(c.Key("file-drop-card")).Width(340).Padding(28, 22).Center().Gap(8).Radius(18).
-					Background(cols.fill).Shadow(0, 14, 36, 0, scaleAlpha(cols.shadow, v)).
+				card := ui.Column(c.Key("file-drop-card")).Width(340).Padding(44, 32).Center().Gap(12).Radius(18).
+					Background(cols.fill).Shadow(0, 8, 24, 0, scaleAlpha(floatShadow(c.Theme()), v)).
 					Opacity(v).Scale(0.94+0.06*v, 0.94+0.06*v)
 				card.Draw(func(p *ui.Painter, r ui.Rect) {
 					p.Stroke(r, scaleAlpha(cols.rim, v), 18, 1)
@@ -225,8 +225,8 @@ func (a *App) fileDropOverlay(c *ui.Context) {
 		}
 		root.Children(func() {
 			pill := ui.Row(c.Key("file-drop-pill")).Absolute().Bottom(56).Width(a.sidebarW()-20).
-				Padding(10, 12).Radius(12).Gap(10).AlignItems(ui.Center).Background(cols.fill).
-				Shadow(0, 8, 22, 0, scaleAlpha(cols.shadow, v)).Opacity(v).Translate(0, 8*(1-v))
+				Padding(16, 20).Radius(12).Gap(16).AlignItems(ui.Center).Background(cols.fill).
+				Shadow(0, 8, 24, 0, scaleAlpha(floatShadow(c.Theme()), v)).Opacity(v).Translate(0, 8*(1-v))
 			if !a.prefs.SidebarLeft {
 				pill.Left(ui.Auto).Right(10)
 			}
@@ -236,7 +236,7 @@ func (a *App) fileDropOverlay(c *ui.Context) {
 			})
 			pill.Children(func() {
 				ui.Icon(c, iconFileImport).FontSize(20).TextColor(t.Accent.Alpha(v))
-				ui.Column(c.Key("file-drop-pill-text")).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				ui.Column(c.Key("file-drop-pill-text")).Grow(1).MinWidth(0).Gap(4).Children(func() {
 					ui.Text(c, fmt.Sprintf(i18n.T("导入到「%s」"), name)).FontSize(12.5).FontWeight(600).TextColor(cols.title).SingleLine()
 					ui.Text(c, i18n.T("支持 FreeFolio、Markdown 与 PDF 文档")).FontSize(11).TextColor(cols.muted).SingleLine()
 				})

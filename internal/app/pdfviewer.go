@@ -149,9 +149,9 @@ func (a *App) pdfCorner(c *ui.Context, d *document) {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c.Key("pdf-corner")).Gap(2).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("pdf-corner")).Gap(4).AlignItems(ui.Center).Children(func() {
 		if cnt := d.pdf.PageCount(); cnt > 0 {
-			ui.Row(c.Key("pdf-pages")).Height(28).PaddingX(8).Radius(7).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("pdf-pages")).Height(28).PaddingX(12).Radius(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf(i18n.T("共 %d 页"), cnt)).FontSize(12.5).TextColor(t.TextMuted).NoWrap()
 			})
 		}

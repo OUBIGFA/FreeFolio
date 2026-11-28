@@ -1127,7 +1127,7 @@ func (df *databaseFeature) databaseWorkspace(c *ui.Context, d *document, cardWid
 	minSide := min(maxSide, float32(300))
 	sideW := min(maxSide, max(minSide, df.dbPeek.panelWidth))
 
-	peekSpring := ui.Animation{Spring: ui.SpringOptions{Duration: 240 * time.Millisecond, Bounce: 0.03}}
+	peekSpring := ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}
 
 	ui.Row(c.Key(d.viewKey() + ":ws")).Grow(1).MinWidth(0).MinHeight(0).AlignItems(ui.Stretch).Clip().Children(func() {
 		ui.Column(c.Key(d.viewKey() + ":main")).Grow(1).MinWidth(0).MinHeight(0).Clip().Children(func() {
@@ -1160,7 +1160,7 @@ func (df *databaseFeature) databaseWorkspace(c *ui.Context, d *document, cardWid
 		dt := documentTheme(df.host.paperIsDark())
 		drawer := ui.Themed(c.Key("db-side-peek"), dt).Width(sideW).Shrink(0).MinHeight(0).
 			BorderWidth(0, 0, 0, 1).BorderColor(dt.Border).
-			Shadow(-6, 0, 20, -4, black.Alpha(0.08)).Clip()
+			Shadow(0, 8, 24, 0, floatShadow(dt)).Clip()
 		if !df.host.motionReduced() {
 			drawer.Transition(ui.ElementTransition{
 				Animation:    &peekSpring,
@@ -1190,13 +1190,13 @@ func (df *databaseFeature) databasePeekModal(c *ui.Context) {
 
 	open := true
 	dt := documentTheme(df.host.paperIsDark())
-	modalSpring := ui.Animation{Spring: ui.SpringOptions{Duration: 220 * time.Millisecond, Bounce: 0.04}}
+	modalSpring := ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}
 	ui.DialogBase(c.Key("db-center-peek"), &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(black.Alpha(0.38)).Padding(28, 32)
+		backdrop.Background(black.Alpha(0.38)).Padding(44, 48)
 		panel.Width(760).MaxWidthPercent(90).HeightPercent(86).MinHeight(360).
 			Background(dt.Background).Radius(14).
 			Border(1, dt.Border).
-			Shadow(0, 20, 56, -6, black.Alpha(0.28)).Clip()
+			Shadow(0, 8, 24, 0, floatShadow(dt)).Clip()
 		if !df.host.motionReduced() {
 			backdrop.Transition(ui.ElementTransition{
 				Duration: 150 * time.Millisecond,
@@ -1236,7 +1236,7 @@ func (df *databaseFeature) databasePeekContent(c *ui.Context, dbDoc *document, w
 	opts := df.databaseOptionsFor(c, dbDoc)
 
 	// Peek header bar with mode switcher (Side / Center / Full Page) & Close.
-	ui.Row(c.Key("peek-header")).Height(40).Padding(0, 12, 0, 16).Gap(6).AlignItems(ui.Center).
+	ui.Row(c.Key("peek-header")).Height(40).Padding(0, 20, 0, 24).Gap(8).AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 		title := rec.Title
 		if title == "" {
@@ -1277,7 +1277,7 @@ func (df *databaseFeature) databasePeekContent(c *ui.Context, dbDoc *document, w
 	// Record body editor or inline note editor.
 	if pd := df.dbPeek.doc; pd != nil {
 		if pd.loadErr != nil {
-			ui.Box(c).Grow(1).Center().Padding(24).Children(func() {
+			ui.Box(c).Grow(1).Center().Padding(36).Children(func() {
 				ui.Text(c, pd.loadErr.Error()).FontSize(13).TextColor(t.Danger).Wrap()
 			})
 			return
@@ -1295,10 +1295,10 @@ func (df *databaseFeature) databasePeekContent(c *ui.Context, dbDoc *document, w
 	}
 
 	// Inline database record body editor.
-	ui.Column(c.Key("peek-inline-body")).Grow(1).MinWidth(0).MinHeight(0).Padding(16).Children(func() {
+	ui.Column(c.Key("peek-inline-body")).Grow(1).MinWidth(0).MinHeight(0).Padding(24).Children(func() {
 		ta := ui.TextArea(c.Key("inline-body"), &df.dbPeek.inlineBody).Grow(1).MinHeight(120).
-			Placeholder(i18n.T("行内笔记内容…")).Padding(10).Radius(8).
-			Background(t.Text.Alpha(0.03)).Border(1, t.Border).TextColor(t.Text)
+			Placeholder(i18n.T("行内笔记内容…")).Padding(16).Radius(8).
+			Background(t.Text.Alpha(0.03)).TextColor(t.Text)
 		if ta.Changed() && !opts.ReadOnly {
 			if r := store.Record(rec.ID); r != nil {
 				r.Body = df.dbPeek.inlineBody
@@ -1314,7 +1314,7 @@ func (df *databaseFeature) databaseCorner(c *ui.Context, d *document) {
 	}
 	res := d.dbView.Store.Query(d.dbView.Store.SchemaSnapshot().ActiveView, database.QueryOptions{Now: c.Now()})
 	label := fmt.Sprintf(i18n.T("%d 条记录"), res.TotalCount)
-	ui.Box(c.Key("db-corner-count")).Height(22).PaddingX(8).Radius(11).Center().
+	ui.Box(c.Key("db-corner-count")).Height(22).PaddingX(12).Radius(11).Center().
 		Background(c.Theme().Text.Alpha(0.06)).Children(func() {
 		ui.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
 	})
@@ -1680,18 +1680,18 @@ func (df *databaseFeature) databaseViewTree(c *ui.Context, sp *space.Space, n *v
 		activeViewID = df.host.activeDocument().dbView.ActiveViewID()
 	}
 
-	ui.Column(c.Key("db-views:" + sp.ID + "/" + n.Path)).Gap(1).Children(func() {
+	ui.Column(c.Key("db-views:" + sp.ID + "/" + n.Path)).Gap(4).Children(func() {
 		for _, v := range views {
 			vw := v
 			chosen := isDocActive && activeViewID == vw.ID
 			renaming := live && df.dbViewRename.spaceID == sp.ID && df.dbViewRename.dbRel == n.Path && df.dbViewRename.viewID == vw.ID
 			if renaming {
 				ui.Row(c.Key("dbv-ren:"+sp.ID+"/"+n.Path+"/"+vw.ID)).Height(32).
-					Margin(0, 0, 0, indent).Padding(0, 8, 0, 10).Radius(8).Gap(7).
+					Margin(0, 0, 0, indent).Padding(0, 12, 0, 16).Radius(8).Gap(12).
 					Background(glass(t)).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, dbview.ViewIcon(vw.Type)).FontSize(13).TextColor(t.Accent)
 					in := ui.TextInput(c.Key("dbv-in:"+vw.ID), &df.dbViewRename.draft).
-						Grow(1).MinWidth(0).Height(24).Padding(0, 6).Radius(5).
+						Grow(1).MinWidth(0).Height(24).Padding(0, 8).Radius(8).
 						Background(t.Background).Border(1, t.Accent).FontSize(13).TextColor(t.Text).
 						AutoFocus().Label(i18n.T("视图名称"))
 					if df.dbViewRename.pending {
@@ -1710,7 +1710,7 @@ func (df *databaseFeature) databaseViewTree(c *ui.Context, sp *space.Space, n *v
 			}
 
 			row := ui.Row(c.Key("dbv:"+sp.ID+"/"+n.Path+"/"+vw.ID)).Height(32).
-				Margin(0, 0, 0, indent).Padding(0, 8, 0, 10).Radius(8).Gap(7).
+				Margin(0, 0, 0, indent).Padding(0, 12, 0, 16).Radius(8).Gap(12).
 				AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
 				Role(ui.RoleTreeItem).Selected(chosen).Label(vw.Name)
 			switch {
@@ -1731,7 +1731,7 @@ func (df *databaseFeature) databaseViewTree(c *ui.Context, sp *space.Space, n *v
 					lbl.FontWeight(500)
 				}
 				if vw.Primary {
-					ui.Box(c).Padding(1, 5).Radius(4).Background(t.Text.Alpha(0.06)).Shrink(0).Children(func() {
+					ui.Box(c).Padding(4, 8).Radius(8).Background(t.Text.Alpha(0.06)).Shrink(0).Children(func() {
 						ui.Text(c, i18n.T("主视图")).FontSize(10).TextColor(t.TextMuted).NoWrap()
 					})
 				}
@@ -1765,7 +1765,7 @@ func (df *databaseFeature) databaseViewTree(c *ui.Context, sp *space.Space, n *v
 
 		if live && !sp.IsExternal() {
 			addRow := ui.Row(c.Key("dbv-add:"+sp.ID+"/"+n.Path)).Height(28).
-				Margin(0, 0, 0, indent).Padding(0, 8, 0, 10).Radius(8).Gap(6).
+				Margin(0, 0, 0, indent).Padding(0, 12, 0, 16).Radius(8).Gap(8).
 				AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().
 				Role(ui.RoleButton).Label(i18n.T("新建视图"))
 			if addRow.Hovered() {

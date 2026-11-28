@@ -251,14 +251,14 @@ func (lb *library) libraryRail(c *ui.Context) {
 	rail.Children(func() {
 		ui.Box(c).Height(max(bar.Height, 52)).Shrink(0)
 		ui.Spacer(c)
-		ui.Column(c).Gap(8).Children(func() {
+		ui.Column(c).Gap(12).Children(func() {
 			for _, pg := range libraryPages {
 				lb.libraryButton(c, pg.page, i18n.T(pg.title), pg.icon)
 			}
 		})
 		ui.Spacer(c)
-		ui.Row(c).AlignSelf(ui.Stretch).Padding(0, 10, 12, 10).Children(func() {
-			b := ui.Row(c.Key("library-back")).Grow(1).Height(32).Radius(8).Gap(6).Center().Cursor(ui.CursorPointer).
+		ui.Row(c).AlignSelf(ui.Stretch).Padding(0, 16, 20, 16).Children(func() {
+			b := ui.Row(c.Key("library-back")).Grow(1).Height(32).Radius(8).Gap(8).Center().Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RoleButton).Label(i18n.T("退出资料库")).Tooltip(i18n.T("退出资料库 (Esc)"))
 			if b.Hovered() {
 				b.Background(hoverFill(t))
@@ -279,7 +279,7 @@ func (lb *library) libraryRail(c *ui.Context) {
 func (lb *library) libraryButton(c *ui.Context, page libraryPage, title string, icon *ui.SVG) {
 	t := c.Theme()
 	chosen := lb.page == page
-	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(controlRadius).Gap(5).Center().
+	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(controlRadius).Gap(8).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTab).Label(title).Selected(chosen)
 	if chosen && lb.page != libTrash {
 		// The keys leave the document, which would take Escape, for the
@@ -354,7 +354,7 @@ func (lb *library) librarySpaces(c *ui.Context) {
 			plus := ui.Box(c.Key("library-new-space")).Size(libraryPlus, libraryPlus).Shrink(0).AlignSelf(ui.Center).
 				Margin(0, 0, 0, libraryPlusGap-libraryCardGap).Radius(10).Center().Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RoleButton).Label(i18n.T("新建空间")).Tooltip(i18n.T("新建空间")).
-				Background(t.Surface).Border(1, t.Border)
+				Background(t.Surface)
 			plusInk := t.TextMuted
 			if plus.Hovered() {
 				plus.Background(t.Accent.Alpha(0.10)).Border(1, t.Accent.Alpha(0.45))
@@ -378,7 +378,7 @@ func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Eleme
 	look := lookOf(space.ThemeOf(s), base.Dark)
 	t := spaceTheme(base, look)
 	active := s == lb.host.spaces().ActiveSpace()
-	card := ui.Themed(c.Key("card-"+s.ID), t).Width(libraryCardW).Shrink(0).Radius(12).Padding(8).Gap(4).
+	card := ui.Themed(c.Key("card-"+s.ID), t).Width(libraryCardW).Shrink(0).Radius(12).Padding(12).Gap(8).
 		Background(t.Surface).Role(ui.RoleGroup).Label(s.Name).Clip()
 	if moved {
 		// Lifted while the pointer holds it, settling flat into its slot.
@@ -389,7 +389,7 @@ func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Eleme
 		}
 		card.AnimatePose(pose, ui.Animation{Duration: 160 * time.Millisecond, Ease: ui.EaseOut})
 		if lift {
-			card.Shadow(0, 12, 28, 0, black.Alpha(0.18))
+			card.Shadow(0, 8, 24, 0, floatShadow(t))
 		}
 	} else {
 		card.Transition(ui.ElementTransition{Animation: &listAnim, Position: true})
@@ -399,15 +399,8 @@ func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Eleme
 	} else {
 		card.Border(1, t.Border)
 	}
-	if !moved || lb.move.settling {
-		if active {
-			card.Shadow(0, 2, 10, 0, black.Alpha(0.08))
-		} else {
-			card.Shadow(0, 1, 3, 0, black.Alpha(0.04))
-		}
-	}
 	card.Children(func() {
-		h := ui.Row(c.Key("head")).Height(36).PaddingX(8).Gap(8).Radius(8).AlignItems(ui.Center).
+		h := ui.Row(c.Key("head")).Height(36).PaddingX(12).Gap(12).Radius(8).AlignItems(ui.Center).
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("打开空间 ") + s.Name)
 		hovered := h.Hovered()
 		if hovered {
@@ -416,10 +409,6 @@ func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Eleme
 		h.Children(func() {
 			lb.host.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, t.Accent)
 			ui.Text(c, s.Name).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
-			if active && !hovered {
-				ui.Text(c, i18n.T("当前")).FontSize(11).FontWeight(500).TextColor(t.Accent).
-					Background(t.Accent.Alpha(0.10)).Radius(4).Padding(1, 5).NoWrap()
-			}
 			edit := iconButton(c, "edit", iconPalette, i18n.T("编辑空间"), i18n.T("编辑空间"), false).Size(26, 26)
 			edit.Opacity(map[bool]float32{true: 1, false: 0}[hovered || edit.Hovered()])
 			if edit.Clicked() {
@@ -433,20 +422,23 @@ func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Eleme
 				lb.closeLibrary()
 			}
 		}
-		ui.Box(c).Height(1).Margin(0, 4).Background(t.Border.Alpha(0.6)).Shrink(0)
-		body := ui.Scroll(c.Key("body")).Grow(1).MinHeight(0).Gap(1)
+		body := ui.Scroll(c.Key("body")).Grow(1).MinHeight(0).Gap(4)
 		body.Children(func() {
 			if err := lb.errs[s.ID]; err != nil {
-				ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 8)
+				ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(8, 12)
 				return
 			}
 			nodes := lb.trees[s.ID]
 			if len(nodes) == 0 {
-				ui.Text(c, i18n.T("暂无文档")).FontSize(12).TextColor(t.TextMuted).Padding(6, 10)
+				ui.Text(c, i18n.T("暂无文档")).FontSize(12).TextColor(t.TextMuted).Padding(8, 16)
 			}
 			lb.cardNodes(c, s, nodes, 0)
 		})
-		ui.Row(c.Key("foot")).Height(30).Gap(2).AlignItems(ui.Center).Children(func() {
+		foot := ui.Row(c.Key("foot")).Height(32).Gap(4).AlignItems(ui.Center)
+		// Moving the card and its menu are secondary: they show with the
+		// pointer on the card or the focus inside it.
+		revealOnIntent(card, foot)
+		foot.Children(func() {
 			lb.host.cardGrip(c, s, slices.Index(lb.host.spaces().Spaces, s))
 			ui.Spacer(c)
 			iconButton(c, "menu", iconEllipsis, s.Name+i18n.T(" 的菜单"), i18n.T("更多"), false).Size(28, 28).Menu(func(m *ui.Menu) {
@@ -536,7 +528,7 @@ func (lb *library) cardDoc(c *ui.Context, s *space.Space, rel, title string, dep
 // cardRow is the frame shared by a card's rows.
 func (lb *library) cardRow(c *ui.Context, key, label string, depth int) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c.Key(key)).Height(libraryCardRow).Shrink(0).PaddingStart(float32(8 + depth*16)).PaddingEnd(8).Gap(8).
+	row := ui.Row(c.Key(key)).Height(libraryCardRow).Shrink(0).PaddingStart(float32(8 + depth*16)).PaddingEnd(12).Gap(12).
 		Radius(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Label(label).Tooltip(label)
 	if row.Hovered() {
 		row.Background(hoverFill(t))
@@ -554,7 +546,7 @@ func (lb *library) libraryPlugins(c *ui.Context) {
 // saying why.
 func libraryEmpty(c *ui.Context, icon *ui.SVG, title, detail string) {
 	t := c.Theme()
-	ui.Column(c.Key("library-empty")).Grow(1).PaddingX(24).AlignItems(ui.Center).Children(func() {
+	ui.Column(c.Key("library-empty")).Grow(1).PaddingX(36).AlignItems(ui.Center).Children(func() {
 		ui.Spacer(c)
 		ui.Icon(c, icon).FontSize(28).TextColor(t.TextMuted.Alpha(0.75))
 		ui.Box(c).Height(12)
@@ -576,8 +568,8 @@ func (lb *library) libraryTrash(c *ui.Context) {
 	if bar := lb.host.titleBar(c); !lb.host.preferences().SidebarLeft && bar.Right > 0 {
 		top += bar.Height
 	}
-	ui.Row(c.Key("trash-search")).Height(34).Shrink(0).Margin(top, 12, 4, 12).Radius(controlRadius).PaddingX(10).Gap(8).
-		AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Children(func() {
+	ui.Row(c.Key("trash-search")).Height(34).Shrink(0).Margin(top, 20, 8, 20).Radius(controlRadius).PaddingX(16).Gap(12).
+		AlignItems(ui.Center).Background(t.Surface).Children(func() {
 		ui.Icon(c, iconSearch).FontSize(14).TextColor(t.TextMuted)
 		ui.TextInput(c.Key("trash-query"), &l.query).Grow(1).MinWidth(0).Height(24).Padding(0).
 			Placeholder(i18n.T("搜索最近删除")).Label(i18n.T("搜索最近删除")).TextColor(t.Text).
@@ -585,7 +577,7 @@ func (lb *library) libraryTrash(c *ui.Context) {
 	})
 	switch {
 	case l.err != nil:
-		ui.Text(c, i18n.T("读取失败")+" "+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(16, 12, 0, 12)
+		ui.Text(c, i18n.T("读取失败")+" "+l.err.Error()).TextColor(t.Danger).FontSize(13).Margin(24, 20, 0, 20)
 		return
 	case len(l.items) == 0:
 		libraryEmpty(c, iconTrash, i18n.T("这里什么都没有"), i18n.T("从 FreeFolio 删除的文档和文件夹会在这里保留 30 天，可以放回原处"))
@@ -607,7 +599,7 @@ func (lb *library) libraryTrash(c *ui.Context) {
 		}
 	}
 	if len(shown) == 0 {
-		ui.Text(c, i18n.T("没有符合搜索的项目")).FontSize(13).TextColor(ink.Alpha(0.55)).AlignSelf(ui.Center).Margin(24, 0, 0, 0)
+		ui.Text(c, i18n.T("没有符合搜索的项目")).FontSize(13).TextColor(ink.Alpha(0.55)).AlignSelf(ui.Center).Margin(36, 0, 0, 0)
 		return
 	}
 	now := time.Now()
@@ -616,7 +608,7 @@ func (lb *library) libraryTrash(c *ui.Context) {
 		for _, it := range shown {
 			if d := dayLabel(it.Deleted, now); d != day {
 				day = d
-				ui.Row(c.Key("day:"+d)).Height(libraryHeaderH).Shrink(0).Padding(0, 0, 6, 11).
+				ui.Row(c.Key("day:"+d)).Height(libraryHeaderH).Shrink(0).Padding(0, 0, 8, 16).
 					AlignItems(ui.End).Children(func() {
 					ui.Text(c, d).FontSize(13).FontWeight(600).TextColor(ink.Alpha(0.6))
 				})
@@ -642,8 +634,8 @@ func (lb *library) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 	if dir := path.Dir(it.Path); dir != "." {
 		where += " / " + dir
 	}
-	ui.Row(c.Key("trash:"+it.ID)).Height(libraryRowH).Shrink(0).Padding(2, 4, 2, 4).Children(func() {
-		card := ui.Row(c.Key("card")).Grow(1).MinWidth(0).Radius(10).PaddingStart(9).PaddingEnd(14).Gap(10).
+	ui.Row(c.Key("trash:"+it.ID)).Height(libraryRowH).Shrink(0).Padding(4, 8, 4, 8).Children(func() {
+		card := ui.Row(c.Key("card")).Grow(1).MinWidth(0).Radius(10).PaddingStart(12).PaddingEnd(20).Gap(16).
 			AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(title).Tooltip(where + " / " + name)
 		hovered := card.Hovered()
 		if hovered {
@@ -651,14 +643,14 @@ func (lb *library) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 		}
 		acted := false
 		card.Children(func() {
-			ui.Box(c).Size(26, 26).Shrink(0).Radius(6).Center().Background(ink.Alpha(0.05)).Children(func() {
+			ui.Box(c).Size(24, 24).Shrink(0).Center().Children(func() {
 				if it.Dir {
 					ui.Icon(c, iconFolder).FontSize(15).TextColor(t.Accent)
 				} else {
 					ui.Icon(c, iconFile).FontSize(15).TextColor(t.TextMuted)
 				}
 			})
-			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 				ui.Text(c, docName(title)).FontSize(14).TextColor(ink.Alpha(0.82)).SingleLine()
 				ui.Text(c, where+" · "+strings.TrimSpace(ago(it.Deleted, now))+i18n.T("删除")).FontSize(12).
 					TextColor(ink.Alpha(0.55)).SingleLine()
@@ -669,7 +661,7 @@ func (lb *library) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 				lb.host.trashBin().Forget(it)
 				lb.items, lb.err = lb.host.trashBin().List(time.Now())
 			}
-			restore := lb.trashButton(c, "restore", iconUndo, i18n.T("恢复 ")+name, i18n.T("放回原处"), hovered).Margin(0, 0, 0, 10)
+			restore := lb.trashButton(c, "restore", iconUndo, i18n.T("恢复 ")+name, i18n.T("放回原处"), hovered).Margin(0, 0, 0, 16)
 			if restore.Clicked() {
 				acted = true
 				lb.host.restoreDeleted(it)
@@ -685,7 +677,7 @@ func (lb *library) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 // pointer or the button has the keys.
 func (lb *library) trashButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, rowHovered bool) ui.Element {
 	t := c.Theme()
-	b := ui.Box(c.Key(key)).Size(24, 24).Shrink(0).Radius(6).Center().Cursor(ui.CursorPointer).
+	b := ui.Box(c.Key(key)).Size(24, 24).Shrink(0).Radius(8).Center().Cursor(ui.CursorPointer).
 		Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip)
 	if b.Hovered() {
 		b.Background(hoverFill(t))

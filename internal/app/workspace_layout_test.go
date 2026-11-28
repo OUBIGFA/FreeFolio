@@ -64,7 +64,7 @@ func TestOneBotWelcomeCenteredAboveDockedDraft(t *testing.T) {
 	draft := bounds("问题")
 	send := bounds("发送 (Enter)")
 	panel := bounds("调整 OneBot 宽度")
-	if inset := panel.Y + panel.H - send.Y - send.H; inset < 0 || inset > 32 {
+	if inset := panel.Y + panel.H - send.Y - send.H; inset < 0 || inset > 40 {
 		t.Errorf("composer is not docked to the panel bottom: inset %.0f", inset)
 	}
 	checkWelcome := func(composerTop float32) {
@@ -75,7 +75,8 @@ func TestOneBotWelcomeCenteredAboveDockedDraft(t *testing.T) {
 		}
 		above := welcome.Bounds.Y - panel.Y
 		below := composerTop - welcome.Bounds.Y - welcome.Bounds.H
-		if above < 24 || below < 24 || above-below > 24 || below-above > 24 {
+		// The tolerances follow the chrome's 1.5x spacing.
+		if above < 24 || below < 24 || above-below > 32 || below-above > 32 {
 			t.Errorf("welcome is not centered above the composer: above=%.0f below=%.0f", above, below)
 		}
 		for _, label := range []string{"向「Personal」提问", qaExamples[0], "提问时，读到的文档片段会发送给你设置的模型服务"} {

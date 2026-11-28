@@ -88,7 +88,7 @@ func TestSpaceChromeContrast(t *testing.T) {
 				for _, intensity := range []float64{0, 1} {
 					l := lookOf(space.Theme{Colors: colors, Intensity: intensity}, dark)
 					for _, stop := range l.stops {
-						for _, bg := range []ui.Color{stop, l.accent.Alpha(.12).Over(stop)} {
+						for _, bg := range []ui.Color{stop, l.accent.Alpha(.10).Over(stop)} {
 							for _, fg := range []ui.Color{l.text, l.muted, l.accent} {
 								a, b := lum(fg.Over(bg)), lum(bg)
 								ratio := (max(a, b) + .05) / (min(a, b) + .05)

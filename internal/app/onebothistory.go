@@ -649,14 +649,14 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 	total, items := ob.oneBotHistoryItems(spaceID, ob.historyQuery)
 
 	ui.Column(c.Key("qa-history-panel")).Grow(1).MinHeight(0).Children(func() {
-		ui.Row(c.Key("qa-history-head")).Padding(8, 10, 8, 8).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("qa-history-head")).Padding(12, 16, 12, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 			if iconButton(c, "qa-history-back", iconBack, i18n.T("返回对话"), i18n.T("返回对话"), false).Size(26, 26).Clicked() {
 				ob.historyOpen = false
 				ob.historyConfirmClear = false
 			}
 			ui.Text(c, i18n.T("历史记录")).FontSize(13).FontWeight(600).NoWrap()
 			if total > 0 {
-				ui.Box(c.Key("qa-history-count")).Padding(1, 6).Radius(9).Background(t.Text.Alpha(0.06)).Shrink(0).Children(func() {
+				ui.Box(c.Key("qa-history-count")).Padding(4, 8).Radius(9).Background(t.Text.Alpha(0.06)).Shrink(0).Children(func() {
 					ui.Text(c, fmt.Sprint(total)).FontSize(11).FontWeight(500).TextColor(t.TextMuted).NoWrap()
 				})
 			}
@@ -666,7 +666,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 					if quietOneBotAction(c, "qa-history-clear-cancel", i18n.T("取消")).Clicked() {
 						ob.historyConfirmClear = false
 					}
-					confirm := ui.Row(c.Key("qa-history-clear-confirm")).Height(26).Padding(2, 9).Radius(5).AlignItems(ui.Center).
+					confirm := ui.Row(c.Key("qa-history-clear-confirm")).Height(26).Padding(4, 12).Radius(8).AlignItems(ui.Center).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("确认清空"))
 					fill := t.Danger.Alpha(0.12)
 					if confirm.Hovered() {
@@ -679,7 +679,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 						ob.clearOneBotConversations(spaceID)
 					}
 				} else {
-					clr := ui.Row(c.Key("qa-history-clear")).Height(26).Padding(2, 6).Radius(5).AlignItems(ui.Center).
+					clr := ui.Row(c.Key("qa-history-clear")).Height(26).Padding(4, 8).Radius(8).AlignItems(ui.Center).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("清空"))
 					ink := t.TextMuted
 					if clr.Hovered() {
@@ -695,10 +695,9 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 				}
 			}
 		})
-		ui.Box(c).Height(1).Background(separator(t))
 
 		if ob.historyLoading {
-			ui.Column(c.Key("qa-history-loading")).Grow(1).Center().Gap(10).Padding(20).Children(func() {
+			ui.Column(c.Key("qa-history-loading")).Grow(1).Center().Gap(16).Padding(32).Children(func() {
 				ui.Spinner(c).Size(18, 18)
 				ui.Text(c, i18n.T("正在加载历史记录")).FontSize(12.5).TextColor(t.TextMuted)
 			})
@@ -706,8 +705,8 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 		}
 
 		if ob.historyErr != nil {
-			ui.Column(c.Key("qa-history-error")).Grow(1).Center().Gap(10).Padding(20).Children(func() {
-				ui.Column(c).Gap(8).Padding(12, 14).Radius(10).AlignItems(ui.Center).MaxWidth(280).
+			ui.Column(c.Key("qa-history-error")).Grow(1).Center().Gap(16).Padding(32).Children(func() {
+				ui.Column(c).Gap(12).Padding(20, 20).Radius(10).AlignItems(ui.Center).MaxWidth(280).
 					Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.22)).Children(func() {
 					ui.Icon(c, iconAlert).FontSize(16).TextColor(t.Danger)
 					ui.Text(c, i18n.T("无法读取历史记录：")+ob.historyErr.Error()).FontSize(12).LineHeight(1.45).TextColor(t.Danger).TextAlign(ui.Center)
@@ -720,7 +719,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 		}
 
 		if total == 0 {
-			ui.Column(c.Key("qa-history-empty")).Grow(1).Center().Gap(10).Padding(24, 18).Children(func() {
+			ui.Column(c.Key("qa-history-empty")).Grow(1).Center().Gap(16).Padding(36, 28).Children(func() {
 				ui.Box(c.Key("qa-history-empty-badge")).Size(40, 40).Radius(11).Background(t.Text.Alpha(0.05)).
 					Border(1, t.Border.Alpha(0.45)).Center().Children(func() {
 					ui.Icon(c, iconHistory).FontSize(18).TextColor(t.TextMuted)
@@ -732,8 +731,8 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 			return
 		}
 
-		ui.Row(c.Key("qa-history-search-wrap")).Padding(8, 12, 4, 12).Children(func() {
-			box := ui.Row(c.Key("qa-history-search-box")).Grow(1).MinWidth(0).Height(32).Padding(0, 8).Gap(6).Radius(8).
+		ui.Row(c.Key("qa-history-search-wrap")).Padding(12, 20, 8, 20).Children(func() {
+			box := ui.Row(c.Key("qa-history-search-box")).Grow(1).MinWidth(0).Height(32).Padding(0, 12).Gap(8).Radius(8).
 				AlignItems(ui.Center).Background(field(t)).Border(1, t.Border.Alpha(0.75))
 			if box.FocusWithin() {
 				box.Border(1, t.Accent.Alpha(0.45))
@@ -744,7 +743,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 					Border(0, t.Border).Background(ui.Color{}).Padding(0).
 					Label(i18n.T("搜索历史对话")).Placeholder(i18n.T("搜索历史对话"))
 				if ob.historyQuery != "" {
-					clr := ui.Box(c.Key("qa-history-search-clear")).Size(20, 20).Radius(5).Center().Shrink(0).
+					clr := ui.Box(c.Key("qa-history-search-clear")).Size(20, 20).Radius(8).Center().Shrink(0).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("清除搜索"))
 					if clr.Hovered() {
 						clr.Background(hoverFill(t))
@@ -758,7 +757,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 		})
 
 		if len(items) == 0 {
-			ui.Column(c.Key("qa-history-nomatch")).Grow(1).Center().Gap(8).Padding(20).Children(func() {
+			ui.Column(c.Key("qa-history-nomatch")).Grow(1).Center().Gap(12).Padding(32).Children(func() {
 				ui.Text(c, i18n.T("没有匹配的历史对话")).FontSize(13).TextColor(t.TextMuted)
 				if quietOneBotAction(c, "qa-history-reset-search", i18n.T("清除搜索")).Clicked() {
 					ob.historyQuery = ""
@@ -768,7 +767,7 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 		}
 
 		list := ui.List(c.Key("qa-history-list-"+spaceID), &ob.historyList, len(items)).
-			Grow(1).MinHeight(0).Padding(6, 12, 12, 12).Label(i18n.T("历史记录")).
+			Grow(1).MinHeight(0).Padding(8, 16, 20, 16).Label(i18n.T("历史记录")).
 			ItemKey(func(i int) any { return items[i].ID })
 		list.Rows(func(row ui.ListRow) {
 			c := row.Context
@@ -779,26 +778,25 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 				title = i18n.T("未命名对话")
 			}
 
-			ui.Column(c.Key("item-pad")).Padding(0, 0, 6, 0).Children(func() {
-				card := ui.Row(c.Key("card")).Gap(4).Padding(4, 6, 4, 4).Radius(10).AlignItems(ui.Center)
-				bg, border := t.Text.Alpha(0.025), t.Border.Alpha(0.45)
+			ui.Column(c.Key("item-pad")).Padding(0, 0, 8, 0).Children(func() {
+				card := ui.Row(c.Key("card")).Gap(8).Padding(8, 8, 8, 8).Radius(10).AlignItems(ui.Center)
+				// The current conversation is an accent tint; the others are
+				// flat until the pointer is on them.
+				var bg ui.Color
 				if isCurrent {
-					bg, border = t.Accent.Alpha(0.07), t.Accent.Alpha(0.28)
+					bg = t.Accent.Alpha(0.08)
 				} else if card.Hovered() {
-					bg, border = hoverFill(t), t.Border.Alpha(0.75)
+					bg = hoverFill(t)
 				}
-				card.Background(bg).Border(1, border).Children(func() {
-					body := ui.Column(c.Key("open")).Grow(1).MinWidth(0).Gap(3).Padding(5, 6).Radius(7).
+				card.Background(bg).Children(func() {
+					body := ui.Column(c.Key("open")).Grow(1).MinWidth(0).Gap(4).Padding(8, 8).Radius(8).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(title)
+					if isCurrent {
+						// The tint shows it; assistive technology hears it.
+						body.Description(i18n.T("当前"))
+					}
 					body.Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, title).FontSize(12.5).FontWeight(550).SingleLine().Shrink(1).MinWidth(0)
-							if isCurrent {
-								ui.Box(c.Key("current-badge")).Padding(1, 6).Radius(4).Background(t.Accent.Alpha(0.14)).Shrink(0).Children(func() {
-									ui.Text(c, i18n.T("当前")).FontSize(10).FontWeight(600).TextColor(t.Accent).NoWrap()
-								})
-							}
-						})
+						ui.Text(c, title).FontSize(13).FontWeight(500).SingleLine().MinWidth(0)
 						if item.Preview != "" {
 							ui.Text(c, item.Preview).FontSize(11.5).TextColor(t.TextMuted).SingleLine().MinWidth(0)
 						}
@@ -809,9 +807,10 @@ func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSessio
 						ob.openOneBotConversation(spaceID, item.ID)
 					}
 
-					del := ui.Box(c.Key("delete")).Size(28, 28).Radius(7).Center().Shrink(0).
+					del := ui.Box(c.Key("delete")).Size(28, 28).Radius(8).Center().Shrink(0).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
 						Label(i18n.T("删除对话：") + title).Tooltip(i18n.T("删除对话"))
+					revealOnIntent(card, del)
 					delInk := t.TextMuted.Alpha(0.65)
 					if del.Hovered() || del.FocusVisible() {
 						del.Background(t.Danger.Alpha(0.12))

@@ -133,7 +133,7 @@ func (pe *pdfExportFeature) pdfExportView(c *ui.Context) {
 	}
 	if job.open {
 		ui.Modal(c.Key("pdf-export"), &job.open, func() {
-			ui.Column(c).Width(300).Gap(12).Children(func() {
+			ui.Column(c).Width(300).Gap(20).Children(func() {
 				ui.Text(c, i18n.T("正在导出 PDF")).FontSize(18).FontWeight(600)
 				ui.Text(c, job.title).SingleLine().MinWidth(0).TextColor(c.Theme().TextMuted)
 				status := i18n.T("正在准备页面")

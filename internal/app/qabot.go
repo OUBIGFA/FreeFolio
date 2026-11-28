@@ -117,7 +117,7 @@ func qaLoader(c *ui.Context, s *qaLoaderState, desired qaLoaderStyle) ui.Element
 		s.style = desired
 	}
 	reduced := c.Preferences().ReduceMotion
-	box := ui.Box(c.Key("qa-thinking-loader")).Size(qaLoaderBoxW, qaLoaderBoxH).Shrink(0).Radius(6).
+	box := ui.Box(c.Key("qa-thinking-loader")).Size(qaLoaderBoxW, qaLoaderBoxH).Shrink(0).Radius(8).
 		Focusable().Role(ui.RoleButton).Label(i18n.T("切换思考动效")).Tooltip(i18n.T("切换思考动效")).Cursor(ui.CursorPointer)
 	if box.Focused() {
 		box.Border(1, c.Theme().Accent)

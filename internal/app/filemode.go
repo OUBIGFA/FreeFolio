@@ -458,15 +458,15 @@ func (a *App) fileView(c *ui.Context) {
 // the way back. Its free stretch drags the window; files dropped on it open.
 func (a *App) fileBar(c *ui.Context, f *fileSession) {
 	bar := a.titleBar(c)
-	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, fileBarHeight)).Shrink(0).Gap(6).AlignItems(ui.Center).DragWindow()
+	row := ui.Row(c.Key("file-toolbar")).Height(max(bar.Height, fileBarHeight)).Shrink(0).Gap(8).AlignItems(ui.Center).DragWindow()
 	for _, file := range row.DroppedFiles() {
 		a.openSystemFile(file)
 	}
 	row.Children(func() {
-		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
+		start := ui.Row(c.Key("file-toolbar-start")).Shrink(0).Gap(8).AlignItems(ui.Center).PaddingStart(bar.Left + 10).Children(func() {
 			logo := ui.Image(c, brandLogo()).Size(18, 18).Shrink(0)
 			if d := a.doc; hasWordCount(d) {
-				logo.Margin(0, 2, 0, 0)
+				logo.Margin(0, 4, 0, 0)
 				maxW := float32(0)
 				if rowW := row.LayoutBounds().W; rowW > 0 && f.endWidth > 0 {
 					// Keep room for at least a tab and the trailing "+" open button on narrow windows.
@@ -474,10 +474,10 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 				}
 				d.ed.WordButtonFit(c, maxW, 30)
 			} else {
-				logo.Margin(0, 4, 0, 0)
+				logo.Margin(0, 8, 0, 0)
 			}
 		})
-		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
+		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(8).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
 			if a.split != nil || a.doc != nil && a.doc.loadErr == nil {
 				a.addSplitButton(c, a.addSplitPane)
 			}
@@ -506,13 +506,13 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		// page tools. Narrow windows keep the button outside the scrolling strip.
 		b, l, r := row.LayoutBounds(), start.LayoutBounds(), end.LayoutBounds()
 		from, to := l.X+l.W-b.X+12, r.X-b.X-12
-		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).Gap(6).AlignItems(ui.Center).Clip()
+		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).Gap(8).AlignItems(ui.Center).Clip()
 		var strip, tabs, open ui.Element
 		tabMax := a.fileTabMaxWidth(c, f, to-from-6-f.openWidth)
 		area.Children(func() {
 			strip = ui.ScrollHorizontal(c.Key("file-tabs")).Shrink(1).MinWidth(0).Role(ui.RoleTabList).Label(i18n.T("已打开的文件"))
 			strip.Children(func() {
-				tabs = ui.Row(c.Key("file-tab-row")).Shrink(0).Gap(2).AlignItems(ui.Center).Children(func() {
+				tabs = ui.Row(c.Key("file-tab-row")).Shrink(0).Gap(4).AlignItems(ui.Center).Children(func() {
 					for i, rel := range slices.Clone(f.order) {
 						if a.files != f {
 							return
@@ -616,11 +616,11 @@ func (a *App) fileTab(c *ui.Context, f *fileSession, i int, rel string, maxWidth
 	label := fileTabLabel(f, rel)
 	shown := a.fileTabShown() == rel
 	tab := ui.ButtonBase(c.Key("tab-"+rel)).Role(ui.RoleTab).AccessSelected(shown).Label(label).
-		Height(30).MinWidth(fileTabMinWidth).MaxWidth(maxWidth).Shrink(0).Radius(controlRadius).Padding(0, 4, 0, 10).Gap(4).Justify(ui.Start)
+		Height(30).MinWidth(fileTabMinWidth).MaxWidth(maxWidth).Shrink(0).Radius(controlRadius).Padding(0, 8, 0, 16).Gap(8).Justify(ui.Start)
 	ink := t.TextMuted
 	switch {
 	case shown:
-		tab.Background(t.Surface).Border(1, t.Border)
+		tab.Background(t.Surface)
 		ink = t.Text
 		if f.revealed != rel {
 			f.revealed = rel
@@ -667,7 +667,7 @@ func (a *App) fileTab(c *ui.Context, f *fileSession, i int, rel string, maxWidth
 		if a.prefs.Files.HideTabClose {
 			return
 		}
-		x := ui.ButtonBase(c.Key("close")).Size(20, 20).Shrink(0).Radius(5).Center().Cursor(ui.CursorPointer).
+		x := ui.ButtonBase(c.Key("close")).Size(20, 20).Shrink(0).Radius(8).Center().Cursor(ui.CursorPointer).
 			Label(i18n.T("关闭标签页 ") + label).Tooltip(i18n.T("关闭标签页"))
 		if x.Hovered() {
 			x.Background(t.Text.Alpha(0.1))
@@ -736,8 +736,7 @@ func (a *App) fileEmpty(c *ui.Context) {
 }
 
 func (a *App) fileEmptyFor(c *ui.Context, activate func()) {
-	t := c.Theme()
-	area := ui.Column(c.Key("file-empty")).Grow(1).MinHeight(0).Center().Gap(12)
+	area := ui.Column(c.Key("file-empty")).Grow(1).MinHeight(0).Center().Gap(20)
 	for _, file := range area.DroppedFiles() {
 		activate()
 		a.openSystemFile(file)
@@ -745,8 +744,7 @@ func (a *App) fileEmptyFor(c *ui.Context, activate func()) {
 	area.Children(func() {
 		ui.Image(c, brandLogo()).Size(44, 44)
 		ui.Text(c, i18n.T("没有打开的文件")).FontSize(17).FontWeight(600).TextAlign(ui.Center)
-		ui.Text(c, i18n.T("打开或拖入 Markdown 文件来查看和编辑")).FontSize(13).TextColor(t.TextMuted).TextAlign(ui.Center)
-		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Margin(6, 0, 0, 0).Clicked() {
+		if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Margin(8, 0, 0, 0).Clicked() {
 			activate()
 			a.chooseExternalFiles()
 		}

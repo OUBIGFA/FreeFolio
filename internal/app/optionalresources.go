@@ -463,11 +463,11 @@ func (rs *resourceState) settingsResourceRow(c *ui.Context, item localresource.R
 	t := c.Theme()
 	job := s.downloads[item.ID]
 	activeDL := job != nil && job.busy != ""
-	ui.Column(c.Key(item.ID)).Padding(settingsRowInset(c), 12).Gap(8).Children(func() {
-		ui.Row(c.Key("main")).Gap(16).AlignItems(ui.Center).MinHeight(40).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
-					ui.Text(c, item.Name).FontSize(13).FontWeight(500)
+	ui.Column(c.Key(item.ID)).Padding(settingsRowInset(c), 0).Gap(12).Children(func() {
+		ui.Row(c.Key("main")).Gap(24).AlignItems(ui.Center).MinHeight(40).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+					ui.Text(c, item.Name).FontSize(14)
 					settingsBadge(c, formatResourceBytes(item.Size), "")
 					if s.installed[item.ID] {
 						resourceStatusBadge(c, i18n.T("已下载"), true)
@@ -475,7 +475,7 @@ func (rs *resourceState) settingsResourceRow(c *ui.Context, item localresource.R
 				})
 				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
 			})
-			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				switch {
 				case activeDL && job.resume == nil:
 					ui.Text(c, i18n.T("正在移除资源")).FontSize(12).TextColor(t.TextMuted)
@@ -524,11 +524,11 @@ func (rs *resourceState) settingsPackRow(c *ui.Context, pack localresource.Resou
 	if pack.Kind == "seedvr2" && len(pack.Files) > 0 {
 		sizeBytes = pack.Files[0].Size
 	}
-	ui.Column(c.Key(pack.ID)).Padding(settingsRowInset(c), 12).Gap(8).Children(func() {
-		ui.Row(c.Key("main")).Gap(16).AlignItems(ui.Center).MinHeight(44).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
-					ui.Text(c, pack.Name).FontSize(13).FontWeight(500)
+	ui.Column(c.Key(pack.ID)).Padding(settingsRowInset(c), 0).Gap(12).Children(func() {
+		ui.Row(c.Key("main")).Gap(24).AlignItems(ui.Center).MinHeight(44).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+					ui.Text(c, pack.Name).FontSize(14)
 					settingsBadge(c, formatResourceBytes(sizeBytes), "")
 					if badgeText != "" {
 						resourceStatusBadge(c, badgeText, badgeAccent)
@@ -539,7 +539,7 @@ func (rs *resourceState) settingsPackRow(c *ui.Context, pack localresource.Resou
 				})
 				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
 			})
-			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Shrink(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				switch {
 				case activeDL && job.resume == nil:
 					ui.Text(c, i18n.T("正在移除资源")).FontSize(12).TextColor(t.TextMuted)
@@ -659,7 +659,7 @@ func (rs *resourceState) settingsResources(c *ui.Context) {
 		items = append(items, engine)
 	}
 
-	settingsHeading(c, i18n.T("可选资源"), i18n.T("可同时下载多个资源，下载后在白板节点中使用"))
+	settingsHeading(c, i18n.T("可选资源"))
 
 	settingsSection(c, i18n.T("硬件与保存位置"))
 	settingsGroup(c, "resource-overview", func() {
@@ -691,12 +691,12 @@ func (rs *resourceState) settingsResources(c *ui.Context) {
 			}
 		})
 		if s.busy == resourceBusyMigrate {
-			ui.Column(c.Key("migrate-progress")).Padding(0, 12, 10, 12).Gap(4).Children(func() {
+			ui.Column(c.Key("migrate-progress")).Padding(0, 0, 16, 0).Gap(8).Children(func() {
 				val := float64(0)
 				if s.total > 0 {
 					val = float64(s.received.Load()) / float64(s.total)
 				}
-				ui.Row(c).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).WidthPercent(100).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, i18n.T("正在转移资源")).FontSize(12).TextColor(t.TextMuted).Grow(1)
 					if s.total > 0 {
 						ui.Text(c, fmt.Sprintf("%s / %s", formatResourceBytes(s.received.Load()), formatResourceBytes(s.total))).FontSize(12).TextColor(t.TextMuted)
@@ -712,7 +712,7 @@ func (rs *resourceState) settingsResources(c *ui.Context) {
 
 	if s.tab == 0 {
 		settingsSection(c, i18n.T("直接运行"))
-		ui.Text(c, i18n.T("以下资源无需配置 ComfyUI")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
+		ui.Text(c, i18n.T("以下资源无需配置 ComfyUI")).FontSize(12).TextColor(t.TextMuted).Padding(0, 4, 4, 4)
 		settingsGroup(c, "builtin-resources", func() {
 			rowAdded := false
 			if !supported {
@@ -801,7 +801,7 @@ func (rs *resourceState) settingsResources(c *ui.Context) {
 				}
 			})
 			if s.comfyCaps != nil {
-				ui.Row(c.Key("comfy-caps")).Padding(0, 12, 10, 12).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key("comfy-caps")).Padding(0, 0, 16, 0).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 					if len(available) == 0 {
 						ui.Text(c, i18n.T("未发现可用节点，请更新 ComfyUI")).FontSize(12).TextColor(t.TextMuted)
 					} else {
@@ -860,7 +860,6 @@ func (rs *resourceState) settingsResources(c *ui.Context) {
 				rs.settingsPackRow(c, pack, badge, accent, detail)
 			}
 			settingsSeparator(c)
-			ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
 		})
 	}
 	if s.comfyErr != nil {

@@ -209,7 +209,7 @@ func (gs *gitUIState) gitCreateRepositoryView(c *ui.Context, id string, repo git
 	for _, change := range repo.Changes {
 		selected = selected || gs.checked[id][change.Path]
 	}
-	ui.Row(c.Key("git-create-actions")).Gap(8).Wrap().Children(func() {
+	ui.Row(c.Key("git-create-actions")).Gap(12).Wrap().Children(func() {
 		if ui.PrimaryButton(c.Key("confirm"), i18n.T("创建私有仓库并上传")).Disabled(locked || cfg.Account == "" || !selected || !gitsync.ValidRepositoryName(gs.creation.name)).Clicked() {
 			gs.createGitRepository(id)
 		}

@@ -227,12 +227,12 @@ func (sm *sourceFeature) sourceHeaderBar(c *ui.Context, d *document, pg editor.P
 	totalChars := utf8.RuneCountInString(d.preview)
 	compact := cardWidth > 0 && cardWidth < 680
 
-	ui.Row(c.Key("source-header")).Height(40).Padding(0, 14, 0, 16).Gap(6).AlignItems(ui.Center).
+	ui.Row(c.Key("source-header")).Height(40).Padding(0, 20, 0, 24).Gap(8).AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.55)).Children(func() {
 		ui.Icon(c, iconCode).FontSize(14).TextColor(t.TextMuted)
 		ui.Text(c, i18n.T("Markdown 源码")).FontSize(13).FontWeight(500).TextColor(t.Text).NoWrap()
 		if d.ed.ReadOnly {
-			ui.Box(c).Padding(2, 6).Radius(4).Background(t.Text.Alpha(0.06)).Children(func() {
+			ui.Box(c).Padding(4, 8).Radius(8).Background(t.Text.Alpha(0.06)).Children(func() {
 				ui.Text(c, i18n.T("只读")).FontSize(11).TextColor(t.TextMuted).NoWrap()
 			})
 		}
@@ -502,7 +502,7 @@ func (sm *sourceFeature) sourceWorkspace(c *ui.Context, d *document, pg editor.P
 
 func sourceBarIconBtn(c *ui.Context, key string, icon *ui.SVG, label, tip string, active bool, pg editor.Page) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(key)).Size(26, 26).Radius(6).Center().
+	b := ui.ButtonBase(c.Key(key)).Size(26, 26).Radius(8).Center().
 		Cursor(ui.CursorPointer).KeepFocus().Label(label).Tooltip(tip)
 	ink := t.TextMuted
 	switch {
@@ -522,7 +522,7 @@ func sourceBarToggleBtn(c *ui.Context, key string, icon *ui.SVG, label, tip stri
 		return sourceBarIconBtn(c, key, icon, label, tip, active, pg)
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(key)).Height(26).PaddingX(8).Gap(5).Radius(6).AlignItems(ui.Center).
+	b := ui.ButtonBase(c.Key(key)).Height(26).PaddingX(12).Gap(8).Radius(8).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).KeepFocus().Label(label).Tooltip(tip)
 	ink := t.TextMuted
 	switch {
@@ -546,7 +546,7 @@ func sourceBarToggleBtn(c *ui.Context, key string, icon *ui.SVG, label, tip stri
 
 func sourceBarTextBtn(c *ui.Context, key, label, tip string, accent bool, pg editor.Page) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(key)).Height(26).PaddingX(9).Radius(6).Center().
+	b := ui.ButtonBase(c.Key(key)).Height(26).PaddingX(12).Radius(8).Center().
 		Cursor(ui.CursorPointer).KeepFocus().Label(label)
 	if tip != "" {
 		b.Tooltip(tip)
@@ -575,10 +575,10 @@ func (sm *sourceFeature) sourceFindBar(c *ui.Context, d *document, pg editor.Pag
 	f := &d.sourceFind
 	f.refresh(d.preview)
 
-	ui.Column(c.Key("source-find-bar")).Padding(8, 14).Gap(6).
+	ui.Column(c.Key("source-find-bar")).Padding(12, 20).Gap(8).
 		Background(t.Text.Alpha(0.025)).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.55)).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if d.sourceEditable() {
 				chev := iconChevronRight
 				if f.replace {
@@ -640,7 +640,7 @@ func (sm *sourceFeature) sourceFindBar(c *ui.Context, d *document, pg editor.Pag
 			}
 		})
 		if f.replace && d.sourceEditable() {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(26)
 				rin := ui.TextInput(c.Key("source-find-with"), &f.with).Width(240).Height(28).
 					Placeholder(i18n.T("替换为…")).Label(i18n.T("替换为")).FontSize(12.5)

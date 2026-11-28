@@ -25,7 +25,7 @@ func (ob *qaState) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, tu
 	}
 	switch b.kind {
 	case qaRule:
-		ui.Column(c).Padding(8, 0, 8, 0).Children(func() {
+		ui.Column(c).Padding(12, 0, 12, 0).Children(func() {
 			ui.Box(c.Key("hr")).Height(1).Background(separator(t).Alpha(0.75))
 		})
 	case qaCodeBlock:
@@ -33,14 +33,14 @@ func (ob *qaState) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, tu
 			ob.qaMarkdownCode(c, fmt.Sprintf("code-%p-%d", turn, b.start), b)
 		})
 	case qaHeading:
-		text("text", b.runs, t.Text, b.size).FontSize(b.size).FontWeight(600).LineHeight(1.38).Padding(10, 0, 2, 0)
+		text("text", b.runs, t.Text, b.size).FontSize(b.size).FontWeight(600).LineHeight(1.38).Padding(16, 0, 4, 0)
 	case qaQuote:
-		ui.Row(c).Gap(10).Padding(6, 10).Radius(6).Background(t.Text.Alpha(0.024)).Children(func() {
-			ui.Box(c).Width(3).Radius(1.5).AlignSelf(ui.Stretch).Background(t.Accent.Alpha(0.45))
+		ui.Row(c).Gap(16).Padding(8, 16).Radius(8).Background(t.Text.Alpha(0.024)).Children(func() {
+			ui.Box(c).Width(3).Radius(8).AlignSelf(ui.Stretch).Background(t.Accent.Alpha(0.45))
 			text("text", b.runs, t.TextMuted, 14).Shrink(1).MinWidth(0)
 		})
 	case qaListItem:
-		ui.Row(c).Gap(8).AlignItems(ui.Start).Padding(0, 0, 0, float32(max(0, b.indent-1))*20).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Start).Padding(0, 0, 0, float32(max(0, b.indent-1))*20).Children(func() {
 			ui.Text(c, b.marker).FontSize(14).LineHeight(1.72).TextColor(t.TextMuted).Width(20).TextAlign(ui.End).Shrink(0)
 			text("text", b.runs, t.Text, 14).Shrink(1).MinWidth(0)
 		})
@@ -51,7 +51,7 @@ func (ob *qaState) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, tu
 		}
 		row.Children(func() {
 			for i, cell := range b.cells {
-				ui.Box(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Padding(6, 10).Children(func() {
+				ui.Box(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Padding(8, 16).Children(func() {
 					e := text("cell", cell.runs, t.Text, 14)
 					switch cell.align {
 					case parser.AlignCenter:
@@ -268,11 +268,11 @@ func (ob *qaState) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
 		lang = "text"
 	}
 	copied := ob.isQACopied(c, key)
-	ui.Column(c).Radius(8).Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.45)).Clip().Children(func() {
-		ui.Row(c).Padding(5, 10).AlignItems(ui.Center).Background(t.Text.Alpha(0.03)).Children(func() {
+	ui.Column(c).Radius(8).Background(t.Text.Alpha(0.035)).Clip().Children(func() {
+		ui.Row(c).Padding(8, 16).AlignItems(ui.Center).Background(t.Text.Alpha(0.03)).Children(func() {
 			ui.Text(c, lang).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 			ui.Spacer(c)
-			copyBtn := ui.Row(c.Key("copy")).Height(22).Padding(0, 7).Gap(4).Radius(5).AlignItems(ui.Center).
+			copyBtn := ui.Row(c.Key("copy")).Height(22).Padding(0, 12).Gap(8).Radius(8).AlignItems(ui.Center).
 				Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("复制代码"))
 			if copyBtn.Hovered() {
 				copyBtn.Background(hoverFill(t))
@@ -291,9 +291,8 @@ func (ob *qaState) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
 				ob.copyQAText(c, key, b.text)
 			}
 		})
-		ui.Box(c).Height(1).Background(separator(t).Alpha(0.6))
 		ui.ScrollHorizontal(c).Children(func() {
-			ui.Text(c, b.text).Font("monospace").FontSize(12.25).LineHeight(1.6).NoWrap().Selectable().Padding(10, 12, 10, 12)
+			ui.Text(c, b.text).Font("monospace").FontSize(12.25).LineHeight(1.6).NoWrap().Selectable().Padding(16, 20, 16, 20)
 		})
 	})
 }

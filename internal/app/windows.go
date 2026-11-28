@@ -173,7 +173,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 	d := w.doc
 	c.Root().Background(paper.Background)
 	if d == nil {
-		ui.Text(c, i18n.T("文档已关闭")).TextColor(t.TextMuted).Padding(80, 24)
+		ui.Text(c, i18n.T("文档已关闭")).TextColor(t.TextMuted).Padding(120, 36)
 		return
 	}
 	if a.zoom.canZoomPage(d) {
@@ -191,7 +191,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 	}
 	bar := c.TitleBar()
 	ui.Column(c.Key("window-doc")).Fill().Children(func() {
-		top := ui.Row(c.Key("window-bar")).Height(max(44, bar.Height)).PaddingX(12).Gap(8).AlignItems(ui.Center).DragWindow()
+		top := ui.Row(c.Key("window-bar")).Height(max(44, bar.Height)).PaddingX(20).Gap(12).AlignItems(ui.Center).DragWindow()
 		top.Children(func() {
 			ui.Box(c).Width(bar.Left)
 			docIcon(c, a.links.iconTitle(d.space.ID, d.rel), 16)
@@ -216,7 +216,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 			}
 		})
 		if d.loadErr != nil {
-			ui.Text(c, i18n.T("文档无法打开")+" "+d.loadErr.Error()).TextColor(t.Danger).Padding(24)
+			ui.Text(c, i18n.T("文档无法打开")+" "+d.loadErr.Error()).TextColor(t.Danger).Padding(36)
 			return
 		}
 		if d.isPDF() {

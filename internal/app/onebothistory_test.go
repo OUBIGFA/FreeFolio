@@ -61,10 +61,19 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	if !a.qa.historyOpen {
 		t.Fatal("history panel did not open")
 	}
-	for _, want := range []string{"历史记录", "总结一下架构设计", "为什么发布延期？", "当前"} {
+	for _, want := range []string{"历史记录", "总结一下架构设计", "为什么发布延期？"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in history panel: %q", want, tt.Texts())
 		}
+	}
+	current := 0
+	for _, info := range tt.AccessAll() {
+		if info.Role == ui.RoleButton && info.Description == "当前" {
+			current++
+		}
+	}
+	if current != 1 {
+		t.Fatalf("history marks %d conversations as current, want 1", current)
 	}
 
 	// Search filters conversations and clearing search restores all.

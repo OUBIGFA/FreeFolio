@@ -513,7 +513,7 @@ func (a *App) previewCard(c *ui.Context) {
 	col := p.col
 	ui.Overlay(c, func() {
 		card := ui.Column(c.Key("preview")).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).Radius(previewCorner).
-			Background(col.fill).Shadow(0, 12, 32, 0, col.shadow).Clip().TransformOrigin(0, 0.5)
+			Background(col.fill).Shadow(0, 8, 24, 0, floatShadow(c.Theme())).Clip().TransformOrigin(0, 0.5)
 		pose := ui.Pose{}
 		switch {
 		case p.closing:
@@ -589,10 +589,9 @@ func (a *App) folderPreview(c *ui.Context) {
 		}
 		ui.Box(c).Width(12)
 	})
-	ui.Box(c).Height(1).Background(p.col.hairline)
 	if len(shown) == 0 {
 		ui.Text(c, i18n.T("没有符合搜索的文档 🤔")).FontSize(13).TextColor(p.col.muted).MaxWidth(192).
-			TextAlign(ui.Center).AlignSelf(ui.Center).Margin(24, 0, 0, 0)
+			TextAlign(ui.Center).AlignSelf(ui.Center).Margin(36, 0, 0, 0)
 		return
 	}
 	list := ui.Scroll(c.Key("preview-rows")).Grow(1).MinHeight(0).PaddingY(previewListInset)
@@ -612,7 +611,7 @@ func (a *App) folderPreview(c *ui.Context) {
 					ui.Box(c).Width(previewIconCenter - previewSideInset - 8)
 					docIcon(c, it.title, 16)
 					ui.Box(c).Width(previewTextX - previewIconCenter - 8)
-					ui.Column(c).Grow(1).MinWidth(0).PaddingEnd(10).Children(func() {
+					ui.Column(c).Grow(1).MinWidth(0).PaddingEnd(16).Children(func() {
 						ui.Text(c, docName(it.title)).FontSize(13).TextColor(p.col.title).SingleLine()
 						ui.Text(c, i18n.T("修改于")+ago(it.changed, now)).FontSize(11).TextColor(p.col.muted).NoWrap()
 					})
@@ -664,7 +663,7 @@ func (a *App) docPreview(c *ui.Context) {
 	const thumbW = previewW - 16
 	scale := float32(thumbW) / previewThumbW
 	dt := documentTheme(a.paperDark)
-	paper := ui.Box(c.Key("paper")).Size(thumbW, previewThumbH).Margin(8, 8, 0, 8).Radius(6).Background(dt.Background).Clip()
+	paper := ui.Box(c.Key("paper")).Size(thumbW, previewThumbH).Margin(12, 12, 0, 12).Radius(8).Background(dt.Background).Clip()
 	if dt.Dark {
 		// Dark paper on a dark card needs an edge to read as a page.
 		paper.Border(1, dt.Border)
@@ -686,7 +685,7 @@ func (a *App) docPreview(c *ui.Context) {
 		ui.Box(c).Width(previewIconCenter - previewSideInset - 8)
 		docIcon(c, title, 16)
 		ui.Box(c).Width(previewTextX - previewIconCenter - 8)
-		ui.Column(c).Grow(1).MinWidth(0).PaddingEnd(10).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).PaddingEnd(16).Children(func() {
 			ui.Text(c, docName(title)).FontSize(13).TextColor(p.col.title).SingleLine()
 			where := t.space.Name
 			if dir := parentDir(t.rel); dir != "" {

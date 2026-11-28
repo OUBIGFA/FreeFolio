@@ -243,9 +243,9 @@ func (a *App) saveEditableCopy(d *document) {
 func (a *App) formatCorner(c *ui.Context, d *document) {
 	f, _ := formats.Lookup(d.rel)
 	t := c.Theme()
-	ui.Row(c.Key("format-corner")).Gap(2).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("format-corner")).Gap(4).AlignItems(ui.Center).Children(func() {
 		if f.Name != "" {
-			ui.Row(c.Key("format-name")).Height(28).PaddingX(8).Radius(7).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("format-name")).Height(28).PaddingX(12).Radius(8).AlignItems(ui.Center).Children(func() {
 				label := f.Name
 				if d.ed.Locked {
 					label += " · " + i18n.T("只读")

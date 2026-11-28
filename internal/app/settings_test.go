@@ -245,6 +245,7 @@ func TestFixedSettingsFitMinimumWindow(t *testing.T) {
 				}
 			}
 			if tab == tabAI {
+				scrollIntoView(tt, "供应商与连接", 641, 421)
 				if err := tt.Click("供应商与连接"); err != nil {
 					t.Fatal(err)
 				}
@@ -328,13 +329,21 @@ func TestAppearanceLineHeightShowsOneDecimal(t *testing.T) {
 	a.prefs.LineHeight = 1.7
 	a.openSettings(tabAppearance)
 	tt.Frame()
-	if !tt.HasText("1.7") {
-		t.Fatalf("line height not shown as 1.7: %q", tt.Texts())
-	}
-	for _, s := range tt.Texts() {
-		if strings.HasPrefix(s, "1.70") {
-			t.Fatalf("line height shown as %q", s)
+	// The number field's text is the value; the page no longer repeats it
+	// in a caption.
+	var shown []string
+	for _, info := range tt.AccessAll() {
+		if info.Role == ui.RoleTextField && info.Value != "" {
+			shown = append(shown, info.Value)
 		}
+	}
+	for _, v := range shown {
+		if strings.HasPrefix(v, "1.70") {
+			t.Fatalf("line height shown as %q", v)
+		}
+	}
+	if !slices.Contains(shown, "1.7") {
+		t.Fatalf("line height not shown as 1.7: %q", shown)
 	}
 }
 

@@ -208,16 +208,16 @@ func (a *App) cleanupView(c *ui.Context) {
 	w, h := c.Size()
 	t := c.Theme()
 	ui.Modal(c.Key("asset-cleanup"), &s.open, func() {
-		ui.Column(c).Width(min(700, w-40)).MaxHeight(h - 56).Gap(12).Children(func() {
-			ui.Row(c.Key("cleanup-header")).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(36, 36).Radius(8).Shrink(0).Center().Background(t.Warning.Alpha(0.12)).Children(func() {
+		ui.Column(c).Width(min(700, w-40)).MaxHeight(h - 56).Gap(20).Children(func() {
+			ui.Row(c.Key("cleanup-header")).Gap(20).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(24, 24).Shrink(0).Center().Children(func() {
 					ui.Icon(c, iconTrash).FontSize(18).TextColor(t.Warning)
 				})
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+					ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, i18n.T("清理未使用附件")).FontSize(17).FontWeight(600)
 						if sp := a.state.Get(s.spaceID); sp != nil {
-							ui.Row(c).Padding(2, 7).Radius(4).Background(t.Surface).Border(1, t.Border.Alpha(0.75)).Shrink(0).Children(func() {
+							ui.Row(c).Padding(4, 12).Radius(8).Background(t.Surface).Shrink(0).Children(func() {
 								ui.Text(c, sp.Name).FontSize(11).FontWeight(500).TextColor(t.TextMuted).SingleLine()
 							})
 						}
@@ -226,14 +226,14 @@ func (a *App) cleanupView(c *ui.Context) {
 				})
 			})
 			if s.err != "" {
-				ui.Row(c.Key("cleanup-error")).Padding(10, 14).Gap(8).AlignItems(ui.Center).
+				ui.Row(c.Key("cleanup-error")).Padding(16, 20).Gap(12).AlignItems(ui.Center).
 					Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.35)).Radius(8).Children(func() {
 					ui.Icon(c, iconAlert).FontSize(15).TextColor(t.Danger).Shrink(0)
 					ui.Text(c, s.err).FontSize(12.5).TextColor(t.Danger).Grow(1).MinWidth(0).LineHeight(1.45)
 				})
 			}
 			if s.message != "" {
-				ui.Row(c.Key("cleanup-message")).Padding(10, 14).Gap(8).AlignItems(ui.Center).
+				ui.Row(c.Key("cleanup-message")).Padding(16, 20).Gap(12).AlignItems(ui.Center).
 					Background(t.Success.Alpha(0.08)).Border(1, t.Success.Alpha(0.35)).Radius(8).Children(func() {
 					ui.Icon(c, iconCheck).FontSize(15).TextColor(t.Success).Shrink(0)
 					ui.Text(c, s.message).FontSize(13).Grow(1).MinWidth(0).LineHeight(1.45)
@@ -247,9 +247,9 @@ func (a *App) cleanupView(c *ui.Context) {
 					size += it.Bytes
 				}
 			}
-			ui.Column(c.Key("cleanup-card")).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Clip().Children(func() {
+			ui.Column(c.Key("cleanup-card")).Background(t.Surface).Radius(panelRadius).Clip().Children(func() {
 				if s.busy {
-					ui.Column(c.Key("cleanup-busy")).Padding(36, 20).Gap(10).AlignItems(ui.Center).Children(func() {
+					ui.Column(c.Key("cleanup-busy")).Padding(56, 32).Gap(16).AlignItems(ui.Center).Children(func() {
 						ui.Spinner(c.Key("cleanup-spinner")).TextColor(t.Accent).Label(i18n.T("正在检查附件"))
 						ui.Text(c, i18n.T("正在检查附件")).FontSize(13).TextColor(t.TextMuted)
 					})
@@ -257,8 +257,8 @@ func (a *App) cleanupView(c *ui.Context) {
 					return
 				}
 				if len(s.items) == 0 {
-					ui.Column(c.Key("cleanup-empty")).Padding(32, 20).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Box(c).Size(36, 36).Radius(18).Center().Background(t.Success.Alpha(0.12)).Children(func() {
+					ui.Column(c.Key("cleanup-empty")).Padding(48, 32).Gap(12).AlignItems(ui.Center).Children(func() {
+						ui.Box(c).Size(24, 24).Center().Children(func() {
 							ui.Icon(c, iconCheck).FontSize(18).TextColor(t.Success)
 						})
 						ui.Text(c, i18n.T("没有发现未使用附件")).FontSize(14).FontWeight(600)
@@ -268,7 +268,7 @@ func (a *App) cleanupView(c *ui.Context) {
 				}
 				allChecked := selected == len(s.items)
 				beforeAll := allChecked
-				ui.Row(c.Key("cleanup-toolbar")).Padding(9, 14).Gap(8).AlignItems(ui.Center).Background(t.Background.Alpha(0.55)).Children(func() {
+				ui.Row(c.Key("cleanup-toolbar")).Padding(12, 20).Gap(12).AlignItems(ui.Center).Background(t.Background.Alpha(0.55)).Children(func() {
 					ui.Checkbox(c.Key("cleanup-select-all"), &allChecked, fmt.Sprintf(i18n.T("全选（已选 %d / %d 项）"), selected, len(s.items))).Grow(1)
 					ui.Text(c, byteSize(size)).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
 				})
@@ -278,13 +278,12 @@ func (a *App) cleanupView(c *ui.Context) {
 					}
 					s.confirmed = false
 				}
-				ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
 				ui.Scroll(c.Key("unused-assets")).MaxHeight(max(120, h-380)).Children(func() {
 					for i, it := range s.items {
 						if i > 0 {
 							settingsSeparator(c)
 						}
-						ui.Row(c.Key(it.Path)).Padding(8, 14).Gap(10).AlignItems(ui.Center).Children(func() {
+						ui.Row(c.Key(it.Path)).Padding(12, 20).Gap(16).AlignItems(ui.Center).Children(func() {
 							checked := s.selected[it.Path]
 							before := checked
 							ui.Checkbox(c.Key("select"), &checked, "").Label(it.Path).Disabled(s.busy)
@@ -292,7 +291,7 @@ func (a *App) cleanupView(c *ui.Context) {
 								s.selected[it.Path] = checked
 								s.confirmed = false
 							}
-							ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+							ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 								ui.Text(c, filepath.Base(it.Path)).FontSize(13).FontWeight(500).SingleLine()
 								if dir := filepath.Dir(it.Path); dir != "." && dir != "" {
 									ui.Text(c, filepath.ToSlash(dir)).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
@@ -304,7 +303,7 @@ func (a *App) cleanupView(c *ui.Context) {
 				})
 			})
 			if s.confirmed && selected > 0 && !s.busy {
-				ui.Row(c.Key("cleanup-confirm-bar")).Padding(10, 14).Gap(10).AlignItems(ui.Center).
+				ui.Row(c.Key("cleanup-confirm-bar")).Padding(16, 20).Gap(16).AlignItems(ui.Center).
 					Background(t.Warning.Alpha(0.10)).Border(1, t.Warning.Alpha(0.35)).Radius(8).Children(func() {
 					ui.Icon(c, iconAlert).FontSize(15).TextColor(t.Warning).Shrink(0)
 					ui.Text(c, fmt.Sprintf(i18n.T("即将把 %d 个附件（%s）移到系统回收站，并保留恢复副本"), selected, byteSize(size))).
@@ -314,8 +313,7 @@ func (a *App) cleanupView(c *ui.Context) {
 					}
 				})
 			}
-			ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 				if ui.Button(c.Key("cleanup-refresh"), i18n.T("重新检查")).Disabled(s.busy).Clicked() {
 					a.scanUnusedAssets()
 				}

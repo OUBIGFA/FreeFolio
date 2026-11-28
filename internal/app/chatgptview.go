@@ -18,13 +18,13 @@ var chatGPTMarkData []byte
 var chatGPTMark = ui.MustParseSVG(chatGPTMarkData)
 
 func chatGPTSignInButton(c *ui.Context, label string, disabled bool) ui.Element {
-	e := ui.Row(c.Key("signin")).Height(38).Padding(8, 14).Gap(9).AlignItems(ui.Center).Radius(8).Background(white).TextColor(black).Border(1, black.Alpha(0.3)).Focusable().Role(ui.RoleButton).Label(label).Cursor(ui.CursorPointer).Disabled(disabled)
+	e := ui.Row(c.Key("signin")).Height(38).Padding(12, 20).Gap(12).AlignItems(ui.Center).Radius(8).Background(white).TextColor(black).Border(1, black.Alpha(0.3)).Focusable().Role(ui.RoleButton).Label(label).Cursor(ui.CursorPointer).Disabled(disabled)
 	if e.Hovered() {
 		e.Background(ui.RGB(240, 240, 240))
 	}
 	e.Children(func() {
 		ui.Icon(c, chatGPTMark).Size(21, 21)
-		ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(black).NoWrap()
+		ui.Text(c, label).FontSize(14).TextColor(black).NoWrap()
 	})
 	return e
 }
@@ -34,8 +34,8 @@ func (cg *chatGPTState) chatGPTAccountView(c *ui.Context) {
 	g := cg
 	id := cg.host.preferences().AI.Active
 	s := cg.chatGPTSession()
-	ui.Column(c.Key("chatgpt-account")).Padding(12).Gap(10).Children(func() {
-		ui.Row(c.Key("chatgpt-header")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Column(c.Key("chatgpt-account")).Padding(20).Gap(16).Children(func() {
+		ui.Row(c.Key("chatgpt-header")).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 			ui.Text(c, i18n.T("使用 ChatGPT 套餐")).FontSize(14).FontWeight(500)
 			if s.Email != "" {
 				ui.Text(c, s.Email).FontSize(12.5).TextColor(t.TextMuted).Selectable()
@@ -59,7 +59,7 @@ func (cg *chatGPTState) chatGPTAccountView(c *ui.Context) {
 			settingsBadge(c, status, tone)
 		})
 		ui.Text(c, i18n.T("授权后，OneBot 中符合条件的请求使用你的 ChatGPT 套餐或点数；具体模型和额度由账号决定")).FontSize(12.5).TextColor(t.TextMuted).LineHeight(1.45)
-		ui.Row(c.Key("actions")).Gap(8).Wrap().Children(func() {
+		ui.Row(c.Key("actions")).Gap(12).Wrap().Children(func() {
 			if g.busyID == id && g.cancel != nil {
 				if ui.Button(c.Key("cancel"), i18n.T("取消登录")).Clicked() {
 					cg.cancelChatGPTSignIn()
@@ -98,7 +98,7 @@ func (cg *chatGPTState) chatGPTUsageView(c *ui.Context) {
 	if cg.chatGPTSession().Sharing {
 		text = i18n.T("正在使用 ChatGPT 套餐")
 	}
-	ui.Row(c.Key("chatgpt-usage")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c.Key("chatgpt-usage")).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Text(c, text).FontSize(12).TextColor(c.Theme().TextMuted).Grow(1)
 		if quietOneBotAction(c, "manage", i18n.T("管理用量")).Clicked() {
 			cg.openChatGPTUsage()
@@ -113,11 +113,11 @@ func (cg *chatGPTState) chatGPTWelcomeView(c *ui.Context) {
 	ui.Overlay(c.Key("chatgpt-welcome"), func() {
 		w, _ := c.Size()
 		ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Background(ui.RGBA(0, 0, 0, 0.3)).Center().Modal().Role(ui.RoleDialog).Label(i18n.T("正在使用 ChatGPT 套餐")).Children(func() {
-			ui.Column(c).Width(min(420, max(240, w-32))).Padding(24).Gap(16).Radius(14).Background(c.Theme().Surface).Children(func() {
+			ui.Column(c).Width(min(420, max(240, w-32))).Padding(36).Gap(24).Radius(14).Background(c.Theme().Surface).Children(func() {
 				ui.Box(c).Size(42, 42).Radius(9).Background(white).Center().Children(func() { ui.Icon(c, chatGPTMark).Size(30, 30) })
 				ui.Text(c, i18n.T("正在使用 ChatGPT 套餐")).FontSize(18).FontWeight(500)
 				ui.Text(c, i18n.T("OneBot 中符合条件的请求将使用你的 ChatGPT 套餐或点数；你可以随时在 ChatGPT 设置中查看用量和调整此应用的限额")).FontSize(13)
-				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
 					if ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
 						cg.openChatGPTUsage()
 					}

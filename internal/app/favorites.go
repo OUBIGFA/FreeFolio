@@ -123,7 +123,7 @@ func (a *App) favorites(c *ui.Context) {
 		slots++
 	}
 	g := a.gridOf(slots)
-	col := ui.Column(c.Key("favorites")).PaddingX(12)
+	col := ui.Column(c.Key("favorites")).PaddingX(20)
 	a.tourMark("favorites", col)
 	col.Children(func() {
 		// The height the layout takes is the animated one, so the list
@@ -233,15 +233,12 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 		b.W = a.favoriteWidth()
 		a.hoverRow(previewDoc, sp, f.Path, b)
 	}
-	if open {
-		tile.Border(1, favoriteRim(t))
-	}
 	if hidden || dragging {
 		tile.Opacity(0) // the copy under the pointer stands for it
 	}
 	tile.Children(func() {
 		if g.tileW >= 96 {
-			ui.Row(c).Width(g.tileW).Gap(8).AlignItems(ui.Center).PaddingX(12).Children(func() {
+			ui.Row(c).Width(g.tileW).Gap(12).AlignItems(ui.Center).PaddingX(20).Children(func() {
 				ui.Icon(c, iconFile).FontSize(16).TextColor(t.Accent)
 				ui.Text(c, docName(title)).FontWeight(500).TextColor(t.Text).SingleLine().MinWidth(0)
 			})
@@ -284,9 +281,9 @@ func (a *App) favoriteTile(c *ui.Context, i int, f space.Favorite, g favoriteGri
 func (a *App) renameUnder(c *ui.Context, tile ui.Element) {
 	look := previewColors(c.Theme(), a.look)
 	ui.Overlay(c, func() {
-		card := ui.Row(c.Key("rename-favorite")).AttachTo(tile, ui.AnchorBottomLeft, ui.AnchorTopLeft).MarginY(6).
-			Width(200).Padding(6, 6).Radius(10).Background(look.fill).Border(0.5, look.outline).
-			Shadow(0, 4, 14, 0, look.shadow)
+		card := ui.Row(c.Key("rename-favorite")).AttachTo(tile, ui.AnchorBottomLeft, ui.AnchorTopLeft).MarginY(8).
+			Width(200).Padding(8, 8).Radius(10).Background(look.fill).Border(0.5, look.outline).
+			Shadow(0, 8, 24, 0, floatShadow(c.Theme()))
 		card.Children(func() { a.renameField(c) })
 	})
 }
@@ -334,7 +331,7 @@ func (a *App) favoritesStrip(c *ui.Context, has bool) {
 // half faded, and its × closes it for good.
 func (a *App) favoritesCard(c *ui.Context) {
 	t := c.Theme()
-	col := ui.Column(c.Key("favorites")).PaddingX(10)
+	col := ui.Column(c.Key("favorites")).PaddingX(16)
 	a.tourMark("favorites", col)
 	col.Children(func() {
 		card := ui.Column(c.Key("favorites-card")).Height(favoriteCardH).Radius(12).AlignItems(ui.Center).Label(i18n.T("收藏"))
@@ -376,12 +373,10 @@ func (a *App) favoritesCard(c *ui.Context) {
 				if t.Dark {
 					star = ui.RGB(40, 40, 40)
 				}
-				ui.Box(c).Size(16, 16).Margin(11.75, 0, 0, 0).Radius(8).Background(ink).Center().Children(func() {
+				ui.Box(c).Size(16, 16).Margin(16, 0, 0, 0).Radius(8).Background(ink).Center().Children(func() {
 					ui.Icon(c, iconStar).FontSize(10).TextColor(star)
 				})
-				ui.Text(c, i18n.T("拖动以添加收藏")).FontSize(13).FontWeight(600).TextColor(text).Margin(5.75, 0, 0, 0).NoWrap()
-				ui.Text(c, i18n.T("收藏常用的文档，在每个空间都能一键打开")).FontSize(11).LineHeight(15.0/11).TextColor(text.Alpha(0.7)).
-					MaxWidth(150).Margin(3.5, 0, 0, 0).TextAlign(ui.Center)
+				ui.Text(c, i18n.T("拖动以添加收藏")).FontSize(13).FontWeight(600).TextColor(text).Margin(8, 0, 0, 0).NoWrap()
 			})
 			x := ui.Box(c.Key("card-close")).Absolute().Right(8).Top(8).Size(14, 14).Center().Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RoleButton).Label(i18n.T("关闭")).Tooltip(i18n.T("不再显示"))

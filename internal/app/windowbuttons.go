@@ -12,7 +12,7 @@ import (
 // and close in its own top bar instead of a separate KWin title row.
 
 const (
-	windowButtonsWidth = 3*30 + 2*4
+	windowButtonsWidth = 3*30 + 2*8
 	// captionBand is the height of the top band the buttons sit in.
 	captionBand = 46
 )
@@ -88,7 +88,7 @@ func windowButtons(c *ui.Context, win captionWindow) {
 	if win == nil || win.IsFullScreen() {
 		return
 	}
-	ui.Row(c.Key("window-controls")).Shrink(0).Gap(4).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("window-controls")).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 		caption := func(key string, icon *ui.SVG, label string, action func()) {
 			label = i18n.T(label)
 			if iconButton(c, key, icon, label, label, false).Shrink(0).Clicked() {

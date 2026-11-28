@@ -190,7 +190,7 @@ func (a *App) View(c *ui.Context) {
 					// library rail runs full height underneath without a seam.
 					bar := a.titleBar(c)
 					ui.Row(c.Key("library-brand")).Absolute().Top(0).Left(0).Height(max(bar.Height, mainBarHeight)).
-						Padding(0, 8, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().
+						Padding(0, 12, 0, bar.Left+12).AlignItems(ui.Center).DragWindow().
 						Children(func() { brand(c, "", true) })
 				}
 				return
@@ -339,13 +339,13 @@ func (a *App) resizerTip(c *ui.Context, h ui.Element, hint string) {
 		if text == ui.Transparent {
 			text = t.Background
 		}
-		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.25)).
-			Background(fill).TextColor(text).FontSize(t.FontSize-1).Shadow(0, 2, 8, 0, black.Alpha(0.2))
+		tip.MaxWidth(320).Padding(8, 12).Radius(controlRadius).
+			Background(fill).TextColor(text).FontSize(t.FontSize-1).Shadow(0, 8, 24, 0, floatShadow(t))
 		tip.Children(func() { ui.Text(c, hint) })
 		if a.prefs.SidebarLeft {
-			tip.AttachTo(h, ui.AnchorRight, ui.AnchorLeft).MarginStart(6)
+			tip.AttachTo(h, ui.AnchorRight, ui.AnchorLeft).MarginStart(8)
 		} else {
-			tip.AttachTo(h, ui.AnchorLeft, ui.AnchorRight).MarginEnd(6)
+			tip.AttachTo(h, ui.AnchorLeft, ui.AnchorRight).MarginEnd(8)
 		}
 		tip.Top(y - (r.Y + r.H/2))
 	})
@@ -528,7 +528,7 @@ func (a *App) peekSidebar(c *ui.Context) {
 		panel := ui.Column(c.Key("peek")).Absolute().Top(6).Width(a.sidebarW()).Height(h-12).
 			Radius(12).Background(a.look.opaqueTop()).Border(1, t.Border.Alpha(0.5)).
 			Draw(func(p *ui.Painter, r ui.Rect) { look.paint(p, r, 12, false) }).
-			Shadow(0, 10, 32, 0, black.Alpha(0.28)).Clip()
+			Shadow(0, 8, 24, 0, floatShadow(t)).Clip()
 		target := float32(0)
 		if a.peek {
 			target = 1
@@ -548,7 +548,6 @@ func (a *App) peekSidebar(c *ui.Context) {
 
 // main is the toolbar over the card holding the open document.
 func (a *App) main(c *ui.Context, docked float32) {
-	t := c.Theme()
 	main := ui.Row(c.Key("main")).Grow(1).MinWidth(0).AlignItems(ui.Stretch)
 	main.Children(func() {
 		a.qa.oneBotResizer(c, docked)
@@ -574,13 +573,13 @@ func (a *App) main(c *ui.Context, docked float32) {
 			right = 0
 		}
 
-		ui.Column(c).Grow(1).MinWidth(0).Padding(0, right, 8, left).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Padding(0, right, 12, left).Children(func() {
 			if a.split != nil && !(a.spaceForm.open && a.spaceForm.id == "") {
 				a.splitView(c)
 				return
 			}
 			a.toolbar(c, docked)
-			card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(panelRadius).Border(1, t.Border).Clip()
+			card := ui.Themed(c.Key("card"), documentTheme(a.paperDark)).Grow(1).MinHeight(0).Radius(panelRadius).Clip()
 			w, _ := c.Size()
 			a.splitDropTarget(c, card)
 			a.tourMark("bookmarks", card)
@@ -611,7 +610,7 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 		return
 	}
 	if d.loadErr != nil {
-		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
+		ui.Column(c).Grow(1).Center().Gap(16).Children(func() {
 			ui.Text(c, i18n.T("文档无法打开")).FontSize(20)
 			ui.Text(c, d.loadErr.Error()).TextColor(c.Theme().Danger).MaxWidth(460)
 			if ui.Button(c, i18n.T("重新载入")).Clicked() {
@@ -703,7 +702,9 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	if a.qa.shown > 0.5 {
 		right = 0 // the question panel's header holds the window buttons' room
 	}
-	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, mainBarHeight)).Padding(0, right+8, 0, left).Gap(2).AlignItems(ui.Center).DragWindow()
+	// Icon buttons sit edge to edge: each is 30 DIP around a 16 DIP glyph,
+	// so the glyphs keep their own room without gaps the title needs.
+	toolbar := ui.Row(c.Key("toolbar")).Height(max(bar.Height, mainBarHeight)).Padding(0, right+8, 0, left).Gap(0).AlignItems(ui.Center).DragWindow()
 	if a.prefs.SidebarLeft {
 		// Center the title over the entire page; the groups below own the
 		// caption reserves so those reserves cannot shift the title.
@@ -735,10 +736,9 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		if docked < 0.5 && toolbar.LayoutBounds().W >= 440 {
 			a.historyButtons(c)
 		}
-		ui.Box(c).Width(8)
 	}
+	// The address pads itself, so the groups need no spacers beside it.
 	actions := func() {
-		ui.Box(c).Width(4)
 		if !a.prefs.SidebarLeft {
 			showSidebar()
 		}
@@ -748,7 +748,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		// A narrow pane, as beside the library, keeps its room for the path.
 		if a.doc != nil && a.doc.loadErr == nil && !a.library.open && toolbar.LayoutBounds().W >= 560 {
 			a.documentCorner(c, a.doc)
-			ui.Box(c).Size(1, 14).Margin(0, 2).Background(separator(c.Theme())).Shrink(0)
+			ui.Box(c).Width(8).Shrink(0)
 		}
 		ask := iconButton(c, "ask", iconAsk, i18n.T("OneBot"), a.withKey(i18n.T("向当前空间提问"), "ask"), a.state.ActiveSpace() == nil).Shrink(0)
 		if a.qa.open {
@@ -769,13 +769,13 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	}
 	toolbar.Children(func() {
 		if a.prefs.SidebarLeft {
-			start := ui.Row(c.Key("toolbar-start")).Shrink(0).Gap(2).AlignItems(ui.Center).PaddingStart(left).Children(leading)
+			start := ui.Row(c.Key("toolbar-start")).Shrink(0).Gap(0).AlignItems(ui.Center).PaddingStart(left).Children(leading)
 			// The page already has an 8-DIP outer inset; beside the question
 			// panel the toolbar supplies that inset itself.
 			if a.qa.shown > 0.5 {
 				right += 8
 			}
-			end := ui.Row(c.Key("toolbar-end")).Shrink(0).Gap(2).AlignItems(ui.Center).PaddingEnd(right).MarginStart(ui.Auto).Children(actions)
+			end := ui.Row(c.Key("toolbar-end")).Shrink(0).Gap(0).AlignItems(ui.Center).PaddingEnd(right).MarginStart(ui.Auto).Children(actions)
 			centeredTitle(c, toolbar, start, end, func() { a.address(c) })
 			return
 		}
@@ -860,10 +860,10 @@ func (a *App) address(c *ui.Context) {
 		saveStatus := func() {
 			if status != "" {
 				ui.Text(c, status).FontSize(11).FontWeight(500).TextColor(color).
-					Background(pill).Radius(4).Padding(1, 5).NoWrap().Tooltip(errText(a.doc.saveErr))
+					Background(pill).Radius(8).Padding(4, 8).NoWrap().Tooltip(errText(a.doc.saveErr))
 			}
 		}
-		ui.Column(c).MinWidth(0).Shrink(1).Gap(1).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).MinWidth(0).Shrink(1).Gap(4).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, path.Base(a.doc.rel)).FontSize(15).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).Tooltip(a.doc.shownPath())
 			breadcrumb := a.doc.space.Name
 			if dir := path.Dir(a.doc.rel); dir != "." {
@@ -872,7 +872,7 @@ func (a *App) address(c *ui.Context) {
 			if a.prefs.SidebarLeft {
 				// Save status shares the breadcrumb line so it cannot shift
 				// the document name away from the page's center.
-				ui.Row(c).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, breadcrumb).FontSize(11.5).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
 					saveStatus()
 				})
@@ -943,10 +943,10 @@ func (a *App) emptyState(c *ui.Context) {
 func (a *App) emptyStateFor(c *ui.Context, activate func()) {
 	t := c.Theme()
 	sp := a.state.ActiveSpace()
-	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(12).Children(func() {
-		ui.Scroll(c.Key("space-home")).WidthPercent(100).MaxWidth(440).MinHeight(0).Shrink(1).Padding(8).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(20).Children(func() {
+		ui.Scroll(c.Key("space-home")).WidthPercent(100).MaxWidth(440).MinHeight(0).Shrink(1).Padding(12).Gap(20).AlignItems(ui.Center).Children(func() {
 			if sp != nil {
-				ui.Row(c).WidthPercent(100).Justify(ui.Center).AlignItems(ui.Center).Gap(12).Children(func() {
+				ui.Row(c).WidthPercent(100).Justify(ui.Center).AlignItems(ui.Center).Gap(20).Children(func() {
 					a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 34, t.Accent)
 					ui.Text(c, sp.Name).FontSize(24).FontWeight(600).SingleLine().MinWidth(0)
 				})
@@ -956,14 +956,10 @@ func (a *App) emptyStateFor(c *ui.Context, activate func()) {
 				ui.Text(c, i18n.T("读取空间文件夹失败")+" "+a.treeErr.Error()).TextColor(t.Danger).MaxWidth(420).TextAlign(ui.Center)
 			case a.treeLoading && len(a.docs) == 0:
 				ui.Text(c, i18n.T("正在读取空间文件夹")).TextColor(t.TextMuted).TextAlign(ui.Center)
-			case sp.IsExternal() && len(a.docs) == 0:
-				ui.Text(c, i18n.T("打开的外部文档会显示在这里，文件保留在原位置")).TextColor(t.TextMuted).MaxWidth(360).TextAlign(ui.Center)
-			case len(a.docs) == 0:
+			case len(a.docs) == 0 && !sp.IsExternal():
 				ui.Text(c, i18n.T("此空间暂无文档")).TextColor(t.TextMuted).TextAlign(ui.Center)
-			default:
-				ui.Text(c, i18n.T("从侧边栏选择文档，或搜索空间内容")).TextColor(t.TextMuted).TextAlign(ui.Center)
 			}
-			ui.Row(c).WidthPercent(100).Justify(ui.Center).Gap(8).Wrap().Children(func() {
+			ui.Row(c).WidthPercent(100).Justify(ui.Center).Gap(12).Wrap().Children(func() {
 				if sp.IsExternal() {
 					if ui.PrimaryButton(c.Key("empty-open"), i18n.T("打开文件")).Clicked() {
 						activate()
@@ -992,11 +988,10 @@ func (a *App) emptyStateFor(c *ui.Context, activate func()) {
 				return
 			}
 			if recent := a.recentPlaces(3, sp.ID); len(recent) > 0 {
-				ui.Box(c).WidthPercent(100).Height(1).Margin(0, 0, 2, 0).Background(separator(t))
 				ui.Text(c, i18n.T("最近打开")).WidthPercent(100).FontSize(13).FontWeight(600).TextColor(t.TextMuted)
-				ui.Column(c).WidthPercent(100).Gap(2).Children(func() {
+				ui.Column(c).WidthPercent(100).Gap(4).Children(func() {
 					for _, entry := range recent {
-						button := ui.ButtonBase(c.Key(entry.rel)).Height(34).PaddingX(8).Gap(10).AlignItems(ui.Center).Radius(controlRadius).Label(i18n.T("继续打开：") + entry.rel).Tooltip(entry.rel)
+						button := ui.ButtonBase(c.Key(entry.rel)).Height(34).PaddingX(12).Gap(16).AlignItems(ui.Center).Radius(controlRadius).Label(i18n.T("继续打开：") + entry.rel).Tooltip(entry.rel)
 						if button.Hovered() {
 							button.Background(hoverFill(t))
 						}

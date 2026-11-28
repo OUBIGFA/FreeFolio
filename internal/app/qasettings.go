@@ -14,11 +14,11 @@ import (
 // settingsAI owns native provider configuration and persistent model choices.
 func (ob *qaState) settingsAI(c *ui.Context) {
 	t := c.Theme()
-	settingsHeading(c, "OneBot", i18n.T("对话、写作与文档编辑；配置供应商并勾选需要使用的模型"))
+	settingsHeading(c, "OneBot")
 	conn := ob.host.preferences().AI.Current()
 
 	settingsGroup(c, "provider-group", func() {
-		ui.Row(c.Key("provider-actions")).Padding(10, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+		ui.Row(c.Key("provider-actions")).Padding(16, 0).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 			selectorLabel := i18n.T("选择供应商")
 			if conn != nil && strings.TrimSpace(conn.Name) != "" {
 				selectorLabel = conn.Name
@@ -57,9 +57,8 @@ func (ob *qaState) settingsAI(c *ui.Context) {
 		conn = ob.host.preferences().AI.Current()
 		if conn == nil {
 			settingsSeparator(c)
-			ui.Column(c.Key("provider-empty")).Padding(20, 16).Gap(4).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, i18n.T("请先添加供应商")).FontSize(13.5).FontWeight(500).TextColor(t.Text)
-				ui.Text(c, i18n.T("点击上方「添加供应商」或从「常用服务」快速创建")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
+			ui.Column(c.Key("provider-empty")).Padding(32, 0).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, i18n.T("请先添加供应商")).FontSize(14).TextColor(t.Text)
 			})
 		}
 	})
@@ -85,7 +84,7 @@ func (ob *qaState) settingsAIModelsTab(c *ui.Context, conn *prefs.AIConnection) 
 	t := c.Theme()
 	settingsSection(c, i18n.T("模型列表"))
 	settingsGroup(c, "models-group", func() {
-		ui.Row(c.Key("models")).Padding(12, 12, 8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("models")).Padding(20, 0, 12, 0).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c.Key("search"), &ob.modelSearch).Grow(1).Placeholder(i18n.T("搜索模型")).Label(i18n.T("搜索模型"))
 			label := i18n.T("获取模型")
 			if ob.modelsBusy {
@@ -98,7 +97,7 @@ func (ob *qaState) settingsAIModelsTab(c *ui.Context, conn *prefs.AIConnection) 
 				ob.cancelModelFetch()
 			}
 		})
-		ui.Row(c.Key("model-actions")).Padding(0, 12, 10, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+		ui.Row(c.Key("model-actions")).Padding(0, 0, 16, 0).Gap(12).AlignItems(ui.Center).Wrap().Children(func() {
 			ui.Text(c, ob.modelsNote()).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(100)
 			if ui.Button(c.Key("all"), i18n.T("全选")).Clicked() {
 				for i := range conn.Models {
@@ -143,14 +142,14 @@ func (ob *qaState) settingsAIModelsTab(c *ui.Context, conn *prefs.AIConnection) 
 			if len(conn.Models) > 0 {
 				msg = i18n.T("没有匹配的模型")
 			}
-			ui.Text(c, msg).FontSize(12.5).TextColor(t.TextMuted).Padding(14, 12)
+			ui.Text(c, msg).FontSize(12.5).TextColor(t.TextMuted).Padding(20, 0)
 		} else {
 			ui.List(c.Key("model-list"), &ob.modelsList, len(visible)).Height(min(280, max(44, float32(len(visible))*38+8))).
-				Padding(4, 8).ItemKey(func(i int) any { return conn.Models[visible[i]].ID }).Rows(func(row ui.ListRow) {
+				Padding(8, 12).ItemKey(func(i int) any { return conn.Models[visible[i]].ID }).Rows(func(row ui.ListRow) {
 				idx := visible[row.Index]
 				model := &conn.Models[idx]
 				c := row.Context
-				item := ui.Row(c.Key(model.ID)).Height(36).Padding(0, 6).Radius(controlRadius).Gap(8).AlignItems(ui.Center)
+				item := ui.Row(c.Key(model.ID)).Height(36).Padding(0, 8).Radius(controlRadius).Gap(12).AlignItems(ui.Center)
 				if item.Hovered() {
 					item.Background(hoverFill(t))
 				}
@@ -196,8 +195,8 @@ func (ob *qaState) settingsAIModelsTab(c *ui.Context, conn *prefs.AIConnection) 
 			return
 		}
 		settingsSeparator(c)
-		ui.Row(c.Key("manual")).Padding(10, 12).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, i18n.T("手动添加模型")).FontSize(13).FontWeight(500).Width(84).Shrink(0)
+		ui.Row(c.Key("manual")).Padding(16, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, i18n.T("手动添加模型")).FontSize(14).Width(84).Shrink(0)
 			in := ui.TextInput(c.Key("field"), &ob.manualName).Grow(1).Placeholder(i18n.T("输入模型名称")).Label(i18n.T("输入模型名称"))
 			if in.Submitted() {
 				ob.addManualAIModel()
@@ -277,9 +276,9 @@ func (ob *qaState) settingsAIParamsTab(c *ui.Context, conn *prefs.AIConnection) 
 func (ob *qaState) settingsAIProviderTab(c *ui.Context, conn *prefs.AIConnection) {
 	t := c.Theme()
 	formRow := func(key, label string, fn func()) {
-		ui.Row(c.Key(key)).Padding(settingsRowInset(c), 12).Gap(12).AlignItems(ui.Center).MinHeight(46).Children(func() {
-			ui.Text(c, i18n.T(label)).FontSize(13).FontWeight(500).Width(84).Shrink(0)
-			ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(fn)
+		ui.Row(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(20).AlignItems(ui.Center).MinHeight(46).Children(func() {
+			ui.Text(c, i18n.T(label)).FontSize(14).Width(84).Shrink(0)
+			ui.Row(c).Grow(1).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(fn)
 		})
 	}
 	settingsSection(c, i18n.T("供应商与连接"))
@@ -314,7 +313,7 @@ func (ob *qaState) settingsAIProviderTab(c *ui.Context, conn *prefs.AIConnection
 			}
 		})
 		if conn.Protocol == agent.Media {
-			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 8, 12)
+			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话")).FontSize(12).TextColor(t.TextMuted).Padding(0, 0, 12, 0)
 		}
 		settingsSeparator(c)
 		formRow("address", "服务地址", func() {
@@ -417,7 +416,7 @@ func (ob *qaState) settingsAIProviderTab(c *ui.Context, conn *prefs.AIConnection
 				if key != "" {
 					name = fmt.Sprintf(i18n.T("Key %d 测试失败："), i+1)
 				}
-				ui.Text(c.Key(fmt.Sprintf("key-test-err-%d", i)), name+qaErrorText(r.err)).FontSize(12).TextColor(t.Danger).Padding(0, 12, 10, 12)
+				ui.Text(c.Key(fmt.Sprintf("key-test-err-%d", i)), name+qaErrorText(r.err)).FontSize(12).TextColor(t.Danger).Padding(0, 0, 16, 0)
 			}
 		}
 		if len(ob.keys) > 1 {
@@ -438,10 +437,10 @@ func (ob *qaState) settingsAIProviderTab(c *ui.Context, conn *prefs.AIConnection
 				agent.KeyFailover:   "总是先用第一个 Key，失败时再依次换用后面的 Key",
 			}[conn.KeyStrategy]
 			ui.Text(c, i18n.T(note)+"；"+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试")).
-				FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+				FontSize(12).TextColor(t.TextMuted).Padding(0, 0, 16, 0)
 		}
 		if ob.keyErr != nil {
-			ui.Text(c, i18n.T("无法读取 API Key：")+ob.keyErr.Error()).FontSize(12).TextColor(t.Danger).Padding(0, 12, 10, 12)
+			ui.Text(c, i18n.T("无法读取 API Key：")+ob.keyErr.Error()).FontSize(12).TextColor(t.Danger).Padding(0, 0, 16, 0)
 		}
 	})
 }
@@ -492,9 +491,9 @@ func oneBotProtocolLabel(protocol string) string {
 
 func (ob *qaState) modelCapabilitiesView(c *ui.Context, m *agent.ModelInfo) {
 	t := c.Theme()
-	ui.Column(c.Key("model-capabilities")).Gap(8).Margin(4, 16, 12, 16).Padding(12, 14).Radius(8).
-		Background(t.Text.Alpha(0.025)).Border(1, t.Border.Alpha(0.6)).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c.Key("model-capabilities")).Gap(12).Margin(8, 24, 20, 24).Padding(20, 20).Radius(8).
+		Background(t.Text.Alpha(0.025)).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.ID).FontSize(13).FontWeight(600).Grow(1).SingleLine()
 			if m.Source != "" || m.Updated != "" {
 				ui.Text(c, strings.TrimSpace(i18n.T("能力来源：")+m.Source+" "+m.Updated)).FontSize(11.5).TextColor(t.TextMuted).NoWrap()
@@ -506,7 +505,7 @@ func (ob *qaState) modelCapabilitiesView(c *ui.Context, m *agent.ModelInfo) {
 			value *agent.Support
 		}{{"工具调用", &m.Capabilities.Tools}, {"推理", &m.Capabilities.Reasoning}, {"温度参数", &m.Capabilities.Temperature}, {"结构化输出", &m.Capabilities.StructuredOutput}} {
 			item := item
-			ui.Row(c.Key(item.name)).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(item.name)).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T(item.name)).FontSize(12.5).Grow(1)
 				value := string(*item.value)
 				if ui.Combobox(c.Key("field"), &value, []string{"", "yes", "no"}).Width(140).Placeholder(i18n.T("未知")).Changed() {
@@ -520,7 +519,7 @@ func (ob *qaState) modelCapabilitiesView(c *ui.Context, m *agent.ModelInfo) {
 			value *[]string
 		}{{"输入模态", &m.Capabilities.Input}, {"输出模态", &m.Capabilities.Output}, {"可用推理强度", &m.Capabilities.Efforts}} {
 			item := item
-			ui.Row(c.Key(item.name)).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(item.name)).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T(item.name)).FontSize(12.5).Grow(1)
 				value := strings.Join(*item.value, ", ")
 				if ui.TextInput(c.Key("field"), &value).Width(240).Placeholder("text, image, pdf").Changed() {
@@ -540,7 +539,7 @@ func (ob *qaState) modelCapabilitiesView(c *ui.Context, m *agent.ModelInfo) {
 			value *int
 		}{{"上下文上限", &m.Capabilities.Context}, {"最大输出", &m.Capabilities.MaxOutput}} {
 			item := item
-			ui.Row(c.Key(item.name)).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(item.name)).Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T(item.name)).FontSize(12.5).Grow(1)
 				v := float64(*item.value)
 				if ui.NumberInput(c.Key("field"), &v, 0, 10000000, 1024).Width(150).Changed() {

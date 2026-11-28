@@ -12,10 +12,58 @@ import (
 // Design tokens. Colors come from the window's theme and the active
 // space's look; nothing else in the package names a color.
 
+// Radii follow the visual-design scale (8–40): controls take the small
+// end, panels the middle and floating dialogs the large end.
 const (
-	controlRadius = 6
-	panelRadius   = 10
+	controlRadius = 8
+	panelRadius   = 16
+	dialogRadius  = 24
 )
+
+// grid4 rounds a length computed from the window down to the 4px grid every
+// spacing of the chrome sits on.
+func grid4(v float32) float32 { return float32(math.Floor(float64(v)/4) * 4) }
+
+// revealOnIntent shows a row's secondary actions only while the pointer is
+// on the row or the keyboard focus is inside it, fading them in and out.
+// They stay in the layout and in the focus order, so Tab reaches them and
+// brings them into view.
+func revealOnIntent(row, actions ui.Element) {
+	actions.Opacity(row.Animate("reveal", b2f(row.Hovered() || row.FocusWithin()), 150*time.Millisecond))
+}
+
+// chromeSpacing is MyGo's spacing unit on the chrome. It stays MyGo's 4:
+// MyGo sizes its controls (check boxes, sliders, color pickers, table rows)
+// in this unit too, so raising it would grow the controls rather than the
+// room around them. The 1.5x whitespace lives in FreeFolio's own paddings
+// and gaps (docs/ui-design.md).
+const chromeSpacing = 4
+
+// floatShadow is the one shadow the chrome uses, under what floats over the
+// window (menus, popovers, dialogs, dragged rows); cards in place have none.
+func floatShadow(t *ui.Theme) ui.Color {
+	return pick(t, black.Alpha(0.10), black.Alpha(0.40))
+}
+
+// neutralTheme is MyGo's light or dark theme with its zinc tints taken out:
+// pure grays, primary ink #181818 and secondary ink #6A6A6A on light, and
+// the same contrast turned over on dark.
+func neutralTheme(dark bool) *ui.Theme {
+	if dark {
+		t := ui.DarkTheme()
+		t.Background, t.Surface = ui.Hex("#161616"), ui.Hex("#232323")
+		t.SurfaceHover, t.SurfacePressed = ui.Hex("#2E2E2E"), ui.Hex("#383838")
+		t.Border = ui.Hex("#3A3A3A")
+		t.Text, t.TextMuted = ui.Hex("#EDEDED"), ui.Hex("#A0A0A0")
+		return t
+	}
+	t := ui.LightTheme()
+	t.Background, t.Surface = ui.Hex("#F5F5F5"), ui.Hex("#FFFFFF")
+	t.SurfaceHover, t.SurfacePressed = ui.Hex("#EBEBEB"), ui.Hex("#E0E0E0")
+	t.Border = ui.Hex("#D6D6D6")
+	t.Text, t.TextMuted = ui.Hex("#181818"), ui.Hex("#6A6A6A")
+	return t
+}
 
 var (
 	white = ui.RGB(255, 255, 255)
@@ -28,169 +76,45 @@ func splitDropColors(t *ui.Theme) (ui.Color, ui.Color) {
 	return t.Accent.Alpha(0.18), t.Accent.Alpha(0.7)
 }
 
-// quickModalPalette holds the Lumno / Petrichor QuickAsk floating bar tokens
-// (large 26px radius, soft layered elevation, pastel blue active row #E4EDFA,
-// quickModalPalette holds the frosted-glass color tokens for the Spotlight /
-// QuickAsk-style floating creation bar (translucent frosted glass over
-// backdrop blur, luminous rim, soft active pill, inline tags, and <kbd> footer).
+// quickModalPalette holds the colors of the floating creation bar
+// (newmodal.go): an opaque neutral sheet, neutral ink, the accent only on
+// the default kind's icon and the chip naming where it creates.
 type quickModalPalette struct {
-	backdrop     ui.Color
-	surfaceTop   ui.Color
-	surfaceBot   ui.Color
-	sheenTop     ui.Color
-	sheenBot     ui.Color
-	rimTop       ui.Color
-	rimMid       ui.Color
-	rimBot       ui.Color
-	outerBorder  ui.Color
-	shadow       ui.Color
-	text         ui.Color
-	muted        ui.Color
-	subtle       ui.Color
-	line         ui.Color
-	rowActive    ui.Color
-	iconActiveBg ui.Color
-	accent       ui.Color
-	chipBg       ui.Color
-	chipMarkBg   ui.Color
-	chipMarkInk  ui.Color
-	tagBg        ui.Color
-	tagText      ui.Color
-	tagBlueBg    ui.Color
-	tagBlueText  ui.Color
-	tagAmberBg   ui.Color
-	tagAmberText ui.Color
-	actionBg     ui.Color
-	actionText   ui.Color
-	kbdBg        ui.Color
-	kbdBorder    ui.Color
-	kbdShadow    ui.Color
+	backdrop, surface, outerBorder, shadow  ui.Color
+	text, muted, rowActive                  ui.Color
+	accent, chipBg, chipMarkBg, chipMarkInk ui.Color
 }
 
-func quickModalColors(dark bool) quickModalPalette {
+func quickModalColors(dark bool, accent ui.Color) quickModalPalette {
+	t := neutralTheme(dark)
+	pal := quickModalPalette{
+		backdrop: black.Alpha(0.12), surface: t.Surface, outerBorder: t.Border, shadow: black.Alpha(0.10),
+		text: t.Text, muted: t.TextMuted, rowActive: t.SurfaceHover,
+		accent: accent, chipBg: t.SurfaceHover, chipMarkBg: t.SurfacePressed, chipMarkInk: t.Text,
+	}
 	if dark {
-		return quickModalPalette{
-			backdrop:     black.Alpha(0.28),
-			surfaceTop:   ui.RGBA(34, 36, 42, 0.78),
-			surfaceBot:   ui.RGBA(24, 26, 31, 0.72),
-			sheenTop:     white.Alpha(0.10),
-			sheenBot:     white.Alpha(0.02),
-			rimTop:       white.Alpha(0.24),
-			rimMid:       white.Alpha(0.08),
-			rimBot:       white.Alpha(0.14),
-			outerBorder:  white.Alpha(0.14),
-			shadow:       black.Alpha(0.52),
-			text:         ui.Hex("#F3F4F6"),
-			muted:        ui.Hex("#9CA3AF"),
-			subtle:       ui.Hex("#B4B9C3"),
-			line:         white.Alpha(0.10),
-			rowActive:    ui.RGBA(110, 160, 245, 0.22),
-			iconActiveBg: white.Alpha(0.12),
-			accent:       ui.Hex("#7AA7FF"),
-			chipBg:       ui.Hex("#7AA7FF").Alpha(0.16),
-			chipMarkBg:   ui.Hex("#7AA7FF").Alpha(0.22),
-			chipMarkInk:  ui.Hex("#DBEAFE"),
-			tagBg:        white.Alpha(0.08),
-			tagText:      ui.Hex("#B4B9C3"),
-			tagBlueBg:    ui.Hex("#7AA7FF").Alpha(0.18),
-			tagBlueText:  ui.Hex("#93C5FD"),
-			tagAmberBg:   ui.RGBA(217, 119, 6, 0.20),
-			tagAmberText: ui.Hex("#FBBF24"),
-			actionBg:     ui.Hex("#7AA7FF").Alpha(0.22),
-			actionText:   ui.Hex("#F3F4F6"),
-			kbdBg:        white.Alpha(0.09),
-			kbdBorder:    white.Alpha(0.14),
-			kbdShadow:    black.Alpha(0.32),
-		}
+		pal.backdrop, pal.shadow = black.Alpha(0.36), black.Alpha(0.40)
 	}
-	return quickModalPalette{
-		backdrop:     ui.RGBA(15, 23, 42, 0.06),
-		surfaceTop:   white.Alpha(0.76),
-		surfaceBot:   white.Alpha(0.66),
-		sheenTop:     white.Alpha(0.42),
-		sheenBot:     white.Alpha(0.12),
-		rimTop:       white.Alpha(0.95),
-		rimMid:       black.Alpha(0.09),
-		rimBot:       white.Alpha(0.72),
-		outerBorder:  black.Alpha(0.10),
-		shadow:       ui.RGBA(15, 23, 42, 0.18),
-		text:         ui.Hex("#111827"),
-		muted:        ui.Hex("#6B7280"),
-		subtle:       ui.Hex("#4B5563"),
-		line:         black.Alpha(0.08),
-		rowActive:    ui.RGBA(37, 99, 235, 0.12),
-		iconActiveBg: white.Alpha(0.86),
-		accent:       ui.Hex("#2563EB"),
-		chipBg:       ui.Hex("#2563EB").Alpha(0.10),
-		chipMarkBg:   ui.Hex("#2563EB").Alpha(0.14),
-		chipMarkInk:  ui.Hex("#1D4ED8"),
-		tagBg:        black.Alpha(0.055),
-		tagText:      ui.Hex("#4B5563"),
-		tagBlueBg:    ui.RGBA(37, 99, 235, 0.11),
-		tagBlueText:  ui.Hex("#1D4ED8"),
-		tagAmberBg:   ui.RGBA(217, 119, 6, 0.13),
-		tagAmberText: ui.Hex("#B45309"),
-		actionBg:     ui.Hex("#2563EB").Alpha(0.14),
-		actionText:   ui.Hex("#111827"),
-		kbdBg:        white.Alpha(0.62),
-		kbdBorder:    black.Alpha(0.11),
-		kbdShadow:    ui.RGBA(15, 23, 42, 0.08),
-	}
-}
-
-func quickModalRimGradient(pal quickModalPalette) ui.LinearGradient {
-	return ui.LinearGradient{
-		Angle: 145,
-		Stops: []ui.GradientStop{
-			{Color: pal.rimTop, At: 0},
-			{Color: pal.rimMid, At: 0.48},
-			{Color: pal.rimBot, At: 1},
-		},
-	}
-}
-
-func paintQuickModalGlass(p *ui.Painter, r ui.Rect, radius float32, pal quickModalPalette) {
-	// Frosted translucent base over the uiglass.Blur backdrop.
-	p.FillGradient(r, ui.LinearGradient{
-		Angle: 165,
-		Stops: []ui.GradientStop{
-			{Color: pal.surfaceTop, At: 0},
-			{Color: pal.surfaceBot, At: 1},
-		},
-	}, radius)
-	// Diagonal specular glass sheen.
-	p.FillGradient(r, ui.LinearGradient{
-		Angle: 135,
-		Stops: []ui.GradientStop{
-			{Color: pal.sheenTop, At: 0},
-			{Color: ui.Transparent, At: 0.48},
-			{Color: pal.sheenBot, At: 1},
-		},
-	}, radius)
-	// Hairline outer definition stroke so the glass silhouette separates cleanly.
-	p.Stroke(r, pal.outerBorder, radius, 1)
+	return pal
 }
 
 // spaceEditorSurface is the face of the space's pickers: the window's
 // own background, ink and hairline.
-func spaceEditorSurface(dark bool) (ui.LinearGradient, ui.Color, ui.Color) {
-	t := ui.LightTheme()
-	if dark {
-		t = ui.DarkTheme()
-	}
-	return ui.LinearGradient{Angle: 180, From: t.Background, To: t.Background}, t.Text, t.Border
+func spaceEditorSurface(dark bool) (ui.Color, ui.Color, ui.Color) {
+	t := neutralTheme(dark)
+	return t.Surface, t.Text, t.Border
 }
 
 // spaceTheme is the window's chrome: MyGo's own light or dark theme, as
 // the system appearance is, with the space's accent. The document's card
 // uses its own paper theme (documentTheme).
 func spaceTheme(base *ui.Theme, l spaceLook) *ui.Theme {
-	t := mixThemes(ui.LightTheme(), ui.DarkTheme(), l.darkness)
+	t := mixThemes(neutralTheme(false), neutralTheme(true), l.darkness)
 	t.Dark = l.Dark
-	t.Font, t.FontSize, t.Spacing, t.ScrollbarWidth = base.Font, base.FontSize, base.Spacing, base.ScrollbarWidth
+	t.Font, t.FontSize, t.ScrollbarWidth = base.Font, base.FontSize, base.ScrollbarWidth
+	t.Spacing = chromeSpacing
 	t.Text, t.TextMuted = l.text, l.muted
 	t.Background = l.opaqueTop()
-	t.Surface = mixColor(white, ui.DarkTheme().Surface, l.darkness)
 	acc := l.accent
 	t.Accent = acc
 	t.AccentText = white
@@ -313,12 +237,7 @@ type spaceLook struct {
 }
 
 // chromeFill is the window's chrome behind the paper.
-func chromeFill(dark bool) ui.Color {
-	if dark {
-		return ui.Hex("#17191C")
-	}
-	return ui.Hex("#F0F2F4")
-}
+func chromeFill(dark bool) ui.Color { return neutralTheme(dark).Background }
 
 // spaceAccent turns a space's color into an accent that reads on the
 // native chrome: its hue and some of its chroma kept at one OKLCH
@@ -361,16 +280,18 @@ func oklchOf(hex string) (chroma, hue float32) {
 func lookOf(t space.Theme, systemDark bool) spaceLook {
 	l := spaceLook{Look: t.Look(systemDark), systemDark: systemDark}
 	l.Dark, l.Solid, l.Noise = systemDark, false, 0
-	native := ui.LightTheme()
+	native := neutralTheme(systemDark)
 	if systemDark {
-		native, l.darkness = ui.DarkTheme(), 1
+		l.darkness = 1
 	}
 	fill := chromeFill(systemDark)
 	l.stops = []ui.Color{fill, fill}
-	// MyGo's muted ink, a touch darker on light chrome to keep 4.5:1.
 	l.text, l.muted = native.Text, native.TextMuted
 	if !systemDark {
-		l.muted = native.TextMuted.Mix(native.Text, 0.3)
+		// #6A6A6A keeps 4.5:1 on white surfaces but not on the gray chrome
+		// under a selected row's accent tint, so the chrome's secondary ink
+		// is a step darker there.
+		l.muted = ui.Hex("#666666")
 	}
 	l.accent = spaceAccent(space.ThemeOf(&space.Space{Theme: &t}).Colors[0], systemDark)
 	return l
@@ -395,7 +316,7 @@ func docIconColors(t *ui.Theme, title string) (ink, fill ui.Color) {
 // previewLook are the colors of the card a folder or a document shows
 // under the pointer (preview.go).
 type previewLook struct {
-	fill, title, muted, row, hairline, outline, rim, shadow ui.Color
+	fill, title, muted, row, hairline, outline, rim ui.Color
 }
 
 // previewColors are the card's colors in the space's look: the face of the
@@ -408,13 +329,13 @@ func previewColors(t *ui.Theme, l spaceLook) previewLook {
 		return previewLook{
 			fill: face.Mix(black, 0.25), title: t.Text, muted: t.TextMuted,
 			row: white.Alpha(0.08), hairline: white.Alpha(0.1),
-			outline: black.Alpha(0.4), rim: white.Alpha(0.12), shadow: black.Alpha(0.35),
+			outline: black.Alpha(0.4), rim: white.Alpha(0.12),
 		}
 	}
 	return previewLook{
 		fill: face.Mix(white, 0.72), title: t.Text, muted: t.TextMuted,
 		row: black.Alpha(0.05), hairline: black.Alpha(0.08),
-		outline: black.Alpha(0.12), rim: white.Alpha(0.7), shadow: black.Alpha(0.16),
+		outline: black.Alpha(0.12), rim: white.Alpha(0.7),
 	}
 }
 
@@ -429,11 +350,6 @@ func favoriteFill(t *ui.Theme, open, hovered bool) ui.Color {
 		return pick(t, black.Alpha(0.09), white.Alpha(0.15))
 	}
 	return pick(t, black.Alpha(0.045), white.Alpha(0.08))
-}
-
-// favoriteRim separates the selected tile from the surrounding sidebar.
-func favoriteRim(t *ui.Theme) ui.Color {
-	return pick(t, black.Alpha(0.17), white.Alpha(0.14))
 }
 
 // dragCardLook are the colors of a sidebar row lifted on its floating card
@@ -478,11 +394,6 @@ func scaleAlpha(c ui.Color, f float32) ui.Color {
 // field is the fill of the address field.
 func field(t *ui.Theme) ui.Color {
 	return pick(t, white.Alpha(0.45), white.Alpha(0.08))
-}
-
-// cardShadow is the shadow under the content card.
-func cardShadow(t *ui.Theme) ui.Color {
-	return pick(t, black.Alpha(0.10), black.Alpha(0.35))
 }
 
 // documentTheme is the writing surface: white paper, or, while the system
@@ -693,10 +604,10 @@ func darkPageStyle() editor.Page {
 }
 
 // bannerLook are the colors of the update banners above the spaces
-// (updateview.go), after Cra's BannerPalette.
+// (updateview.go): a flat neutral sheet with neutral ink; the space's accent
+// marks only the badge and the icons of what can be done.
 type bannerLook struct {
-	// fill and hover grade from the card's top-left to its bottom-right.
-	fill, hover                [2]ui.Color
+	fill, hover                ui.Color
 	border, divider            ui.Color
 	title, secondary, tertiary ui.Color
 	badgeFill, badgeInk        ui.Color
@@ -705,109 +616,26 @@ type bannerLook struct {
 	tileHover                  ui.Color
 }
 
-// bannerColors builds light and dark palettes for the sidebar update card
-// from the active space's accent color, capping light-theme brightness so
-// semantic badges and text retain crisp contrast on translucent cards.
 func bannerColors(l spaceLook) bannerLook {
-	h, s, v := space.HSB(0.55, 0.45, 0.75) // a purple, for a space without one
-	if space.ValidHex(l.Look.Accent) {
-		h, s, v = space.HSB(space.Components(l.Look.Accent))
-	}
-	hsb := func(s, v float64, a float32) ui.Color {
-		r, g, b := space.FromHSB(h, min(max(s, 0), 1), min(max(v, 0), 1))
-		return ui.RGBA(uint8(math.Round(r*255)), uint8(math.Round(g*255)), uint8(math.Round(b*255)), a)
-	}
-	lin := func(x float64) float64 {
-		if x <= 0.04045 {
-			return x / 12.92
-		}
-		return math.Pow((x+0.055)/1.055, 2.4)
-	}
-	iconLum := func(v float64) float64 {
-		r, g, b := space.FromHSB(h, min(s*0.89, 1), min(v*0.913, 1))
-		return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
-	}
-	dark := l.Dark
-	if !dark && iconLum(v) > 0.21 {
-		lo, hi := 0.0, v
-		for range 20 {
-			m := (lo + hi) / 2
-			if iconLum(m) > 0.21 {
-				hi = m
-			} else {
-				lo = m
-			}
-		}
-		v = lo
-	}
-	if dark {
-		accent := hsb(s*0.55, 0.95, 1)
-		readyInk := ui.RGB(0x34, 0xD3, 0x99)
-		return bannerLook{
-			fill:      [2]ui.Color{white.Alpha(0.11), white.Alpha(0.06)},
-			hover:     [2]ui.Color{white.Alpha(0.15), white.Alpha(0.1)},
-			border:    white.Alpha(0.14),
-			divider:   white.Alpha(0.1),
-			title:     l.text,
-			secondary: l.text.Alpha(0.72),
-			tertiary:  l.text.Alpha(0.45),
-			badgeFill: accent.Alpha(0.18),
-			badgeInk:  accent,
-			readyFill: readyInk.Alpha(0.18),
-			readyInk:  readyInk,
-			icon:      accent,
-			hoverIcon: hsb(s*0.4, 1, 1),
-			tileHover: white.Alpha(0.08),
-		}
-	}
-	ink := hsb(s*1.2, 0.216, 1)
-	accent := hsb(s*0.9, min(1, max(v, 0.55)*1.04), 1)
-	readyInk := ui.RGB(0x05, 0x96, 0x69)
+	t := neutralTheme(l.Dark)
 	return bannerLook{
-		fill:      [2]ui.Color{white.Alpha(0.94), white.Alpha(0.68)},
-		hover:     [2]ui.Color{white.Alpha(0.98), white.Alpha(0.78)},
-		border:    ink.Alpha(0.1),
-		divider:   ink.Alpha(0.08),
-		title:     ink,
-		secondary: ink.Alpha(0.72),
-		tertiary:  ink.Alpha(0.42),
-		badgeFill: accent.Alpha(0.14),
-		badgeInk:  accent,
-		readyFill: readyInk.Alpha(0.12),
-		readyInk:  readyInk,
-		icon:      hsb(s*0.89, v*0.913, 1),
-		hoverIcon: hsb(s*1.28, v*0.78, 1),
-		tileHover: black.Alpha(0.05),
+		fill: t.Surface, hover: t.SurfaceHover,
+		border: t.Border, divider: t.Border,
+		title: l.text, secondary: l.muted, tertiary: l.muted,
+		badgeFill: l.accent.Alpha(0.12), badgeInk: l.accent,
+		readyFill: l.accent.Alpha(0.12), readyInk: l.accent,
+		icon: l.accent, hoverIcon: l.accent,
+		tileHover: t.SurfaceHover,
 	}
 }
 
-// toastLook are the colors of the update toast, as Cra's ShinyToast: a
-// fill from the space's colors, top to bottom, with a darker outline.
-type toastLook struct{ top, bottom, outline, text ui.Color }
+// toastLook are the colors of the update toast: the neutral surface with a
+// hairline, its button in the space's accent.
+type toastLook struct{ fill, outline, text, action, actionText ui.Color }
 
 func toastColors(l spaceLook) toastLook {
-	var r, g, b float64
-	n := 0
-	for _, c := range l.Look.Colors {
-		if space.ValidHex(c) {
-			cr, cg, cb := space.Components(c)
-			r, g, b, n = r+cr, g+cg, b+cb, n+1
-		}
-	}
-	h, sat := 0.0, 0.0
-	if n > 0 {
-		h, sat, _ = space.HSB(r/float64(n), g/float64(n), b/float64(n))
-	}
-	hsb := func(s, v float64) ui.Color {
-		r, g, b := space.FromHSB(h, s, v)
-		return ui.RGB(uint8(math.Round(r*255)), uint8(math.Round(g*255)), uint8(math.Round(b*255)))
-	}
-	if l.Dark {
-		s := min(0.76, sat*1.9)
-		return toastLook{hsb(s, 0.40), hsb(s, 0.31), hsb(s, 0.24), white}
-	}
-	s := min(0.19, sat*0.3)
-	return toastLook{hsb(s, 0.89), hsb(min(0.25, s*1.3), 0.85), hsb(s, 0.61), black}
+	t := neutralTheme(l.Dark)
+	return toastLook{fill: t.Surface, outline: t.Border, text: l.text, action: l.accent, actionText: white}
 }
 
 // tourLook are the colors of the first-run tour (tour.go): the scrim over
@@ -824,7 +652,6 @@ type tourLook struct {
 	ink, panel        ui.Color
 	paper, paperInk   ui.Color
 	accent, alt, alt2 ui.Color
-	shadow            ui.Color
 }
 
 func tourColors(l spaceLook) tourLook {
@@ -841,13 +668,11 @@ func tourColors(l spaceLook) tourLook {
 		ink: l.text, panel: white.Alpha(0.78),
 		paper: ui.Hex("#FFFFFF"), paperInk: ui.Hex("#1F2329"),
 		accent: acc, alt: turned(140), alt2: turned(-95),
-		shadow: black.Alpha(0.16),
 	}
 	if l.Dark {
 		tl.scrimAlpha = 0.56
 		tl.panel = white.Alpha(0.13)
 		tl.paper, tl.paperInk = ui.Hex("#1F2023"), ui.Hex("#E3E4E7")
-		tl.shadow = black.Alpha(0.4)
 	}
 	return tl
 }

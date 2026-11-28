@@ -278,6 +278,16 @@ func TestSpaceBarAllSpacesMenuOnOverflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
+	// The menu's taller rows scroll within the short window.
+	if r, ok := tt.Find("Space 10"); ok {
+		for range 10 {
+			if r, _ = tt.Find("Space 10"); r.Y+r.H <= 420 {
+				break
+			}
+			tt.Scroll(r.X+r.W/2, 300, 0, 120)
+			tt.Frame()
+		}
+	}
 	if err := tt.Click("Space 10"); err != nil {
 		t.Fatal(err)
 	}

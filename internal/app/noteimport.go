@@ -112,34 +112,30 @@ func (a *App) importGuideView(c *ui.Context) {
 	w, h := c.Size()
 	t := c.Theme()
 	ui.Modal(c.Key("note-import"), &s.open, func() {
-		ui.Column(c).Width(min(700, w-40)).MaxHeight(h - 56).Gap(14).Children(func() {
-			ui.Row(c.Key("import-header")).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(36, 36).Radius(8).Shrink(0).Center().Background(t.Accent.Alpha(0.10)).Children(func() {
+		ui.Column(c).Width(min(700, w-40)).MaxHeight(h - 56).Gap(20).Children(func() {
+			ui.Row(c.Key("import-header")).Gap(20).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(24, 24).Shrink(0).Center().Children(func() {
 					ui.Icon(c, iconFileImport).FontSize(18).TextColor(t.Accent)
 				})
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, i18n.T("导入已有笔记")).FontSize(17).FontWeight(600)
-					ui.Text(c, i18n.T("复制 Markdown 笔记库、思源工作空间或导出 ZIP，原文件保持不变")).FontSize(12.5).TextColor(t.TextMuted).LineHeight(1.45)
-				})
+				ui.Text(c, i18n.T("导入已有笔记")).FontSize(17).FontWeight(600).Grow(1).MinWidth(0)
 			})
-			ui.Scroll(c.Key("import-body")).Grow(1).MinHeight(0).Gap(12).Children(func() {
-				ui.Column(c.Key("import-source-card")).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Clip().Children(func() {
-					ui.Row(c).Padding(10, 14).AlignItems(ui.Center).Children(func() {
+			ui.Scroll(c.Key("import-body")).Grow(1).MinHeight(0).Gap(20).Children(func() {
+				ui.Column(c.Key("import-source-card")).Background(t.Surface).Radius(panelRadius).Clip().Children(func() {
+					ui.Row(c).Padding(16, 20).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, i18n.T("来源位置")).FontSize(12.5).FontWeight(600).Grow(1)
 						if s.discovering {
-							ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 								ui.Spinner(c.Key("import-discover-spinner")).TextColor(t.Accent).Label(i18n.T("正在查找已有笔记库"))
 								ui.Text(c, i18n.T("正在查找已有笔记库")).FontSize(12).TextColor(t.TextMuted)
 							})
 							c.After(100 * time.Millisecond)
 						}
 					})
-					ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
 					if len(s.found) > 0 {
-						ui.Scroll(c.Key("found-libraries")).MaxHeight(min(156, h/4)).Padding(8, 10).Gap(4).Children(func() {
+						ui.Scroll(c.Key("found-libraries")).MaxHeight(min(156, h/4)).Padding(12, 16).Gap(8).Children(func() {
 							for _, found := range s.found {
 								selected := s.source == found.Path
-								row := ui.ButtonBase(c.Key(found.Path)).WidthPercent(100).Padding(8, 10).Radius(6).Gap(8).
+								row := ui.ButtonBase(c.Key(found.Path)).WidthPercent(100).Padding(12, 16).Radius(8).Gap(12).
 									AlignItems(ui.Center).Focusable().Cursor(ui.CursorPointer).
 									Label(fmt.Sprintf("%s · %s · %d", found.App, found.Name, found.Documents)).Tooltip(found.Path).Disabled(s.busy)
 								if selected {
@@ -148,10 +144,10 @@ func (a *App) importGuideView(c *ui.Context) {
 									row.Background(hoverFill(t))
 								}
 								row.Children(func() {
-									ui.Row(c).Padding(2, 7).Radius(4).Background(t.Background).Border(1, t.Border.Alpha(0.7)).Shrink(0).Children(func() {
+									ui.Row(c).Padding(4, 12).Radius(8).Background(t.Background).Shrink(0).Children(func() {
 										ui.Text(c, found.App).FontSize(11).FontWeight(600).TextColor(t.TextMuted).SingleLine()
 									})
-									ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+									ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 										ui.Text(c, found.Name).FontSize(13).FontWeight(500).SingleLine()
 										ui.Text(c, shortPath(found.Path)).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 									})
@@ -167,14 +163,13 @@ func (a *App) importGuideView(c *ui.Context) {
 							}
 						})
 					} else if !s.discovering {
-						ui.Row(c).Padding(10, 14).Children(func() {
+						ui.Row(c).Padding(16, 20).Children(func() {
 							ui.Text(c, i18n.T("未自动发现已有笔记库，请手动选择文件夹或导出 ZIP")).FontSize(12).TextColor(t.TextMuted)
 						})
 					}
-					ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-					ui.Column(c).Padding(12, 14).Gap(8).Children(func() {
+					ui.Column(c).Padding(20, 20).Gap(12).Children(func() {
 						ui.Text(c, i18n.T("笔记来源路径")).FontSize(12).FontWeight(500).TextColor(t.TextMuted)
-						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 							ui.TextInput(c.Key("import-source"), &s.source).Label(i18n.T("笔记来源路径")).
 								Placeholder(i18n.T("选择笔记文件夹或导出 ZIP")).Disabled(s.busy).Grow(1).MinWidth(0)
 							if ui.Button(c.Key("import-folder"), i18n.T("选择文件夹")).Disabled(s.busy).Shrink(0).Clicked() {
@@ -187,7 +182,7 @@ func (a *App) importGuideView(c *ui.Context) {
 					})
 				})
 
-				ui.Column(c.Key("import-target-card")).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Clip().Children(func() {
+				ui.Column(c.Key("import-target-card")).Background(t.Surface).Radius(panelRadius).Clip().Children(func() {
 					var labels, ids []string
 					selected := ""
 					for _, sp := range a.state.Spaces {
@@ -215,7 +210,7 @@ func (a *App) importGuideView(c *ui.Context) {
 				})
 
 				if s.busy {
-					ui.Row(c.Key("import-busy")).Padding(12, 14).Gap(10).AlignItems(ui.Center).
+					ui.Row(c.Key("import-busy")).Padding(20, 20).Gap(16).AlignItems(ui.Center).
 						Background(t.Accent.Alpha(0.08)).Border(1, t.Accent.Alpha(0.3)).Radius(8).Children(func() {
 						ui.Spinner(c.Key("import-spinner")).TextColor(t.Accent).Label(i18n.T("正在复制和转换笔记"))
 						ui.Text(c, i18n.T("正在复制和转换笔记")).FontSize(13).FontWeight(500)
@@ -223,7 +218,7 @@ func (a *App) importGuideView(c *ui.Context) {
 					c.After(100 * time.Millisecond)
 				}
 				if s.err != "" {
-					ui.Row(c.Key("import-error")).Padding(10, 14).Gap(8).AlignItems(ui.Center).
+					ui.Row(c.Key("import-error")).Padding(16, 20).Gap(12).AlignItems(ui.Center).
 						Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.35)).Radius(8).Children(func() {
 						ui.Icon(c, iconAlert).FontSize(15).TextColor(t.Danger).Shrink(0)
 						ui.Text(c, s.err).FontSize(12.5).TextColor(t.Danger).Grow(1).MinWidth(0).LineHeight(1.45)
@@ -231,28 +226,26 @@ func (a *App) importGuideView(c *ui.Context) {
 				}
 				if s.result != nil {
 					r := s.result
-					ui.Column(c.Key("import-result")).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Clip().Children(func() {
-						ui.Row(c).Padding(12, 14).Gap(10).AlignItems(ui.Center).Background(t.Success.Alpha(0.08)).Children(func() {
+					ui.Column(c.Key("import-result")).Background(t.Surface).Radius(panelRadius).Clip().Children(func() {
+						ui.Row(c).Padding(20, 20).Gap(16).AlignItems(ui.Center).Background(t.Success.Alpha(0.08)).Children(func() {
 							ui.Icon(c, iconCheck).FontSize(15).TextColor(t.Success).Shrink(0)
 							ui.Text(c, fmt.Sprintf(i18n.T("已导入 %d 篇文档、%d 个附件，%d 项需要查看报告"), r.Documents, r.Attachments, len(r.Issues))).FontSize(13).FontWeight(600).Grow(1)
 						})
-						ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-						ui.Row(c).Padding(10, 14).Gap(10).Children(func() {
+						ui.Row(c).Padding(16, 20).Gap(16).Children(func() {
 							for _, stat := range []struct {
 								label string
 								count int
 							}{{i18n.T("已导入文档"), r.Documents}, {i18n.T("已复制附件"), r.Attachments}, {i18n.T("待查看事项"), len(r.Issues)}} {
-								ui.Column(c).Grow(1).Padding(8, 10).Radius(6).Background(t.Background).Border(1, t.Border.Alpha(0.6)).Gap(2).Children(func() {
+								ui.Column(c).Grow(1).Padding(12, 16).Radius(8).Background(t.Background).Gap(4).Children(func() {
 									ui.Text(c, fmt.Sprintf("%d", stat.count)).FontSize(16).FontWeight(600)
 									ui.Text(c, stat.label).FontSize(11.5).TextColor(t.TextMuted)
 								})
 							}
 						})
 						if len(r.Issues) > 0 {
-							ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-							ui.Scroll(c.Key("import-report")).MaxHeight(min(140, max(80, h-500))).Padding(8, 14).Gap(6).Children(func() {
+							ui.Scroll(c.Key("import-report")).MaxHeight(min(140, max(80, h-500))).Padding(12, 20).Gap(8).Children(func() {
 								for i, issue := range r.Issues {
-									ui.Column(c.Key(i)).Gap(1).Children(func() {
+									ui.Column(c.Key(i)).Gap(4).Children(func() {
 										ui.Text(c, issue.File).FontSize(12).FontWeight(500).SingleLine()
 										ui.Text(c, issue.Detail).FontSize(11.5).TextColor(t.TextMuted).LineHeight(1.4)
 									})
@@ -262,9 +255,7 @@ func (a *App) importGuideView(c *ui.Context) {
 					})
 				}
 			})
-			ui.Box(c).Height(1).Background(t.Border.Alpha(0.6))
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, i18n.T("转换结果会写入导入报告，原文件保持不变")).FontSize(12).TextColor(t.TextMuted).Grow(1).SingleLine()
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Justify(ui.End).Children(func() {
 				if ui.Button(c.Key("import-close"), i18n.T("关闭")).Disabled(s.busy).Clicked() {
 					s.open = false
 				}

@@ -178,33 +178,35 @@ func (a *App) settingsView(c *ui.Context) {
 			ui.Box(c.Key("settings-title")).Height(max(12, bar.Height)).DragWindow()
 			ui.Row(c.Key("settings-body")).Grow(1).MinHeight(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
 				if !compact {
-					ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 10, 10, 10).Gap(8).Children(func() {
+					ui.Column(c.Key("settings-nav")).Width(rail).Shrink(0).Padding(0, 16, 16, 16).Gap(12).Children(func() {
 						// The way back heads the navigation, beside its title.
-						ui.Row(c.Key("settings-back-row")).Gap(4).AlignItems(ui.Center).Children(func() {
+						ui.Row(c.Key("settings-back-row")).Gap(8).AlignItems(ui.Center).Children(func() {
 							back()
 							ui.Text(c, i18n.T("设置")).FontSize(15).FontWeight(600)
 						})
 						ui.Sidebar(c.Key("settings-tabs"), &a.settingsTab, func() {
 							for _, tab := range tabs {
-								ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(min(32, h/14))
+								ui.SidebarItem(c, tab.id, settingsIcons[tab.icon], tab.label).Height(grid4(min(40, h/14)))
 							}
-						}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(2).Background(ui.Transparent)
+						}).Label(i18n.T("设置")).Grow(1).Shrink(1).MinHeight(0).Padding(0).Gap(4).Background(ui.Transparent)
 					})
 				}
 				if !a.updates.installing && a.recording == "" && c.Shortcut(0, ui.KeyEscape) {
 					a.settingsOpen = false
 				}
-				pane := ui.Column(c.Key("settings-pane")).Grow(1).MinWidth(0).Background(t.Surface).Border(1, t.Border).Radius(panelRadius).Margin(0, 8, 8, 0).Clip()
+				pane := ui.Column(c.Key("settings-pane")).Grow(1).MinWidth(0).Background(t.Surface).Radius(panelRadius).Margin(0, 12, 12, 0).Clip()
 				if compact {
-					pane.Margin(0).Radius(0).BorderWidth(1, 0, 0, 0)
+					pane.Margin(0).Radius(0)
 				}
 				pane.Children(func() {
-					ui.Row(c.Key("settings-header")).Height(44).Shrink(0).PaddingX(20).AlignItems(ui.Center).Children(func() {
-						if compact {
+					// The page's own title names it, so only the compact layout,
+					// which has no navigation, keeps a header: back and a page menu.
+					if compact {
+						ui.Row(c.Key("settings-header")).Height(48).Shrink(0).PaddingX(16).AlignItems(ui.Center).Children(func() {
 							back()
-							ui.Text(c, i18n.T("设置")).FontSize(14).FontWeight(600).PaddingX(6)
+							ui.Text(c, i18n.T("设置")).FontSize(14).FontWeight(600).PaddingX(8)
 							ui.Spacer(c)
-							button := ui.Button(c.Key("settings-pages"), "").Role(ui.RoleMenuButton).Label(i18n.T("选择设置页面")).Gap(8).Children(func() {
+							button := ui.Button(c.Key("settings-pages"), "").Role(ui.RoleMenuButton).Label(i18n.T("选择设置页面")).Gap(12).Children(func() {
 								ui.Text(c, current).SingleLine()
 								ui.Icon(c, iconChevronDown).FontSize(13)
 							})
@@ -215,21 +217,15 @@ func (a *App) settingsView(c *ui.Context) {
 									}
 								}
 							})
-							return
-						}
-						chosen := 1
-						if ui.Breadcrumbs(c.Key("crumbs"), []string{i18n.T("设置"), current}, &chosen).Label(i18n.T("设置")).Changed() && chosen == 0 {
-							a.settingsTab = tabGeneral
-						}
-					})
-					ui.Box(c).Height(1).Shrink(0).Background(t.Border)
+						})
+					}
 					container := ui.Scroll
 					if a.settingsTab == tabSpaces || a.settingsTab == tabShortcuts {
 						container = ui.Column
 					}
-					pad := min(32, h/24)
-					container(c.Key("content")).Grow(1).MinHeight(0).Padding(pad, min(32, w/30)).AlignItems(ui.Center).Children(func() {
-						ui.Column(c.Key("settings-page-" + a.settingsTab)).Width(max(0, min(680, w-rail-10-2*min(32, w/30)))).Grow(1).MinHeight(0).Gap(min(14, h/50)).Children(func() {
+					padY, padX := grid4(min(48, h/16)), grid4(min(48, w/24))
+					container(c.Key("content")).Grow(1).MinHeight(0).Padding(padY, padX).AlignItems(ui.Center).Children(func() {
+						ui.Column(c.Key("settings-page-" + a.settingsTab)).Width(max(0, min(680, w-rail-12-2*padX))).Grow(1).MinHeight(0).Gap(grid4(min(16, h/40))).Children(func() {
 							switch a.settingsTab {
 							case tabAppearance:
 								a.settingsAppearance(c)
@@ -266,33 +262,26 @@ func (a *App) settingsView(c *ui.Context) {
 	})
 }
 
-// settingsHeading is a page's title and what it is for.
-func settingsHeading(c *ui.Context, title, note string) {
-	t := c.Theme()
-	ui.Column(c).Gap(4).Padding(0, 0, 4, 0).Children(func() {
-		ui.Text(c, title).FontSize(22).FontWeight(600)
-		_, h := c.Size()
-		if note != "" && h >= 580 {
-			ui.Text(c, note).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
-		}
-	})
+// settingsHeading is a page's title. The page explains itself by its
+// layout, so no line of description follows it.
+func settingsHeading(c *ui.Context, title string) {
+	ui.Text(c, title).FontSize(24).FontWeight(600).Padding(0, 0, 8, 0)
 }
 
 // settingsSection is the title above a group of rows.
 func settingsSection(c *ui.Context, title string) {
-	ui.Text(c, title).FontSize(14).FontWeight(600).Padding(6, 2, 0, 2)
+	ui.Text(c, title).FontSize(15).FontWeight(600).Padding(16, 0, 0, 0)
 }
 
-// Settings groups share a surface and a common row inset.
+// settingsGroup holds a section's rows. It draws no frame: the settings pane
+// is the only surface, and whitespace separates the groups.
 func settingsGroup(c *ui.Context, key string, rows func()) {
-	t := c.Theme()
-	ui.Column(c.Key(key)).Background(t.Surface).BorderWidth(1, 0, 1, 0).BorderColor(separator(t)).Clip().Children(rows)
+	ui.Column(c.Key(key)).Clip().Children(rows)
 }
 
-// settingsSeparator is the hairline between a group's rows, inset as they are.
-func settingsSeparator(c *ui.Context) {
-	ui.Box(c).Height(1).Margin(0, 12).Background(separator(c.Theme()))
-}
+// settingsSeparator once drew a hairline between rows; rows are now kept
+// apart by their own padding, so it draws nothing.
+func settingsSeparator(c *ui.Context) {}
 
 // settingsBadge renders a restrained pill badge for status or metadata.
 func settingsBadge(c *ui.Context, text, tone string) {
@@ -300,34 +289,35 @@ func settingsBadge(c *ui.Context, text, tone string) {
 	bg, ink := t.SurfaceHover, t.TextMuted
 	switch tone {
 	case "accent":
-		bg, ink = t.Accent.Alpha(0.14), t.Accent
+		bg, ink = t.Accent.Alpha(0.12), t.Accent
 	case "danger":
 		bg, ink = t.Danger.Alpha(0.12), t.Danger
 	case "success":
-		bg, ink = t.Success.Alpha(0.14), t.Success
+		bg, ink = t.Success.Alpha(0.12), t.Success
 	}
-	ui.Box(c).Padding(2, 8).Radius(999).Background(bg).Shrink(0).Children(func() {
-		ui.Text(c, text).FontSize(11).FontWeight(600).TextColor(ink).NoWrap()
+	ui.Box(c).Padding(4, 8).Radius(999).Background(bg).Shrink(0).Children(func() {
+		ui.Text(c, text).FontSize(12).FontWeight(500).TextColor(ink).NoWrap()
 	})
 }
 
-// settingsBanner renders a flat full-width status strip with an optional trailing action.
+// settingsBanner renders a flat full-width status strip with an optional
+// trailing action: a tint of its tone, no outline.
 func settingsBanner(c *ui.Context, key, text, tone string, action func()) {
 	t := c.Theme()
-	bg, border, ink := t.SurfaceHover, separator(t), t.Text
+	bg, ink := t.SurfaceHover, t.Text
 	switch tone {
 	case "accent":
-		bg, border = t.Accent.Alpha(0.08), t.Accent.Alpha(0.24)
+		bg = t.Accent.Alpha(0.08)
 	case "danger":
-		bg, border, ink = t.Danger.Alpha(0.08), t.Danger.Alpha(0.24), t.Danger
+		bg, ink = t.Danger.Alpha(0.08), t.Danger
 	case "success":
-		bg, border = t.Success.Alpha(0.08), t.Success.Alpha(0.24)
+		bg = t.Success.Alpha(0.08)
 	}
-	ui.Row(c.Key(key)).WidthPercent(100).Padding(10, 14).Gap(10).Radius(controlRadius).
-		Background(bg).Border(1, border).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, text).FontSize(12.5).TextColor(ink).LineHeight(1.45).Grow(1).MinWidth(0)
+	ui.Row(c.Key(key)).WidthPercent(100).Padding(12, 16).Gap(12).Radius(controlRadius).
+		Background(bg).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, text).FontSize(13).TextColor(ink).LineHeight(1.5).Grow(1).MinWidth(0)
 		if action != nil {
-			ui.Row(c).Shrink(0).Gap(6).AlignItems(ui.Center).Children(action)
+			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(action)
 		}
 	})
 }
@@ -335,30 +325,46 @@ func settingsBanner(c *ui.Context, key, text, tone string, action func()) {
 func settingsRowInset(c *ui.Context) float32 {
 	_, h := c.Size()
 	if h < 560 {
-		return 6
+		return 8
 	}
-	return min(12, (h-450)/24)
+	return 12
 }
 
-// settingRow is a group's row: its label and note, and its control at
-// the end, as every settings row lines up.
+// settingRow is a group's row: its label, and its control at the end, as
+// every settings row lines up. note, when given, explains the row on hover
+// and to assistive technology rather than as text under the label.
 func settingRow(c *ui.Context, key, label, note string, control func()) {
+	row := settingRowBase(c, key, label, "", control)
+	if note != "" {
+		row.Tooltip(note).Description(note)
+	}
+}
+
+// settingDetailRow is settingRow with a line under the label that stays in
+// view: data the row shows (a path, an account, a status) or a warning the
+// user must see before acting.
+func settingDetailRow(c *ui.Context, key, label, detail string, control func()) {
+	settingRowBase(c, key, label, detail, control)
+}
+
+func settingRowBase(c *ui.Context, key, label, detail string, control func()) ui.Element {
 	t := c.Theme()
-	_, h := c.Size()
-	ui.Row(c.Key(key)).Padding(settingsRowInset(c), 12).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			ui.Text(c, label).FontSize(13).FontWeight(500)
-			if note != "" && h >= 560 {
-				ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
+	row := ui.Row(c.Key(key)).Padding(settingsRowInset(c), 0).Gap(24).AlignItems(ui.Center).MinHeight(52)
+	row.Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+			ui.Text(c, label).FontSize(14)
+			if detail != "" {
+				ui.Text(c, detail).FontSize(13).TextColor(t.TextMuted).LineHeight(1.5)
 			}
 		})
 		ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(control)
 	})
+	return row
 }
 
 // folderRow is a labeled folder with a button that opens it.
 func folderRow(c *ui.Context, key, label, dir string) {
-	settingRow(c, key, label, shortPath(dir), func() {
+	settingDetailRow(c, key, label, shortPath(dir), func() {
 		if ui.Button(c.Key("open"), i18n.T("在文件管理器中显示")).Tooltip(dir).Clicked() {
 			os.MkdirAll(dir, 0o755)
 			revealDir(dir)
@@ -367,16 +373,13 @@ func folderRow(c *ui.Context, key, label, dir string) {
 }
 
 func (a *App) settingsGeneral(c *ui.Context) {
-	t := c.Theme()
-	settingsHeading(c, i18n.T("通用"), i18n.T("FreeFolio 把文档保存在你的文件夹里，设置与空间列表保存在配置文件夹"))
+	settingsHeading(c, i18n.T("通用"))
 	settingsSection(c, i18n.T("位置"))
 	settingsGroup(c, "places", func() {
 		folderRow(c, "documents", i18n.T("新空间的默认位置"), a.cfg.DocumentsDir)
 		settingsSeparator(c)
 		folderRow(c, "config", i18n.T("配置文件夹（spaces.json、插件）"), a.cfg.ConfigDir)
 	})
-	ui.Text(c, i18n.T("颜色与图标按空间设置：在侧边栏的空间名称上右键，选择要修改的属性")).
-		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
 	settingsSection(c, i18n.T("窗口"))
 	settingsGroup(c, "closing", func() {
 		tray := !a.prefs.KeepRunningOff
@@ -391,7 +394,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 		if a.prefs.StartAtHome {
 			at = 1
 		}
-		settingRow(c, "start-at", i18n.T("打开 FreeFolio 时"), i18n.T("启动或从托盘重新打开窗口时显示的内容"), func() {
+		settingRow(c, "start-at", i18n.T("打开 FreeFolio 时"), "", func() {
 			segmentedChoice(c.Key("choice"), &at, i18n.T("继续上次阅读"), i18n.T("空间主页")).Label(i18n.T("打开 FreeFolio 时"))
 			if home := at == 1; a.prefs.StartAtHome != home {
 				a.prefs.StartAtHome = home
@@ -403,7 +406,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 }
 
 func (a *App) settingsWriting(c *ui.Context) {
-	settingsHeading(c, i18n.T("写作"), i18n.T("编辑时的辅助行为，对所有文档生效"))
+	settingsHeading(c, i18n.T("写作"))
 	settingsSection(c, i18n.T("编辑"))
 	settingsGroup(c, "writing", func() {
 		toggleRow(c, "typewriter", i18n.T("打字机滚动"), i18n.T("正在写的一行始终停在页面中间"), &a.prefs.Typewriter, a.savePrefs)
@@ -415,7 +418,7 @@ func (a *App) settingsWriting(c *ui.Context) {
 		}
 		settingsSeparator(c)
 		pair := !a.prefs.NoAutoPair
-		toggleRow(c, "auto-pair", i18n.T("括号与引号自动配对"), i18n.T("支持中文符号、包裹选区和成对删除"), &pair, nil)
+		toggleRow(c, "auto-pair", i18n.T("括号与引号自动配对"), "", &pair, nil)
 		if pair == a.prefs.NoAutoPair {
 			a.prefs.NoAutoPair = !pair
 			a.savePrefs()
@@ -453,7 +456,7 @@ func (a *App) settingsWriting(c *ui.Context) {
 // in tabs outside the spaces.
 func (a *App) settingsFiles(c *ui.Context) {
 	f := &a.prefs.Files
-	settingsHeading(c, i18n.T("文件浏览"), i18n.T("单独打开的文件显示在文件浏览的标签页中，用完即关；只有「返回空间」会回到空间"))
+	settingsHeading(c, i18n.T("文件浏览"))
 	settingsSection(c, i18n.T("标签页"))
 	settingsGroup(c, "files-tabs", func() {
 		show := !f.HideTabClose
@@ -487,14 +490,14 @@ func (a *App) settingsFiles(c *ui.Context) {
 		toggleRow(c, "files-read-only", i18n.T("以只读方式打开文件"), i18n.T("防止查看时误改；可在页面右上角的锁按钮恢复编辑"), &f.ReadOnly, a.savePrefs)
 		settingsSeparator(c)
 		remember := !f.NoRememberPlace
-		toggleRow(c, "files-remember-place", i18n.T("打开时回到上次浏览的位置"), i18n.T("再次打开同一个文件时，滚动到上次看到的地方；PDF 回到上次的页码"), &remember, nil)
+		toggleRow(c, "files-remember-place", i18n.T("打开时回到上次浏览的位置"), "", &remember, nil)
 		if remember == f.NoRememberPlace {
 			f.NoRememberPlace = !remember
 			a.savePrefs()
 		}
 		settingsSeparator(c)
 		quit := !f.KeepOpen
-		toggleRow(c, "files-close-last", i18n.T("关闭最后一个标签页时关闭窗口"), i18n.T("关闭此项后保留空白的文件浏览页，可以继续打开文件"), &quit, nil)
+		toggleRow(c, "files-close-last", i18n.T("关闭最后一个标签页时关闭窗口"), "", &quit, nil)
 		if quit == f.KeepOpen {
 			f.KeepOpen = !quit
 			a.savePrefs()
@@ -507,7 +510,7 @@ func (a *App) settingsFiles(c *ui.Context) {
 // the text column, the size and leading of body text, previewed in a
 // small window drawn as FreeFolio's own.
 func (a *App) settingsAppearance(c *ui.Context) {
-	settingsHeading(c, i18n.T("外观"), i18n.T("选择侧边栏的位置，调整所有文档共用的字体和版式"))
+	settingsHeading(c, i18n.T("外观"))
 	a.appearancePreview(c)
 	settingsSection(c, i18n.T("窗口"))
 	settingsGroup(c, "window", func() {
@@ -526,7 +529,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 		if a.prefs.SidebarLeft {
 			side = 0
 		}
-		settingRow(c, "sidebar-position", i18n.T("侧边栏位置"), i18n.T("空间、收藏和文档列表所在的一侧"), func() {
+		settingRow(c, "sidebar-position", i18n.T("侧边栏位置"), "", func() {
 			segmentedChoice(c.Key("choice"), &side, i18n.T("左侧"), i18n.T("右侧")).Label(i18n.T("侧边栏位置"))
 			if left := side == 0; a.prefs.SidebarLeft != left {
 				a.prefs.SidebarLeft = left
@@ -534,7 +537,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			}
 		})
 		settingsSeparator(c)
-		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), i18n.T("不使用空间的自定义主题色，统一显示为浅灰色"), &a.prefs.GrayFolderIcons, a.savePrefs)
+		toggleRow(c, "gray-folder-icons", i18n.T("侧边栏文件夹图标使用浅灰色"), "", &a.prefs.GrayFolderIcons, a.savePrefs)
 	})
 	settingsGroup(c, "sidebar-density", func() {
 		settingRow(c, "density", i18n.T("侧边栏行高"), "", func() {
@@ -568,9 +571,9 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			})
 		}
 		for _, forUI := range []bool{true, false} {
-			label, note, value := i18n.T("正文字体"), i18n.T("用于文档编辑与阅读排版"), a.prefs.BodyFont
+			label, value := i18n.T("正文字体"), a.prefs.BodyFont
 			if forUI {
-				label, note, value = i18n.T("界面字体"), i18n.T("用于侧边栏、菜单与设置界面"), a.prefs.InterfaceFont
+				label, value = i18n.T("界面字体"), a.prefs.InterfaceFont
 			}
 			if value == "" {
 				value = i18n.T("跟随系统字体")
@@ -578,7 +581,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 					value = a.prefs.Font
 				}
 			}
-			settingRow(c, label, label, note, func() {
+			settingRow(c, label, label, "", func() {
 				if ui.Button(c.Key("choose-font"), value).MaxWidth(300).Clicked() {
 					a.fonts.openFontPicker(forUI)
 				}
@@ -653,20 +656,20 @@ func (a *App) appearancePreview(c *ui.Context) {
 	// brand leads the window, in the left sidebar's header or the page's
 	// toolbar, with the document's name and space above the page.
 	frame := ui.Row(c.Key("appearance-sample")).Height(300).Radius(panelRadius).Border(1, t.Border).
-		Background(t.Background).Clip().Label(i18n.T("外观预览")).Shadow(0, 2, 8, 0, black.Alpha(0.06)).
-		Padding(0, 8, 8, 8).Gap(8).AlignItems(ui.Stretch)
+		Background(t.Background).Clip().Label(i18n.T("外观预览")).
+		Padding(0, 12, 12, 12).Gap(12).AlignItems(ui.Stretch)
 	if !a.prefs.SidebarLeft {
 		frame.Reverse()
 	}
 	icon := func(svg *ui.SVG) { ui.Icon(c, svg).FontSize(10).TextColor(t.TextMuted) }
 	previewBrand := func() {
-		ui.Row(c.Key("preview-brand")).Gap(5).Shrink(0).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("preview-brand")).Gap(8).Shrink(0).AlignItems(ui.Center).Children(func() {
 			ui.Image(c, brandLogo()).Size(14, 14)
 			ui.Text(c, "FreeFolio").FontSize(10).FontWeight(600)
 		})
 	}
 	frame.Children(func() {
-		ui.Column(c.Key("preview-side")).Width(136).Shrink(0).Gap(6).Children(func() {
+		ui.Column(c.Key("preview-side")).Width(136).Shrink(0).Gap(8).Children(func() {
 			height := float32(26)
 			if a.prefs.SidebarLeft {
 				height = 30
@@ -681,17 +684,17 @@ func (a *App) appearancePreview(c *ui.Context) {
 					ui.Spacer(c)
 				}
 			})
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				icon(iconBack)
 				icon(iconForward)
 				icon(iconReload)
-				ui.Row(c).Grow(1).MinWidth(0).Height(20).Radius(controlRadius).Border(1, t.Border).Background(t.Surface).PaddingX(5).Gap(4).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Grow(1).MinWidth(0).Height(20).Radius(controlRadius).Background(t.Surface).PaddingX(8).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, iconSearch).FontSize(10).TextColor(t.TextMuted)
 					ui.Text(c, i18n.T("搜索")).FontSize(10).TextColor(t.TextMuted).SingleLine()
 				})
 			})
 			for i, name := range []string{title, i18n.T("读书笔记"), i18n.T("旅行计划")} {
-				row := ui.Row(c.Key(fmt.Sprintf("preview-doc-%d", i))).Height(22).Radius(controlRadius).PaddingX(6).Gap(5).AlignItems(ui.Center)
+				row := ui.Row(c.Key(fmt.Sprintf("preview-doc-%d", i))).Height(22).Radius(controlRadius).PaddingX(8).Gap(8).AlignItems(ui.Center)
 				ink := t.Text
 				if i == 0 {
 					row.Background(t.Accent.Alpha(0.12))
@@ -708,7 +711,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 			}
 		})
 		ui.Column(c.Key("preview-main")).Grow(1).MinWidth(0).Children(func() {
-			bar := ui.Row(c.Key("preview-bar")).Height(30).Shrink(0).Gap(6).AlignItems(ui.Center)
+			bar := ui.Row(c.Key("preview-bar")).Height(30).Shrink(0).Gap(8).AlignItems(ui.Center)
 			bar.Children(func() {
 				caption := func() {
 					ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
@@ -720,7 +723,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 				}
 				if a.prefs.SidebarLeft {
 					start := ui.Row(c.Key("preview-start")).Width(0).Shrink(0)
-					end := ui.Row(c.Key("preview-end")).Gap(6).Shrink(0).AlignItems(ui.Center).MarginStart(ui.Auto).Children(func() {
+					end := ui.Row(c.Key("preview-end")).Gap(8).Shrink(0).AlignItems(ui.Center).MarginStart(ui.Auto).Children(func() {
 						icon(iconAsk)
 						icon(iconEllipsis)
 					})
@@ -752,8 +755,6 @@ func (a *App) appearancePreview(c *ui.Context) {
 			})
 		})
 	})
-	ui.Text(c, fmt.Sprintf(i18n.T("%g 字号 · %.1f 倍行距"), a.prefs.ReadingSize(), a.prefs.ReadingLine())).
-		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
 }
 
 // toggleRow is a labeled switch; changed runs when it is flipped.
@@ -769,13 +770,13 @@ func toggleRow(c *ui.Context, key, label, note string, on *bool, changed func())
 
 func (a *App) settingsSpaces(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).AlignItems(ui.End).Gap(12).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			note := i18n.T("从 FreeFolio 移除空间只删除记录，不会删除文件夹")
+	ui.Row(c).AlignItems(ui.End).Gap(20).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+			settingsHeading(c, i18n.T("空间"))
+			// Why the space controls are off stays in view.
 			if a.files != nil {
-				note = i18n.T("返回空间后才能新建、编辑或移除空间")
+				ui.Text(c, i18n.T("返回空间后才能新建、编辑或移除空间")).FontSize(13).TextColor(t.TextMuted)
 			}
-			settingsHeading(c, i18n.T("空间"), note)
 		})
 		if ui.Button(c.Key("settings-new-space"), i18n.T("新建空间")).Disabled(a.files != nil).Clicked() {
 			a.settingsOpen = false
@@ -783,7 +784,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 		}
 	})
 	active := a.state.ActiveSpace()
-	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(12).Children(func() {
+	ui.Scroll(c.Key("space-list")).Grow(1).MinHeight(0).Gap(20).Children(func() {
 		settingsSection(c, i18n.T("我的空间"))
 		settingsGroup(c, "spaces", func() {
 			for i, s := range a.state.Spaces {
@@ -791,75 +792,65 @@ func (a *App) settingsSpaces(c *ui.Context) {
 					settingsSeparator(c)
 				}
 				accent := spaceAccent(space.ThemeOf(s).Colors[0], t.Dark)
-				ui.Row(c.Key("space-row-"+s.ID)).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().Background(accent.Alpha(0.12)).Children(func() {
-						a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, accent)
+				spaceRow := ui.Row(c.Key("space-row-"+s.ID)).Padding(12, 0).Gap(16).AlignItems(ui.Center)
+				spaceRow.Children(func() {
+					ui.Box(c).Size(32, 32).Center().Shrink(0).Children(func() {
+						a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 18, accent)
 					})
-					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, s.Name).FontSize(13).FontWeight(500).SingleLine()
+					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(4).Children(func() {
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, s.Name).FontSize(14).SingleLine()
 							if active != nil && active.ID == s.ID {
-								ui.Row(c).Padding(1, 6).Radius(4).Background(accent.Alpha(0.12)).AlignItems(ui.Center).Shrink(0).Children(func() {
+								ui.Row(c).Padding(4, 8).Radius(8).Background(accent.Alpha(0.12)).AlignItems(ui.Center).Shrink(0).Children(func() {
 									ui.Text(c, i18n.T("当前")).FontSize(10.5).FontWeight(600).TextColor(accent).SingleLine()
 								})
 							}
 						})
-						if s.IsExternal() {
-							ui.Text(c, i18n.T("内置空间 · 文件保留在原位置")).FontSize(12).TextColor(t.TextMuted).SingleLine()
-						} else {
-							ui.Text(c, shortPath(s.Root)).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(s.Root)
+						if !s.IsExternal() {
+							ui.Text(c, shortPath(s.Root)).FontSize(13).TextColor(t.TextMuted).SingleLine().Tooltip(s.Root)
 						}
 					})
-					if ui.Button(c.Key("edit"), i18n.T("编辑")).Label(i18n.T("编辑 ") + s.Name).Disabled(a.files != nil).Clicked() {
-						a.settingsOpen = false
-						a.editSpace(s)
-					}
-					if ui.Button(c.Key("reveal"), i18n.T("显示")).Label(i18n.T("在文件管理器中显示 ") + s.Name).Disabled(s.IsExternal()).Clicked() {
-						revealDir(s.Root)
-					}
-					if ui.Button(c.Key("remove"), i18n.T("移除")).Label(i18n.T("从 FreeFolio 移除 ") + s.Name).Disabled(s.IsExternal() || len(a.state.Spaces) < 2 || a.files != nil).
-						Tooltip(i18n.T("只删除记录，文件夹保留")).Clicked() {
-						a.removeSpace(s.ID)
-					}
+					actions := ui.Row(c.Key("actions")).Shrink(0).Gap(8).AlignItems(ui.Center)
+					revealOnIntent(spaceRow, actions)
+					actions.Children(func() {
+						if ui.Button(c.Key("edit"), i18n.T("编辑")).Label(i18n.T("编辑 ") + s.Name).Disabled(a.files != nil).Clicked() {
+							a.settingsOpen = false
+							a.editSpace(s)
+						}
+						if ui.Button(c.Key("reveal"), i18n.T("显示")).Label(i18n.T("在文件管理器中显示 ") + s.Name).Disabled(s.IsExternal()).Clicked() {
+							revealDir(s.Root)
+						}
+						if ui.Button(c.Key("remove"), i18n.T("移除")).Label(i18n.T("从 FreeFolio 移除 ") + s.Name).Disabled(s.IsExternal() || len(a.state.Spaces) < 2 || a.files != nil).
+							Tooltip(i18n.T("只删除记录，文件夹保留")).Clicked() {
+							a.removeSpace(s.ID)
+						}
+					})
 				})
 			}
 		})
 		settingsSection(c, i18n.T("空间工具"))
 		settingsGroup(c, "space-tools", func() {
-			ui.Row(c.Key("space-tool-import")).Padding(settingsRowInset(c), 16).Gap(12).AlignItems(ui.Center).MinHeight(52).Children(func() {
-				ui.Box(c).Size(32, 32).Radius(8).Shrink(0).Center().Background(t.Accent.Alpha(0.10)).Children(func() {
-					ui.Icon(c, iconFileImport).FontSize(15).TextColor(t.Accent)
-				})
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, i18n.T("导入已有笔记")).FontSize(13).FontWeight(500)
-					ui.Text(c, i18n.T("从 Obsidian、Logseq、Typora、iA Writer 或思源复制导入，原文件不变")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
-				})
-				if ui.Button(c.Key("import-existing-notes"), i18n.T("导入已有笔记")).Shrink(0).Clicked() {
+			settingRow(c, "space-tool-import", i18n.T("导入已有笔记"), i18n.T("从 Obsidian、Logseq、Typora、iA Writer 或思源复制导入，原文件不变"), func() {
+				if ui.Button(c.Key("import-existing-notes"), i18n.T("导入")).Label(i18n.T("导入已有笔记")).Clicked() {
 					a.openImportGuide()
 				}
 			})
-			settingsSeparator(c)
-			cleanupNote := i18n.T("扫描当前空间的未引用附件，备份后移到系统回收站")
-			if active == nil || active.IsExternal() {
-				cleanupNote = i18n.T("切换到普通空间后可检查未引用附件")
-			}
-			ui.Row(c.Key("space-tool-cleanup")).Padding(settingsRowInset(c), 16).Gap(12).AlignItems(ui.Center).MinHeight(52).Children(func() {
-				ui.Box(c).Size(32, 32).Radius(8).Shrink(0).Center().Background(t.Warning.Alpha(0.12)).Children(func() {
-					ui.Icon(c, iconTrash).FontSize(15).TextColor(t.Warning)
-				})
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, i18n.T("清理未使用附件")).FontSize(13).FontWeight(500)
-					ui.Text(c, cleanupNote).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
-				})
-				if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理未使用附件")).Shrink(0).Disabled(active == nil || active.IsExternal()).Clicked() {
+			cleanup := func() {
+				if ui.Button(c.Key("scan-unused-assets"), i18n.T("清理")).Label(i18n.T("清理未使用附件")).Disabled(active == nil || active.IsExternal()).Clicked() {
 					a.scanUnusedAssets()
 				}
-			})
+			}
+			// Why the button is off stays in view; what it does is a hover hint.
+			if active == nil || active.IsExternal() {
+				settingDetailRow(c, "space-tool-cleanup", i18n.T("清理未使用附件"), i18n.T("切换到普通空间后可检查未引用附件"), cleanup)
+			} else {
+				settingRow(c, "space-tool-cleanup", i18n.T("清理未使用附件"), i18n.T("扫描当前空间的未引用附件，备份后移到系统回收站"), cleanup)
+			}
 		})
 		settingsSection(c, i18n.T("新建默认"))
 		settingsGroup(c, "space-defaults", func() {
 			starter := !a.prefs.NoSpaceStarter
-			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), i18n.T("新建空白空间时自动创建入门示例文档；也可以在新建空间时单独切换"), &starter, nil)
+			toggleRow(c, "space-starter", i18n.T("新建空白空间时从模板开始"), "", &starter, nil)
 			if starter == a.prefs.NoSpaceStarter {
 				a.prefs.NoSpaceStarter = !starter
 				a.savePrefs()
@@ -871,7 +862,7 @@ func (a *App) settingsSpaces(c *ui.Context) {
 // settingsUpdates shows the current version, update status, release notes and
 // automatic download preference.
 func (a *App) settingsUpdates(c *ui.Context) {
-	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeFolio 新版本，自动更新可在后台下载并等待你确认重启"))
+	settingsHeading(c, i18n.T("更新"))
 	a.updates.updateOverview(c)
 	a.updates.updateReleaseNotes(c)
 	settingsSection(c, i18n.T("更新偏好"))
@@ -886,25 +877,25 @@ func (a *App) settingsUpdates(c *ui.Context) {
 
 func (a *App) settingsAbout(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c.Key("about-product")).Gap(14).AlignItems(ui.Center).Padding(0, 0, 4, 0).Children(func() {
+	ui.Row(c.Key("about-product")).Gap(20).AlignItems(ui.Center).Padding(0, 0, 8, 0).Children(func() {
 		ui.Image(c, brandLogo()).Size(48, 48).Shrink(0)
-		ui.Column(c).Gap(3).Children(func() {
+		ui.Column(c).Gap(4).Children(func() {
 			ui.Text(c, "FreeFolio").FontSize(20).FontWeight(600)
 			ui.Text(c, i18n.T("版本 ")+Version+" · "+i18n.T("安静地写作，有序地整理")).FontSize(13).TextColor(t.TextMuted)
 		})
 	})
 	settingsGroup(c, "about-intro", func() {
-		settingRow(c, "about-github", i18n.T("开源仓库"), "github.com/OUBIGFA/FreeFolio", func() {
+		settingDetailRow(c, "about-github", i18n.T("开源仓库"), "github.com/OUBIGFA/FreeFolio", func() {
 			ui.Link(c.Key("repository"), i18n.T("打开"), "https://github.com/OUBIGFA/FreeFolio").FontSize(13).
 				Label(i18n.T("GitHub 开源仓库")).Tooltip(i18n.T("在浏览器中打开 GitHub 开源仓库"))
 		})
 		settingsSeparator(c)
-		settingRow(c, "about-icons", i18n.T("图标"), i18n.T("Solar Icons，作者 480 Design，采用 CC BY 4.0 许可"), func() {
+		settingDetailRow(c, "about-icons", i18n.T("图标"), i18n.T("Solar Icons，作者 480 Design，采用 CC BY 4.0 许可"), func() {
 			ui.Link(c.Key("solar-icons"), i18n.T("打开"), "https://github.com/saoudi-h/solar-icons").FontSize(13).
 				Label(i18n.T("Solar Icons 项目")).Tooltip(i18n.T("在浏览器中打开 Solar Icons 项目"))
 		})
 		settingsSeparator(c)
-		settingRow(c, "about-tour", i18n.T("新手教程"), i18n.T("再看一遍空间、空间颜色、左右滑动、书签、置顶和收藏的介绍"), func() {
+		settingRow(c, "about-tour", i18n.T("新手教程"), "", func() {
 			if ui.Button(c.Key("replay-tour"), i18n.T("重新观看")).Disabled(a.files != nil).Clicked() {
 				a.startTour()
 			}

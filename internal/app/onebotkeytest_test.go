@@ -112,6 +112,7 @@ func TestOneBotMediaKeyUsesOnlyImageEndpoint(t *testing.T) {
 	conn := a.prefs.AI.Current()
 	conn.BaseURL, conn.Protocol = srv.URL+"/v1", agent.Media
 	tt.Frame()
+	scrollIntoView(tt, "测试全部 Key 生图（可能计费）", 1200, 760)
 	if err := tt.Click("测试全部 Key 生图（可能计费）"); err != nil {
 		t.Fatal(err)
 	}

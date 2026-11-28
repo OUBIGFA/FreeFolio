@@ -116,7 +116,7 @@ func (pz *pageZoomFeature) pageZoomButton(c *ui.Context, d *document) ui.Element
 	pct := pageZoomPercent(pz.pageZoom())
 	t := c.Theme()
 	tip := pz.host.withKey(fmt.Sprintf(i18n.T("页面缩放：%d%%"), pct), "zoom-reset")
-	b := ui.ButtonBase(c.Key("page-zoom")).Height(28).PaddingX(8).Radius(7).Center().
+	b := ui.ButtonBase(c.Key("page-zoom")).Height(28).PaddingX(8).Radius(8).Center().
 		Cursor(ui.CursorPointer).Role(ui.RoleMenuButton).
 		Label(i18n.T("页面缩放")).Tooltip(tip)
 	if b.Hovered() {

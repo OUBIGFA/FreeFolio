@@ -14,7 +14,7 @@ import (
 // commits a nonempty name; Escape restores the saved name.
 func (a *App) spaceNameField(c *ui.Context, f *spaceForm) {
 	in := ui.TextInput(c.Key("space-name"), &f.name).Grow(1).MinWidth(0).Height(30).
-		Margin(0, 0, 0, 5).Padding(2, 0).FontSize(13).FontWeight(600).Radius(5).
+		Margin(0, 0, 0, 8).Padding(4, 0).FontSize(13).FontWeight(600).Radius(8).
 		Background(field(c.Theme())).Border(0, ui.Transparent).AutoFocus().Label(i18n.T("空间名称"))
 	if !f.focused {
 		in.SetTextSelection(0, utf8.RuneCountInString(f.name))
@@ -56,16 +56,15 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 		}
 		return e
 	}
-	form := ui.Column(c.Key("space-form")).Grow(1).MinHeight(0).Gap(8).Padding(14, 0, 0, 0)
+	form := ui.Column(c.Key("space-form")).Grow(1).MinHeight(0).Gap(12).Padding(20, 0, 0, 0)
 	var pickerAnchor ui.Element
 	form.Children(func() {
-		ui.Column(c).AlignItems(ui.Center).Gap(4).Margin(0, 0, 16, 0).Children(func() {
+		ui.Column(c).AlignItems(ui.Center).Gap(8).Margin(0, 0, 24, 0).Children(func() {
 			ui.Text(c, i18n.T("新建空间")).FontSize(17).FontWeight(600).TextColor(t.Text)
-			ui.Text(c, i18n.T("空间用于整理文档和文件夹")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 		})
 
-		tile(ui.Row(c.Key("space-form-header")), false).Padding(0, 6).Gap(6).AlignItems(ui.Center).Children(func() {
-			icon := ui.Box(c.Key("space-icon")).Size(26, 26).Shrink(0).Radius(7).Center().Cursor(ui.CursorPointer).
+		tile(ui.Row(c.Key("space-form-header")), false).Padding(0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+			icon := ui.Box(c.Key("space-icon")).Size(26, 26).Shrink(0).Radius(8).Center().Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RolePopUpButton).Label(i18n.T("空间图标")).Tooltip(i18n.T("选择图标")).Expanded(f.iconsOpen)
 			if icon.Hovered() || f.iconsOpen {
 				icon.Background(hoverFill(t))
@@ -90,17 +89,17 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			}
 			pickerAnchor = icon
 
-			name := ui.TextInput(c.Key("space-name"), &f.name).Grow(1).MinWidth(0).Height(fieldH).Padding(0, 2).FontSize(13).
+			name := ui.TextInput(c.Key("space-name"), &f.name).Grow(1).MinWidth(0).Height(fieldH).Padding(0, 4).FontSize(13).
 				Placeholder(i18n.T("空间名称")).Label(i18n.T("名称")).AutoFocus().Background(ui.Transparent).Border(0, ui.Transparent)
 			if name.Submitted() {
 				a.submitSpace()
 			}
 		})
 
-		tile(ui.Row(c.Key("draft-folder-row")), false).Padding(0, 5, 0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		tile(ui.Row(c.Key("draft-folder-row")), false).Padding(0, 8, 0, 20).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.T("文件夹")).FontSize(13).TextColor(t.Text).Shrink(0)
 			ui.Spacer(c)
-			pill := ui.Row(c.Key("draft-folder")).Height(fieldH - 12).MinWidth(0).Shrink(1).PaddingX(12).Gap(6).Radius(8).
+			pill := ui.Row(c.Key("draft-folder")).Height(fieldH - 12).MinWidth(0).Shrink(1).PaddingX(20).Gap(8).Radius(8).
 				AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).
 				Label(i18n.T("选择文件夹")).Tooltip(root).Background(hoverFill(t))
 			if pill.Hovered() {
@@ -125,7 +124,7 @@ func (a *App) spaceDraft(c *ui.Context, f *spaceForm) {
 			f.cardOpen = !f.cardOpen
 		}
 
-		tile(ui.Row(c.Key("draft-starter-row")), false).Padding(0, 10, 0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		tile(ui.Row(c.Key("draft-starter-row")), false).Padding(0, 16, 0, 20).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.T("从模板开始")).FontSize(13).TextColor(t.Text).Shrink(0)
 			ui.Spacer(c)
 			ui.Switch(c.Key("space-starter"), &f.starter).Label(i18n.T("从模板开始")).Tooltip(i18n.T("空白空间自动创建入门示例文档"))
@@ -176,9 +175,8 @@ func (a *App) draftState(c *ui.Context) {
 		ui.Spacer(c)
 		return
 	}
-	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
+	ui.Column(c).Grow(1).Center().Gap(16).Children(func() {
 		a.spaceGlyph(c, f.icon, f.symbol, f.image, name, 40, t.Accent)
 		ui.Text(c, name).FontSize(20).Bold()
-		ui.Text(c, i18n.T("命名空间、挑选颜色，按 Enter 创建")).TextColor(t.TextMuted)
 	})
 }

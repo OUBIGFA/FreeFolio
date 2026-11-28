@@ -99,10 +99,10 @@ const (
 func (a *App) customIcon(c *ui.Context, f *spaceForm) {
 	t := c.Theme()
 	p := &f.picker
-	ui.Column(c.Key("custom-icon")).Grow(1).MinHeight(0).Gap(10).Margin(12, 0, 0, 0).Children(func() {
+	ui.Column(c.Key("custom-icon")).Grow(1).MinHeight(0).Gap(16).Margin(20, 0, 0, 0).Children(func() {
 		ui.Text(c, i18n.T("文字或表情")).FontSize(12).TextColor(t.TextMuted)
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			in := ui.TextInput(c.Key("custom-text"), &p.text).Grow(1).MinWidth(0).Height(30).Padding(2, 8).Radius(controlRadius).
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			in := ui.TextInput(c.Key("custom-text"), &p.text).Grow(1).MinWidth(0).Height(30).Padding(4, 12).Radius(controlRadius).
 				Placeholder(i18n.T("最多 3 个字符")).Label(i18n.T("自定义图标文字")).AutoFocus().
 				Background(t.Background.Alpha(0.3)).Border(1, t.Text.Alpha(0.14))
 			if in.Changed() {
@@ -115,9 +115,8 @@ func (a *App) customIcon(c *ui.Context, f *spaceForm) {
 				f.iconsOpen = false
 			}
 		})
-		ui.Box(c).Height(1).Background(t.Text.Alpha(0.08))
 		ui.Text(c, i18n.T("图片")).FontSize(12).TextColor(t.TextMuted)
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 			if bmp := a.spaceIconImage(f.image); bmp != nil {
 				ui.Image(c, bmp).Size(36, 36).Radius(8).Shrink(0)
 			}
@@ -125,7 +124,6 @@ func (a *App) customIcon(c *ui.Context, f *spaceForm) {
 				a.pickSpaceIcon(f.id)
 			}
 		})
-		ui.Text(c, i18n.T("PNG、JPG、GIF 等图片，会复制到配置文件夹")).FontSize(12).TextColor(t.TextMuted).LineHeight(1.4)
 	})
 }
 

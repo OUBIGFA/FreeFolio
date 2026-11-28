@@ -99,13 +99,12 @@ func (gs *gitUIState) gitExclusionsView(c *ui.Context, id string, locked bool) {
 	draft := gs.exclusions
 	settingsSection(c, i18n.T("同步排除"))
 	settingsGroup(c, "git-exclusions", func() {
-		ui.Column(c).Padding(12).Gap(8).Children(func() {
+		ui.Column(c).Padding(20).Gap(12).Children(func() {
 			ui.Text(c, i18n.T("勾选不想同步的文件或文件夹，保存后保留本地文件，已上传内容将在下次提交时从云端当前版本移除")).FontSize(12.5).LineHeight(1.45)
-			ui.Text(c, i18n.T("原有手写忽略规则继续生效，取消勾选只移除本页添加的规则")).FontSize(12).TextColor(c.Theme().TextMuted)
 			ui.TextInput(c.Key("filter"), &draft.filter).FillWidth().Placeholder(i18n.T("筛选文件或文件夹")).Label(i18n.T("筛选文件或文件夹")).Disabled(locked)
 		})
 		settingsSeparator(c)
-		ui.Scroll(c.Key("entries")).Height(320).Padding(6, 12).Gap(2).Children(func() {
+		ui.Scroll(c.Key("entries")).Height(320).Padding(8, 0).Gap(4).Children(func() {
 			entries := slices.Clone(draft.state.Entries)
 			// Keep removed paths available so stale exclusions can be cancelled.
 			known := map[string]bool{}
@@ -132,7 +131,7 @@ func (gs *gitUIState) gitExclusionsView(c *ui.Context, id string, locked bool) {
 					}
 				}
 				on := inherited || draft.selected[path]
-				ui.Row(c.Key(path)).Gap(8).Padding(4, 0).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key(path)).Gap(12).Padding(8, 0).AlignItems(ui.Center).Children(func() {
 					if ui.Checkbox(c.Key("exclude"), &on, "").Label(path).Disabled(locked || inherited).Changed() {
 						draft.selected[path] = on
 					}
@@ -144,7 +143,7 @@ func (gs *gitUIState) gitExclusionsView(c *ui.Context, id string, locked bool) {
 			}
 		})
 	})
-	ui.Row(c.Key("git-exclusion-actions")).Gap(8).Wrap().Children(func() {
+	ui.Row(c.Key("git-exclusion-actions")).Gap(12).Wrap().Children(func() {
 		if ui.PrimaryButton(c.Key("save"), i18n.T("保存同步排除")).Disabled(locked).Clicked() {
 			gs.saveGitExclusions(id)
 		}

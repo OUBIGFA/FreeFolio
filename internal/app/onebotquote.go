@@ -112,16 +112,16 @@ func (ob *qaState) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQ
 		return
 	}
 	t := c.Theme()
-	ui.Row(c.Key(key)).Gap(6).Wrap().Children(func() {
+	ui.Row(c.Key(key)).Gap(8).Wrap().Children(func() {
 		for i, q := range quotes {
 			name := path.Base(q.Path)
 			tip := q.Path
 			if q.From > 0 {
 				tip += fmt.Sprintf(" · L%d–%d", q.From, q.To)
 			}
-			ui.Row(c.Key(fmt.Sprint(i))).Height(24).Radius(6).AlignItems(ui.Center).
-				Background(t.Text.Alpha(0.055)).Border(1, t.Border.Alpha(0.45)).Children(func() {
-				body := ui.Row(c.Key("open")).Height(24).PaddingX(7).Gap(4).Radius(6).AlignItems(ui.Center).
+			ui.Row(c.Key(fmt.Sprint(i))).Height(24).Radius(8).AlignItems(ui.Center).
+				Background(t.Text.Alpha(0.055)).Children(func() {
+				body := ui.Row(c.Key("open")).Height(24).PaddingX(12).Gap(8).Radius(8).AlignItems(ui.Center).
 					Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("引用：") + name).Tooltip(tip)
 				if body.Hovered() {
 					body.Background(hoverFill(t))
@@ -135,7 +135,7 @@ func (ob *qaState) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQ
 					ob.revealOneBotQuote(q)
 				}
 				if removable {
-					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(6).Center().Cursor(ui.CursorPointer).
+					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(8).Center().Cursor(ui.CursorPointer).
 						Focusable().Role(ui.RoleButton).Label(i18n.T("移除引用：") + name)
 					if x.Hovered() {
 						x.Background(hoverFill(t))

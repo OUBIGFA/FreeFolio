@@ -704,8 +704,8 @@ func (a *App) paletteView(c *ui.Context) {
 	winW, winH := c.Size()
 	width := min(float32(840), winW-80)
 	resultHeight := max(float32(80), winH-160)
-	showKeys := winH >= 460
-	if showKeys {
+	showCount := winH >= 460 && p.query != ""
+	if showCount {
 		resultHeight -= 28
 	}
 	var top float32
@@ -742,14 +742,13 @@ func (a *App) paletteView(c *ui.Context) {
 		if p.bookmarks {
 			placeholder = i18n.T("搜索书签")
 		}
-		ui.Column(c).Width(width).Gap(6).Children(func() {
+		ui.Column(c).Width(width).Gap(12).Children(func() {
 			var input ui.Element
-			ui.Row(c.Key("search-head")).Padding(2, 8).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("search-head")).Padding(4, 16).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconSearch).FontSize(18).TextColor(t.TextMuted)
 				input = ui.TextInputBase(c.Key("query"), &p.query).Placeholder(placeholder).
 					AutoFocus().Label(i18n.T("命令栏")).FontSize(16).Height(36).Grow(1).MinWidth(0)
 			})
-			ui.Box(c).Height(1).Background(separator(t))
 			if input.Submitted() && len(res) > 0 {
 				run(res[p.index])
 				return
@@ -762,7 +761,7 @@ func (a *App) paletteView(c *ui.Context) {
 				case p.bookmarks:
 					empty = i18n.T("没有匹配的书签")
 				}
-				ui.Text(c, empty).TextColor(t.TextMuted).Padding(10, 12)
+				ui.Text(c, empty).TextColor(t.TextMuted).Padding(16, 20)
 				return
 			}
 			// Bound the viewport, not the results; keep the input visible while
@@ -780,7 +779,7 @@ func (a *App) paletteView(c *ui.Context) {
 						identity [5]string
 						ordinal  int
 					}{key, ordinal}
-					row := ui.Row(c.Key(rowKey)).Gap(10).Padding(7, 12).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleOption).AccessSelected(i == p.index).Label(act.title)
+					row := ui.Row(c.Key(rowKey)).Gap(16).Padding(12, 20).Radius(controlRadius).AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleOption).AccessSelected(i == p.index).Label(act.title)
 					confirming := act.danger && p.confirm == act.title
 					renamingMark := act.bookmark != nil && p.renameOn && sameBookmark(p.renaming, *act.bookmark)
 					if confirming {
@@ -805,7 +804,9 @@ func (a *App) paletteView(c *ui.Context) {
 								Background(navigationFill(t)).PassThrough().
 								Transition(ui.ElementTransition{Duration: 90 * time.Millisecond, Ease: ui.EaseOut, Match: palettePillMatch{}})
 						}
-						ui.Text(c, act.kind).FontSize(12).TextColor(t.TextMuted).Width(64).SingleLine()
+						// The kind shows as a glyph, not a word, and is named for
+						// assistive technology.
+						ui.Icon(c, paletteKindIcon(act.kind)).FontSize(16).TextColor(t.TextMuted).Shrink(0).Label(act.kind)
 						if act.snippet == "" {
 							title := ui.Text(c, act.title).Grow(1).SingleLine().MinWidth(0)
 							if act.danger {
@@ -822,8 +823,8 @@ func (a *App) paletteView(c *ui.Context) {
 						}
 						// A text hit: the name over the line it was found on, the
 						// match marked as the find box marks it.
-						ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+							ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, act.title).Grow(1).SingleLine().MinWidth(0)
 								if act.hint != "" {
 									ui.Text(c, act.hint).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
@@ -844,21 +845,34 @@ func (a *App) paletteView(c *ui.Context) {
 				}
 			})
 			p.reveal = false
-			if showKeys {
-				ui.Row(c.Key("search-keys")).AlignItems(ui.Center).Gap(8).Padding(3, 8).Children(func() {
-					ui.Text(c, "↑↓ "+i18n.T("选择")).FontSize(12).TextColor(t.TextMuted)
-					ui.Text(c, "Enter "+i18n.T("打开")).FontSize(12).TextColor(t.TextMuted)
-					ui.Spacer(c)
-					if p.query != "" {
-						ui.Text(c, fmt.Sprintf(i18n.T("%d 个结果"), len(res))).FontSize(12).TextColor(t.TextMuted)
-					}
+			if showCount {
+				ui.Row(c.Key("search-keys")).Justify(ui.End).Padding(4, 16).Children(func() {
+					ui.Text(c, fmt.Sprintf(i18n.T("%d 个结果"), len(res))).FontSize(12).TextColor(t.TextMuted)
 				})
 			}
 		})
 	})
+	panel.Background(t.Surface).Radius(dialogRadius).Padding(16)
 	if bounds.W > 0 {
 		panel.Absolute().Left(min(max(20, bounds.X+(bounds.W-width-40)/2), winW-width-60)).Top(top)
 	}
+}
+
+// paletteKindIcon is the glyph standing for a result's kind.
+func paletteKindIcon(kind string) *ui.SVG {
+	switch kind {
+	case i18n.T("命令"):
+		return iconCommand
+	case i18n.T("空间"):
+		return iconFolder
+	case i18n.T("插件"):
+		return iconPlugins
+	case i18n.T("内容"):
+		return iconSearch
+	case i18n.T("最近"):
+		return iconHistory
+	}
+	return iconFile
 }
 
 // editorActions exposes Markdown operations without permanent formatting UI.
