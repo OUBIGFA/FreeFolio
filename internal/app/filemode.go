@@ -508,7 +508,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 		from, to := l.X+l.W-b.X+12, r.X-b.X-12
 		area := ui.Row(c.Key("file-tab-area")).Absolute().Top(0).Bottom(0).Gap(8).AlignItems(ui.Center).Clip()
 		var strip, tabs, open ui.Element
-		tabMax := a.fileTabMaxWidth(c, f, to-from-6-f.openWidth)
+		tabMax := a.fileTabMaxWidth(c, f, to-from-8-f.openWidth)
 		area.Children(func() {
 			strip = ui.ScrollHorizontal(c.Key("file-tabs")).Shrink(1).MinWidth(0).Role(ui.RoleTabList).Label(i18n.T("已打开的文件"))
 			strip.Children(func() {
@@ -530,7 +530,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 			f.openWidth = w
 		}
 		width := tabs.LayoutBounds().W
-		groupWidth := width + 6 + open.LayoutBounds().W
+		groupWidth := width + 8 + open.LayoutBounds().W
 		centered := (b.W - width) / 2
 		if width > 0 && centered >= from && centered+groupWidth <= to {
 			area.Left(centered).Width(groupWidth)
@@ -584,18 +584,18 @@ func (a *App) fileTabMaxWidth(c *ui.Context, f *fileSession, avail float32) floa
 	if avail <= 0 || len(f.order) == 0 {
 		return fileTabCapWidth
 	}
-	// The label at the shown tab's weight, padding, border and a pixel to
-	// spare, the gap to the spacer, and the gap to the close button and it.
-	extra := float32(10 + 4 + 2 + 1 + 4)
+	// Match fileTab's insets and child gaps, with a pixel for rounding.
+	// Reserve the selected weight so switching tabs still shows the whole title.
+	extra := float32(16 + 8 + 8 + 1)
 	if !a.prefs.Files.HideTabClose {
-		extra += 4 + 20
+		extra += 8 + 20
 	}
 	widths := make([]float32, len(f.order))
 	for i, rel := range f.order {
-		w, _ := c.MeasureText(0, ui.Span{Text: fileTabLabel(f, rel), Size: 13, Weight: 500})
+		w, _ := c.MeasureText(0, ui.Span{Text: fileTabLabel(f, rel), Size: 13, Weight: 600})
 		widths[i] = max(fileTabMinWidth, float32(math.Ceil(float64(w)))+extra)
 	}
-	avail -= float32(2 * (len(widths) - 1))
+	avail -= float32(4 * (len(widths) - 1))
 	slices.Sort(widths)
 	for i, w := range widths {
 		// What is left, shared by this tab and the wider ones after it.

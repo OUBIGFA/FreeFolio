@@ -274,7 +274,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 				actions, _ := tt.Find("添加分屏")
 				openButton, _ := tt.Find("打开文件")
 				groupWidth := last.X + last.W - first.X
-				canCenter := 720+groupWidth/2+6+openButton.W <= actions.X-12
+				canCenter := 720+groupWidth/2+8+openButton.W <= actions.X-12
 				if i < 3 && canCenter && math.Abs(float64((first.X+last.X+last.W)/2-720)) > 1 {
 					t.Errorf("%d tabs: group is not centered: first=%+v last=%+v", i+1, first, last)
 				}
@@ -572,5 +572,72 @@ func TestFileTabsShowLongNamesWhole(t *testing.T) {
 	settle(tt)
 	if tab, _ = tt.Find("7-" + long); math.Abs(float64(tab.W-fileTabCapWidth)) > 1 {
 		t.Fatalf("crowded tab width = %v, want %v", tab.W, fileTabCapWidth)
+	}
+}
+
+// A wider tab can still truncate its text when its width budget omits
+// padding, gaps, the close button, or the selected title's heavier font.
+func TestFileTabsLeaveRoomForFullTitles(t *testing.T) {
+	a, tt := newTestApp(t)
+	tt.SetTitleBar(windowsTitleBar)
+	names := []string{
+		"2026 年度项目复盘与下一阶段工作计划（最终修订版）.md",
+		"Annual project review and next phase working plan.md",
+	}
+	for _, name := range names {
+		if !a.openSystemFile(externalFile(t, name, "# Note")) {
+			t.Fatal("open", name)
+		}
+	}
+	for _, hideClose := range []bool{false, true} {
+		a.prefs.Files.HideTabClose = hideClose
+		for active, rel := range a.files.order {
+			a.showFileTab(rel)
+			// Render uncapped text independently of the tab width calculation.
+			reference := ui.NewTester(func(c *ui.Context) {
+				ui.Column(c).AlignItems(ui.Start).Children(func() {
+					for i, name := range names {
+						weight := 400
+						if i == active {
+							weight = 600
+						}
+						ui.Text(c, name).FontSize(13).FontWeight(weight).SingleLine()
+					}
+				})
+			}, 1800, 100)
+			for _, width := range []int{1800, 640, 1600} {
+				tt.SetSize(width, 760)
+				settle(tt)
+				if !hideClose && active == 0 && os.Getenv("FREEFOLIO_SNAPSHOT") != "" {
+					dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render file titles")
+					for _, dark := range []bool{false, true} {
+						tt.SetDark(dark)
+						settle(tt)
+						savePNG(t, filepath.Join(dir, fmt.Sprintf("file-titles-%d-dark-%v.png", width, dark)), tt)
+					}
+					tt.SetDark(false)
+					settle(tt)
+				}
+				if width == 640 {
+					continue // Existing tab-strip tests cover overflow at this width.
+				}
+				strip, _ := tt.Find("已打开的文件")
+				for _, name := range names {
+					tab, ok := tt.Find(name)
+					label, _ := reference.Find(name)
+					// Insets take 24 DIP; the spacer and close button add gaps.
+					chrome := float32(60)
+					if hideClose {
+						chrome = 32
+					}
+					if !ok || tab.W-chrome < label.W-0.1 {
+						t.Errorf("width=%d hideClose=%v active=%d: %q has %v DIP for %v DIP of text", width, hideClose, active, name, tab.W-chrome, label.W)
+					}
+					if tab.X < strip.X-1 || tab.X+tab.W > strip.X+strip.W+1 {
+						t.Errorf("width=%d: title is clipped by the strip: tab=%+v strip=%+v", width, tab, strip)
+					}
+				}
+			}
+		}
 	}
 }
