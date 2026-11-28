@@ -110,7 +110,7 @@ func (a *App) prunePicks(sp *space.Space, nodes []*vault.Node) {
 	}
 	for p := range a.picks {
 		n := vault.Find(nodes, p)
-		if n == nil || (!n.Dir && (a.state.IsFavorite(sp.ID, p) || a.grouped(sp, p))) {
+		if n == nil || !n.Dir && a.state.IsFavorite(sp.ID, p) {
 			delete(a.picks, p)
 		}
 	}

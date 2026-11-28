@@ -380,9 +380,6 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 					rest.Background(hoverFill(t))
 				}
 				rest.Children(func() {
-					if live {
-						a.splitSidebarRow(c, sp)
-					}
 					// The rows in a column of their own, whose place the
 					// rows' window measures from.
 					rows := ui.Column(c.Key("today-rows")).Gap(rowGap)

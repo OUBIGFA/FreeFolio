@@ -35,7 +35,7 @@ func (p *splitPane) visualFactor() float32 {
 }
 
 // A group belongs to a space session. Leaving it keeps its editors and
-// ratios, so choosing its sidebar row restores the same workspace.
+// ratios, so opening one of its documents restores the same workspace.
 type splitGroup struct {
 	panes    []*splitPane
 	active   int
@@ -669,33 +669,6 @@ func (a *App) followSplitPaths(fromID, from, toID, to string) {
 			}
 		}
 	}
-}
-
-// Ordinary documents belong to their group's segmented sidebar row. Pins
-// and favorites keep their established location, as in Cra.
-func (a *App) grouped(sp *space.Space, rel string) bool {
-	if inPins(sp, rel) {
-		return false
-	}
-	session := a.session(sp.ID)
-	if session.splitDeferred {
-		if sp.Split != nil && len(sp.Split.Panes) >= 2 && len(sp.Split.Panes) <= splitLimit {
-			for _, ref := range sp.Split.Panes {
-				if ref.Space == sp.ID && ref.Path == rel {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	if s := session.split; s != nil {
-		for _, p := range s.panes {
-			if p.doc != nil && p.doc.space == sp && p.doc.rel == rel {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // A suspended group's conflict must be reachable even when it prevents

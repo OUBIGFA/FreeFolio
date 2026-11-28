@@ -89,9 +89,10 @@ Cra's layout provides independent rounded cards, a 2 DIP active outline,
 snapping, and draggable/keyboard-accessible dividers. The toolbar adds an empty
 pane showing the space or file-browser home without opening search, flips orientation, reorders, separates and closes
 panes. Sidebar document drops select the nearest edge; the file stays put.
-Ordinary grouped documents occupy a segmented sidebar row; pins and favorites
-keep their own rows. Opening an unrelated document suspends the group, which
-its row or a return to the Space restores. Links and history stay in a pane.
+Sidebar documents retain their existing rows, folder hierarchy, pins and
+favorites; splitting adds no sidebar group. Opening an unrelated document
+suspends the group; opening one of its documents or returning to the Space
+restores it. Links and history stay in a pane.
 
 All retained editors participate in saving, conflict detection, path changes
 and link rewrites. File watches include suspended groups. Save failures keep

@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,59 @@ func splitTestApp(t *testing.T) (*App, *ui.Tester) {
 		t.Fatal("split not created")
 	}
 	return a, tt
+}
+
+// Splitting changes the document area, not the sidebar's hierarchy or ordering.
+func TestSplitKeepsSidebarLayout(t *testing.T) {
+	a, tt := newTestApp(t)
+	sp := a.state.ActiveSpace()
+	for _, rel := range []string{"Alpha.md", "Nested/Beta.md"} {
+		if err := vault.Write(sp.Root, rel, "# Note\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sp.SetExpanded("Nested", true)
+	a.refreshTree()
+	a.open("Alpha.md")
+	settle(tt)
+	paths := a.listedPaths(sp)
+	pins := slices.Clone(sp.Pins)
+	favorites := slices.Clone(a.state.Favorites)
+	rows := func() []rowFrame {
+		var result []rowFrame
+		for _, row := range a.rows {
+			result = append(result, rowFrame{rel: row.rel, parent: row.parent, index: row.index, depth: row.depth})
+		}
+		return result
+	}
+	wantRows := rows()
+	a.openSplit(sp, "Nested/Beta.md", false, false)
+	settle(tt)
+	for _, empty := range []bool{false, true} {
+		if empty {
+			a.addSplitPane()
+			settle(tt)
+		}
+		if got := a.listedPaths(sp); !slices.Equal(got, paths) {
+			t.Errorf("empty=%v: split changed sidebar paths: got %v, want %v", empty, got, paths)
+		}
+		if got := rows(); !slices.Equal(got, wantRows) {
+			t.Errorf("empty=%v: split changed sidebar row order or hierarchy: got %+v, want %+v", empty, got, wantRows)
+		}
+		if _, ok := tt.Find("打开分屏 1：Alpha"); ok || tt.HasText("新分屏") {
+			t.Errorf("empty=%v: sidebar contains a special split group", empty)
+		}
+		if !slices.Equal(sp.Pins, pins) || !slices.Equal(a.state.Favorites, favorites) {
+			t.Errorf("empty=%v: split changed pins or favorites", empty)
+		}
+	}
+	// Tree refresh must retain multi-selected files that are open in panes.
+	a.picksSpace = sp.ID
+	a.picks = map[string]bool{"Alpha.md": true, "Nested/Beta.md": true}
+	a.refreshTree()
+	if len(a.picks) != 2 {
+		t.Fatalf("split files were removed from sidebar selection: %v", a.picks)
+	}
 }
 
 func TestSplitIndependentEditing(t *testing.T) {
@@ -153,7 +207,9 @@ func TestSplitSessionAndConflict(t *testing.T) {
 	if a.split != nil {
 		t.Fatal("ordinary sidebar navigation leaves group")
 	}
-	tt.Click("打开分屏 1：Left")
+	if err := tt.Click("Left"); err != nil {
+		t.Fatal(err)
+	}
 	settle(tt)
 	if a.split != s || a.doc != left {
 		t.Fatal("group not restored")

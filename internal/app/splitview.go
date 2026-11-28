@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
-	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
-// Reuse Lucide's columns-2 glyph for split controls.
+// Reuse Lucide's columns-2 glyph for adding a split pane.
 var iconSplit = iconColumns2
 
 // Splitting belongs to the workspace, independently of document format or pane width.
@@ -207,7 +206,7 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 			a.documentCorner(c, d)
 		}
 		if full {
-			options := iconButton(c, "options", iconSplit, fmt.Sprintf(i18n.T("分屏 %d 选项"), index+1), i18n.T("分屏选项"), false).Size(26, 26)
+			options := iconButton(c, "options", iconEllipsis, fmt.Sprintf(i18n.T("分屏 %d 选项"), index+1), i18n.T("分屏选项"), false).Size(26, 26)
 			options.PopoverMenuButton(func(m *ui.Menu) { a.splitMenu(m, index) })
 		}
 		if iconButton(c, "close", iconX, fmt.Sprintf(i18n.T("关闭分屏 %d"), index+1), a.withKey(i18n.T("关闭此分屏"), "split-close"), false).Size(26, 26).Clicked() {
@@ -430,56 +429,5 @@ func (a *App) splitDropTargetFor(c *ui.Context, target ui.Element, index int) {
 		r.H -= 16
 		p.Fill(r, fill, 10)
 		p.Stroke(r, rim, 10, 1.5)
-	})
-}
-
-func (a *App) splitSidebarRow(c *ui.Context, sp *space.Space) {
-	s := a.session(sp.ID).split
-	if s == nil || len(s.panes) < 2 {
-		return
-	}
-	row := ui.Row(c.Key("split-row")).Height(a.sidebarRowHeight()).Padding(4).Gap(4).Radius(a.sidebarRowRadius()).Margin(2, 0, 4, 0)
-	if a.split == s {
-		row.Background(glass(c.Theme()))
-	} else if row.Hovered() {
-		row.Background(hoverFill(c.Theme()))
-	}
-	row.Children(func() {
-		for i, p := range slices.Clone(s.panes) {
-			if i > 0 {
-				ui.Box(c).Width(1).Height(18).AlignSelf(ui.Center).Background(separator(c.Theme()))
-			}
-			name := i18n.T("新分屏")
-			if p.doc != nil {
-				name = p.doc.title()
-			}
-			cell := ui.Row(c.Key(fmt.Sprintf("pane:%p", p))).Grow(1).Basis(0).MinWidth(0).PaddingX(4).Gap(4).Radius(6).AlignItems(ui.Center).
-				Focusable().Role(ui.RoleButton).Label(fmt.Sprintf(i18n.T("打开分屏 %d：%s"), i+1, name)).Tooltip(name).Cursor(ui.CursorPointer)
-			if a.split == s && s.active == i {
-				cell.Background(hoverFill(c.Theme()))
-			}
-			cell.Children(func() {
-				if p.doc != nil {
-					docIcon(c, a.iconTitle(p.doc.space.ID, p.doc.rel), 14)
-				} else {
-					ui.Icon(c, iconSplit).FontSize(14)
-				}
-				ui.Text(c, name).FontSize(12).SingleLine().Grow(1).MinWidth(0)
-			})
-			cell.ContextMenu(func(m *ui.Menu) {
-				if a.split == s {
-					a.splitMenu(m, i)
-				} else if m.Item(i18n.T("打开分屏组")).Chosen() {
-					a.restoreSplit(s, i)
-				}
-			})
-			if cell.Clicked() {
-				if a.split == s {
-					a.focusPane(i, true)
-				} else {
-					a.restoreSplit(s, i)
-				}
-			}
-		}
 	})
 }

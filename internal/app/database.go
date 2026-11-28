@@ -1754,7 +1754,7 @@ func (a *App) isFoldedDBDir(sp *space.Space, dir string) bool {
 	}
 	dbPath := dir + vault.ExtDatabase
 	if n := a.findTreeNode(sp, dbPath); n != nil && !n.Dir {
-		return !a.state.IsFavorite(sp.ID, dbPath) && !a.grouped(sp, dbPath)
+		return !a.state.IsFavorite(sp.ID, dbPath)
 	}
 	return false
 }
