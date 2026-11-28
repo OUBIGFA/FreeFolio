@@ -12,8 +12,17 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Reuse the existing Lucide panel glyph for split controls.
-var iconSplit = iconSidebar
+// Reuse Lucide's columns-2 glyph for split controls.
+var iconSplit = iconColumns2
+
+// Splitting belongs to the workspace, independently of document format or pane width.
+func (a *App) addSplitButton(c *ui.Context, add func()) ui.Element {
+	b := iconButton(c, "title-split", iconSplit, i18n.T("添加分屏"), a.withKey(i18n.T("添加分屏"), "split-add"), a.split != nil && len(a.split.panes) >= splitLimit).Shrink(0)
+	if b.Clicked() {
+		add()
+	}
+	return b
+}
 
 func (a *App) splitView(c *ui.Context) {
 	a.syncSplit()
@@ -24,7 +33,7 @@ func (a *App) splitView(c *ui.Context) {
 	} else if a.folded() {
 		ui.Row(c.Key("split-window-bar")).Height(max(36, bar.Height)).Padding(0, bar.Right, 0, bar.Left+4).AlignItems(ui.Center).DragWindow().Children(func() {
 			show := func() {
-				if iconButton(c, "sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+				if iconButton(c, "sidebar", a.sidebarIcon(true), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
 					a.toggleSidebar()
 				}
 			}
@@ -184,6 +193,11 @@ func (a *App) paneToolbar(c *ui.Context, s *splitGroup, pane *splitPane, index i
 		})
 		if address.Clicked() {
 			run(func() { a.openPalette(); a.palette.pane = pane })
+		}
+		// Keep the active pane's action reachable even when it is narrow or empty.
+		// The file browser supplies this action in its shared title bar instead.
+		if a.files == nil && s.active == index {
+			a.addSplitButton(c, func() { run(a.addSplitPane) }).Size(26, 26)
 		}
 		if d != nil && full && width >= 480 && d.loadErr == nil {
 			a.documentCorner(c, d)

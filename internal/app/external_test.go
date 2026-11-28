@@ -271,7 +271,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 					t.Errorf("%d tabs: active tab %+v is outside strip %+v", i+1, last, strip)
 				}
 				// Short groups center their combined bounds, not each tab separately.
-				actions, _ := tt.Find("Markdown 源码")
+				actions, _ := tt.Find("添加分屏")
 				openButton, _ := tt.Find("打开文件")
 				groupWidth := last.X + last.W - first.X
 				canCenter := 720+groupWidth/2+6+openButton.W <= actions.X-12
@@ -306,7 +306,7 @@ func TestFileTabsCenterAsAGroup(t *testing.T) {
 					t.Errorf("width=%d: active tab is not visible: tab=%+v strip=%+v", width, last, strip)
 				}
 				open, _ := tt.Find("打开文件")
-				actions, _ := tt.Find("Markdown 源码")
+				actions, _ := tt.Find("添加分屏")
 				if strip.X < profile.bar.Left || open.X < strip.X+strip.W || open.X+open.W > actions.X-11 {
 					t.Errorf("width=%d: strip %+v overlaps controls: open=%+v actions=%+v", width, strip, open, actions)
 				}

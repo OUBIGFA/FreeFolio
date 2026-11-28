@@ -94,8 +94,8 @@ generates `internal/solar/icons_gen.go` from `internal/solar/manifest.txt`; blac
 is replaced by `currentColor`, otherwise the shapes are unchanged. The credit is
 shown in Settings → About. Both notices are in `solar-icons/`.
 
-A few glyphs Solar has no counterpart for (headings, sigma, wrap, sequence,
-whiteboard and mind-map layouts, and five space symbols) remain Lucide, under the
+A few selected glyphs (headings, sigma, wrap, sequence, sidebar open/close actions,
+split columns, whiteboard and mind-map layouts, and five space symbols) use Lucide, under the
 ISC License, drawn at Solar's 1.5 stroke; attribution appears in
 `internal/app/icons.go`. Space symbols keep their stored Lucide 1.70.0 names in
 `internal/app/spacesymbols.go`.

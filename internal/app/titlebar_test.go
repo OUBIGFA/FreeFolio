@@ -52,11 +52,11 @@ func TestTitleBarControlsStayClear(t *testing.T) {
 			for _, width := range []int{640, 1240} {
 				t.Run(fmt.Sprintf("%s/%s/%d", profile.name, mode, width), func(t *testing.T) {
 					a, tt := titleBarTestApp(t, mode, width, profile.bar)
-					labels := []string{"后退", "前进", "重新载入", "文档路径", "更多格式", "更多"}
+					labels := []string{"后退", "前进", "重新载入", "文档路径", "添加分屏", "更多格式", "更多"}
 					if a.focus {
 						labels = []string{"退出专注模式"}
 					} else if a.split != nil {
-						labels = []string{"分屏 1 文档路径", "分屏 2 文档路径", "关闭分屏 1", "关闭分屏 2"}
+						labels = []string{"分屏 1 文档路径", "分屏 2 文档路径", "添加分屏", "关闭分屏 1", "关闭分屏 2"}
 						if a.folded() {
 							labels = append(labels, "展开侧边栏", "更多")
 						}
@@ -108,6 +108,21 @@ func TestWindowsTitleBarSnapshot(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				_, tt := titleBarTestApp(t, mode, width, windowsTitleBar)
 				savePNG(t, filepath.Join(dir, "windows-titlebar-"+name+".png"), tt)
+			})
+		}
+	}
+}
+
+func TestWorkspaceControlsSnapshot(t *testing.T) {
+	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render sidebar and split controls")
+	for _, left := range []bool{false, true} {
+		for _, mode := range []string{"normal", "folded", "split", "split-folded"} {
+			name := fmt.Sprintf("%s-%s", map[bool]string{false: "right", true: "left"}[left], mode)
+			t.Run(name, func(t *testing.T) {
+				a, tt := titleBarTestApp(t, mode, 1240, windowsTitleBar)
+				a.prefs.SidebarLeft = left
+				settle(tt)
+				savePNG(t, filepath.Join(dir, "workspace-controls-"+name+".png"), tt)
 			})
 		}
 	}

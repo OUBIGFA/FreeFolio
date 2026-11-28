@@ -81,12 +81,18 @@ func (a *App) sidebarRowIconSize() float32 {
 	return 16
 }
 
-// The toggle depicts the same edge that it opens or closes.
-func (a *App) sidebarIcon() *ui.SVG {
+// The panel marks its edge; the arrow shows the next open or close action.
+func (a *App) sidebarIcon(folded bool) *ui.SVG {
 	if a.prefs.SidebarLeft {
-		return iconSidebar
+		if folded {
+			return iconPanelLeftOpen
+		}
+		return iconPanelLeftClose
 	}
-	return iconSidebarRight
+	if folded {
+		return iconPanelRightOpen
+	}
+	return iconPanelRightClose
 }
 
 func (a *App) sidebar(c *ui.Context, floating bool) {
@@ -124,7 +130,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 			if floating {
 				label = i18n.T("固定侧边栏")
 			}
-			if iconButton(c, "toggle-sidebar", a.sidebarIcon(), label, label, false).Clicked() {
+			if iconButton(c, "toggle-sidebar", a.sidebarIcon(a.folded()), label, label, false).Clicked() {
 				a.toggleSidebar()
 			}
 		})

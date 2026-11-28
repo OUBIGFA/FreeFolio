@@ -715,7 +715,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 	}
 	// The toggle that opens the folded sidebar sits on the sidebar's edge.
 	showSidebar := func() {
-		if a.folded() && iconButton(c, "show-sidebar", a.sidebarIcon(), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
+		if a.folded() && iconButton(c, "show-sidebar", a.sidebarIcon(true), i18n.T("展开侧边栏"), a.withKey(i18n.T("展开侧边栏"), "sidebar"), false).Clicked() {
 			a.toggleSidebar()
 		}
 	}
@@ -740,6 +740,9 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 		ui.Box(c).Width(4)
 		if !a.prefs.SidebarLeft {
 			showSidebar()
+		}
+		if a.doc != nil && a.doc.loadErr == nil {
+			a.addSplitButton(c, a.addSplitPane)
 		}
 		// A narrow pane, as beside the library, keeps its room for the path.
 		if a.doc != nil && a.doc.loadErr == nil && !a.library.open && toolbar.LayoutBounds().W >= 560 {

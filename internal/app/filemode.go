@@ -477,6 +477,9 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 			}
 		})
 		end := ui.Row(c.Key("file-toolbar-end")).Shrink(0).Gap(6).AlignItems(ui.Center).PaddingEnd(bar.Right + 8).MarginStart(ui.Auto).Children(func() {
+			if a.split != nil || a.doc != nil && a.doc.loadErr == nil {
+				a.addSplitButton(c, a.addSplitPane)
+			}
 			if d := a.doc; d != nil && d.loadErr == nil {
 				a.documentCorner(c, d)
 			}

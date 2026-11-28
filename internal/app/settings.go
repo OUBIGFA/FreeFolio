@@ -638,7 +638,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 					previewBrand()
 					ui.Spacer(c)
 				}
-				icon(a.sidebarIcon())
+				icon(a.sidebarIcon(false))
 				if !a.prefs.SidebarLeft {
 					ui.Spacer(c)
 				}
