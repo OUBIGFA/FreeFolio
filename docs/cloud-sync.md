@@ -11,6 +11,11 @@ On another computer, select its corresponding local space and use the same
 remote folder. Data lives below the connection's `FreeFolio` directory. Neither
 computer has to share the other's local space ID or filesystem path.
 
+A space cannot use Git sync and cloud sync at the same time. If a sync attempt
+reports this overlap, the warning clears when Git sync or cloud sync is disabled,
+or all overlapping spaces are removed from the cloud selection. Resolving the
+warning does not itself start a sync.
+
 **Sync now** transfers notes and attachments in both directions. Files larger
 than 64 MiB are refused with an error. Hidden folders, FreeFolio internal history,
 configuration files, credentials, temporary content and generated conflict copies

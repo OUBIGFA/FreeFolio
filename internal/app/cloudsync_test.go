@@ -16,10 +16,101 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/cloudsync"
+	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/webdav"
 )
+
+func TestCloudGitConflictClearsWhenResolved(t *testing.T) {
+	for _, resolution := range []string{"disable-git", "disable-cloud", "remove-space", "change-language", "multiple-spaces"} {
+		t.Run(resolution, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			a.gitSync.initGitSync()
+			a.gitSync.loaded = true
+			id := a.state.Active
+			git := a.gitSync.gitSpaceConfig(id)
+			git.Enabled = true
+			a.cloud.config.Enabled = true
+			a.cloud.config.Spaces[id] = "Notes"
+			a.openSettings(tabCloud)
+			a.cloud.startCloudSync(false, true)
+			tt.Frame()
+			if !tt.HasText("同一空间不能同时启用 Git 与云端同步") || !a.cloud.failed || a.cloud.busy {
+				t.Fatal("overlapping sync did not show a blocking warning", tt.Texts())
+			}
+			// Merely pausing automatic runs does not resolve a manual-sync conflict.
+			a.cloud.config.Automatic = false
+			tt.Frame()
+			if !a.cloud.failed || a.cloud.cloudProblem() == "" {
+				t.Fatal("unresolved overlap lost its warning")
+			}
+			switch resolution {
+			case "disable-git":
+				git.Enabled = false
+			case "disable-cloud":
+				a.cloud.config.Enabled = false
+			case "remove-space":
+				delete(a.cloud.config.Spaces, id)
+			case "change-language":
+				i18n.SetLanguage("en")
+				t.Cleanup(func() { i18n.SetLanguage("zh-Hans") })
+				git.Enabled = false
+			case "multiple-spaces":
+				a.gitSync.gitSpaceConfig("other").Enabled = true
+				a.cloud.config.Spaces["other"] = "Other"
+				git.Enabled = false
+				tt.Frame()
+				if !a.cloud.failed || !tt.HasText("同一空间不能同时启用 Git 与云端同步") {
+					t.Fatal("warning disappeared while another space still overlapped")
+				}
+				delete(a.cloud.config.Spaces, "other")
+			}
+			tt.Frame()
+			if a.cloud.failed || a.cloud.message != "" || a.cloud.cloudProblem() != "" || tt.HasText("同一空间不能同时启用 Git 与云端同步") {
+				t.Fatalf("resolved overlap kept its warning: failed=%v message=%q", a.cloud.failed, a.cloud.message)
+			}
+			if a.cloud.busy {
+				t.Fatal("resolving the warning started sync")
+			}
+		})
+	}
+}
+
+func TestCloudGitConflictDoesNotClearLaterFailure(t *testing.T) {
+	for _, failure := range []string{"save", "git-busy"} {
+		t.Run(failure, func(t *testing.T) {
+			a, tt := newTestApp(t)
+			a.gitSync.initGitSync()
+			a.gitSync.loaded = true
+			git := a.gitSync.gitSpaceConfig(a.state.Active)
+			git.Enabled = true
+			a.cloud.config.Enabled = true
+			a.cloud.config.Spaces[a.state.Active] = "Notes"
+			a.cloud.startCloudSync(false, true)
+			if failure == "save" {
+				// A file at the config directory path makes the real save fail.
+				a.cfg.ConfigDir = filepath.Join(t.TempDir(), "blocked")
+				if err := os.WriteFile(a.cfg.ConfigDir, []byte("keep"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if a.cloud.saveCloudSync() {
+					t.Fatal("saving to a file path unexpectedly succeeded")
+				}
+			} else {
+				a.gitSync.busy = true
+				a.cloud.startCloudSync(false, true)
+				a.gitSync.busy = false
+			}
+			message := a.cloud.message
+			git.Enabled = false
+			tt.Frame()
+			if !a.cloud.failed || a.cloud.message != message || a.cloud.cloudProblem() == "" {
+				t.Fatal("resolving overlap cleared a later failure", message, a.cloud.message)
+			}
+		})
+	}
+}
 
 func TestCloudRemoteFailureOffersRecheckAction(t *testing.T) {
 	a, tt := newTestApp(t)

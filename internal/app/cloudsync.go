@@ -76,6 +76,7 @@ type cloudState struct {
 	broken          bool
 	message         string
 	failed, busy    bool
+	gitConflict     bool
 	cancel          context.CancelFunc
 	done            chan cloudOutcome
 	guards          chan cloudGuard
@@ -97,6 +98,7 @@ type cloudState struct {
 func (cs *cloudState) applyLoadedCloudSync(c cloudsync.Config, err error) {
 	cs.config = c
 	if err != nil {
+		cs.gitConflict = false
 		cs.broken = true
 		cs.failed = true
 		cs.message = fmt.Sprintf(i18n.T("读取同步设置失败：%v"), err)
@@ -105,12 +107,14 @@ func (cs *cloudState) applyLoadedCloudSync(c cloudsync.Config, err error) {
 
 func (cs *cloudState) saveCloudSync() bool {
 	if cs.broken {
+		cs.gitConflict = false
 		cs.message = i18n.T("同步设置无法读取，原文件已保留")
 		return false
 	}
 	if cs.busy {
 		return false
 	}
+	cs.gitConflict = false
 	if err := cloudsync.SaveConfig(cs.host.appConfig().ConfigDir, cs.config); err != nil {
 		cs.failed = true
 		cs.message = err.Error()
@@ -122,20 +126,31 @@ func (cs *cloudState) saveCloudSync() bool {
 	return true
 }
 
+// Git overlap is a live configuration problem, not a lasting sync failure.
+func (cs *cloudState) hasGitSyncConflict() bool {
+	if cs.config.Enabled {
+		for id := range cs.config.Spaces {
+			if cs.host.gitSyncsSpace(id) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (cs *cloudState) startCloudSync(probe, manual bool) {
+	if cs.gitConflict {
+		cs.gitConflict, cs.failed, cs.message = false, false, ""
+	}
 	if !probe && cs.host.gitBusy() {
 		cs.failed = true
 		cs.message = i18n.T("Git 操作正在执行，请稍后再试")
 		return
 	}
-	if !probe {
-		for id := range cs.config.Spaces {
-			if cs.host.gitSyncsSpace(id) {
-				cs.failed = true
-				cs.message = i18n.T("同一空间不能同时启用 Git 与云端同步")
-				return
-			}
-		}
+	if !probe && cs.hasGitSyncConflict() {
+		cs.gitConflict, cs.failed = true, true
+		cs.message = i18n.T("同一空间不能同时启用 Git 与云端同步")
+		return
 	}
 	s := cs
 	// Consume recovery before any early return. A canceled save or failed
@@ -269,6 +284,11 @@ func (cs *cloudState) startCloudSync(probe, manual bool) {
 func (cs *cloudState) cloudTick(c *ui.Context) {
 	s := cs
 	now := c.Now()
+	// Recheck before the automatic-sync early returns so manual-only and
+	// disabled sync also dismiss a resolved warning without another attempt.
+	if s.gitConflict && !cs.hasGitSyncConflict() {
+		s.gitConflict, s.failed, s.message = false, false, ""
+	}
 	if !s.started {
 		// Startup is a one-time launch decision, even when automatic sync is off.
 		s.started = true
@@ -320,6 +340,7 @@ func (cs *cloudState) cloudTick(c *ui.Context) {
 			}
 			g.reply <- err
 		case out := <-s.done:
+			s.gitConflict = false
 			s.lastError = out.err
 			s.recovery, s.confirmReconcile = out.recovery, ""
 			if !out.probe {
