@@ -294,7 +294,6 @@ func (b *Buffer) Prefix(prefix string) {
 	b.Engine.SetKind(kind, level)
 	b.sync()
 }
-func (b *Buffer) newline() { b.UnmarkText(); b.Engine.Enter(false); b.sync() }
 
 func (b *Buffer) lineRange(at int) (int, int) {
 	l := b.Engine.LeafAt(at)

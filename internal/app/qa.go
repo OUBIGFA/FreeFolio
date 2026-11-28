@@ -126,7 +126,6 @@ type qaState struct {
 	modelsFor   string
 	modelsBusy  bool
 	modelsErr   error
-	manualModel bool
 	modelsList  ui.ListState
 	settingsTab int
 	// listModels lists a service's models; tests replace it.
@@ -258,14 +257,6 @@ func (a *App) qaReady() error {
 	default:
 		return errors.New(i18n.T("还没有设置 API Key"))
 	}
-}
-
-// aiPreset is the preset with the ID; none chosen yet is the first.
-func aiPreset(id string) agent.Preset {
-	if id == "" {
-		return agent.Presets[0]
-	}
-	return agent.PresetOf(id)
 }
 
 func (a *App) qaSession(spaceID string) *qaSession {
@@ -740,9 +731,7 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 	} else if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
 		writableAll = append(writableAll, a.doc.rel)
 	}
-	for _, rel := range writableRels {
-		writableAll = append(writableAll, rel)
-	}
+	writableAll = append(writableAll, writableRels...)
 	editTask := a.captureOneBotEditableDocs(spaceID, writableAll)
 	var imageTool *agent.Tool
 	if a.doc != nil && a.doc.space.ID == spaceID {

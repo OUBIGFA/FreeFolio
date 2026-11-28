@@ -110,13 +110,6 @@ func (m BoardAIModel) label() string {
 	return source + " · " + m.ConnectionName + " · " + name
 }
 
-func (m BoardAIModel) defaultImageSize() string {
-	if len(m.ImageSizes) == 0 {
-		return "1024x1024"
-	}
-	return m.ImageSizes[0]
-}
-
 // BoardAIRunner runs a node's model calls. Its functions run off the main
 // thread and must not touch the board.
 type BoardAIRunner struct {
@@ -184,8 +177,8 @@ type boardAIState struct {
 	texts         map[string]boardAICardText
 	// edit is the node the properties panel edits; before is the scene
 	// before its first change, so a typing session is one undo step.
-	edit, extra, extraErr string
-	before                *whiteboard.Scene
+	edit, extraErr string
+	before         *whiteboard.Scene
 	// drag is the link being dragged, link the selected link, and picker
 	// the node menu a link dropped on empty canvas opens.
 	drag   *aiDrag

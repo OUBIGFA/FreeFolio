@@ -55,10 +55,7 @@ type mdzState struct {
 	requestFocus   bool
 	pendingOutline bool
 
-	previewReady   bool
-	previewTitle   string
-	previewExcerpt string
-	previewCover   *ui.Bitmap
+	previewCover *ui.Bitmap
 }
 
 func (d *document) isMDZ() bool {
@@ -93,13 +90,6 @@ func (m *mdzState) close() {
 		_ = m.archive.Close()
 		m.archive = nil
 	}
-}
-
-func (m *mdzState) pageCount() int {
-	if m == nil {
-		return 0
-	}
-	return len(m.pages)
 }
 
 func (m *mdzState) currentIndex() int {
@@ -241,51 +231,6 @@ func (m *mdzState) preserveFrom(old *mdzState) {
 			}
 		}
 	}
-}
-
-func (m *mdzState) ensurePreview() {
-	if m == nil || m.previewReady {
-		return
-	}
-	m.previewReady = true
-	if m.archive == nil {
-		return
-	}
-	m.previewTitle = m.archive.Title()
-	if cov := m.archive.CoverPath(); cov != "" {
-		if data, err := m.archive.ReadFile(cov); err == nil {
-			if bmp, decErr := ui.DecodeBitmapScaled(data, 480); decErr == nil {
-				m.previewCover = bmp
-			}
-		}
-	}
-	pagePath := m.currentPage
-	if pagePath == "" {
-		pagePath = m.archive.EntryPoint()
-	}
-	if pagePath == "" && len(m.pages) > 0 {
-		pagePath = m.pages[0]
-	}
-	if pagePath == "" {
-		return
-	}
-	md, err := m.archive.ReadMarkdown(pagePath)
-	if err != nil {
-		return
-	}
-	plain, _ := editor.ExtractMarkdownText(md)
-	var lines []string
-	for _, line := range strings.Split(plain, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		lines = append(lines, line)
-		if len(lines) >= 4 {
-			break
-		}
-	}
-	m.previewExcerpt = strings.Join(lines, "\n")
 }
 
 func openMDZDocument(sp *space.Space, rel, diskStamp string) *document {

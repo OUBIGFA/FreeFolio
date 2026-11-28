@@ -15,7 +15,38 @@ cmd/freefolio ──▶ internal/app ──▶ internal/space    spaces and spac
 ```
 
 The domain packages never import MyGo, so they test without a window and can
-serve a future CLI or plugin host.
+serve the CLI, the MCP server or a future plugin host. Only the UI tier imports
+MyGo: `cmd/freefolio`, `internal/app`, `internal/editor` (with `dbview`), the
+`internal/mindmap` widget, the `internal/solar` icons and `resources`. The
+dependency direction is cmd → app → editor → domain packages; only
+`cmd/freefolio` imports `internal/app`, and domain packages never import the
+editor. `internal/layering_test.go` enforces these rules together with "no
+cgo" and "no MyGo rich text editor", so a change that crosses a layer fails
+`go test ./...`.
+
+## Interface text
+
+`i18n.T` takes the Chinese message. Its English lives in one catalog per
+feature area, `internal/i18n/en_<area>.go` (`common`, `app`, `editor`,
+`database`, `whiteboard`, `whiteboardai`, `onebot`, `sync`); a message used by
+several areas goes in `en_common.go`. Separate files keep parallel changes
+from editing the same lines. `internal/i18n/catalog_test.go` parses the
+sources and requires an English entry for every message passed to `i18n.T`
+or to a helper that hands a parameter to it (`notify` and labels), no entry
+that no code shows any more, no duplicate across catalogs, no final period,
+and the same format verbs in both languages.
+
+## Splitting App
+
+`App` holds the window's state. A feature can own its state and behavior in a
+type of its own that reaches the window only through a narrow host
+interface. The version history window is the template: `versionsPanel`
+(`versions.go`) keeps the window's state and methods (`show`, `view`,
+`selectVersion`, …) and asks `versionsHost` for the open document, saving,
+background work, notices and the shared chrome. `App` implements the host and
+keeps only the `versions` field, so work on the history window does not edit
+`App` or its methods. Further features move the same way one at a time,
+behind their existing tests.
 
 `internal/database` provides the `.db.md` engine; its nine native views live in
 `internal/editor/dbview`. `internal/mdz` owns bounded archive reading/writing.
@@ -63,6 +94,8 @@ snapshots cannot show the compositor's decorations.
 | `pdfviewer.go` | Read-only PDF documents in spaces and the file browser |
 | `document.go` | The open rich document and read-only export preview: dirty tracking, autosave, images, links |
 | `split.go`, `splitview.go`, `splitstore.go` | Document pane lifecycle, native split cards and dividers, saved layout |
+| `copy.go` | Sidebar copy, paste and duplicate with attachments, undoable through the system trash |
+| `versions.go` | Version history window (`versionsPanel` behind `versionsHost`) |
 | `theme.go` | Design tokens: the space-tinted theme and chrome colors |
 
 ### Window

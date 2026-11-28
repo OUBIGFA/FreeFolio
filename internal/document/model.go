@@ -1180,12 +1180,6 @@ func CoveredCells(table *Block) map[*Block]bool {
 	return out
 }
 
-// validSpans checks a table's merged cells: inside the table, not
-// overlapping, and the cells they cover empty.
-func validSpans(table *Block) error {
-	return validSpansWithOverrides(table, nil)
-}
-
 func validSpansWithOverrides(table *Block, leafOverrides map[string][]Run) error {
 	hasMerged := false
 	for _, row := range table.Children {

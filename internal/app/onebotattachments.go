@@ -1048,8 +1048,6 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 		editable bool
 		resident bool
 		liveText string
-		extText  string
-		hasExt   bool
 	}
 	var jobs []job
 	truncated := false

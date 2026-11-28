@@ -77,7 +77,7 @@ func (e *Engine) enterMath(leaf Leaf) bool {
 		return false
 	}
 	e.Edit(func() {
-		body := source
+		var body string
 		switch {
 		case strings.HasSuffix(source, "\n$$") || source == "$$":
 			body = strings.TrimSuffix(strings.TrimSuffix(source, "$$"), "\n")

@@ -258,6 +258,7 @@ func (a *App) actions() []action {
 			cmd(i18n.T("在分屏中打开已选文档"), "", func() { a.openPickedInSplit(sp, docs) })
 		}
 		g := slices.Clone(group)
+		cmd(fmt.Sprintf(i18n.T("复制已选 %d 项"), len(g)), "", func() { a.copyEntries(sp, g) })
 		cmd(fmt.Sprintf(i18n.T("将已选 %d 项移到废纸篓"), len(g)), "", func() { a.trashGroup(g) })
 		cmd(i18n.T("取消侧边栏多选"), "Esc", func() { a.clearPicks("") })
 	}
@@ -288,6 +289,9 @@ func (a *App) actions() []action {
 		cmd(i18n.T("从 Notion 导出导入 (ZIP)…"), "", a.pickAndImportNotionZIP)
 		cmd(i18n.T("从 Notion 导出导入 (文件夹)…"), "", a.pickAndImportNotionFolder)
 		cmd(i18n.T("新建文件夹"), a.keyLabel("new-folder"), func() { a.newFolder(dir) })
+		if a.canPasteInto(active, dir) {
+			cmd(i18n.T("粘贴到当前文件夹"), "", func() { a.pasteInto(active, dir, "") })
+		}
 		cmd(i18n.T("今日笔记"), a.keyLabel("daily"), a.openDaily)
 		for _, t := range a.spaceTemplates(a.state.ActiveSpace()) {
 			cmd(i18n.T("从模板新建：")+t.Name, "", func() { a.newFromTemplate(dir, t) })
@@ -532,11 +536,19 @@ func (a *App) actions() []action {
 				mode = i18n.T("返回富文本编辑")
 			}
 			cmd(mode, a.keyLabel("source"), a.toggleSource)
-			cmd(i18n.T("版本历史"), a.keyLabel("history"), a.openVersions)
+			cmd(i18n.T("版本历史"), a.keyLabel("history"), a.versions.show)
 			cmd(i18n.T("导出 PDF"), a.keyLabel("export-pdf"), a.exportPDF)
 			cmd(i18n.T("打印"), "", a.printDoc)
 		}
 		cmd(i18n.T("重命名文档"), "", func() { a.renameIn(sp, rel) })
+		// Only a registered space is a copy source; the file browser's
+		// locations are not one.
+		if a.state.Get(sp.ID) == sp {
+			cmd(i18n.T("复制当前文档"), "", func() { a.copyEntries(sp, []string{rel}) })
+			if !sp.IsExternal() {
+				cmd(i18n.T("创建当前文档副本"), "", func() { a.duplicateEntry(sp, rel) })
+			}
+		}
 		if formatDoc && a.doc.loadErr == nil && !a.doc.boardLoading {
 			a.editorActions(cmd)
 		}

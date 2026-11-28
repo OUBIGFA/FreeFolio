@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	aiStatusNames    = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
-	aiRoleShortNames = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "文字", whiteboard.AIImageInput: "图片", whiteboard.AIText: "文本", whiteboard.AIImage: "图像", whiteboard.AIEnhance: "增强", whiteboard.AIModel: "底模", whiteboard.AILoRA: "LoRA", whiteboard.AIVideo: "视频", whiteboard.AIAudio: "音频", whiteboard.AIConcat: "拼接", whiteboard.AINote: "笔记", whiteboard.AICutout: "本地抠图", whiteboard.AIUpscale: "图片放大", whiteboard.AICompare: "对比"}
-	aiRoleIcons      = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIModel: "image", whiteboard.AILoRA: "sparkles", whiteboard.AIVideo: "player-play", whiteboard.AIAudio: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
+	aiStatusNames = map[string]string{"queued": "排队中", "running": "生成中", "done": "已完成", "cached": "输入未变化，沿用上次结果", "blocked": "上游节点失败，未运行", "stopped": "已停止"}
+	aiRoleIcons   = map[whiteboard.AIRole]string{whiteboard.AIPrompt: "text", whiteboard.AIImageInput: "image", whiteboard.AIText: "text", whiteboard.AIImage: "image", whiteboard.AIEnhance: "image", whiteboard.AIModel: "image", whiteboard.AILoRA: "sparkles", whiteboard.AIVideo: "player-play", whiteboard.AIAudio: "player-play", whiteboard.AIConcat: "group", whiteboard.AINote: "sticky-note", whiteboard.AICutout: "image", whiteboard.AIUpscale: "image", whiteboard.AICompare: "image"}
 )
 
 // aiStatus is the card's status line and whether it reports a failure.

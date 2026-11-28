@@ -7,7 +7,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -82,23 +81,6 @@ func (d *document) reopenPDF() {
 	if openErr == nil && oldPage > 0 {
 		d.pdf.GoToPage(oldPage, true)
 	}
-}
-
-func sameOrChildOSPath(candidate, target string) bool {
-	if candidate == "" || target == "" {
-		return false
-	}
-	if r, err := filepath.Rel(target, candidate); err == nil && (r == "." || filepath.IsLocal(r)) {
-		return true
-	}
-	cEval, err1 := filepath.EvalSymlinks(candidate)
-	tEval, err2 := filepath.EvalSymlinks(target)
-	if err1 == nil && err2 == nil {
-		if r, err := filepath.Rel(tEval, cEval); err == nil && (r == "." || filepath.IsLocal(r)) {
-			return true
-		}
-	}
-	return false
 }
 
 // releasePDFHandles closes cached, previewed, and resident PDF handles matching

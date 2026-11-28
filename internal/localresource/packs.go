@@ -391,7 +391,7 @@ func installPack(ctx context.Context, root string, pack ResourcePack, client *ht
 		progress(0, total)
 	}
 	for _, pf := range pack.Files {
-		target, err := verifyPackFile(root, pf)
+		_, err := verifyPackFile(root, pf)
 		if err == nil {
 			completed += pf.Size
 			if progress != nil {
@@ -402,7 +402,7 @@ func installPack(ctx context.Context, root string, pack ResourcePack, client *ht
 		if !os.IsNotExist(err) {
 			return err
 		}
-		target, err = resolvePackFilePath(root, pf.RelPath)
+		target, err := resolvePackFilePath(root, pf.RelPath)
 		if err != nil {
 			return err
 		}

@@ -84,12 +84,6 @@ func (d *document) contentVersion() uint64 {
 	}
 	return d.ed.Version()
 }
-func (d *document) contentRevision() uint64 {
-	if d.board != nil {
-		return d.boardGen
-	}
-	return d.ed.Revision()
-}
 
 func whiteboardQAPage(name, content string) (*spacefs.Page, error) {
 	s, err := whiteboard.Decode(content)
@@ -397,7 +391,7 @@ func (a *App) whiteboardView(c *ui.Context, d *document) {
 		o.Export = func(format string) { a.exportBoard(d, format) }
 		o.History = func() {
 			a.activateDocument(d)
-			a.openVersions()
+			a.versions.show()
 		}
 		editor.BoardView(c, d.board, o)
 	})

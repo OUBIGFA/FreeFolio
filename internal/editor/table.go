@@ -90,17 +90,6 @@ func (e *Editor) barsShown(d decoration) bool {
 	return e.hovered(ui.Rect{X: d.rect.X - 24, Y: d.rect.Y - 24, W: d.rect.W + 24, H: d.rect.H + 24}, 0)
 }
 
-// overTableStrip reports whether x, y is on a table's strip of row or
-// column controls, or one of its pins, where a press selects or inserts.
-func (e *Editor) overTableStrip(x, y float32) bool {
-	for i := range e.visibleDecorations(24) {
-		if d := *e.indexedDecoration(i); d.kind == "table" && e.tableStripAt(d, x, y) {
-			return true
-		}
-	}
-	return false
-}
-
 // tableStripAt reports whether x, y is on table d's pins or bars, where
 // tableControl acts.
 func (e *Editor) tableStripAt(d decoration, x, y float32) bool {

@@ -104,8 +104,6 @@ type App struct {
 	pendingDupUndo  *place
 	openAfterRename string
 
-	deferredNotices []deferredNotice
-
 	boardImages  []*boardImageWindow
 	imports      noteImportState
 	quick        quickNoteState
@@ -340,7 +338,7 @@ type App struct {
 	focus, narrow, narrowShown bool
 	// versions is the history window (versions.go); bin keeps what was
 	// deleted recently, which the library lists (trash.go).
-	versions versionsState
+	versions versionsPanel
 	bin      trashbin.Bin
 	// printFile, when set, takes the PDF to print in place of the system's
 	// viewer: tests answer it.
@@ -411,6 +409,7 @@ func New(cfg Config) (*App, error) {
 		// The spaces fade in on coming back from the library, not at start.
 		library: library{frames: 1},
 	}
+	a.versions.host = a
 	var (
 		loadedPrefs  *prefs.Prefs
 		prefsErr     error
@@ -812,7 +811,7 @@ func (a *App) syncTray() {
 	a.tray = tray
 }
 
-// appMenu is the application menu, with "检查更新…" after About on macOS
+// appMenu is the application menu, with "检查更新" after About on macOS
 // as Sparkle's; the other systems keep their own, and reach the updates
 // from the ⋯ menu and the command bar.
 func (a *App) appMenu() *mygo.MenuItem {
@@ -871,20 +870,9 @@ func (a *App) viewMenu() *mygo.MenuItem {
 	}
 }
 
-type deferredNotice struct {
-	format string
-	args   []any
-}
-
 // notify queues a message for the user.
 func (a *App) notify(format string, args ...any) {
 	a.notices = append(a.notices, fmt.Sprintf(i18n.T(format), args...))
-}
-
-// notifyDeferred queues a message whose translation is resolved when the UI
-// renders its toast, after Run has detected the OS preferred language.
-func (a *App) notifyDeferred(format string, args ...any) {
-	a.deferredNotices = append(a.deferredNotices, deferredNotice{format: format, args: args})
 }
 
 // savePrefs writes prefs.json, telling the user when it fails.
@@ -1643,7 +1631,8 @@ func (a *App) startRename(rel string) {
 // renameIn edits the name of the file or folder at rel of the space sp: in
 // its row, or under its tile for a favorite, which may be another space's.
 func (a *App) renameIn(sp *space.Space, rel string) {
-	a.renaming, a.renameSpace, a.renameFocused = rel, sp.ID, false
+	a.flushPendingDupUndo("", "")
+	a.renaming, a.renameSpace, a.renameFocused, a.openAfterRename = rel, sp.ID, false, ""
 	if sp.IsExternal() {
 		rel = filepath.Base(sp.ExternalFiles[rel])
 	}
@@ -1653,18 +1642,30 @@ func (a *App) renameIn(sp *space.Space, rel string) {
 	}
 }
 
-// commitRename gives the file or folder being renamed the name typed.
-func (a *App) commitRename() {
+// commitRename gives the file or folder being renamed the name typed. A
+// duplicate renamed right after "创建副本" opens once the name is confirmed.
+func (a *App) commitRename() { a.finishRename(true) }
+
+// finishRename ends the rename; leaving the field keeps the name without
+// opening the duplicate. A pending duplicate's undo is offered for the final
+// path on every exit.
+func (a *App) finishRename(openDuplicate bool) {
 	rel, name := a.renaming, strings.TrimSpace(a.newName)
-	a.renaming = ""
-	if rel == "" || name == "" {
-		return
-	}
+	openPending := openDuplicate && a.openAfterRename != "" && a.openAfterRename == rel
+	a.renaming, a.openAfterRename = "", ""
 	sp := a.state.Get(a.renameSpace)
 	if a.files != nil && a.renameSpace == space.ExternalID {
 		sp = a.files.locations
 	}
-	if sp == nil {
+	final := rel
+	defer func() {
+		if sp != nil {
+			a.flushPendingDupUndo(sp.ID, final)
+		} else {
+			a.flushPendingDupUndo("", "")
+		}
+	}()
+	if rel == "" || name == "" || sp == nil {
 		return
 	}
 	renaming := a.residentDocument(sp.ID, rel)
@@ -1673,6 +1674,7 @@ func (a *App) commitRename() {
 	}
 	if renaming != nil {
 		rel = renaming.rel
+		final = rel
 	}
 	sources := a.renameSources(sp, rel)
 	a.releasePDFHandles(sp, rel)
@@ -1682,6 +1684,7 @@ func (a *App) commitRename() {
 		a.notify("重命名 %s 失败；%v", path.Base(rel), err)
 		return
 	}
+	final = to
 	if to != rel {
 		a.moved(sp, rel, to)
 		if vault.IsDocument(rel) {
@@ -1689,6 +1692,21 @@ func (a *App) commitRename() {
 		}
 	} else {
 		a.reopenResidentPDFs(sp, rel)
+	}
+	if openPending && sp == a.state.ActiveSpace() && vault.IsDocument(to) {
+		a.open(to)
+		// The copy is opened to be written in: the caret goes to the body,
+		// below a leading title, as for a new document.
+		if d := a.doc; d != nil && d.space == sp && d.rel == to && d.loadErr == nil && !d.isWhiteboard() && !d.isPDF() && !d.isMDZ() && !d.isDatabase() {
+			d.ensureBodyParagraph()
+			leaves := d.ed.Doc.Leaves()
+			pos := 0
+			if len(d.ed.Doc.Blocks) > 0 && d.ed.Doc.Blocks[0].Kind == "heading" && len(leaves) > 1 {
+				pos = leaves[1].End
+			}
+			d.ed.SetSelection(pos, pos)
+			d.ed.RequestFocus = true
+		}
 	}
 }
 
@@ -1776,8 +1794,9 @@ func (a *App) switchSpaceOnly(id string) bool {
 	a.syncOpen()
 	a.doc = nil
 	a.renaming = ""
+	a.openAfterRename = ""
+	a.flushPendingDupUndo("", "")
 	a.syncTree()
-	a.restoreSpaceSplit(next)
 	a.pager.swipe = 0
 	a.pagerSettle(a.spaceIndex(id), from)
 	delete(a.pageTrees, id) // the active space reads its own

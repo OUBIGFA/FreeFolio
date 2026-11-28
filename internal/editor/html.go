@@ -92,9 +92,8 @@ type htmlImporter struct {
 	align   string
 	checked *bool
 	// lists are the kinds of the lists the text is in, innermost last.
-	lists     []string
-	listStart int
-	pre       bool
+	lists []string
+	pre   bool
 }
 
 // normalizeHTMLFragment wraps bare HTML table-part fragments (such as Windows
@@ -1112,12 +1111,6 @@ func codeLanguage(pre *html.Node) string {
 	return ""
 }
 
-// tableOf makes a table block of an HTML table, its cells' text with its
-// styles; rows are padded to the widest.
-func tableOf(n *html.Node) *document.Block {
-	return tableOfWithOptions(n, false, nil)
-}
-
 func tableOfMode(n *html.Node, exactWhitespace bool) *document.Block {
 	return tableOfWithOptions(n, exactWhitespace, nil)
 }
@@ -1362,10 +1355,6 @@ func parseCellAlign(n *html.Node, props map[string]string) string {
 		}
 	}
 	return parseBlockAlign(n)
-}
-
-func parseCellBackground(n *html.Node) string {
-	return parseCellBackgroundProps(n, parseCSSProps(attr(n, "style")))
 }
 
 func parseCellBackgroundProps(n *html.Node, props map[string]string) string {

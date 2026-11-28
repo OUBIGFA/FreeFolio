@@ -17,7 +17,6 @@ type boardTextSession struct {
 	marked           ui.TextInputRange
 	hasMarked        bool
 	layout           *ui.TextLayout
-	box              ui.Rect
 }
 
 func (b *Board) startText(hit *whiteboard.Element, at whiteboard.Point, o BoardOptions) {

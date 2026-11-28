@@ -813,11 +813,9 @@ func drawChartTooltip(p *ui.Painter, bounds ui.Rect, ax, ay float32, data databa
 	p.Fill(tipRect, pal.PopoverBg, 7)
 	p.Stroke(tipRect, pal.PopoverBorder, 7, 1)
 	for i, ln := range lines {
-		col := pal.Text
+		col := pal.TextMuted
 		if i == 0 {
 			col = pal.Text
-		} else {
-			col = pal.TextMuted
 		}
 		p.Text(tx+10, ty+7+float32(i)*17, ln, 11.5, col)
 	}

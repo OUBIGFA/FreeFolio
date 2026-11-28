@@ -574,7 +574,9 @@ func TestAgentControlIPCCancelAndTimeoutDoNotDeleteIPCOrSplitBrainWrite(t *testi
 	}
 
 	// (a2) Post-connect timeout while main thread is busy must NOT delete agent-ipc.json and must NOT fall back to headless write.
-	shortCtx, cancelShort := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	// The main thread stays blocked until releaseMain, so the deadline only
+	// needs to outlast dialing and authenticating on a loaded machine.
+	shortCtx, cancelShort := context.WithTimeout(context.Background(), 750*time.Millisecond)
 	defer cancelShort()
 	errCh := make(chan error, 1)
 	go func() {
@@ -583,7 +585,7 @@ func TestAgentControlIPCCancelAndTimeoutDoNotDeleteIPCOrSplitBrainWrite(t *testi
 	}()
 	select {
 	case <-enteredMain:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for live IPC handler to enter invokeOnMain")
 	}
 	callErr := <-errCh

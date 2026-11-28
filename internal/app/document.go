@@ -105,7 +105,6 @@ type document struct {
 	// mode; preview differing from it holds edits not yet applied, and
 	// sourceEdited is when the latest of them was typed.
 	sourceApplied       string
-	sourceEdited        time.Time
 	modeSwitchPending   bool
 	modeAt              time.Time
 	sourceInit          bool
@@ -581,7 +580,6 @@ type asyncSaveResult struct {
 	text             string
 	baseline         [32]byte
 	baselineSkeleton [32]byte
-	baselinePending  bool
 	baselineRuns     map[string][16]byte
 	committed        *model.Document
 	unchanged        bool
@@ -682,27 +680,6 @@ func (d *document) toggleMode() {
 // export, which cannot hold all of it, read-only.
 func (d *document) sourceEditable() bool {
 	return d.loadErr == nil && !d.isPDF() && d.srcFile == nil && !d.converted && !d.ed.ReadOnly && !strings.EqualFold(path.Ext(d.rel), ".arcmd")
-}
-
-// applySource puts the Markdown typed in source mode into the editor as one
-// step of the history. The source becomes the import source, so saving
-// writes back what was typed: unchanged blocks keep their bytes.
-func (d *document) applySource() {
-	if !d.source || d.preview == d.sourceApplied || !d.sourceEditable() {
-		return
-	}
-	d.ed.Engine.ReplaceDocument(editor.ImportMarkdown(d.preview))
-	d.ed.Doc.ImportSource = d.preview
-	d.sourceApplied = d.preview
-}
-
-// refreshSource shows the saved text in source mode, unless edits typed
-// since are still to apply: those stay as typed.
-func (d *document) refreshSource() {
-	if d.source && d.preview == d.sourceApplied {
-		d.preview = d.text()
-		d.sourceApplied = d.preview
-	}
 }
 
 func abs32Doc(v float32) float32 {
@@ -1120,8 +1097,6 @@ func (d *document) viewKey() string {
 	}
 	return fmt.Sprintf("editor:%p", d.ed)
 }
-
-func (d *document) autosave(c *ui.Context) { d.autosaveWith(c, nil) }
 
 func (d *document) autosaveWith(c *ui.Context, post func(func())) {
 	if d.isPDF() || d.isMDZ() || d.converted {

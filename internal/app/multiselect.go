@@ -309,21 +309,6 @@ func (a *App) activePickedGroup() []string {
 	return topLevelPaths(raw)
 }
 
-// inDraggedGroup reports whether rel in spID belongs to the currently lifted
-// drag bundle (excluding the primary grabbed row itself, which collapses to
-// zero size) so companion rows dim in place while dragged.
-func (a *App) inDraggedGroup(spID, rel string) bool {
-	if !a.dragGrab.active || a.dragGrab.space != spID || rel == a.dragGrab.rel {
-		return false
-	}
-	for _, m := range a.dragGroup(spID, a.dragGrab.rel) {
-		if under(rel, m) {
-			return true
-		}
-	}
-	return false
-}
-
 // modalOrOverlayBlocksEsc reports whether an overlay, rename field or dialog
 // is open that should handle Escape before sidebar multi-selection clears.
 func (a *App) modalOrOverlayBlocksEsc() bool {
@@ -950,6 +935,9 @@ func (a *App) pickedMenu(m *ui.Menu, sp *space.Space, rawGroup []string) {
 	}
 
 	m.Separator()
+	if m.Item(i18n.T("复制")).Shortcut(ui.Cmd, ui.KeyC).Chosen() {
+		a.copyEntries(sp, group)
+	}
 	if sp.IsExternal() {
 		a.spacesGroupMenu(m, sp, group)
 		m.Separator()

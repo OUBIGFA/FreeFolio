@@ -37,7 +37,7 @@ func TestQuietAdoptionSnapshot(t *testing.T) {
 				}
 				a.refreshTree()
 				a.open("Preview.md")
-				a.openVersions()
+				a.versions.show()
 			case "import":
 				a.imports.open = true
 				a.imports.spaceID = a.state.ActiveSpace().ID

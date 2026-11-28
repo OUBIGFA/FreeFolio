@@ -199,11 +199,11 @@ func TestWhiteboardKnowledgeCitationsAndRename(t *testing.T) {
 	if err := d.save(); err != nil {
 		t.Fatal(err)
 	}
-	a.openVersions()
+	a.versions.show()
 	if len(a.versions.versions) == 0 {
 		t.Fatal("board history absent")
 	}
-	a.selectVersion(0)
+	a.versions.selectVersion(0)
 	if a.versions.board == nil {
 		t.Fatal("board history not displayed as board")
 	}

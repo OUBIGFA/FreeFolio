@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"github.com/OUBIGFA/FreeFolio/internal/solar"
 	"math"
 	"strconv"
 	"strings"
@@ -681,9 +680,6 @@ func flattenSVG(d string) [][][2]float32 {
 	}
 	return out
 }
-
-// iconAnnotate is Lucide's pencil-line.
-var iconAnnotate = solar.Must("pen-2")
 
 // annotationPanelWidth and annotationPanelHeight are the mark picker's
 // size: four rows of tiles, the colors and the remover.

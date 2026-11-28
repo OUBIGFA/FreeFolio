@@ -302,9 +302,19 @@ func (a *App) spaceColumn(c *ui.Context, sp *space.Space, live, header bool) {
 						a.importDroppedFiles(sp, "", files)
 					}
 				}
-				if tree.FocusWithin() && a.renaming == "" && !c.FocusTakesText() && tree.Shortcut(ui.Cmd, ui.KeyBackspace) {
-					if group := a.activePickedGroup(); len(group) > 0 {
-						a.trashGroup(group)
+				if tree.FocusWithin() && a.renaming == "" && !c.FocusTakesText() {
+					if tree.Shortcut(ui.Cmd, ui.KeyBackspace) {
+						if group := a.activePickedGroup(); len(group) > 0 {
+							a.trashGroup(group)
+						}
+					}
+					if tree.Shortcut(ui.Cmd, ui.KeyC) {
+						if group := a.activePickedGroup(); len(group) > 0 {
+							a.copyEntries(sp, group)
+						}
+					}
+					if tree.Shortcut(ui.Cmd, ui.KeyV) && a.canPasteInto(sp, "") {
+						a.pasteInto(sp, "", "")
 					}
 				}
 			}
@@ -793,14 +803,6 @@ func (a *App) folderContent(c *ui.Context, sp *space.Space, n *vault.Node, depth
 
 }
 
-// columnLook is the look a space's page is drawn in.
-func (a *App) columnLook(sp *space.Space) spaceLook {
-	if sp == a.state.ActiveSpace() && !a.pager.moving() {
-		return a.look
-	}
-	return lookOf(space.ThemeOf(sp), a.docTheme.Dark)
-}
-
 // folderBody is an open folder's rows, or a line saying it is empty.
 func (a *App) folderBody(c *ui.Context, sp *space.Space, n *vault.Node, depth int, live bool, prev []rowFrame) {
 	if !a.showsAny(sp, n.Children) {
@@ -1061,6 +1063,7 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 	}
 	a.rowBounce(c, row, place{sp.ID, n.Path})
 	if hovered && !renaming {
+		a.preview.pointer = place{sp.ID, n.Path}
 		// Resting here previews a closed folder's documents, or the
 		// document.
 		switch {
@@ -1217,9 +1220,27 @@ func (a *App) nodeRow(c *ui.Context, sp *space.Space, n *vault.Node, depth int, 
 		}
 		a.nodeMenu(m, sp, n)
 	})
+	if !renaming && a.renaming == "" && !c.FocusTakesText() {
+		if row.Shortcut(ui.Cmd, ui.KeyC) {
+			a.copyEntries(sp, a.dragGroup(sp.ID, n.Path))
+		}
+		// Pasting on a folder fills it; on a document, or a folder that
+		// cannot take the copies, the copies land right after the row.
+		if row.Shortcut(ui.Cmd, ui.KeyV) {
+			if n.Dir && a.canPasteInto(sp, n.Path) {
+				a.pasteInto(sp, n.Path, "")
+			} else if a.canPasteInto(sp, parentDir(n.Path)) {
+				a.pasteInto(sp, parentDir(n.Path), n.Path)
+			}
+		}
+	}
 	switch {
 	case renaming, closed:
 	case row.Clicked():
+		// The row clicked is in use: no preview pops over it, or takes its
+		// keys, until the pointer leaves it.
+		a.dismissPreview()
+		a.preview.suppress = place{sp.ID, n.Path}
 		mods := row.ClickModifiers()
 		if mods&(ui.Cmd|ui.Shift) != 0 {
 			a.pickRow(sp, n.Path, mods&ui.Shift != 0)
@@ -1241,11 +1262,12 @@ func (a *App) renameField(c *ui.Context) {
 		AutoFocus().Label(i18n.T("名称"))
 	switch {
 	case c.Shortcut(0, ui.KeyEscape):
-		a.renaming = ""
+		a.renaming, a.openAfterRename = "", ""
+		a.flushPendingDupUndo("", "")
 	case in.Submitted():
 		a.commitRename()
 	case a.renameFocused && !in.Focused():
-		a.commitRename()
+		a.finishRename(false)
 	}
 	a.renameFocused = in.Focused()
 }
@@ -1261,6 +1283,8 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
+		a.copyMenu(m, sp, n.Path, n.Path, "")
+		m.Separator()
 		if m.Item(i18n.T("新建文档")).Chosen() {
 			a.newDoc(n.Path)
 		}
@@ -1336,6 +1360,7 @@ func (a *App) nodeMenu(m *ui.Menu, sp *space.Space, n *vault.Node) {
 		if m.Item(i18n.T("重命名")).Chosen() {
 			a.renameIn(sp, n.Path)
 		}
+		a.copyMenu(m, sp, n.Path, parentDir(n.Path), n.Path)
 		m.Separator()
 		if sp.IsExternal() {
 			a.spacesMenu(m, sp, n.Path)
@@ -1417,6 +1442,9 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 	}
 	if m.Item(i18n.T("新建文件夹")).Shortcut(ui.Cmd|ui.Shift, ui.KeyN).Chosen() {
 		a.newFolder("")
+	}
+	if m.Item(a.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!a.canPasteInto(sp, "")).Chosen() {
+		a.pasteInto(sp, "", "")
 	}
 	m.Separator()
 	if m.Item(i18n.T("在文件管理器中显示")).Chosen() {

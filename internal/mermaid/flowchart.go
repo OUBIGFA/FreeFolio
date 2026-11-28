@@ -510,8 +510,6 @@ func routeFlowEdge(u, v *flowNode, horizontal bool, spread float32, nodes []*flo
 		sx, sy = ucx+spread*0.4, u.y+u.h
 		tx, ty = vcx+spread*0.4, v.y
 	} else {
-		sx, sy = ucx+spread*0.4, u.y
-		tx, ty = vcx+spread*0.4, v.y+v.h
 		// Back-edge detour to the right of the nodes.
 		sideX := max(u.x+u.w, v.x+v.w) + 28 + abs32(spread)
 		return [][2]float32{{u.x + u.w, ucy}, {sideX, ucy}, {sideX, vcy}, {v.x + v.w, vcy}}

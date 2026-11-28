@@ -72,7 +72,7 @@ func (a *App) moreMenu(c *ui.Context) {
 		}
 		m.Separator()
 		if a.menuKey(m.Item(i18n.T("版本历史")), "history").Disabled(noText || isMDZ).Chosen() {
-			a.openVersions()
+			a.versions.show()
 		}
 		m.Submenu(i18n.T("导出"), func(sub *ui.Menu) {
 			if isDB {

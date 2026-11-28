@@ -480,12 +480,6 @@ func field(t *ui.Theme) ui.Color {
 	return pick(t, white.Alpha(0.45), white.Alpha(0.08))
 }
 
-// librarySearch is the fill of the library's search field: a faint shade
-// of the chrome's ink.
-func librarySearch(t *ui.Theme) ui.Color {
-	return pick(t, black.Alpha(0.05), white.Alpha(0.07))
-}
-
 // cardShadow is the shadow under the content card.
 func cardShadow(t *ui.Theme) ui.Color {
 	return pick(t, black.Alpha(0.10), black.Alpha(0.35))
@@ -958,5 +952,3 @@ func resizeGrip(c *ui.Context, h ui.Element, vertical, lit, snapped bool) {
 func imageStageBg(t *ui.Theme) ui.Color {
 	return pick(t, t.Background.Mix(black, 0.03), t.Background.Mix(black, 0.28))
 }
-
-func docIconInk(t *ui.Theme) ui.Color { return t.TextMuted }

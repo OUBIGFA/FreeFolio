@@ -19,28 +19,28 @@ import (
 )
 
 type gitUIState struct {
-	signingIn                                              bool
-	signIn                                                 func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error)
-	applyingSpace                                          string
-	saved                                                  map[string]gitsync.SpaceConfig
-	messageFingerprint                                     string
-	messagePaths                                           []string
-	config                                                 gitsync.Config
-	loaded, loading, broken, busy, failed                  bool
-	selected, message, commitMessage, preview, previewPath string
-	client                                                 *gitsync.GitHub
-	accounts                                               []gitsync.Account
-	repos                                                  map[string]gitsync.Repository
-	schedules                                              map[string]*gitsync.Schedule
-	checked                                                map[string]map[string]bool
-	last                                                   map[string]time.Time
-	cancel                                                 context.CancelFunc
-	done                                                   chan func()
-	progress                                               chan gitsync.RuntimeProgress
-	guard                                                  chan gitGuard
-	protected                                              map[*document]bool
-	conflictPath, conflictEdit                             string
-	versions                                               gitsync.Versions
+	signingIn                                 bool
+	signIn                                    func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error)
+	applyingSpace                             string
+	saved                                     map[string]gitsync.SpaceConfig
+	messageFingerprint                        string
+	messagePaths                              []string
+	config                                    gitsync.Config
+	loaded, loading, broken, busy, failed     bool
+	selected, message, commitMessage, preview string
+	client                                    *gitsync.GitHub
+	accounts                                  []gitsync.Account
+	repos                                     map[string]gitsync.Repository
+	schedules                                 map[string]*gitsync.Schedule
+	checked                                   map[string]map[string]bool
+	last                                      map[string]time.Time
+	cancel                                    context.CancelFunc
+	done                                      chan func()
+	progress                                  chan gitsync.RuntimeProgress
+	guard                                     chan gitGuard
+	protected                                 map[*document]bool
+	conflictPath, conflictEdit                string
+	versions                                  gitsync.Versions
 }
 type gitGuard struct {
 	id    string

@@ -123,9 +123,6 @@ const (
 	maxZipEntry = 64 << 20
 )
 
-// errStop ends a walk once maxOutput is reached.
-var errStop = errors.New("formats: output limit reached")
-
 // mdWriter builds Markdown.
 type mdWriter struct {
 	b         strings.Builder

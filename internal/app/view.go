@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -41,11 +40,16 @@ func (a *App) View(c *ui.Context) {
 	a.frame++
 	a.rowFocus, a.rowFocusNow = a.rowFocusNow, rowFocus{}
 	a.launchTick(c)
+	// A rename ended by any other path (switching away, deleting, another
+	// rename) still offers the pending duplicate's undo.
+	if a.pendingDupUndo != nil && a.renaming == "" {
+		a.flushPendingDupUndo("", "")
+	}
 	a.cloudTick(c)
 	a.gitTick(c)
 	a.memTrim.tick(c)
 	if a.versions.open && a.versions.for_ == a.doc {
-		a.versionsView(c)
+		a.versions.view(c)
 		return
 	}
 	if a.win != nil {
@@ -120,10 +124,6 @@ func (a *App) View(c *ui.Context) {
 		c.Toast(n)
 	}
 	a.notices = a.notices[:0]
-	for _, n := range a.deferredNotices {
-		c.Toast(fmt.Sprintf(i18n.T(n.format), n.args...))
-	}
-	a.deferredNotices = a.deferredNotices[:0]
 	for _, u := range a.undos {
 		c.AddToast(u)
 	}
@@ -226,7 +226,7 @@ func (a *App) View(c *ui.Context) {
 	a.replaceView(c)
 	a.unsavedPromptView(c)
 	a.tagRenameView(c)
-	a.versionsView(c)
+	a.versions.view(c)
 	a.pdfExportView(c)
 	a.pdfPagesView(c)
 	a.databasePeekModal(c)
@@ -466,7 +466,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	case a.pressed(c, "next-bookmark"):
 		a.stepBookmark(1)
 	case a.pressed(c, "history"):
-		a.openVersions()
+		a.versions.show()
 	case a.pressed(c, "ask"):
 		a.toggleQA()
 	case a.pressed(c, "export-pdf"):
@@ -896,15 +896,6 @@ const sourceApplyDelay = 300 * time.Millisecond
 // mode, the space's and the file browser's alike: the same text column,
 // size and line height, set in monospace. A page source mode cannot edit,
 // read-only or .arcmd, shows its Markdown read-only.
-
-func (d *document) placePreviewCaret(ta ui.Element) {
-	if d.previewCaretPending {
-		d.previewCaretPending = false
-		ta.SetTextSelection(d.previewCaret, d.previewCaret)
-	} else if d.previewEnteredY < 0 {
-		d.previewEnteredY = d.previewScroll.Y
-	}
-}
 
 func iconButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, disabled bool) ui.Element {
 	return quietButton(c, key, func(b ui.Element) ui.Element {

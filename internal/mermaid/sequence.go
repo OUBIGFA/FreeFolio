@@ -47,22 +47,21 @@ type seqFragClause struct {
 }
 
 type seqFragment struct {
-	kind     string
-	title    string
-	fill     [4]uint8
-	titleW   float32
-	titleH   float32
-	kwW      float32
-	kwH      float32
-	depth    int
-	startY   float32
-	endY     float32
-	minX     float32
-	maxX     float32
-	hasSpan  bool
-	clauses  []seqFragClause
-	parent   int
-	maxChild int // max depth below this fragment
+	kind    string
+	title   string
+	fill    [4]uint8
+	titleW  float32
+	titleH  float32
+	kwW     float32
+	kwH     float32
+	depth   int
+	startY  float32
+	endY    float32
+	minX    float32
+	maxX    float32
+	hasSpan bool
+	clauses []seqFragClause
+	parent  int
 }
 
 type seqEvent struct {

@@ -24,7 +24,6 @@ var (
 	iconArrowDown    = solar.Must("arrow-down")
 	iconArrowUpRight = solar.Must("arrow-right-up")
 	iconStop         = solar.Must("stop")
-	iconList         = solar.Must("list")
 	iconListTree     = solar.Must("structure")
 	iconNewChat      = solar.Must("pen-new-square")
 )

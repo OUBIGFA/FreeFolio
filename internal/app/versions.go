@@ -13,7 +13,9 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/history"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -23,8 +25,29 @@ import (
 // lists them, shows what each differs from the document now, and brings one
 // back as one step of the editor's history.
 
-// versionsState is the history window's.
-type versionsState struct {
+// versionsHost is all the history window asks of the window around it: the
+// open document, saving, background work, notices and the shared chrome.
+// The window works through this narrow interface rather than App, so it can
+// change without touching App and is a template for splitting App further.
+type versionsHost interface {
+	activeDocument() *document
+	autosaveEnabled() bool
+	flush() bool
+	backgroundResult(work func() func())
+	boardChanged(d *document)
+	notify(format string, args ...any)
+	imageResourceFor(d *document, url string) editor.ImageResource
+	retireClosedDocuments(candidates ...*document)
+	titleBar(c *ui.Context) ui.TitleBar
+	paperIsDark() bool
+	preferences() *prefs.Prefs
+	window() *mygo.Window
+}
+
+// versionsPanel is the history window: its state and behavior.
+type versionsPanel struct {
+	host versionsHost
+
 	dbText string
 
 	loading   bool
@@ -53,6 +76,12 @@ type versionsState struct {
 	renameLabel    string
 	renameFocused  bool
 }
+
+// App hosts the history window; these accessors complete versionsHost.
+func (a *App) activeDocument() *document { return a.doc }
+func (a *App) paperIsDark() bool         { return a.paperDark }
+func (a *App) preferences() *prefs.Prefs { return a.prefs }
+func (a *App) window() *mygo.Window      { return a.win }
 
 // recordVersion takes a version of the document as just written; before
 // its first write this session, the version it had on disk is kept.
@@ -86,21 +115,20 @@ func (d *document) shownPath() string {
 	return p
 }
 
-// openVersions shows the history of the open document.
-func (a *App) openVersions() {
-	d := a.doc
+// show opens the history of the open document.
+func (v *versionsPanel) show() {
+	d := v.host.activeDocument()
 	if d == nil || d.loadErr != nil || d.isPDF() || d.isMDZ() {
-		a.notify("这篇文档还没有版本历史")
+		v.host.notify("这篇文档还没有版本历史")
 		return
 	}
-	if a.autosaveEnabled() {
-		a.flush()
+	if v.host.autosaveEnabled() {
+		v.host.flush()
 	}
-	v := &a.versions
-	*v = versionsState{open: true, for_: d, showMarks: true}
+	*v = versionsPanel{host: v.host, open: true, for_: d, showMarks: true}
 	v.loading = true
 	root, rel := d.space.Root, d.rel
-	a.backgroundResult(func() func() {
+	v.host.backgroundResult(func() func() {
 		versions, err := history.List(root, rel)
 		return func() {
 			if !v.open || v.for_ != d {
@@ -109,7 +137,7 @@ func (a *App) openVersions() {
 			v.loading = false
 			v.versions, v.err = versions, err
 			if err == nil && len(versions) > 0 {
-				a.selectVersion(0)
+				v.selectVersion(0)
 			}
 		}
 	})
@@ -117,8 +145,7 @@ func (a *App) openVersions() {
 
 // selectVersion reads the version at i and compares it with the document
 // as it is.
-func (a *App) selectVersion(i int) {
-	v := &a.versions
+func (v *versionsPanel) selectVersion(i int) {
 	if i < 0 || i >= len(v.versions) || v.for_ == nil {
 		return
 	}
@@ -144,7 +171,7 @@ func (a *App) selectVersion(i int) {
 	if isBoard {
 		current = d.board.Scene.PlainText()
 	}
-	a.backgroundResult(func() func() {
+	v.host.backgroundResult(func() func() {
 		text, err := history.Read(root, rel, ver)
 		var doc *model.Document
 		var scene *whiteboard.Scene
@@ -209,52 +236,51 @@ func (a *App) selectVersion(i int) {
 
 // restoreVersion puts the version shown in place of the document, as one
 // step of the editor's history.
-func (a *App) restoreVersion() {
-	v := &a.versions
-	if v.doc == nil || v.for_ != a.doc {
+func (v *versionsPanel) restoreVersion() {
+	doc := v.host.activeDocument()
+	if v.doc == nil || v.for_ != doc {
 		return
 	}
-	if v.board != nil && a.doc.board != nil {
-		a.doc.board.ReplaceScene(v.board.Scene)
-		a.boardChanged(a.doc)
+	if v.board != nil && doc.board != nil {
+		doc.board.ReplaceScene(v.board.Scene)
+		v.host.boardChanged(doc)
 		v.open = false
 		return
 	}
 	at := v.versions[v.sel].Time
-	if v.dbText != "" && a.doc.isDatabase() {
+	if v.dbText != "" && doc.isDatabase() {
 		db, err := database.DecodeDatabaseMarkdown(v.dbText)
 		if err == nil {
-			err = a.doc.dbView.Store.RestoreSchema(db)
+			err = doc.dbView.Store.RestoreSchema(db)
 		}
 		if err != nil {
-			a.notify("恢复数据库版本失败；%v", err)
+			v.host.notify("恢复数据库版本失败；%v", err)
 			return
 		}
-		a.doc.dbDirtySnapshot = true
+		doc.dbDirtySnapshot = true
 		v.open = false
-		a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
+		v.host.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
 		return
 	}
-	a.doc.ed.Engine.ReplaceDocument(v.doc)
-	if a.doc.source {
-		a.doc.refreshSourceFromModel()
-		a.doc.sourceFocusPending = true
+	doc.ed.Engine.ReplaceDocument(v.doc)
+	if doc.source {
+		doc.refreshSourceFromModel()
+		doc.sourceFocusPending = true
 	} else {
-		a.doc.ed.RequestFocus = true
+		doc.ed.RequestFocus = true
 	}
 	v.open = false
-	a.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
+	v.host.notify("已恢复到 %s 的版本，可用 ⌘Z 撤销", versionTime(at, time.Now()))
 }
 
-func (a *App) createMilestone() {
-	v := &a.versions
+func (v *versionsPanel) createMilestone() {
 	d := v.for_
 	label := strings.TrimSpace(v.createLabel)
 	if d == nil || label == "" {
 		return
 	}
 	if d.dirty() {
-		a.flush()
+		v.host.flush()
 	}
 	content := d.diskText
 	if content == "" {
@@ -275,15 +301,14 @@ func (a *App) createMilestone() {
 	v.shown = ""
 	for i, ver := range v.versions {
 		if ver.File == saved.File {
-			a.selectVersion(i)
+			v.selectVersion(i)
 			break
 		}
 	}
-	a.notify("已保存里程碑「%s」", label)
+	v.host.notify("已保存里程碑「%s」", label)
 }
 
-func (a *App) renameMilestone(file string) {
-	v := &a.versions
+func (v *versionsPanel) renameMilestone(file string) {
 	if v.for_ == nil || file == "" {
 		return
 	}
@@ -296,8 +321,7 @@ func (a *App) renameMilestone(file string) {
 	v.versions, v.err = history.List(v.for_.space.Root, v.for_.rel)
 }
 
-func (a *App) toggleMilestonesFilter(only bool) {
-	v := &a.versions
+func (v *versionsPanel) toggleMilestonesFilter(only bool) {
 	v.milestonesOnly = only
 	if !only || len(v.versions) == 0 {
 		return
@@ -307,7 +331,7 @@ func (a *App) toggleMilestonesFilter(only bool) {
 	}
 	for i, ver := range v.versions {
 		if ver.Label != "" {
-			a.selectVersion(i)
+			v.selectVersion(i)
 			return
 		}
 	}
@@ -328,22 +352,21 @@ func versionTime(at, now time.Time) string {
 	return fmt.Sprintf(i18n.T("%d年%d月%d日 %s"), y1, m1, d1, at.Format("15:04"))
 }
 
-// versionsView is the history window.
-func (a *App) versionsView(c *ui.Context) {
-	v := &a.versions
-	if v.open && v.for_ != a.doc {
+// view draws the history window.
+func (v *versionsPanel) view(c *ui.Context) {
+	if v.open && v.for_ != v.host.activeDocument() {
 		v.open = false
 	}
 	if !v.open {
 		old := v.for_
-		*v = versionsState{}
-		a.retireClosedDocuments(old)
+		*v = versionsPanel{host: v.host}
+		v.host.retireClosedDocuments(old)
 		return
 	}
-	t := documentTheme(a.paperDark)
+	t := documentTheme(v.host.paperIsDark())
 	c.SetTheme(t)
 	w, h := c.Size()
-	bar := a.titleBar(c)
+	bar := v.host.titleBar(c)
 	if c.Shortcut(0, ui.KeyEscape) {
 		v.open = false
 		return
@@ -363,7 +386,7 @@ func (a *App) versionsView(c *ui.Context) {
 				}
 				if v.doc != nil {
 					if ui.PrimaryButton(c.Key("version-restore"), i18n.T("恢复此版本")).Clicked() {
-						a.restoreVersion()
+						v.restoreVersion()
 					}
 				}
 			})
@@ -380,12 +403,12 @@ func (a *App) versionsView(c *ui.Context) {
 						v.createFocused = true
 					}
 					if in.Submitted() {
-						a.createMilestone()
+						v.createMilestone()
 					}
 					saveBtn := ui.PrimaryButton(c.Key("version-milestone-save"), i18n.T("保存")).
 						Disabled(strings.TrimSpace(v.createLabel) == "")
 					if saveBtn.Clicked() {
-						a.createMilestone()
+						v.createMilestone()
 					}
 					if ui.Button(c.Key("version-milestone-cancel"), i18n.T("取消")).Clicked() {
 						v.creating, v.createLabel, v.createFocused = false, "", false
@@ -428,8 +451,8 @@ func (a *App) versionsView(c *ui.Context) {
 								onClick()
 							}
 						}
-						filterBtn("filter-all", "全部", !v.milestonesOnly, func() { a.toggleMilestonesFilter(false) })
-						filterBtn("filter-milestones", "里程碑", v.milestonesOnly, func() { a.toggleMilestonesFilter(true) })
+						filterBtn("filter-all", "全部", !v.milestonesOnly, func() { v.toggleMilestonesFilter(false) })
+						filterBtn("filter-milestones", "里程碑", v.milestonesOnly, func() { v.toggleMilestonesFilter(true) })
 					})
 					ui.Scroll(c.Key("version-list")).Grow(1).MinHeight(0).Children(func() {
 						now := time.Now()
@@ -453,7 +476,7 @@ func (a *App) versionsView(c *ui.Context) {
 										v.renameFocused = true
 									}
 									if in.Submitted() || left {
-										a.renameMilestone(ver.File)
+										v.renameMilestone(ver.File)
 									}
 								})
 								continue
@@ -491,7 +514,7 @@ func (a *App) versionsView(c *ui.Context) {
 									})
 								})
 								if row.Clicked() {
-									a.selectVersion(i)
+									v.selectVersion(i)
 								}
 								if on || rowWrap.Hovered() {
 									editBtn := ui.ButtonBase(c.Key("version-rename-btn:" + ver.File)).Padding(4).Radius(6).Cursor(ui.CursorPointer).Tooltip(i18n.T("命名里程碑"))
@@ -542,7 +565,7 @@ func (a *App) versionsView(c *ui.Context) {
 						if v.added > 0 || v.gone > 0 {
 							ui.Text(c, fmt.Sprintf(i18n.T("与当前内容相比：恢复后增加 %d 行、删除 %d 行"), v.added, v.gone)).FontSize(12).TextColor(t.TextMuted)
 						}
-						opts := editor.Options{Width: max(100, w-270), Theme: t, Page: pageStyle(a.paperDark), FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.prefs.BodyFamily(), Column: a.prefs.Column(), LoadImage: func(url string) editor.ImageResource { return a.imageResourceFor(v.for_, url) }}
+						opts := editor.Options{Width: max(100, w-270), Theme: t, Page: pageStyle(v.host.paperIsDark()), FontSize: v.host.preferences().ReadingSize(), LineHeight: v.host.preferences().ReadingLine(), FontFamily: v.host.preferences().BodyFamily(), Column: v.host.preferences().Column(), LoadImage: func(url string) editor.ImageResource { return v.host.imageResourceFor(v.for_, url) }}
 						if v.showMarks {
 							opts.HighlightBlocks = v.marks
 						}
@@ -560,7 +583,7 @@ func (a *App) versionsView(c *ui.Context) {
 					default:
 						ui.Text(c, fmt.Sprintf(i18n.T("与当前内容相比：恢复后增加 %d 行、删除 %d 行"), v.added, v.gone)).FontSize(12).TextColor(t.TextMuted)
 					}
-					pg := pageStyle(a.paperDark)
+					pg := pageStyle(v.host.paperIsDark())
 					ui.Scroll(c.Key("version-diff:" + v.shown)).Grow(1).MinHeight(0).Children(func() {
 						ui.Column(c).Gap(1).Children(func() {
 							for i, l := range v.diff {
@@ -590,7 +613,7 @@ func (a *App) versionsView(c *ui.Context) {
 												Strikethrough: l.Op == history.Removed,
 											}
 											if sp.Changed {
-												us.Background = versionDiffHighlight(a.paperDark, l.Op == history.Added)
+												us.Background = versionDiffHighlight(v.host.paperIsDark(), l.Op == history.Added)
 												us.Radius = 3
 												if l.Op == history.Added {
 													us.Weight = 500
@@ -617,8 +640,8 @@ func (a *App) versionsView(c *ui.Context) {
 			})
 		})
 	})
-	if a.win != nil && hasAppWindowControls() {
-		windowButtons(c, a.win)
+	if v.host.window() != nil && hasAppWindowControls() {
+		windowButtons(c, v.host.window())
 	}
 }
 

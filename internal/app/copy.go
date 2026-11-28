@@ -15,6 +15,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/egoist/mygo/ui"
 )
 
 // Sidebar copy, paste and duplicate: documents and folders copied from the
@@ -50,6 +51,24 @@ func (a *App) copyEntries(sp *space.Space, rels []string) {
 		return
 	}
 	a.notify("已复制 %d 个项目", len(items))
+}
+
+// copyMenu adds Copy, Duplicate and Paste for the row at rel of sp. Paste
+// fills dir, placing the copies right after the sibling after when given.
+// External spaces can be copied from but take no new files.
+func (a *App) copyMenu(m *ui.Menu, sp *space.Space, rel, dir, after string) {
+	if m.Item(i18n.T("复制")).Shortcut(ui.Cmd, ui.KeyC).Chosen() {
+		a.copyEntries(sp, []string{rel})
+	}
+	if sp.IsExternal() {
+		return
+	}
+	if m.Item(i18n.T("创建副本")).Chosen() {
+		a.duplicateEntry(sp, rel)
+	}
+	if m.Item(a.pasteMenuLabel()).Shortcut(ui.Cmd, ui.KeyV).Disabled(!a.canPasteInto(sp, dir)).Chosen() {
+		a.pasteInto(sp, dir, after)
+	}
 }
 
 // entryDisplayName formats a document or folder path for toast notices.

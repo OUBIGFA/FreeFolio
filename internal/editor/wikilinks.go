@@ -114,36 +114,6 @@ func (e *Editor) runAt(at int) (string, int, bool) {
 	return "", 0, false
 }
 
-// wikiAt is the target of the [[link]] at the offset at, if any.
-func (e *Editor) wikiAt(at int) string {
-	text, start, ok := e.runAt(at)
-	if !ok {
-		return ""
-	}
-	for _, l := range wiki.Links(text) {
-		a, z := start+document.Len(text[:l.Start]), start+document.Len(text[:l.End])
-		if at > a && at < z {
-			return l.Target
-		}
-	}
-	return ""
-}
-
-// tagAt is the #tag at the offset at, if any.
-func (e *Editor) tagAt(at int) string {
-	text, start, ok := e.runAt(at)
-	if !ok {
-		return ""
-	}
-	for _, tg := range wiki.Tags(text) {
-		a, z := start+document.Len(text[:tg.Start]), start+document.Len(text[:tg.End])
-		if at >= a && at <= z {
-			return tg.Name
-		}
-	}
-	return ""
-}
-
 func (e *Editor) wikiAtPoint(x, y float32) string {
 	at, ok := e.IndexForPoint(ui.Point{X: x, Y: y})
 	if !ok {

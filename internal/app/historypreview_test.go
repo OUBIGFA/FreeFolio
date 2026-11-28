@@ -23,9 +23,9 @@ func TestHistoryPreviewLeavesOriginalEditorAndDiskUntouched(t *testing.T) {
 	a.open("Preview.md")
 	tt.Frame()
 	original := a.doc.ed
-	a.openVersions()
+	a.versions.show()
 	tt.Frame()
-	a.selectVersion(0)
+	a.versions.selectVersion(0)
 	tt.Frame()
 	if a.versions.preview == nil || !a.versions.preview.ReadOnly || a.versions.preview == original {
 		t.Fatal("history must use its own read-only renderer")

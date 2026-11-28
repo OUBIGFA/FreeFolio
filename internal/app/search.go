@@ -48,7 +48,6 @@ type hitsKey struct {
 	query string
 	index *search.Index
 	doc   *document
-	rev   uint64
 }
 
 // extractText is the plain text a document file is searched by: its

@@ -462,11 +462,6 @@ func toolButton(c *ui.Context, key string, icon *ui.SVG, tip string, on bool) ui
 	return b
 }
 
-// toolSeparator parts groups of a bar of tools.
-func toolSeparator(c *ui.Context) {
-	ui.Box(c).Width(1).Height(16).Margin(0, 6).Background(c.Theme().Border)
-}
-
 // isSlashDismissed reports whether the slash menu was closed in block id.
 // Dismissal is kept per block (at most two: where a paste started and where
 // it ended), so closing the menu in one block never hides it in another.

@@ -153,12 +153,6 @@ func (a *App) newDocNamed(dir, name string) {
 	a.notify("新建「%s」失败；%v", name, err)
 }
 
-// wikiSuggest lists the documents whose names match what is typed of a
-// [[link]], the best first.
-func (a *App) wikiSuggest(typed string) []editor.WikiItem {
-	return a.wikiSuggestFor(a.doc, typed)
-}
-
 func (a *App) wikiSuggestFor(d *document, typed string) []editor.WikiItem {
 	type scored struct {
 		item  editor.WikiItem
@@ -206,14 +200,6 @@ func (a *App) openTag(tag string) {
 		a.palette.pane = a.split.panes[a.split.active]
 	}
 	a.palette.query = "#" + tag
-}
-
-// live is the open document as search sees it.
-func (a *App) live() *search.Live {
-	if d := a.doc; d != nil && d.loadErr == nil {
-		return &search.Live{Space: d.space.ID, Path: d.rel, Text: d.plainText()}
-	}
-	return nil
 }
 
 // tagResults are the command bar's results for a query starting with #:
@@ -313,12 +299,6 @@ func (a *App) footerData(d *document) *pageFooterCache {
 			hits: ix.Backlinks(d.title(), search.Live{Space: location.space, Path: location.rel}, nil)}
 	}
 	return cache
-}
-
-// pageFooter is drawn below the open document: its tags and the documents
-// linking to it.
-func (a *App) pageFooter(c *ui.Context) {
-	a.pageFooterFor(c, a.doc)
 }
 
 func (a *App) pageFooterFor(c *ui.Context, d *document) {

@@ -128,7 +128,7 @@ func ListSpaceDatabases(spaceRoot string) ([]SpaceDBInfo, error) {
 		return nil, err
 	}
 	sort.Slice(out, func(i, j int) bool {
-		if strings.ToLower(out[i].Title) != strings.ToLower(out[j].Title) {
+		if !strings.EqualFold(out[i].Title, out[j].Title) {
 			return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title)
 		}
 		return out[i].RelPath < out[j].RelPath

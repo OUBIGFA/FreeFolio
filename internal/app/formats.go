@@ -268,7 +268,7 @@ func (a *App) formatActions(cmd func(string, string, func())) {
 		cmd(i18n.T("存为可编辑的 Markdown 副本"), "", func() { a.saveEditableCopy(d) })
 		return
 	}
-	cmd(i18n.T("版本历史"), a.keyLabel("history"), a.openVersions)
+	cmd(i18n.T("版本历史"), a.keyLabel("history"), a.versions.show)
 }
 
 // syncFormatPlugins hands the formats of the enabled wasm plugins to the

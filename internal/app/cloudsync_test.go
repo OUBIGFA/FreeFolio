@@ -463,7 +463,7 @@ func TestCloudSaveDebouncesAndHistoryCloses(t *testing.T) {
 	if got := a.cloud.due.Sub(a.now); got != 15*time.Second {
 		t.Fatalf("save delay=%v", got)
 	}
-	a.versions = versionsState{open: false, for_: a.doc, doc: a.doc.ed.Committed().Clone()}
+	a.versions = versionsPanel{host: a, open: false, for_: a.doc, doc: a.doc.ed.Committed().Clone()}
 	// Keep automatic networking disabled while checking the closed modal state.
 	a.cloud.config.Automatic = false
 	tt.Frame()

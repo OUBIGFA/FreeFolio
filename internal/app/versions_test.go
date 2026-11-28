@@ -31,7 +31,7 @@ func TestDatabaseVersionRestorePreservesRecordsAndUndo(t *testing.T) {
 	}
 	a.refreshTree()
 	a.open(rel)
-	a.openVersions()
+	a.versions.show()
 	settle(tt)
 	if a.versions.dbText != raw {
 		t.Fatal("database version was not loaded for preview")
@@ -72,12 +72,12 @@ func TestVersionGraphemeDiffAndMilestones(t *testing.T) {
 	tt.Type(" 发布与验收。")
 	saveSettle(tt)
 
-	a.openVersions()
+	a.versions.show()
 	tt.Frame()
 	if !a.versions.open || len(a.versions.versions) < 2 {
 		t.Fatalf("expected versions modal open with >= 2 versions, got %+v", a.versions)
 	}
-	a.selectVersion(1)
+	a.versions.selectVersion(1)
 	a.versions.showDiff = true // The original text-difference view remains available.
 	tt.Frame()
 

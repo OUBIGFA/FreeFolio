@@ -116,6 +116,10 @@ type preview struct {
 	// path keeps where the document previewed is, which the card asks in
 	// every frame for the time the file changed.
 	path keptPath
+	// pointer is the sidebar row under the pointer this frame, expanded
+	// folders included; suppress is a row just clicked, which shows no
+	// preview until the pointer leaves it.
+	pointer, suppress place
 }
 
 type thumb struct {
@@ -135,8 +139,17 @@ func (a *App) previewView(c *ui.Context) {
 	now := c.Now()
 	hover := p.hover
 	p.hover = nil
+	pointer := p.pointer
+	p.pointer = place{}
 	if a.listDragging || a.carrying != nil || a.dragSettle.active || a.listDrop != nil || a.favDrop != nil || a.renaming != "" || a.spaceForm.open {
 		hover = nil
+	}
+	if p.suppress != (place{}) {
+		if pointer != p.suppress {
+			p.suppress = place{}
+		} else if hover != nil && hover.space != nil && hover.space.ID == p.suppress.space && hover.rel == p.suppress.rel {
+			hover = nil
+		}
 	}
 	// The pointer resting: a new row starts the wait, the same row ends it.
 	switch {

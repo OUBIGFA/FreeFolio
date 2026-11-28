@@ -2467,12 +2467,6 @@ func (e *Editor) overText(x, y float32) bool {
 	return x >= left && x <= right && y <= e.contentEnd+slack
 }
 
-// textLeft is the left edge of the page's content at height y.
-func (e *Editor) textLeft(y float32) float32 {
-	left, _ := e.textSpan(y)
-	return left
-}
-
 // textSpan is the horizontal extent of the page's content at height y: the
 // text column, widened to a table that spans past it (tableSpan) together
 // with the strip of row and column controls above and beside its grid.

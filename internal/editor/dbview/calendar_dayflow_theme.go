@@ -190,15 +190,6 @@ func snapMinutes15(mins int) int {
 	return ((mins + 7) / 15) * 15
 }
 
-func startOfWeekFor(day time.Time, weekStart int) time.Time {
-	ws := 1
-	if weekStart == 0 {
-		ws = 0
-	}
-	offset := (int(day.Weekday()) - ws + 7) % 7
-	return dateOnly(day).AddDate(0, 0, -offset)
-}
-
 func narrowWeekdayNames() [7]string {
 	if i18n.English() {
 		return [7]string{"S", "M", "T", "W", "T", "F", "S"}

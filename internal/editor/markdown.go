@@ -1319,15 +1319,6 @@ func (a *runAccumulator) finish() []document.Run {
 	return slices.Clip(a.runs)
 }
 
-func importRuns(in []parser.Inline, base document.Style) []document.Run {
-	runs, _ := importRunsAndComments(in, base)
-	return runs
-}
-
-func importRunsAndComments(in []parser.Inline, base document.Style) ([]document.Run, []document.InlineComment) {
-	return importRunsAndCommentsWithBreak(in, base, "\u2028")
-}
-
 func needsDollarMathRescue(in []parser.Inline) bool {
 	for _, node := range in {
 		if node.Kind == parser.Text && strings.ContainsRune(node.Text, '$') {

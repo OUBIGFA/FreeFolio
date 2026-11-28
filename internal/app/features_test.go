@@ -197,7 +197,7 @@ func TestVersionHistory(t *testing.T) {
 	if !a.versions.open || !tt.HasText("版本历史 · Welcome") || !tt.HasText("打开时的版本") {
 		t.Fatalf("history window: %q", tt.Texts())
 	}
-	a.selectVersion(1)
+	a.versions.selectVersion(1)
 	tt.Frame()
 	if !tt.HasText("恢复后增加") {
 		t.Errorf("no difference shown: %q", tt.Texts())

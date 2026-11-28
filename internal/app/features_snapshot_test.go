@@ -56,9 +56,9 @@ func TestFeaturesSnapshot(t *testing.T) {
 				saveSettle(tt)
 				tt.Type("又改了一处。")
 				saveSettle(tt)
-				a.openVersions()
+				a.versions.show()
 				tt.Frame()
-				a.selectVersion(1)
+				a.versions.selectVersion(1)
 			case "trash":
 				a.trashFile = os.RemoveAll
 				a.trash("Journal")
@@ -158,11 +158,11 @@ func TestV03FeaturesSnapshot(t *testing.T) {
 		}
 		tt.Type("发布与验收。")
 		saveSettle(tt)
-		a.openVersions()
+		a.versions.show()
 		tt.Frame()
 		for i, ver := range a.versions.versions {
 			if ver.Label == "定稿 v1" {
-				a.selectVersion(i)
+				a.versions.selectVersion(i)
 				break
 			}
 		}
