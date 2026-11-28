@@ -26,13 +26,11 @@ func TestBoardGroupRenameIsUndoableAndReadOnlySafe(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 1200, 800)
 	b.RunAction("rename-group", BoardOptions{})
 	tt.Frame()
-	if !tt.HasText("重命名分组") {
-		t.Fatal("group rename entry did not open")
+	if _, ok := tt.AccessByRole(ui.RoleTextField, "分组名称"); !ok || b.panel != "" {
+		t.Fatal("group rename must open inline without a panel")
 	}
-	b.propertyInput = "Product images"
-	if err := tt.Click("保存分组名称"); err != nil {
-		t.Fatal(err)
-	}
+	tt.Type("Product images")
+	tt.Key(0, ui.KeyEnter)
 	if b.Scene.GroupNames[id] != "Product images" {
 		t.Fatal("rename did not save")
 	}
@@ -44,7 +42,7 @@ func TestBoardGroupRenameIsUndoableAndReadOnlySafe(t *testing.T) {
 	}
 	b.ReadOnly = true
 	b.RunAction("rename-group", BoardOptions{ReadOnly: true})
-	if b.panel == "group-name" {
+	if b.groupRename != "" {
 		t.Fatal("read-only board opened rename editor")
 	}
 	if output := os.Getenv("FREEFOLIO_GROUP_SNAPSHOT"); output != "" {
@@ -74,17 +72,83 @@ func TestGroupTitleOpensRenameFromKeyboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Key(0, ui.KeyEnter)
-	if b.panel != "group-name" {
+	if b.groupRename == "" || b.panel != "" {
 		t.Fatal("focused group title did not open the rename editor")
 	}
 	tt.Key(0, ui.KeyEscape)
-	if b.panel == "group-name" {
+	if b.groupRename != "" {
 		t.Fatal("Escape did not cancel group rename")
 	}
 	b.Tool = ToolHand
 	tt.Frame()
 	if _, ok := tt.Access("分组"); ok {
 		t.Fatal("group title intercepted the hand tool")
+	}
+}
+
+func TestGroupRenameStaysAtTitleAndCommitsOnlyFinishedInput(t *testing.T) {
+	b, id := groupedBoard()
+	defer b.Close()
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 1200, 800)
+	tt.Frame()
+	for _, zoom := range []float64{.5, 1, 2} {
+		b.Zoom, b.PanX, b.PanY = zoom, 40, 300
+		tt.Frame()
+		title, ok := tt.Find("分组")
+		if !ok {
+			t.Fatal("title missing")
+		}
+		b.beginGroupRename(id)
+		tt.Frame()
+		input, ok := tt.AccessByRole(ui.RoleTextField, "分组名称")
+		if !ok || input.Bounds.Y != title.Y || input.Bounds.H > boardGroupHeader || b.panel != "" {
+			t.Fatal("input moved away from title", input.Bounds, title)
+		}
+		if output := os.Getenv("FREEFOLIO_GROUP_SNAPSHOT"); output != "" && zoom == 1 {
+			if err := os.MkdirAll(output, 0755); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Create(filepath.Join(output, "group-inline-rename.png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, tt.Image())
+			file.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		tt.Type("draft")
+		tt.Key(0, ui.KeyEscape)
+		if b.Scene.GroupNames[id] != "" || b.groupRename != "" {
+			t.Fatal("Escape saved a draft")
+		}
+	}
+	b.beginGroupRename(id)
+	tt.Frame()
+	tt.Compose("候选", 2)
+	tt.Key(0, ui.KeyEnter)
+	if b.Scene.GroupNames[id] != "" || b.groupRename == "" {
+		t.Fatal("IME Enter committed group rename")
+	}
+	tt.Compose("", 0)
+	tt.Type("最终名称")
+	tt.ClickAt(1100, 700)
+	tt.Frame()
+	if b.Scene.GroupNames[id] != "最终名称" || b.groupRename != "" {
+		t.Fatal("blur did not commit finished text", b.Scene.GroupNames[id])
+	}
+	if !b.Undo() || b.Scene.GroupNames[id] != "" {
+		t.Fatal("blur rename did not undo once")
+	}
+	b.beginGroupRename(id)
+	tt.Frame()
+	tt.Type("blocked")
+	b.Scene.Elements[0].Locked = true
+	whiteboard.Touch(b.Scene.Elements[0])
+	tt.Frame()
+	if b.groupRename != "" || b.Scene.GroupNames[id] != "" {
+		t.Fatal("locking group did not cancel draft")
 	}
 }
 

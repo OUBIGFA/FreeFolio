@@ -128,7 +128,7 @@ func BoardView(c *ui.Context, b *Board, o BoardOptions) ui.Element {
 			b.aiNodeInlineControls(c, o)
 			b.aiVideoOverlay(c, o)
 			b.aiLinkControls(c, o)
-			b.groupControls(c)
+			b.groupControls(c, o)
 		})
 		b.textOverlay(c, o)
 		if !b.ReadOnly {
@@ -686,8 +686,6 @@ func (b *Board) beginCrop(id string) {
 }
 func (b *Board) panelTitle() string {
 	switch {
-	case b.panel == "group-name":
-		return i18n.T("重命名分组")
 	case b.panel == "search":
 		return i18n.T("搜索白板内容")
 	case b.panel == "outline":
@@ -833,15 +831,6 @@ func (b *Board) panelView(c *ui.Context, o BoardOptions) {
 						}
 					}
 				})
-				b.panel = ""
-			}
-		case b.panel == "group-name":
-			input := ui.TextInput(c.Key("board-group-name"), &b.propertyInput).WidthPercent(100).AutoFocus().Label(i18n.T("分组名称"))
-			if input.Shortcut(0, ui.KeyEscape) {
-				b.panel = ""
-			}
-			if ui.Button(c, i18n.T("保存分组名称")).Disabled(b.ReadOnly).Clicked() || input.Submitted() && !b.ReadOnly {
-				b.edit(o, func() { b.Scene.RenameGroup(b.groupRename, b.propertyInput) })
 				b.panel = ""
 			}
 		}

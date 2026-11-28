@@ -13,7 +13,6 @@ var enWhiteboard = map[string]string{
 	"完成组内编辑":    "Finish editing group",
 	"组内编辑中":     "Editing group",
 	"重命名分组":     "Rename group",
-	"保存分组名称":    "Save group name",
 	"双击重命名分组":   "Double-click to rename group",
 	"恢复生成细节默认值": "Reset generation details",
 	"已保存的步数不适用，请恢复生成细节默认值": "The saved step count is incompatible, reset generation details",

@@ -3,6 +3,7 @@ package editor
 import (
 	"math"
 	"slices"
+	"unicode/utf8"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
@@ -137,8 +138,9 @@ func (b *Board) beginGroupRename(id string) {
 	for _, group := range b.groupRegions() {
 		if group.ID == id && !group.Locked {
 			b.groupRename = id
-			b.propertyInput = group.Name
-			b.panel = "group-name"
+			b.groupNameInput = group.Name
+			b.groupNameFocus = true
+			b.panel = ""
 			return
 		}
 	}
@@ -164,6 +166,9 @@ func (b *Board) paintGroups(p *ui.Painter, viewport whiteboard.Box, dark bool) {
 		if b.isolatedGroup == group.ID {
 			p.Stroke(r, ink.Alpha(.8), 16, 2/max(.25, float32(b.Zoom)))
 		}
+		if b.groupRename == group.ID {
+			continue
+		}
 		name := group.Name
 		if name == "" {
 			name = i18n.T("分组")
@@ -186,13 +191,47 @@ func (b *Board) paintGroups(p *ui.Painter, viewport whiteboard.Box, dark bool) {
 
 // Title controls complement background dragging without covering node ports.
 // Group editing remains a view mode and never removes persisted membership.
-func (b *Board) groupControls(c *ui.Context) {
-	if b.Tool != ToolSelect || b.spaceDown || b.mode != "" || b.editing != nil {
+func (b *Board) groupControls(c *ui.Context, o BoardOptions) {
+	if b.Tool != ToolSelect || b.spaceDown || b.editing != nil {
+		b.groupRename = ""
 		return
 	}
+	if b.mode != "" && b.groupRename == "" {
+		return
+	}
+	renaming := b.groupRename
+	found := false
 	for _, group := range b.groupRegions() {
 		left, y, width, _ := b.canvasRect(group.Bounds.X, group.Bounds.Y, group.Bounds.W, 0)
 		x, w := left+24, max(0, width-48)
+		if group.ID == renaming {
+			found = true
+			if b.ReadOnly || group.Locked {
+				b.groupRename = ""
+			} else {
+				// This native input shares the title's screen coordinates and fixed
+				// size. Its value contains only committed IME text.
+				input := ui.TextInput(c.Key("board-group-name:"+group.ID), &b.groupNameInput).
+					Absolute().Left(x).Top(y).Width(max(w, 80)).Height(boardGroupHeader).
+					Padding(2, 4).FontSize(boardGroupTitleFont.Size).FontWeight(500).
+					Label(i18n.T("分组名称"))
+				if b.groupNameFocus {
+					input.Focus(ui.FocusOptions{PreventScroll: true}).SetTextSelection(0, utf8.RuneCountInString(b.groupNameInput))
+					b.groupNameFocus = false
+				}
+				if input.Shortcut(0, ui.KeyEscape) {
+					b.groupRename = ""
+					b.RequestFocus = true
+				} else if input.Submitted() || !input.Focused() {
+					b.edit(o, func() { b.Scene.RenameGroup(group.ID, b.groupNameInput) })
+					b.groupRename = ""
+					if input.Focused() {
+						b.RequestFocus = true
+					}
+				}
+				continue
+			}
+		}
 		if x+w < 0 || y+boardGroupHeader < 0 || x > b.lastRect.W || y > b.lastRect.H {
 			continue
 		}
@@ -224,6 +263,9 @@ func (b *Board) groupControls(c *ui.Context) {
 				}
 			})
 		}
+	}
+	if renaming != "" && !found {
+		b.groupRename = ""
 	}
 	if b.isolatedGroup != "" {
 		if ui.Button(c.Key("board-group-done"), i18n.T("完成组内编辑")).Absolute().Right(12).Top(64).Clicked() {

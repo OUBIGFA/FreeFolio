@@ -109,6 +109,8 @@ type Board struct {
 	linearPoint                                int
 	isolatedGroup                              string
 	groupRename                                string
+	groupNameInput                             string
+	groupNameFocus                             bool
 	groups                                     boardGroupCache
 	styleClipboard                             *whiteboard.Element
 	paths                                      map[string]boardPathCache
