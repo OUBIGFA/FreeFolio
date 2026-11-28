@@ -88,6 +88,7 @@ var settingsIcons = map[string]*ui.SVG{
 	"palette":  iconPalette,
 	"folder":   iconFolder,
 	"cloud":    solar.Must("cloud"),
+	"git":      iconGitBranch,
 	"refresh":  iconReload,
 	"settings": solar.Must("settings"),
 	"layers":   symbolIcon("layers"),

@@ -134,7 +134,7 @@ func settingsTabs() []struct{ id, label, icon string } {
 		{tabAgents, i18n.T("本地 Agent 接入"), "code"},
 		{tabResources, i18n.T("可选资源"), "folder"},
 		{tabCloud, i18n.T("云端同步"), "cloud"},
-		{tabGit, i18n.T("GitHub 同步"), "refresh"},
+		{tabGit, i18n.T("GitHub 同步"), "git"},
 		{tabShortcuts, i18n.T("快捷键"), "keyboard"},
 		{tabUpdates, i18n.T("更新"), "refresh"},
 		{tabAbout, i18n.T("关于"), "info"},
