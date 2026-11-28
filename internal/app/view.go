@@ -557,11 +557,12 @@ func (a *App) main(c *ui.Context, docked float32) {
 			target = a.oneBotWidth(docked)
 		}
 		// Resolve resize input before both panels; only opening/closing animates.
-		motion := slide
-		if a.qa.dragging || a.qa.resizing {
-			motion = 0
+		motion := a.oneBotMotion()
+		if motion == 0 {
+			a.qa.shown = main.Jump("qa-width", target)
+		} else {
+			a.qa.shown = main.Animate("qa-width", target, motion)
 		}
-		a.qa.shown = main.Animate("qa-width", target, motion)
 		a.qa.resizing = a.qa.resizing || a.qa.dragging || a.qa.shown != target
 		left := float32(8)
 		if docked > 0.5 && a.prefs.SidebarLeft {

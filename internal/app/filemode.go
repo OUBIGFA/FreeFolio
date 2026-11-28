@@ -428,11 +428,12 @@ func (a *App) fileView(c *ui.Context) {
 			if a.qa.open {
 				target = a.oneBotWidth(0)
 			}
-			motion := slide
-			if a.qa.dragging || a.qa.resizing {
-				motion = 0
+			motion := a.oneBotMotion()
+			if motion == 0 {
+				a.qa.shown = body.Jump("qa-width", target)
+			} else {
+				a.qa.shown = body.Animate("qa-width", target, motion)
 			}
-			a.qa.shown = body.Animate("qa-width", target, motion)
 			a.qa.resizing = a.qa.resizing || a.qa.dragging || a.qa.shown != target
 			if a.split != nil {
 				ui.Column(c.Key("file-split")).Grow(1).MinWidth(0).MinHeight(0).Children(func() { a.splitView(c) })

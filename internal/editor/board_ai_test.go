@@ -341,7 +341,7 @@ func TestBoardAIImageConversionMenuAndPermissions(t *testing.T) {
 	o.ReadOnly = false
 	tt.Frame()
 	tt.RightClickAt(260, 280)
-	if err := tt.ChooseMenuItem("转为节点"); err != nil {
+	if err := tt.ChooseMenuItem("AI 操作", "转为节点"); err != nil {
 		t.Fatal(err)
 	}
 	if !whiteboard.IsAINode(b.Scene.ElementByID(picture.ID)) {
@@ -640,7 +640,7 @@ func TestBoardAILinkCenterSelectsThenDeletesAtEveryZoom(t *testing.T) {
 			}
 			tt.Frame()
 			tt.RightClickAt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2)
-			if err := tt.ChooseMenuItem(i18n.T("删除连线")); err != nil {
+			if err := tt.ChooseMenuItem(i18n.T("AI 操作"), i18n.T("删除连线")); err != nil {
 				t.Fatal(err)
 			}
 			if whiteboard.AINodeOf(b.Scene.ElementByID(to)).LinkAt("prompt") != "" {

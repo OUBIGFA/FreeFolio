@@ -71,6 +71,12 @@ func (b *Board) canvasCursor(mods ui.Modifiers, gesture bool) ui.Cursor {
 			}
 			return ui.CursorGrab
 		}
+		if group := b.groupAt(b.hover); group != nil && b.isolatedGroup == "" {
+			if group.Locked {
+				return ui.CursorNotAllowed
+			}
+			return ui.CursorGrab
+		}
 		return ui.CursorDefault
 	}
 	if b.Tool == ToolText {

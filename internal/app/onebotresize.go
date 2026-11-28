@@ -1,9 +1,30 @@
 package app
 
 import (
+	"time"
+
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/egoist/mygo/ui"
 )
+
+// Repeatedly squeezing a media-heavy canvas forces expensive GPU presentation
+// during every sidebar animation frame. Keep its viewport and switch once.
+func (a *App) oneBotMotion() time.Duration {
+	if a.qa.dragging || a.qa.resizing {
+		return 0
+	}
+	board := func(d *document) bool { return d != nil && (d.board != nil || d.boardLoading || d.boardOverlay != nil) }
+	if a.split != nil {
+		for _, p := range a.split.panes {
+			if board(p.doc) {
+				return 0
+			}
+		}
+	} else if board(a.doc) {
+		return 0
+	}
+	return slide
+}
 
 func (a *App) oneBotWidth(docked float32) float32 {
 	w := a.prefs.OneBotWidth

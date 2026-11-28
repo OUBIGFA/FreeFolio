@@ -6,6 +6,37 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestOneBotOpensBesideWhiteboardWithoutResizeAnimation(t *testing.T) {
+	for _, files := range []bool{false, true} {
+		t.Run(map[bool]string{false: "space", true: "files"}[files], func(t *testing.T) {
+			a, tt := newTestApp(t)
+			if files {
+				if !a.openSystemFile(externalFile(t, "Board.excalidraw", `{"type":"excalidraw","version":2,"elements":[],"files":{}}`)) {
+					t.Fatal("open board")
+				}
+			} else {
+				a.newWhiteboard("")
+			}
+			settle(tt)
+			b := a.doc.board
+			zoom, x, y := b.Zoom, b.PanX, b.PanY
+			a.toggleQA()
+			tt.Frame()
+			if a.qa.shown < 200 || a.qa.resizing {
+				t.Fatalf("whiteboard stayed in the panel resize animation: width %v", a.qa.shown)
+			}
+			if b.Zoom != zoom || b.PanX != x || b.PanY != y {
+				t.Fatal("opening OneBot moved the whiteboard viewport")
+			}
+			a.toggleQA()
+			tt.Frame()
+			if a.qa.shown != 0 {
+				t.Fatal("whiteboard kept animating after closing OneBot")
+			}
+		})
+	}
+}
+
 func TestOneBotResizeDragPersistsAndKeepsDraft(t *testing.T) {
 	for _, left := range []bool{false, true} {
 		t.Run(map[bool]string{false: "sidebar-right", true: "sidebar-left"}[left], func(t *testing.T) {

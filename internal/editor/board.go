@@ -493,6 +493,14 @@ func (b *Board) RunAction(action string, o BoardOptions) {
 		b.beginGroupRename(b.selectedGroup())
 		return
 	}
+	if action == "edit-group" {
+		b.editGroup(b.selectedGroup())
+		return
+	}
+	if action == "exit-group" {
+		b.exitGroup()
+		return
+	}
 	if action == "paste" {
 		b.pasteBoard(o)
 		return

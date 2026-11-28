@@ -227,7 +227,7 @@ func (b *Board) key(ev ui.InputEvent, o BoardOptions) bool {
 		} else if b.linearEdit != "" {
 			b.linearEdit = ""
 		} else if b.isolatedGroup != "" {
-			b.isolatedGroup = ""
+			b.exitGroup()
 		} else if len(b.Selected) > 0 {
 			b.Selected = map[string]bool{}
 		} else if o.Done != nil {
@@ -388,9 +388,27 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 		return true
 	}
 	if ev.Button != 0 {
+		if ev.Button == 1 && b.Tool == ToolSelect && b.isolatedGroup == "" && b.canvasHit(p) == nil {
+			if group := b.groupAt(p); group != nil && (o.AI == nil || b.aiLinkHit(p) == nil) {
+				b.selectIDs(group.Members)
+			}
+		}
 		return false
 	}
 	hit := b.canvasHit(p)
+	if b.isolatedGroup != "" {
+		inside := false
+		for _, g := range b.groupRegions() {
+			if g.ID == b.isolatedGroup && g.Bounds.Contains(p) {
+				inside = true
+				break
+			}
+		}
+		if !inside {
+			b.isolatedGroup = ""
+			b.Selected = map[string]bool{}
+		}
+	}
 	if ev.Clicks >= 2 && hit != nil && o.AI != nil {
 		if n := b.aiNode(hit); n != nil && (n.Role == whiteboard.AIImageInput || n.Output() != nil && n.Output().Kind == "image") {
 			r := b.aiLayout(hit, n).preview
@@ -453,7 +471,7 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 			return true
 		}
 		if hit != nil && len(hit.GroupIDs) > 0 && ev.Clicks >= 2 && b.isolatedGroup == "" {
-			b.isolatedGroup = hit.GroupIDs[0]
+			b.editGroup(hit.GroupIDs[len(hit.GroupIDs)-1])
 			b.selectIDs([]string{hit.ID})
 			return true
 		}
@@ -514,7 +532,7 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 					b.Selected[hit.ID] = true
 				}
 			} else if !b.Selected[hit.ID] {
-				b.selectIDs(b.Scene.ExpandSelection([]string{hit.ID}, b.isolatedGroup == ""))
+				b.selectIDs(b.groupMemberSelection(hit))
 			}
 			if ev.Mods&ui.Alt != 0 {
 				clip, _ := b.Scene.Clipboard(b.SelectedIDs())
@@ -523,6 +541,16 @@ func (b *Board) pointerDown(ev ui.InputEvent, o BoardOptions) bool {
 					b.selectIDs(ids)
 					b.before = b.Scene.Clone()
 				}
+			}
+			b.mode = "move"
+			return true
+		}
+		if group := b.groupAt(p); group != nil && b.isolatedGroup == "" {
+			b.selectIDs(group.Members)
+			if group.Locked {
+				b.History.Cancel()
+				b.before = nil
+				return true
 			}
 			b.mode = "move"
 			return true

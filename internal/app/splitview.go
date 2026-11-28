@@ -55,7 +55,11 @@ func (a *App) splitView(c *ui.Context) {
 		}
 		ui.Box(c).Height(height).DragWindow()
 	}
-	area := ui.Box(c.Key("split-area")).Grow(1).MinWidth(0).MinHeight(0)
+	area := ui.Column(c.Key("split-area"))
+	if !s.vertical {
+		area.Row()
+	}
+	area.Grow(1).MinWidth(0).MinHeight(0).Gap(splitGap).AlignItems(ui.Stretch)
 	b := area.LayoutBounds()
 	total := b.W
 	if s.vertical {
@@ -84,13 +88,20 @@ func (a *App) splitView(c *ui.Context) {
 			s.dragPane = nil
 			s.dragSnapped = false
 		}
-		cursor = 0
 		for i, pane := range panes {
-			x, y, w, h := cursor, float32(0), lengths[i], b.H
-			if s.vertical {
-				x, y, w, h = 0, cursor, b.W, lengths[i]
+			w, weight := lengths[i], lengths[i]
+			if total <= 0 {
+				weight = pane.visualFactor()
 			}
-			e := ui.Column(c.Key(fmt.Sprintf("pane:%p", pane))).Absolute().Left(x).Top(y).Size(w, h).MinWidth(0).MinHeight(0)
+			// Flex layout receives the current frame's available size. Absolute
+			// panes based on last frame's bounds painted at zero size on entry.
+			e := ui.Column(c.Key(fmt.Sprintf("pane:%p", pane))).Grow(weight).MinWidth(0).MinHeight(0)
+			if s.vertical {
+				w = b.W
+				e.Height(0)
+			} else {
+				e.Width(0)
+			}
 			if !a.splitResizing && !animating && s.dragPane == nil {
 				e.Transition(ui.ElementTransition{
 					Duration: 150 * time.Millisecond,
@@ -104,10 +115,6 @@ func (a *App) splitView(c *ui.Context) {
 			}
 			if e.FocusWithin() && a.split == s && s.active != i {
 				a.focusPane(i, false)
-			}
-			cursor += lengths[i]
-			if i < len(s.panes)-1 {
-				cursor += splitGap
 			}
 		}
 	})
