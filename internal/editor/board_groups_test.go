@@ -1,0 +1,107 @@
+package editor
+
+import (
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
+	"github.com/egoist/mygo/ui"
+)
+
+func groupedBoard() (*Board, string) {
+	b := NewBoard(nil)
+	a := whiteboard.NewAINode(whiteboard.AIText, 100, 140)
+	z := whiteboard.NewAINode(whiteboard.AIImage, 530, 140)
+	b.Scene.Elements = []*whiteboard.Element{a, z}
+	b.selectIDs([]string{a.ID, z.ID})
+	b.RunAction("group", BoardOptions{})
+	return b, a.GroupIDs[0]
+}
+
+func TestBoardGroupRenameIsUndoableAndReadOnlySafe(t *testing.T) {
+	b, id := groupedBoard()
+	defer b.Close()
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 1200, 800)
+	b.RunAction("rename-group", BoardOptions{})
+	tt.Frame()
+	if !tt.HasText("重命名分组") {
+		t.Fatal("group rename entry did not open")
+	}
+	b.propertyInput = "Product images"
+	if err := tt.Click("保存分组名称"); err != nil {
+		t.Fatal(err)
+	}
+	if b.Scene.GroupNames[id] != "Product images" {
+		t.Fatal("rename did not save")
+	}
+	if !b.Undo() || b.Scene.GroupNames[id] != "" {
+		t.Fatal("rename was not one undo step")
+	}
+	if !b.Redo() || b.Scene.GroupNames[id] != "Product images" {
+		t.Fatal("redo lost group name")
+	}
+	b.ReadOnly = true
+	b.RunAction("rename-group", BoardOptions{ReadOnly: true})
+	if b.panel == "group-name" {
+		t.Fatal("read-only board opened rename editor")
+	}
+	if output := os.Getenv("FREEFOLIO_GROUP_SNAPSHOT"); output != "" {
+		if err := os.MkdirAll(output, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		b.Selected = map[string]bool{}
+		tt.Frame()
+		file, err := os.Create(filepath.Join(output, "groups.png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		if err := png.Encode(file, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestGroupTitleOpensRenameFromKeyboard(t *testing.T) {
+	b, _ := groupedBoard()
+	defer b.Close()
+	b.Selected = map[string]bool{}
+	tt := ui.NewTester(func(c *ui.Context) { BoardView(c, b, BoardOptions{}) }, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("分组"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEnter)
+	if b.panel != "group-name" {
+		t.Fatal("focused group title did not open the rename editor")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if b.panel == "group-name" {
+		t.Fatal("Escape did not cancel group rename")
+	}
+	b.Tool = ToolHand
+	tt.Frame()
+	if _, ok := tt.Access("分组"); ok {
+		t.Fatal("group title intercepted the hand tool")
+	}
+}
+
+func TestGroupBackgroundTracksMoveAndUngroup(t *testing.T) {
+	b, _ := groupedBoard()
+	defer b.Close()
+	first := b.groupRegions()[0].Bounds
+	b.Scene.Translate(b.SelectedIDs(), whiteboard.Point{100, 50})
+	got := b.groupRegions()[0].Bounds
+	if got.X != first.X+100 || got.Y != first.Y+50 {
+		t.Fatal("group background did not follow the nodes")
+	}
+	b.RunAction("ungroup", BoardOptions{})
+	if len(b.groupRegions()) != 0 {
+		t.Fatal("ungroup left a background")
+	}
+	if !b.Undo() || len(b.groupRegions()) != 1 {
+		t.Fatal("undo did not restore the background")
+	}
+}

@@ -2,7 +2,10 @@ package i18n
 
 // en translates the interface's messages into English, by their Chinese.
 var en = map[string]string{
-	"请在浏览器中登录并授权 GitHub":                 "Sign in and authorize GitHub in your browser",
+	"重命名分组":              "Rename group",
+	"保存分组名称":             "Save group name",
+	"双击重命名分组":            "Double-click to rename group",
+	"请在浏览器中登录并授权 GitHub": "Sign in and authorize GitHub in your browser",
 	"在浏览器中登录并授权即可，首次连接会自动准备所需组件":         "Sign in and authorize in your browser, required components are prepared automatically on first use",
 	"GitHub 登录记录无效，请重新连接":                "GitHub sign-in record is invalid, reconnect your account",
 	"GitHub 登录服务未完成操作，请重试连接并检查网络或系统凭据服务": "GitHub sign-in did not finish, reconnect and check your network or system credential service",

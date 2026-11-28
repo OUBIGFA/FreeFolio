@@ -9,9 +9,10 @@ import (
 )
 
 type clipboardData struct {
-	Type     string               `json:"type"`
-	Elements []*Element           `json:"elements"`
-	Files    map[string]*FileData `json:"files"`
+	Type       string               `json:"type"`
+	Elements   []*Element           `json:"elements"`
+	Files      map[string]*FileData `json:"files"`
+	GroupNames map[string]string    `json:"freefolioGroupNames,omitempty"`
 }
 
 func (s *Scene) Clipboard(ids []string) (string, error) {
@@ -31,6 +32,14 @@ func (s *Scene) Clipboard(ids []string) (string, error) {
 			continue
 		}
 		c.Elements = append(c.Elements, e.Clone())
+		for _, id := range e.GroupIDs {
+			if name := s.GroupNames[id]; name != "" {
+				if c.GroupNames == nil {
+					c.GroupNames = map[string]string{}
+				}
+				c.GroupNames[id] = name
+			}
+		}
 		if f := s.Files[e.FileID]; f != nil {
 			c.Files[e.FileID] = f.Clone()
 		}
@@ -119,6 +128,14 @@ func (s *Scene) Paste(text string, at Point) ([]string, error) {
 		}
 		remapAILinks(e, ids)
 		out = append(out, e.ID)
+	}
+	for id, copyID := range groups {
+		if name := c.GroupNames[id]; name != "" {
+			if s.GroupNames == nil {
+				s.GroupNames = map[string]string{}
+			}
+			s.GroupNames[copyID] = name
+		}
 	}
 	if s.Files == nil {
 		s.Files = map[string]*FileData{}

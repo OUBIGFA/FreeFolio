@@ -140,6 +140,9 @@ func SceneBounds(s *Scene) Box {
 			b = Union(b, ElementBounds(e))
 		}
 	}
+	for _, group := range s.GroupRegions() {
+		b = Union(b, group.Bounds)
+	}
 	return b
 }
 func SelectionBounds(s *Scene, ids []string) Box {

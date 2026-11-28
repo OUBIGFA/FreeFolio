@@ -1,6 +1,7 @@
 package whiteboard
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 )
@@ -14,11 +15,12 @@ type History struct {
 type elementDelta struct{ before, after *Element }
 type fileDelta struct{ before, after *FileData }
 type sceneDelta struct {
-	elements                map[string]elementDelta
-	files                   map[string]fileDelta
-	beforeOrder, afterOrder []string
-	beforeApp, afterApp     AppState
-	beforeExtra, afterExtra ExtraFields
+	elements                  map[string]elementDelta
+	files                     map[string]fileDelta
+	beforeOrder, afterOrder   []string
+	beforeApp, afterApp       AppState
+	beforeExtra, afterExtra   ExtraFields
+	beforeGroups, afterGroups map[string]string
 }
 
 func NewHistory() History { return History{} }
@@ -53,6 +55,7 @@ func (h *History) Record(before, after *Scene) bool {
 }
 func diffScene(a, b *Scene) (sceneDelta, bool) {
 	d := sceneDelta{elements: map[string]elementDelta{}, files: map[string]fileDelta{}, beforeApp: a.AppState, afterApp: b.AppState, beforeExtra: cloneExtra(a.Extra), afterExtra: cloneExtra(b.Extra)}
+	d.beforeGroups, d.afterGroups = maps.Clone(a.GroupNames), maps.Clone(b.GroupNames)
 	d.beforeApp.Extra = cloneExtra(a.AppState.Extra)
 	d.afterApp.Extra = cloneExtra(b.AppState.Extra)
 	old, new := map[string]*Element{}, map[string]*Element{}
@@ -84,7 +87,7 @@ func diffScene(a, b *Scene) (sceneDelta, bool) {
 			d.files[id] = fileDelta{nil, f.Clone()}
 		}
 	}
-	return d, len(d.elements) > 0 || len(d.files) > 0 || !slices.Equal(d.beforeOrder, d.afterOrder) || !reflect.DeepEqual(d.beforeApp, d.afterApp) || !reflect.DeepEqual(d.beforeExtra, d.afterExtra)
+	return d, len(d.elements) > 0 || len(d.files) > 0 || !slices.Equal(d.beforeOrder, d.afterOrder) || !reflect.DeepEqual(d.beforeApp, d.afterApp) || !reflect.DeepEqual(d.beforeExtra, d.afterExtra) || !maps.Equal(d.beforeGroups, d.afterGroups)
 }
 func applyDelta(s *Scene, d sceneDelta, forward bool) *Scene {
 	out := s.Clone()
@@ -106,10 +109,12 @@ func applyDelta(s *Scene, d sceneDelta, forward bool) *Scene {
 	order := d.beforeOrder
 	out.AppState = d.beforeApp
 	out.Extra = cloneExtra(d.beforeExtra)
+	out.GroupNames = maps.Clone(d.beforeGroups)
 	if forward {
 		order = d.afterOrder
 		out.AppState = d.afterApp
 		out.Extra = cloneExtra(d.afterExtra)
+		out.GroupNames = maps.Clone(d.afterGroups)
 	}
 	out.AppState.Extra = cloneExtra(out.AppState.Extra)
 	out.Elements = nil

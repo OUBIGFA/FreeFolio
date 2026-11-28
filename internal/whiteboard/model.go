@@ -204,6 +204,7 @@ type Scene struct {
 	Elements     []*Element           `json:"elements"`
 	AppState     AppState             `json:"appState"`
 	Files        map[string]*FileData `json:"files"`
+	GroupNames   map[string]string    `json:"freefolioGroupNames,omitempty"`
 	Extra        ExtraFields          `json:"-"`
 }
 
@@ -381,6 +382,12 @@ func (s *Scene) Clone() *Scene {
 	c.byID = nil
 	c.indexedCount = 0
 	c.Extra = cloneExtra(s.Extra)
+	if s.GroupNames != nil {
+		c.GroupNames = make(map[string]string, len(s.GroupNames))
+		for id, name := range s.GroupNames {
+			c.GroupNames[id] = name
+		}
+	}
 	c.AppState.Extra = cloneExtra(s.AppState.Extra)
 	c.Elements = make([]*Element, len(s.Elements))
 	for i, e := range s.Elements {

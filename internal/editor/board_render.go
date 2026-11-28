@@ -255,6 +255,7 @@ func (b *Board) paint(p *ui.Painter, r ui.Rect, dark bool, controls bool) {
 // then the node cards on top, as a node editor layers its canvas: the
 // cards carry live widgets that sit above every drawing anyway.
 func (b *Board) paintScene(p *ui.Painter, viewport whiteboard.Box, dark bool, zoom float32) {
+	b.paintGroups(p, viewport, dark)
 	paint := func(nodes bool) {
 		for _, e := range b.Scene.Elements {
 			if e.IsDeleted || (b.aiNode(e) != nil) != nodes || !viewport.Intersects(b.elementBounds(e).Expand(e.StrokeWidth*5)) {

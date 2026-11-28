@@ -108,6 +108,8 @@ type Board struct {
 	linearEdit                                 string
 	linearPoint                                int
 	isolatedGroup                              string
+	groupRename                                string
+	groups                                     boardGroupCache
 	styleClipboard                             *whiteboard.Element
 	paths                                      map[string]boardPathCache
 	bounds                                     map[string]boardBoundsCache
@@ -485,6 +487,10 @@ func (b *Board) RunAction(action string, o BoardOptions) {
 		return
 	}
 	if b.ReadOnly {
+		return
+	}
+	if action == "rename-group" {
+		b.beginGroupRename(b.selectedGroup())
 		return
 	}
 	if action == "paste" {

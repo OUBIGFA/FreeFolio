@@ -197,6 +197,9 @@ func (s *Scene) Ungroup(ids []string) {
 			Touch(e)
 		}
 	}
+	for id := range gs {
+		delete(s.GroupNames, id)
+	}
 }
 func (s *Scene) Reorder(ids []string, where string) {
 	set := idSet(s.ExpandSelection(ids, false))

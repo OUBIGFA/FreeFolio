@@ -99,6 +99,13 @@ func ExportSVG(s *Scene, o SVGOptions) (string, error) {
 	if o.Background {
 		fmt.Fprintf(&out, `<rect x="%g" y="%g" width="%g" height="%g" fill="%s"/>`, b.X, b.Y, b.W, b.H, html.EscapeString(s.AppState.ViewBackgroundColor))
 	}
+	for _, group := range s.GroupRegions() {
+		r := group.Bounds
+		fmt.Fprintf(&out, `<rect x="%g" y="%g" width="%g" height="%g" rx="16" fill="#687cab" fill-opacity="0.12" stroke="#687cab" stroke-opacity="0.25"/>`, r.X, r.Y, r.W, r.H)
+		if group.Name != "" {
+			fmt.Fprintf(&out, `<text x="%g" y="%g" font-family="sans-serif" font-size="15" fill="#536585">%s</text>`, r.X+24, r.Y+28, html.EscapeString(group.Name))
+		}
+	}
 	for _, e := range s.Elements {
 		if e.IsDeleted || !e.IsFrame() {
 			continue
