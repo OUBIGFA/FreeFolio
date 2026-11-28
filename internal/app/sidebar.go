@@ -1474,13 +1474,37 @@ func (a *App) spaceBar(c *ui.Context) {
 	draft := a.spaceForm.open && a.spaceForm.id == ""
 	// The bar stands on a rounded surface card of its own, apart from the
 	// list above and the settings below; the chosen space is a tint on it.
-	foot := ui.Row(c.Key("spaces")).Height(38).PaddingX(4).Gap(2).AlignItems(ui.Center).
-		Radius(8).Background(t.Surface).Border(1, t.Border.Alpha(0.85))
+	foot := ui.Row(c.Key("spaces")).Height(40).Padding(3, 4).Gap(2).AlignItems(ui.Center).
+		Radius(10).Background(t.Surface).Border(1, separator(t))
 	a.tourMark("spaces", foot)
 	foot.Children(func() {
 		list := ui.ScrollHorizontal(c.Key("space-list")).Grow(1).MinWidth(0).Height(34).
 			FocusGroup(ui.Horizontal).TrackScroll(&a.spaceScroll).Scrollbars(false)
 		width := list.Bounds().W
+		count := len(a.state.Spaces)
+		if draft {
+			count++
+		}
+		contentW := float32(count)*30 + float32(max(0, count-1))*4
+		overflow := width > 0 && contentW > width+1
+		if overflow {
+			list.HandleInput(func(ev ui.InputEvent) bool {
+				if ev.Kind == ui.InputScroll && ev.DX == 0 && ev.DY != 0 {
+					a.spaceScroll.X = max(0, min(contentW-width, a.spaceScroll.X+ev.DY))
+					return true
+				}
+				return false
+			})
+			list.Draw(func(p *ui.Painter, r ui.Rect) {
+				fadeW := min(float32(14), r.W/4)
+				if a.spaceScroll.X > 1 {
+					p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: fadeW, H: r.H}, ui.LinearGradient{Angle: 90, From: t.Surface, To: t.Surface.Alpha(0)}, 0)
+				}
+				if a.spaceScroll.X < contentW-width-1 {
+					p.FillGradient(ui.Rect{X: r.X + r.W - fadeW, Y: r.Y, W: fadeW, H: r.H}, ui.LinearGradient{Angle: 270, From: t.Surface, To: t.Surface.Alpha(0)}, 0)
+				}
+			})
+		}
 		list.Children(func() {
 			// As wide as the bar at least, so a few spaces spread across it.
 			ui.Row(c.Key("space-row")).MinWidth(width).Height(34).Gap(4).Justify(ui.Start).AlignItems(ui.Center).Children(func() {
@@ -1507,7 +1531,10 @@ func (a *App) spaceBar(c *ui.Context) {
 						b.Background(hoverFill(t))
 					}
 					if on {
-						b.Background(t.Accent.Alpha(0.10))
+						b.Background(t.Accent.Alpha(0.14)).Border(1, t.Accent.Alpha(0.28))
+						b.Draw(func(p *ui.Painter, r ui.Rect) {
+							p.Fill(ui.Rect{X: r.X + (r.W-12)/2, Y: r.Y + r.H - 3.5, W: 12, H: 2}, t.Accent, 1)
+						})
 					}
 					b.Children(func() { a.spaceBarGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, on, b.Hovered()) })
 
@@ -1554,6 +1581,36 @@ func (a *App) spaceBar(c *ui.Context) {
 		if draft {
 			a.spaceBarFor = "draft"
 		}
+		if overflow || len(a.state.Spaces) > 5 {
+			ui.Box(c).Size(1, 16).Background(separator(t)).Shrink(0)
+			picker := ui.ButtonBase(c.Key("all-spaces")).Height(28).PaddingX(5).Gap(3).Radius(7).Center().Shrink(0).
+				Cursor(ui.CursorPointer).Focusable().Role(ui.RoleMenuButton).
+				Label(i18n.T("全部空间")).Tooltip(fmt.Sprintf(i18n.T("全部空间（共 %d 个）"), len(a.state.Spaces)))
+			if picker.Hovered() {
+				picker.Background(hoverFill(t))
+			}
+			picker.Children(func() {
+				if a.sidebarW() >= 260 {
+					ui.Text(c, fmt.Sprint(len(a.state.Spaces))).FontSize(11).FontWeight(600).TextColor(t.TextMuted).NoWrap()
+				}
+				ui.Icon(c, iconChevronUp).FontSize(13).TextColor(t.TextMuted)
+			})
+			picker.PopoverMenuButton(func(m *ui.Menu) {
+				for i, s := range a.state.Spaces {
+					item := m.Item(s.Name).Checked(active != nil && s.ID == active.ID)
+					if i < 9 {
+						item.Shortcut(ui.Cmd, spaceKeys[i])
+					}
+					if item.Chosen() {
+						a.switchSpace(s.ID)
+					}
+				}
+				m.Separator()
+				if m.Item(i18n.T("新建空间")).Chosen() {
+					a.newSpaceForm()
+				}
+			})
+		}
 		add := iconButton(c, "add-space", iconPlus, i18n.T("新建空间"), i18n.T("新建空间；也可把文件夹拖到这里"), false).Shrink(0)
 		// A folder dragged from the file manager onto + becomes a space of
 		// its own; the button lights up instead of the import overlay,
@@ -1581,9 +1638,9 @@ func (a *App) spaceBarGlyph(c *ui.Context, emoji, symbol, image, name string, on
 	switch {
 	case on:
 	case hovered:
-		g.Opacity(0.8)
+		g.Opacity(0.90)
 	default:
-		g.Opacity(0.42)
+		g.Opacity(0.58)
 	}
 }
 

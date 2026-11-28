@@ -15,6 +15,10 @@ func TestChatGPTSettingsShowsAccountActionsWithoutAPIKey(t *testing.T) {
 	a.openSettings(tabAI)
 	tt.SetSize(1200, 900)
 	tt.Frame()
+	if err := tt.Click("供应商与连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if !tt.HasText("使用 ChatGPT 继续") || tt.HasText("API Key") || tt.HasText("接口协议") || tt.HasText("服务地址") {
 		t.Fatalf("wrong auth controls: %v", tt.Texts())
 	}
@@ -89,6 +93,9 @@ func TestChatGPTSnapshot(t *testing.T) {
 			a.openSettings(tabAI)
 			if mode == "welcome" {
 				a.showChatGPTWelcome()
+			} else {
+				tt.Frame()
+				_ = tt.Click("供应商与连接")
 			}
 			settle(tt)
 			savePNG(t, filepath.Join(dir, "chatgpt-"+mode+".png"), tt)

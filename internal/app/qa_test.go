@@ -367,6 +367,10 @@ func TestQAKeyRemovalFailureKeepsSavedKey(t *testing.T) {
 	a.qa.secrets = failingSecrets{}
 	a.openSettings(tabAI)
 	tt.Frame()
+	if err := tt.Click("供应商与连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("移除 API Key"); err != nil {
 		t.Fatal(err)
 	}

@@ -294,6 +294,44 @@ func settingsSeparator(c *ui.Context) {
 	ui.Box(c).Height(1).Margin(0, 12).Background(separator(c.Theme()))
 }
 
+// settingsBadge renders a restrained pill badge for status or metadata.
+func settingsBadge(c *ui.Context, text, tone string) {
+	t := c.Theme()
+	bg, ink := t.SurfaceHover, t.TextMuted
+	switch tone {
+	case "accent":
+		bg, ink = t.Accent.Alpha(0.14), t.Accent
+	case "danger":
+		bg, ink = t.Danger.Alpha(0.12), t.Danger
+	case "success":
+		bg, ink = t.Success.Alpha(0.14), t.Success
+	}
+	ui.Box(c).Padding(2, 8).Radius(999).Background(bg).Shrink(0).Children(func() {
+		ui.Text(c, text).FontSize(11).FontWeight(600).TextColor(ink).NoWrap()
+	})
+}
+
+// settingsBanner renders a flat full-width status strip with an optional trailing action.
+func settingsBanner(c *ui.Context, key, text, tone string, action func()) {
+	t := c.Theme()
+	bg, border, ink := t.SurfaceHover, separator(t), t.Text
+	switch tone {
+	case "accent":
+		bg, border = t.Accent.Alpha(0.08), t.Accent.Alpha(0.24)
+	case "danger":
+		bg, border, ink = t.Danger.Alpha(0.08), t.Danger.Alpha(0.24), t.Danger
+	case "success":
+		bg, border = t.Success.Alpha(0.08), t.Success.Alpha(0.24)
+	}
+	ui.Row(c.Key(key)).WidthPercent(100).Padding(10, 14).Gap(10).Radius(controlRadius).
+		Background(bg).Border(1, border).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, text).FontSize(12.5).TextColor(ink).LineHeight(1.45).Grow(1).MinWidth(0)
+		if action != nil {
+			ui.Row(c).Shrink(0).Gap(6).AlignItems(ui.Center).Children(action)
+		}
+	})
+}
+
 func settingsRowInset(c *ui.Context) float32 {
 	_, h := c.Size()
 	if h < 560 {

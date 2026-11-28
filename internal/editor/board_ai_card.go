@@ -88,7 +88,7 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 	running := run != nil && (run.status == "running" || run.status == "queued")
 	status, failed := b.aiStatus(e, n)
 
-	p.Shadow(card, aiCardRadius, 0, 3, 12, 0, pal.shadow)
+	p.Shadow(card, aiCardRadius, 0, 2, 8, 0, pal.shadow)
 	p.Fill(card, pal.cardBg, aiCardRadius)
 	p.Clip(card, aiCardRadius, func() {
 		// Clean header: icon badge + title; action sits on the right in inline controls.
@@ -151,7 +151,11 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 			b.paintAIWidgetValues(p, e, n, l.widgets, pal)
 		}
 		if l.preview.H > 12 {
-			p.Clip(l.preview, 8, func() { b.paintAIPreview(p, e, n, l.preview, pal, zoom) })
+			if n.ImageHistory() && len(n.Outputs) > 0 {
+				b.paintAIImageHistory(p, e, n, l.preview, pal, zoom)
+			} else {
+				p.Clip(l.preview, 8, func() { b.paintAIPreview(p, e, n, l.preview, pal, zoom) })
+			}
 		}
 
 		// Slim integrated status footer.
@@ -172,10 +176,13 @@ func (b *Board) paintAINode(p *ui.Painter, e *whiteboard.Element, n *whiteboard.
 		}
 		var metaW float32
 		if meta != "" {
-			ml := b.aiCardTextFont(e.ID+"#meta", meta, 0, ui.Font{Size: 11, Weight: 500})
+			ml := b.aiCardTextFont(e.ID+"#meta", meta, 0, ui.Font{Size: 10.5, Weight: 600})
 			mw, mh := ml.Size()
-			metaW = mw + 8
-			p.TextLayout(ml, w-aiPad-mw, fy+(aiFooter-mh)/2, pal.muted)
+			pillW, pillH := mw+12, float32(16)
+			metaW = pillW + 8
+			pillRect := ui.Rect{X: w - aiPad - pillW, Y: fy + (aiFooter-pillH)/2, W: pillW, H: pillH}
+			p.Fill(pillRect, pal.divider.Alpha(0.45), 8)
+			p.TextLayout(ml, pillRect.X+6, fy+(aiFooter-mh)/2, pal.secondary)
 		}
 		sl := b.aiCardTextFont(e.ID+"#status", status, 0, ui.Font{Size: 11, Weight: 500})
 		_, sh := sl.Size()
@@ -617,7 +624,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 	pal := aiNodePalette(n.Kind(), o.Theme.Dark)
 	run := b.ai.runs[id]
 	if b.AIRunning() && run != nil && (run.status == "running" || run.status == "queued") {
-		btn := ui.ButtonBase(c.Key("inline-stop-" + id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.dangerSoft).Focusable().Label(i18n.T("停止运行"))
+		btn := ui.ButtonBase(c.Key("inline-stop-"+id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.dangerSoft).Border(1, pal.danger.Alpha(0.28)).Focusable().Label(i18n.T("停止运行"))
 		btn.Children(func() {
 			if icon := boardIcon("player-stop"); icon != nil {
 				boardScaledIcon(c, icon, boardCompactIconSize, pal.danger, float32(b.Zoom))
@@ -629,7 +636,7 @@ func (b *Board) aiInlineRun(c *ui.Context, o BoardOptions, id string, n *whitebo
 		}
 		return
 	}
-	btn := ui.ButtonBase(c.Key("inline-run-" + id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.accentSoft).Focusable().Disabled(disabled || b.AIRunning()).Label(i18n.T("运行此节点")).Tooltip(i18n.T("运行此节点"))
+	btn := ui.ButtonBase(c.Key("inline-run-"+id)).Height(26).PaddingX(9).Gap(3).Center().Radius(6).Background(pal.accentSoft).Border(1, pal.accent.Alpha(0.28)).Focusable().Disabled(disabled || b.AIRunning()).Label(i18n.T("运行此节点")).Tooltip(i18n.T("运行此节点"))
 	if btn.Hovered() {
 		btn.Background(pal.accent.Alpha(0.20))
 	}

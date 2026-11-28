@@ -189,6 +189,10 @@ func TestOneBotSettingsRevealKeyAndChooseStrategy(t *testing.T) {
 	setupOneBot(a, "sk-first-secret-1234")
 	a.openSettings(tabAI)
 	tt.Frame()
+	if err := tt.Click("供应商与连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if tt.HasText("sk-first-secret-1234") || !tt.HasText(maskAPIKey("sk-first-secret-1234")) {
 		t.Fatal("saved key must start masked")
 	}
@@ -207,5 +211,35 @@ func TestOneBotSettingsRevealKeyAndChooseStrategy(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("多 Key 策略") || !tt.HasText(maskAPIKey("sk-second-secret-5678")) {
 		t.Fatal("second key or strategy missing", tt.Texts())
+	}
+}
+
+func TestOneBotSettingsTabsOrderAndSwitching(t *testing.T) {
+	a, tt := newTestApp(t)
+	setupOneBot(a, "sk-tab-order-1234")
+	a.openSettings(tabAI)
+	tt.Frame()
+	modelsR, okM := tt.Find("模型")
+	paramsR, okP := tt.Find("生成参数")
+	providerR, okS := tt.Find("供应商与连接")
+	if !okM || !okP || !okS || !(modelsR.X < paramsR.X && paramsR.X < providerR.X) {
+		t.Fatalf("unexpected OneBot tab order: models=%+v(%v) params=%+v(%v) provider=%+v(%v)", modelsR, okM, paramsR, okP, providerR, okS)
+	}
+	if !tt.HasText("获取模型") || tt.HasText("服务地址") {
+		t.Fatalf("default OneBot tab should be models: %v", tt.Texts())
+	}
+	if err := tt.Click("生成参数"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("输出上限") || tt.HasText("获取模型") {
+		t.Fatalf("params tab missing controls: %v", tt.Texts())
+	}
+	if err := tt.Click("供应商与连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("服务地址") || !tt.HasText("粘贴 API Key") {
+		t.Fatalf("provider tab missing controls: %v", tt.Texts())
 	}
 }

@@ -34,28 +34,31 @@ func (a *App) chatGPTAccountView(c *ui.Context) {
 	g := &a.chatgpt
 	id := a.prefs.AI.Active
 	s := a.chatGPTSession()
-	ui.Column(c.Key("chatgpt-account")).Padding(14, 16).Gap(10).Children(func() {
-		ui.Text(c, i18n.T("使用 ChatGPT 套餐")).FontSize(14).FontWeight(500)
-		ui.Text(c, i18n.T("授权后，OneBot 中符合条件的请求使用你的 ChatGPT 套餐或点数；具体模型和额度由账号决定")).FontSize(13).TextColor(t.TextMuted)
-		if s.Email != "" {
-			ui.Text(c, s.Email).FontSize(13).Selectable()
-		}
-		status := i18n.T("尚未连接 ChatGPT")
-		switch {
-		case g.busyID == id:
-			status = i18n.T("正在处理 ChatGPT 连接")
-		case g.loading[id]:
-			status = i18n.T("正在读取 ChatGPT 连接")
-		case s.Pending:
-			status = i18n.T("正在等待验证 ChatGPT 身份；请重试获取模型")
-		case s.Sharing:
-			status = i18n.T("正在使用 ChatGPT 套餐")
-		case s.Status == chatgpt.Connected:
-			status = i18n.T("已登录，尚未启用套餐使用")
-		case s.Status == chatgpt.ReauthRequired:
-			status = i18n.T("ChatGPT 登录已失效，请重新登录")
-		}
-		ui.Text(c, status).FontSize(13).Role(ui.RoleStatus)
+	ui.Column(c.Key("chatgpt-account")).Padding(12).Gap(10).Children(func() {
+		ui.Row(c.Key("chatgpt-header")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Text(c, i18n.T("使用 ChatGPT 套餐")).FontSize(14).FontWeight(500)
+			if s.Email != "" {
+				ui.Text(c, s.Email).FontSize(12.5).TextColor(t.TextMuted).Selectable()
+			}
+			ui.Spacer(c)
+			status, tone := i18n.T("尚未连接 ChatGPT"), ""
+			switch {
+			case g.busyID == id:
+				status, tone = i18n.T("正在处理 ChatGPT 连接"), "accent"
+			case g.loading[id]:
+				status = i18n.T("正在读取 ChatGPT 连接")
+			case s.Pending:
+				status, tone = i18n.T("正在等待验证 ChatGPT 身份；请重试获取模型"), "accent"
+			case s.Sharing:
+				status, tone = i18n.T("正在使用 ChatGPT 套餐"), "success"
+			case s.Status == chatgpt.Connected:
+				status, tone = i18n.T("已登录，尚未启用套餐使用"), "accent"
+			case s.Status == chatgpt.ReauthRequired:
+				status, tone = i18n.T("ChatGPT 登录已失效，请重新登录"), "danger"
+			}
+			settingsBadge(c, status, tone)
+		})
+		ui.Text(c, i18n.T("授权后，OneBot 中符合条件的请求使用你的 ChatGPT 套餐或点数；具体模型和额度由账号决定")).FontSize(12.5).TextColor(t.TextMuted).LineHeight(1.45)
 		ui.Row(c.Key("actions")).Gap(8).Wrap().Children(func() {
 			if g.busyID == id && g.cancel != nil {
 				if ui.Button(c.Key("cancel"), i18n.T("取消登录")).Clicked() {

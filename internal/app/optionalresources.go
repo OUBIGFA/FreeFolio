@@ -430,86 +430,127 @@ func formatResourceBytes(n int64) string {
 }
 
 func resourceStatusBadge(c *ui.Context, text string, accent bool) {
-	t := c.Theme()
-	bg, ink := t.SurfaceHover, t.TextMuted
+	tone := ""
 	if accent {
-		bg, ink = t.Accent.Alpha(0.14), t.Accent
+		tone = "accent"
 	}
-	ui.Box(c).Padding(2, 8).Radius(999).Background(bg).Children(func() {
-		ui.Text(c, text).FontSize(11).FontWeight(600).TextColor(ink).NoWrap()
-	})
+	settingsBadge(c, text, tone)
 }
 
 func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, detail string) {
 	s := &a.resources
+	t := c.Theme()
 	job := s.downloads[item.ID]
-	settingRow(c, item.ID, item.Name, detail, func() {
-		switch {
-		case job != nil && job.busy != "":
+	activeDL := job != nil && job.busy != ""
+	ui.Column(c.Key(item.ID)).Padding(settingsRowInset(c), 12).Gap(8).Children(func() {
+		ui.Row(c.Key("main")).Gap(16).AlignItems(ui.Center).MinHeight(40).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+					ui.Text(c, item.Name).FontSize(13).FontWeight(500)
+					settingsBadge(c, formatResourceBytes(item.Size), "")
+					if s.installed[item.ID] {
+						resourceStatusBadge(c, i18n.T("已下载"), true)
+					}
+				})
+				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
+			})
+			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				switch {
+				case activeDL && job.resume == nil:
+					ui.Text(c, i18n.T("正在移除资源")).FontSize(12).TextColor(t.TextMuted)
+				case activeDL:
+				case s.confirm == item.ID:
+					if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
+						a.resourceAction(item, true)
+					}
+					if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
+						s.confirm = ""
+					}
+				case s.installed[item.ID]:
+					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
+						s.confirm = item.ID
+					}
+				default:
+					if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + item.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
+						a.resourceAction(item, false)
+					}
+				}
+			})
+		})
+		if activeDL && job.resume != nil {
 			a.resourceDownloadControls(c, job)
-		case s.confirm == item.ID:
-			if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
-				a.resourceAction(item, true)
+		}
+		if s.confirm == item.ID {
+			warn := i18n.T("所选资源将移到回收站")
+			if engine, supported := localresource.Runtime(); supported && item.ID == engine.ID {
+				warn += " · " + i18n.T("移除运行库后，需重新下载才能抠图")
 			}
-			if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
-				s.confirm = ""
-			}
-		case s.installed[item.ID]:
-			resourceStatusBadge(c, i18n.T("已下载"), true)
-			if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
-				s.confirm = item.ID
-			}
-		default:
-			if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + item.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
-				a.resourceAction(item, false)
-			}
+			settingsBanner(c, "confirm-warn", warn, "danger", nil)
+		}
+		if job != nil && job.err != nil {
+			settingsBanner(c, "err", job.err.Error(), "danger", nil)
 		}
 	})
-	if job != nil && job.err != nil {
-		ui.Text(c, job.err.Error()).FontSize(12).TextColor(c.Theme().Danger)
-	}
 }
 
 func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, badgeText string, badgeAccent bool, detail string) {
 	s := &a.resources
 	job := s.downloads[pack.ID]
 	t := c.Theme()
-	ui.Row(c.Key(pack.ID)).Padding(settingsRowInset(c), 12).Gap(16).AlignItems(ui.Center).MinHeight(56).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, pack.Name).FontSize(13).FontWeight(500)
-				if badgeText != "" {
-					resourceStatusBadge(c, badgeText, badgeAccent)
+	activeDL := job != nil && job.busy != ""
+	installed := s.installed[pack.ID] && (pack.BaseModel == "" || s.installed[pack.BaseModel])
+	sizeBytes := pack.TotalSize()
+	if pack.Kind == "seedvr2" && len(pack.Files) > 0 {
+		sizeBytes = pack.Files[0].Size
+	}
+	ui.Column(c.Key(pack.ID)).Padding(settingsRowInset(c), 12).Gap(8).Children(func() {
+		ui.Row(c.Key("main")).Gap(16).AlignItems(ui.Center).MinHeight(44).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+					ui.Text(c, pack.Name).FontSize(13).FontWeight(500)
+					settingsBadge(c, formatResourceBytes(sizeBytes), "")
+					if badgeText != "" {
+						resourceStatusBadge(c, badgeText, badgeAccent)
+					}
+					if installed {
+						resourceStatusBadge(c, i18n.T("已下载"), true)
+					}
+				})
+				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
+			})
+			ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				switch {
+				case activeDL && job.resume == nil:
+					ui.Text(c, i18n.T("正在移除资源")).FontSize(12).TextColor(t.TextMuted)
+				case activeDL:
+				case s.confirm == pack.ID:
+					if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
+						a.packAction(pack, true)
+					}
+					if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
+						s.confirm = ""
+					}
+				case installed:
+					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
+						s.confirm = pack.ID
+					}
+				default:
+					if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + pack.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
+						a.packAction(pack, false)
+					}
 				}
 			})
-			ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).LineHeight(1.45)
 		})
-		ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
-			switch {
-			case job != nil && job.busy != "":
-				a.resourceDownloadControls(c, job)
-			case s.confirm == pack.ID:
-				if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
-					a.packAction(pack, true)
-				}
-				if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
-					s.confirm = ""
-				}
-			case s.installed[pack.ID] && (pack.BaseModel == "" || s.installed[pack.BaseModel]):
-				resourceStatusBadge(c, i18n.T("已下载"), true)
-				if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
-					s.confirm = pack.ID
-				}
-			default:
-				if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + pack.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
-					a.packAction(pack, false)
-				}
-			}
-		})
+		if activeDL && job.resume != nil {
+			a.resourceDownloadControls(c, job)
+		}
+		if s.confirm == pack.ID {
+			settingsBanner(c, "confirm-warn", i18n.T("所选资源将移到回收站"), "danger", nil)
+		}
+		if job != nil && job.err != nil {
+			settingsBanner(c, "err", job.err.Error(), "danger", nil)
+		}
 	})
-	if job != nil && job.err != nil {
-		ui.Text(c, job.err.Error()).FontSize(12).TextColor(c.Theme().Danger)
-	}
 }
 
 func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string, accent bool, detail string) {
@@ -593,33 +634,48 @@ func (a *App) settingsResources(c *ui.Context) {
 	settingsSection(c, i18n.T("硬件与保存位置"))
 	settingsGroup(c, "resource-overview", func() {
 		gpuDesc := i18n.T("正在检测显卡")
+		gpuBadge := ""
 		if s.gpuDone {
 			if s.gpuFound {
-				gpuDesc = fmt.Sprintf(i18n.T("%s · %d GB 显存"), s.gpu.Name, s.gpu.VRAMGiB())
+				gpuDesc = s.gpu.Name
+				gpuBadge = fmt.Sprintf(i18n.T("%d GB 显存"), s.gpu.VRAMGiB())
 			} else {
 				gpuDesc = i18n.T("未检测到 NVIDIA 显卡")
 			}
 		}
-		settingRow(c, "gpu-info", i18n.T("本机显卡"), gpuDesc, func() {})
+		settingRow(c, "gpu-info", i18n.T("本机显卡"), gpuDesc, func() {
+			if gpuBadge != "" {
+				resourceStatusBadge(c, gpuBadge, true)
+			}
+		})
 		settingsSeparator(c)
-		settingRow(c, "path", i18n.T("资源目录"), root, func() {
+		settingRow(c, "path", i18n.T("资源目录"), shortPath(root)+" · "+i18n.T("更改位置会迁移已下载资源"), func() {
 			if s.busy == resourceBusyMigrate {
-				if s.total > 0 {
-					ui.Text(c, fmt.Sprintf("%s %s / %s", i18n.T("正在转移资源"), formatResourceBytes(s.received.Load()), formatResourceBytes(s.total))).FontSize(12)
-				} else {
-					ui.Text(c, i18n.T("正在转移资源")).FontSize(12)
-				}
 				if s.cancel != nil && ui.Button(c.Key("cancel-migrate"), i18n.T("取消")).Clicked() {
 					s.cancel()
 				}
-				c.After(150 * time.Millisecond)
 				return
 			}
-			if ui.Button(c.Key("change"), i18n.T("更改位置")).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
+			if ui.Button(c.Key("change"), i18n.T("更改位置")).Tooltip(root).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
 				a.chooseResourceDirectory()
 			}
 		})
-		ui.Text(c, i18n.T("更改位置会迁移已下载资源")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+		if s.busy == resourceBusyMigrate {
+			ui.Column(c.Key("migrate-progress")).Padding(0, 12, 10, 12).Gap(4).Children(func() {
+				val := float64(0)
+				if s.total > 0 {
+					val = float64(s.received.Load()) / float64(s.total)
+				}
+				ui.Row(c).WidthPercent(100).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, i18n.T("正在转移资源")).FontSize(12).TextColor(t.TextMuted).Grow(1)
+					if s.total > 0 {
+						ui.Text(c, fmt.Sprintf("%s / %s", formatResourceBytes(s.received.Load()), formatResourceBytes(s.total))).FontSize(12).TextColor(t.TextMuted)
+					}
+				})
+				ui.Progress(c.Key("migrate-bar"), val).WidthPercent(100).Label(i18n.T("正在转移资源"))
+			})
+			c.After(150 * time.Millisecond)
+		}
 	})
 
 	ui.Tabs(c.Key("resource-tabs"), &s.tab, i18n.T("本地模型"), i18n.T("ComfyUI 模型"), i18n.T("ComfyUI 增强"), "ComfyUI LoRA", i18n.T("音频模型"), i18n.T("视频模型")).Label(i18n.T("资源类型")).Disabled(s.busy != "")
@@ -629,41 +685,39 @@ func (a *App) settingsResources(c *ui.Context) {
 		ui.Text(c, i18n.T("以下资源无需配置 ComfyUI")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
 		settingsGroup(c, "builtin-resources", func() {
 			rowAdded := false
-			if s.tab == 0 {
-				if !supported {
-					settingRow(c, "no-cutout", i18n.T("本地抠图"), i18n.T("此平台暂不支持本地抠图"), func() {})
-					rowAdded = true
-				} else {
-					for _, item := range items {
-						if rowAdded {
-							settingsSeparator(c)
-						}
-						detail := i18n.T("通用物体与人像抠图")
-						switch item.ID {
-						case "birefnet-hr-matting":
-							detail = i18n.T("2048×2048 抠图，内存占用较高")
-						case engine.ID:
-							detail = i18n.T("共用运行库，下载抠图模型时自动安装")
-						}
-						a.settingsResourceRow(c, item, fmt.Sprintf("%s · %.1f MiB · MIT", detail, float64(item.Size)/(1<<20)))
-						rowAdded = true
+			if !supported {
+				settingRow(c, "no-cutout", i18n.T("本地抠图"), i18n.T("此平台暂不支持本地抠图"), func() {})
+				rowAdded = true
+			} else {
+				for _, item := range items {
+					if rowAdded {
+						settingsSeparator(c)
 					}
+					detail := i18n.T("通用物体与人像抠图")
+					switch item.ID {
+					case "birefnet-hr-matting":
+						detail = i18n.T("2048×2048 抠图，内存占用较高")
+					case engine.ID:
+						detail = i18n.T("共用运行库，下载抠图模型时自动安装")
+					}
+					a.settingsResourceRow(c, item, fmt.Sprintf("%s · MIT", detail))
+					rowAdded = true
 				}
 			}
-			if s.tab == 0 {
-				if !upscaleSupported {
-					settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
-				} else {
-					detail := fmt.Sprintf("%s · %.1f MiB · MIT / BSD-3-Clause", i18n.T("2× / 4× 放大，含照片与动漫模型"), float64(upscaleEngine.Size)/(1<<20))
-					a.settingsResourceRow(c, upscaleEngine, detail)
-				}
+			if rowAdded {
+				settingsSeparator(c)
+			}
+			if !upscaleSupported {
+				settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
+			} else {
+				detail := fmt.Sprintf("%s · MIT / BSD-3-Clause", i18n.T("2× / 4× 放大，含照片与动漫模型"))
+				a.settingsResourceRow(c, upscaleEngine, detail)
 			}
 		})
 	}
 
 	if s.tab == 1 {
 		settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
-		ui.Text(c, i18n.T("选择目录后，点击「检测并启动」")).FontSize(12).TextColor(t.TextMuted).Padding(0, 2, 2, 2)
 		if !s.comfyURLInit {
 			s.comfyURL = a.prefs.ComfyUI.URL
 			s.comfyURLInit = true
@@ -672,25 +726,30 @@ func (a *App) settingsResources(c *ui.Context) {
 			dirNote := a.prefs.ComfyUI.Dir
 			if dirNote == "" {
 				dirNote = i18n.T("请选择本机 ComfyUI 目录")
+			} else {
+				dirNote = shortPath(dirNote)
 			}
 			settingRow(c, "comfy-dir", i18n.T("ComfyUI 目录"), dirNote, func() {
 				if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
 					a.setComfyDirectory("")
 				}
-				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
+				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Tooltip(a.prefs.ComfyUI.Dir).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
 					a.chooseComfyDirectory()
 				}
 			})
 			settingsSeparator(c)
-			status := i18n.T("尚未连接")
+			status := i18n.T("选择目录后点击「检测并启动」")
+			statusBadge, statusAccent := i18n.T("尚未连接"), false
+			var available []string
 			if s.comfyBusy {
-				status = i18n.T("正在连接")
+				status = i18n.T("正在探测引擎与可用节点")
+				statusBadge = i18n.T("正在连接")
 			} else if s.comfyCaps != nil {
-				dev := s.comfyCaps.Device
-				if dev == "" {
-					dev = "ComfyUI"
+				status = s.comfyCaps.Device
+				if status == "" {
+					status = "ComfyUI"
 				}
-				var available []string
+				statusBadge, statusAccent = i18n.T("已连接"), true
 				caps := s.comfyCaps
 				for _, item := range []struct {
 					name  string
@@ -700,18 +759,9 @@ func (a *App) settingsResources(c *ui.Context) {
 						available = append(available, item.name)
 					}
 				}
-				status = dev
-				if len(available) > 0 {
-					status += "\n" + fmt.Sprintf(i18n.T("可用：%s"), strings.Join(available, "、"))
-				} else {
-					status += "\n" + i18n.T("未发现可用节点，请更新 ComfyUI")
-				}
-
 			}
 			settingRow(c, "comfy-status", i18n.T("连接状态"), status, func() {
-				if s.comfyCaps != nil {
-					resourceStatusBadge(c, i18n.T("已连接"), true)
-				}
+				resourceStatusBadge(c, statusBadge, statusAccent)
 				if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
 					a.stopComfyUI()
 				}
@@ -720,6 +770,17 @@ func (a *App) settingsResources(c *ui.Context) {
 					a.probeComfyUI()
 				}
 			})
+			if s.comfyCaps != nil {
+				ui.Row(c.Key("comfy-caps")).Padding(0, 12, 10, 12).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+					if len(available) == 0 {
+						ui.Text(c, i18n.T("未发现可用节点，请更新 ComfyUI")).FontSize(12).TextColor(t.TextMuted)
+					} else {
+						for _, name := range available {
+							settingsBadge(c, name, "")
+						}
+					}
+				})
+			}
 			settingsSeparator(c)
 			settingRow(c, "comfy-url", i18n.T("服务地址（可选）"), i18n.T("连接已运行的服务时填写；留空则按所选目录启动"), func() {
 				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy || a.resourcesDownloading()).Changed() {
@@ -731,7 +792,19 @@ func (a *App) settingsResources(c *ui.Context) {
 			})
 		})
 	} else if s.tab > 1 {
-		ui.Text(c, i18n.T("先在「ComfyUI 模型」页连接引擎")).FontSize(12).TextColor(t.TextMuted)
+		if s.comfyCaps != nil {
+			dev := s.comfyCaps.Device
+			if dev == "" {
+				dev = "ComfyUI"
+			}
+			settingsBanner(c, "comfy-ready-banner", fmt.Sprintf(i18n.T("ComfyUI 已连接：%s"), dev), "accent", nil)
+		} else {
+			settingsBanner(c, "comfy-need-banner", i18n.T("先在「ComfyUI 模型」页连接引擎"), "", func() {
+				if ui.Button(c.Key("goto-comfy"), i18n.T("前往配置")).Clicked() {
+					s.tab = 1
+				}
+			})
+		}
 	}
 
 	if s.tab == 3 {
@@ -756,20 +829,14 @@ func (a *App) settingsResources(c *ui.Context) {
 				badge, accent, detail := a.packDetailAndBadge(pack)
 				a.settingsPackRow(c, pack, badge, accent, detail)
 			}
-			ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
+			settingsSeparator(c)
+			ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
 		})
-
 	}
 	if s.comfyErr != nil {
-		ui.Text(c, i18n.T("ComfyUI 连接失败：")+s.comfyErr.Error()).TextColor(t.Danger).FontSize(12)
-	}
-	if s.confirm != "" {
-		ui.Text(c, i18n.T("所选资源将移到回收站")).FontSize(12)
-		if supported && s.confirm == engine.ID {
-			ui.Text(c, i18n.T("移除运行库后，需重新下载才能抠图")).FontSize(12)
-		}
+		settingsBanner(c, "comfy-err-banner", i18n.T("ComfyUI 连接失败：")+s.comfyErr.Error(), "danger", nil)
 	}
 	if s.err != nil {
-		ui.Text(c, i18n.T("资源操作失败：")+s.err.Error()).TextColor(t.Danger).FontSize(12)
+		settingsBanner(c, "res-err-banner", i18n.T("资源操作失败：")+s.err.Error(), "danger", nil)
 	}
 }

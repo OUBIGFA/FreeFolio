@@ -128,6 +128,7 @@ type qaState struct {
 	modelsErr   error
 	manualModel bool
 	modelsList  ui.ListState
+	settingsTab int
 	// listModels lists a service's models; tests replace it.
 	listModels func(agent.Settings) ([]agent.ModelInfo, error)
 

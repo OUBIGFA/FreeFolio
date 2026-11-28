@@ -7,6 +7,7 @@ import (
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -16,9 +17,8 @@ func (a *App) settingsAI(c *ui.Context) {
 	settingsHeading(c, "OneBot", i18n.T("对话、写作与文档编辑；配置供应商并勾选需要使用的模型"))
 	conn := a.prefs.AI.Current()
 
-	settingsSection(c, i18n.T("供应商"))
 	settingsGroup(c, "provider-group", func() {
-		ui.Row(c.Key("provider-actions")).Padding(10, 16).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+		ui.Row(c.Key("provider-actions")).Padding(10, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			selectorLabel := i18n.T("选择供应商")
 			if conn != nil && strings.TrimSpace(conn.Name) != "" {
 				selectorLabel = conn.Name
@@ -40,8 +40,15 @@ func (a *App) settingsAI(c *ui.Context) {
 					}
 				}
 			})
+			ui.Spacer(c)
 			if conn != nil {
-				ui.Spacer(c)
+				status := i18n.T("可以提问了")
+				tone := "success"
+				if err := a.qaReady(); err != nil {
+					status = err.Error()
+					tone = ""
+				}
+				settingsBadge(c, status, tone)
 				if ui.Button(c.Key("remove"), i18n.T("移除供应商")).Disabled(conn.Protocol == agent.ChatGPT && a.chatgpt.busyID != "").Clicked() {
 					a.removeAIConnection()
 				}
@@ -54,16 +61,229 @@ func (a *App) settingsAI(c *ui.Context) {
 				ui.Text(c, i18n.T("请先添加供应商")).FontSize(13.5).FontWeight(500).TextColor(t.Text)
 				ui.Text(c, i18n.T("点击上方「添加供应商」或从「常用服务」快速创建")).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 			})
-			return
 		}
-		a.dropStaleModels()
-		formRow := func(key, label string, fn func()) {
-			ui.Row(c.Key(key)).Padding(settingsRowInset(c), 16).Gap(12).AlignItems(ui.Center).MinHeight(46).Children(func() {
-				ui.Text(c, i18n.T(label)).FontSize(13).FontWeight(500).Width(84).Shrink(0)
-				ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(fn)
+	})
+	conn = a.prefs.AI.Current()
+	if conn == nil {
+		return
+	}
+	a.dropStaleModels()
+
+	ui.Tabs(c.Key("onebot-tabs"), &a.qa.settingsTab, i18n.T("模型"), i18n.T("生成参数"), i18n.T("供应商与连接")).Label(i18n.T("OneBot 设置分类"))
+
+	switch a.qa.settingsTab {
+	case 1:
+		a.settingsAIParamsTab(c, conn)
+	case 2:
+		a.settingsAIProviderTab(c, conn)
+	default:
+		a.settingsAIModelsTab(c, conn)
+	}
+}
+
+func (a *App) settingsAIModelsTab(c *ui.Context, conn *prefs.AIConnection) {
+	t := c.Theme()
+	settingsSection(c, i18n.T("模型列表"))
+	settingsGroup(c, "models-group", func() {
+		ui.Row(c.Key("models")).Padding(12, 12, 8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.TextInput(c.Key("search"), &a.qa.modelSearch).Grow(1).Placeholder(i18n.T("搜索模型")).Label(i18n.T("搜索模型"))
+			label := i18n.T("获取模型")
+			if a.qa.modelsBusy {
+				label = i18n.T("获取中")
+			}
+			if ui.Button(c.Key("fetch"), label).Disabled(a.qa.modelsBusy || a.modelListSettings().CheckService() != nil).Clicked() {
+				a.fetchModels()
+			}
+			if a.qa.modelsBusy && ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
+				a.cancelModelFetch()
+			}
+		})
+		ui.Row(c.Key("model-actions")).Padding(0, 12, 10, 12).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Text(c, a.modelsNote()).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(100)
+			if ui.Button(c.Key("all"), i18n.T("全选")).Clicked() {
+				for i := range conn.Models {
+					conn.Models[i].Enabled = true
+				}
+				a.savePrefs()
+			}
+			if ui.Button(c.Key("none"), i18n.T("清空选择")).Clicked() {
+				for i := range conn.Models {
+					conn.Models[i].Enabled = false
+				}
+				conn.Model = ""
+				a.savePrefs()
+			}
+			if ui.Button(c.Key("capabilities"), i18n.T("更新模型能力")).Disabled(a.qa.modelsBusy || conn.Protocol == agent.ChatGPT || conn.Vendor == "" || conn.Vendor == "custom").Clicked() {
+				a.fetchModelCapabilities()
+			}
+			if a.qa.clearModelsFor == conn.ID {
+				if ui.Button(c.Key("confirm-clear"), i18n.T("确认清空模型")).Clicked() {
+					a.clearProviderModels()
+				}
+				if ui.Button(c.Key("cancel-clear"), i18n.T("取消")).Clicked() {
+					a.qa.clearModelsFor = ""
+				}
+			} else if ui.Button(c.Key("clear-models"), i18n.T("清空模型")).Disabled(len(conn.Models) == 0).Tooltip(i18n.T("移除此供应商的所有模型，保留供应商和 Key")).Clicked() {
+				a.qa.clearModelsFor = conn.ID
+			}
+		})
+		settingsSeparator(c)
+		var visible []int
+		query := strings.ToLower(a.qa.modelSearch)
+		for i, m := range conn.Models {
+			if strings.Contains(strings.ToLower(m.ID+" "+m.Name), query) {
+				visible = append(visible, i)
+			}
+		}
+		if len(visible) == 0 {
+			msg := i18n.T("点击「获取模型」或在下方手动添加模型")
+			if conn.Protocol == agent.ChatGPT {
+				msg = i18n.T("登录后点击「获取模型」，显示此账号可用的模型")
+			}
+			if len(conn.Models) > 0 {
+				msg = i18n.T("没有匹配的模型")
+			}
+			ui.Text(c, msg).FontSize(12.5).TextColor(t.TextMuted).Padding(14, 12)
+		} else {
+			ui.List(c.Key("model-list"), &a.qa.modelsList, len(visible)).Height(min(280, max(44, float32(len(visible))*38+8))).
+				Padding(4, 8).ItemKey(func(i int) any { return conn.Models[visible[i]].ID }).Rows(func(row ui.ListRow) {
+				idx := visible[row.Index]
+				model := &conn.Models[idx]
+				c := row.Context
+				item := ui.Row(c.Key(model.ID)).Height(36).Padding(0, 6).Radius(controlRadius).Gap(8).AlignItems(ui.Center)
+				if item.Hovered() {
+					item.Background(hoverFill(t))
+				}
+				item.Children(func() {
+					before := model.Enabled
+					label := model.ID
+					if conn.Protocol == agent.ChatGPT && model.Name != "" {
+						label = model.Name
+					}
+					ui.Checkbox(c.Key("checked"), &model.Enabled, label).Tooltip(model.ID).Grow(1).MinWidth(0)
+					if before != model.Enabled {
+						if model.Enabled && conn.Model == "" {
+							conn.Model = model.ID
+						}
+						if !model.Enabled && conn.Model == model.ID {
+							conn.Model = ""
+						}
+						a.savePrefs()
+					}
+					if quietOneBotAction(c, "details", i18n.T("能力")).Label(i18n.T("模型能力：") + model.ID).Clicked() {
+						if a.qa.capabilityModel == model.ID {
+							a.qa.capabilityModel = ""
+						} else {
+							a.qa.capabilityModel = model.ID
+						}
+					}
+				})
 			})
 		}
+		for i := range conn.Models {
+			if conn.Models[i].ID == a.qa.capabilityModel {
+				a.modelCapabilitiesView(c, &conn.Models[i])
+				break
+			}
+		}
+		if a.qa.modelsErr != nil {
+			settingsBanner(c, "models-err", i18n.T("获取模型列表失败：")+qaErrorText(a.qa.modelsErr), "danger", nil)
+		}
+		if a.qa.catalogErr != nil {
+			settingsBanner(c, "catalog-err", i18n.T("更新模型能力失败：")+qaErrorText(a.qa.catalogErr), "danger", nil)
+		}
+		if conn.Protocol == agent.ChatGPT {
+			return
+		}
 		settingsSeparator(c)
+		ui.Row(c.Key("manual")).Padding(10, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, i18n.T("手动添加模型")).FontSize(13).FontWeight(500).Width(84).Shrink(0)
+			in := ui.TextInput(c.Key("field"), &a.qa.manualName).Grow(1).Placeholder(i18n.T("输入模型名称")).Label(i18n.T("输入模型名称"))
+			if in.Submitted() {
+				a.addManualAIModel()
+			}
+			if ui.Button(c.Key("add"), i18n.T("添加模型")).Disabled(strings.TrimSpace(a.qa.manualName) == "").Clicked() {
+				a.addManualAIModel()
+			}
+		})
+	})
+}
+
+func (a *App) settingsAIParamsTab(c *ui.Context, conn *prefs.AIConnection) {
+	settingsSection(c, i18n.T("生成参数"))
+	settingsGroup(c, "params-group", func() {
+		if conn.Protocol != agent.ChatGPT {
+			settingRow(c, "parameters", i18n.T("输出上限"), i18n.T("0 为默认"), func() {
+				value := float64(conn.Parameters.MaxOutput)
+				if ui.NumberInput(c.Key("tokens"), &value, 0, 1000000, 256).Width(130).Label(i18n.T("输出上限（0 为默认）")).Changed() {
+					conn.Parameters.MaxOutput = int(value)
+					a.savePrefs()
+				}
+			})
+			settingsSeparator(c)
+			settingRow(c, "temperature", i18n.T("温度"), "", func() {
+				custom := conn.Parameters.Temperature != nil
+				if ui.Checkbox(c.Key("custom"), &custom, i18n.T("自定义温度")).Changed() {
+					if custom {
+						v := 0.7
+						conn.Parameters.Temperature = &v
+					} else {
+						conn.Parameters.Temperature = nil
+					}
+					a.savePrefs()
+				}
+				if conn.Parameters.Temperature != nil && ui.NumberInput(c.Key("value"), conn.Parameters.Temperature, 0, 2, 0.1).Width(110).Changed() {
+					a.savePrefs()
+				}
+			})
+			settingsSeparator(c)
+		}
+		note := i18n.T("推理预算（0 为自动）")
+		if conn.Protocol == agent.ChatGPT {
+			note = i18n.T("以所选模型支持的推理强度为准")
+		}
+		settingRow(c, "reasoning", i18n.T("推理强度"), note, func() {
+			values := []string{"", "off", "minimal", "low", "medium", "high", "xhigh", "max"}
+			if m := conn.CurrentModel(); m != nil && len(m.Capabilities.Efforts) > 0 {
+				values = append([]string{"", "off"}, m.Capabilities.Efforts...)
+			}
+			// A select of named levels: the editable combobox listed a blank
+			// row for the default and the raw values, its caret in the field.
+			if !slices.Contains(values, conn.Parameters.Reasoning) {
+				values = append(values, conn.Parameters.Reasoning)
+			}
+			labels := make([]string, len(values))
+			for i, v := range values {
+				labels[i] = reasoningLabel(v)
+			}
+			current := reasoningLabel(conn.Parameters.Reasoning)
+			ui.Select(c.Key("field"), &current, labels).Width(120).Label(i18n.T("推理强度"))
+			if i := slices.Index(labels, current); i >= 0 && values[i] != conn.Parameters.Reasoning {
+				conn.Parameters.Reasoning = values[i]
+				a.savePrefs()
+			}
+			if conn.Protocol == agent.ChatGPT {
+				return
+			}
+			budget := float64(conn.Parameters.ThinkingBudget)
+			if ui.NumberInput(c.Key("budget"), &budget, 0, 1000000, 1024).Width(116).Label(i18n.T("推理预算（0 为自动）")).Changed() {
+				conn.Parameters.ThinkingBudget = int(budget)
+				a.savePrefs()
+			}
+		})
+	})
+}
+
+func (a *App) settingsAIProviderTab(c *ui.Context, conn *prefs.AIConnection) {
+	t := c.Theme()
+	formRow := func(key, label string, fn func()) {
+		ui.Row(c.Key(key)).Padding(settingsRowInset(c), 12).Gap(12).AlignItems(ui.Center).MinHeight(46).Children(func() {
+			ui.Text(c, i18n.T(label)).FontSize(13).FontWeight(500).Width(84).Shrink(0)
+			ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(fn)
+		})
+	}
+	settingsSection(c, i18n.T("供应商与连接"))
+	settingsGroup(c, "provider-config", func() {
 		formRow("name", "供应商名称", func() {
 			if ui.TextInput(c.Key("field"), &conn.Name).Grow(1).Label(i18n.T("供应商名称")).Changed() {
 				a.savePrefs()
@@ -94,7 +314,7 @@ func (a *App) settingsAI(c *ui.Context) {
 			}
 		})
 		if conn.Protocol == agent.Media {
-			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话")).FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 8, 16)
+			ui.Text(c.Key("media-note"), i18n.T("此供应商只用于白板 AI 节点和 OneBot 的图片、视频生成，不用于对话")).FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 8, 12)
 		}
 		settingsSeparator(c)
 		formRow("address", "服务地址", func() {
@@ -197,7 +417,7 @@ func (a *App) settingsAI(c *ui.Context) {
 				if key != "" {
 					name = fmt.Sprintf(i18n.T("Key %d 测试失败："), i+1)
 				}
-				ui.Text(c.Key(fmt.Sprintf("key-test-err-%d", i)), name+qaErrorText(r.err)).FontSize(12).TextColor(t.Danger).Padding(0, 16, 10, 16)
+				ui.Text(c.Key(fmt.Sprintf("key-test-err-%d", i)), name+qaErrorText(r.err)).FontSize(12).TextColor(t.Danger).Padding(0, 12, 10, 12)
 			}
 		}
 		if len(a.qa.keys) > 1 {
@@ -217,220 +437,12 @@ func (a *App) settingsAI(c *ui.Context) {
 				agent.KeyRandom:     "每次请求随机选用一个 Key",
 				agent.KeyFailover:   "总是先用第一个 Key，失败时再依次换用后面的 Key",
 			}[conn.KeyStrategy]
-			ui.Text(c, i18n.T(note)+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试")).
-				FontSize(12).TextColor(t.TextMuted).Padding(0, 16, 10, 16)
+			ui.Text(c, i18n.T(note)+"；"+i18n.T("Key 被拒绝、额度不足、限流或服务出错，且尚未输出内容时，自动换下一个 Key 重试")).
+				FontSize(12).TextColor(t.TextMuted).Padding(0, 12, 10, 12)
 		}
 		if a.qa.keyErr != nil {
-			ui.Text(c, i18n.T("无法读取 API Key：")+a.qa.keyErr.Error()).FontSize(12).TextColor(t.Danger).Padding(0, 16, 10, 16)
+			ui.Text(c, i18n.T("无法读取 API Key：")+a.qa.keyErr.Error()).FontSize(12).TextColor(t.Danger).Padding(0, 12, 10, 12)
 		}
-	})
-	conn = a.prefs.AI.Current()
-	if conn == nil {
-		return
-	}
-
-	settingsSection(c, i18n.T("模型列表"))
-	settingsGroup(c, "models-group", func() {
-		ui.Row(c.Key("models")).Padding(12, 16, 8, 16).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.TextInput(c.Key("search"), &a.qa.modelSearch).Grow(1).Placeholder(i18n.T("搜索模型")).Label(i18n.T("搜索模型"))
-			label := i18n.T("获取模型")
-			if a.qa.modelsBusy {
-				label = i18n.T("获取中")
-			}
-			if ui.Button(c.Key("fetch"), label).Disabled(a.qa.modelsBusy || a.modelListSettings().CheckService() != nil).Clicked() {
-				a.fetchModels()
-			}
-			if a.qa.modelsBusy && ui.Button(c.Key("cancel"), i18n.T("取消")).Clicked() {
-				a.cancelModelFetch()
-			}
-		})
-		ui.Row(c.Key("model-actions")).Padding(0, 16, 10, 16).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, a.modelsNote()).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(100)
-			if ui.Button(c.Key("all"), i18n.T("全选")).Clicked() {
-				for i := range conn.Models {
-					conn.Models[i].Enabled = true
-				}
-				a.savePrefs()
-			}
-			if ui.Button(c.Key("none"), i18n.T("清空选择")).Clicked() {
-				for i := range conn.Models {
-					conn.Models[i].Enabled = false
-				}
-				conn.Model = ""
-				a.savePrefs()
-			}
-			if ui.Button(c.Key("capabilities"), i18n.T("更新模型能力")).Disabled(a.qa.modelsBusy || conn.Protocol == agent.ChatGPT || conn.Vendor == "" || conn.Vendor == "custom").Clicked() {
-				a.fetchModelCapabilities()
-			}
-			if a.qa.clearModelsFor == conn.ID {
-				if ui.Button(c.Key("confirm-clear"), i18n.T("确认清空模型")).Clicked() {
-					a.clearProviderModels()
-				}
-				if ui.Button(c.Key("cancel-clear"), i18n.T("取消")).Clicked() {
-					a.qa.clearModelsFor = ""
-				}
-			} else if ui.Button(c.Key("clear-models"), i18n.T("清空模型")).Disabled(len(conn.Models) == 0).Tooltip(i18n.T("移除此供应商的所有模型，保留供应商和 Key")).Clicked() {
-				a.qa.clearModelsFor = conn.ID
-			}
-		})
-		settingsSeparator(c)
-		var visible []int
-		query := strings.ToLower(a.qa.modelSearch)
-		for i, m := range conn.Models {
-			if strings.Contains(strings.ToLower(m.ID+" "+m.Name), query) {
-				visible = append(visible, i)
-			}
-		}
-		if len(visible) == 0 {
-			msg := i18n.T("点击「获取模型」或在下方手动添加模型")
-			if conn.Protocol == agent.ChatGPT {
-				msg = i18n.T("登录后点击「获取模型」，显示此账号可用的模型")
-			}
-			if len(conn.Models) > 0 {
-				msg = i18n.T("没有匹配的模型")
-			}
-			ui.Text(c, msg).FontSize(12.5).TextColor(t.TextMuted).Padding(14, 16)
-		} else {
-			ui.List(c.Key("model-list"), &a.qa.modelsList, len(visible)).Height(min(240, max(44, float32(len(visible))*38+8))).
-				Padding(4, 10).ItemKey(func(i int) any { return conn.Models[visible[i]].ID }).Rows(func(row ui.ListRow) {
-				idx := visible[row.Index]
-				model := &conn.Models[idx]
-				c := row.Context
-				item := ui.Row(c.Key(model.ID)).Height(36).Padding(0, 6).Radius(controlRadius).Gap(8).AlignItems(ui.Center)
-				if item.Hovered() {
-					item.Background(hoverFill(t))
-				}
-				item.Children(func() {
-					before := model.Enabled
-					label := model.ID
-					if conn.Protocol == agent.ChatGPT && model.Name != "" {
-						label = model.Name
-					}
-					ui.Checkbox(c.Key("checked"), &model.Enabled, label).Tooltip(model.ID).Grow(1).MinWidth(0)
-					if before != model.Enabled {
-						if model.Enabled && conn.Model == "" {
-							conn.Model = model.ID
-						}
-						if !model.Enabled && conn.Model == model.ID {
-							conn.Model = ""
-						}
-						a.savePrefs()
-					}
-					if quietOneBotAction(c, "details", i18n.T("能力")).Label(i18n.T("模型能力：") + model.ID).Clicked() {
-						if a.qa.capabilityModel == model.ID {
-							a.qa.capabilityModel = ""
-						} else {
-							a.qa.capabilityModel = model.ID
-						}
-					}
-				})
-			})
-		}
-		for i := range conn.Models {
-			if conn.Models[i].ID == a.qa.capabilityModel {
-				a.modelCapabilitiesView(c, &conn.Models[i])
-				break
-			}
-		}
-		if a.qa.modelsErr != nil {
-			ui.Text(c, i18n.T("获取模型列表失败：")+qaErrorText(a.qa.modelsErr)).FontSize(12).TextColor(t.Danger).Padding(6, 16)
-		}
-		if a.qa.catalogErr != nil {
-			ui.Text(c, i18n.T("更新模型能力失败：")+qaErrorText(a.qa.catalogErr)).FontSize(12).TextColor(t.Danger).Padding(6, 16)
-		}
-		if conn.Protocol == agent.ChatGPT {
-			return
-		}
-		settingsSeparator(c)
-		ui.Row(c.Key("manual")).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, i18n.T("手动添加模型")).FontSize(13).FontWeight(500).Width(84).Shrink(0)
-			in := ui.TextInput(c.Key("field"), &a.qa.manualName).Grow(1).Placeholder(i18n.T("输入模型名称")).Label(i18n.T("输入模型名称"))
-			if in.Submitted() {
-				a.addManualAIModel()
-			}
-			if ui.Button(c.Key("add"), i18n.T("添加模型")).Disabled(strings.TrimSpace(a.qa.manualName) == "").Clicked() {
-				a.addManualAIModel()
-			}
-		})
-	})
-
-	settingsSection(c, i18n.T("生成参数"))
-	settingsGroup(c, "params-group", func() {
-		if conn.Protocol != agent.ChatGPT {
-			settingRow(c, "parameters", i18n.T("输出上限"), i18n.T("0 为默认"), func() {
-				value := float64(conn.Parameters.MaxOutput)
-				if ui.NumberInput(c.Key("tokens"), &value, 0, 1000000, 256).Width(130).Label(i18n.T("输出上限（0 为默认）")).Changed() {
-					conn.Parameters.MaxOutput = int(value)
-					a.savePrefs()
-				}
-			})
-			settingsSeparator(c)
-			settingRow(c, "temperature", i18n.T("温度"), "", func() {
-				custom := conn.Parameters.Temperature != nil
-				if ui.Checkbox(c.Key("custom"), &custom, i18n.T("自定义温度")).Changed() {
-					if custom {
-						v := 0.7
-						conn.Parameters.Temperature = &v
-					} else {
-						conn.Parameters.Temperature = nil
-					}
-					a.savePrefs()
-				}
-				if conn.Parameters.Temperature != nil && ui.NumberInput(c.Key("value"), conn.Parameters.Temperature, 0, 2, 0.1).Width(110).Changed() {
-					a.savePrefs()
-				}
-			})
-			settingsSeparator(c)
-		}
-		note := i18n.T("推理预算（0 为自动）")
-		if conn.Protocol == agent.ChatGPT {
-			note = i18n.T("以所选模型支持的推理强度为准")
-		}
-		settingRow(c, "reasoning", i18n.T("推理强度"), note, func() {
-			values := []string{"", "off", "minimal", "low", "medium", "high", "xhigh", "max"}
-			if m := conn.CurrentModel(); m != nil && len(m.Capabilities.Efforts) > 0 {
-				values = append([]string{"", "off"}, m.Capabilities.Efforts...)
-			}
-			// A select of named levels: the editable combobox listed a blank
-			// row for the default and the raw values, its caret in the field.
-			if !slices.Contains(values, conn.Parameters.Reasoning) {
-				values = append(values, conn.Parameters.Reasoning)
-			}
-			labels := make([]string, len(values))
-			for i, v := range values {
-				labels[i] = reasoningLabel(v)
-			}
-			current := reasoningLabel(conn.Parameters.Reasoning)
-			ui.Select(c.Key("field"), &current, labels).Width(120).Label(i18n.T("推理强度"))
-			if i := slices.Index(labels, current); i >= 0 && values[i] != conn.Parameters.Reasoning {
-				conn.Parameters.Reasoning = values[i]
-				a.savePrefs()
-			}
-			if conn.Protocol == agent.ChatGPT {
-				return
-			}
-			budget := float64(conn.Parameters.ThinkingBudget)
-			if ui.NumberInput(c.Key("budget"), &budget, 0, 1000000, 1024).Width(116).Label(i18n.T("推理预算（0 为自动）")).Changed() {
-				conn.Parameters.ThinkingBudget = int(budget)
-				a.savePrefs()
-			}
-		})
-	})
-
-	ready := a.qaReady() == nil
-	status := i18n.T("可以提问了")
-	dotCol, bgCol, textCol := t.Success, t.Success.Alpha(0.08), t.Text.Alpha(0.84)
-	if err := a.qaReady(); err != nil {
-		status = err.Error()
-		dotCol, bgCol, textCol = t.TextMuted, t.Text.Alpha(0.04), t.TextMuted
-	}
-	if !ready {
-		bgCol = t.Text.Alpha(0.04)
-	}
-	ui.Row(c.Key("ai-status")).Gap(8).Padding(9, 14).Radius(controlRadius).AlignItems(ui.Center).
-		Background(bgCol).Border(1, dotCol.Alpha(0.24)).Children(func() {
-		ui.Box(c).Size(7, 7).Radius(3.5).Background(dotCol).Shrink(0)
-		ui.Text(c, status).FontSize(12.5).TextColor(textCol)
 	})
 }
 

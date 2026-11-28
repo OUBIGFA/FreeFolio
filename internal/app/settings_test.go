@@ -226,7 +226,7 @@ func TestFixedSettingsFitMinimumWindow(t *testing.T) {
 		tabGeneral:    {"新空间的默认位置", "配置文件夹（spaces.json、插件）"},
 		tabAppearance: {"界面语言", "正文字体", "页面宽度", "正文字号", "行距", "恢复默认外观"},
 		tabWriting:    {"打字机滚动", "打开文档时画出手绘标注", "专注模式淡化其他段落", "括号与引号自动配对", "中英文之间自动加空格", "代码块自动换行", "宽表格延展到页边"},
-		tabSpaces:     {"新建空间"}, tabUpdates: {"检查更新"}, tabAbout: {"重新观看"}, tabAI: {"服务地址", "粘贴 API Key", "输入模型名称", "获取模型"},
+		tabSpaces:     {"新建空间"}, tabUpdates: {"检查更新"}, tabAbout: {"重新观看"}, tabAI: {"输入模型名称", "获取模型"},
 	} {
 		t.Run(tab, func(t *testing.T) {
 			a, tt := newTestApp(t)
@@ -242,6 +242,19 @@ func TestFixedSettingsFitMinimumWindow(t *testing.T) {
 				r, ok := tt.Find(label)
 				if !ok || r.W < 1 || r.H < 1 || r.Y < 0 || r.X < 0 || r.X+r.W > 641 || r.Y+r.H > 421 {
 					t.Errorf("%q out of view: %+v found=%v", label, r, ok)
+				}
+			}
+			if tab == tabAI {
+				if err := tt.Click("供应商与连接"); err != nil {
+					t.Fatal(err)
+				}
+				tt.Frame()
+				for _, label := range []string{"服务地址", "粘贴 API Key"} {
+					scrollIntoView(tt, label, 641, 421)
+					r, ok := tt.Find(label)
+					if !ok || r.W < 1 || r.H < 1 || r.Y < 0 || r.X < 0 || r.X+r.W > 641 || r.Y+r.H > 421 {
+						t.Errorf("%q out of view: %+v found=%v", label, r, ok)
+					}
 				}
 			}
 		})

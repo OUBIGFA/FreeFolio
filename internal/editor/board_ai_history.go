@@ -58,9 +58,10 @@ func growAIImageGallery(e *whiteboard.Element, n *whiteboard.AINode) {
 	if count > 2 {
 		rows = 2
 	}
-	tileWidth := (e.W - 2*aiPad - 6) / 2
-	preview := float64(rows)*(tileWidth+26) + float64(rows-1)*6
-	e.H = max(e.H, aiMinHeight(n)-float64(aiPreviewMin(n.Role))+preview+62)
+	const gridGap = 8.0
+	tileWidth := (e.W - 2*aiPad - gridGap) / 2
+	preview := float64(rows)*(tileWidth+26) + float64(rows-1)*gridGap
+	e.H = max(e.H, aiMinHeight(n)-float64(aiPreviewMin(n.Role))+preview+70)
 }
 
 func (b *Board) aiHistory(e *whiteboard.Element, n *whiteboard.AINode) *aiImageHistory {
@@ -182,8 +183,9 @@ func aiHistoryCell(r ui.Rect, count, index int) ui.Rect {
 	if count > 2 {
 		rows = 2
 	}
-	w, h := (r.W-6)/2, (r.H-float32(rows-1)*6)/float32(rows)
-	return ui.Rect{X: r.X + float32(index%2)*(w+6), Y: r.Y + float32(index/2)*(h+6), W: w, H: h}
+	const gridGap = float32(8)
+	w, h := (r.W-gridGap)/2, (r.H-float32(rows-1)*gridGap)/float32(rows)
+	return ui.Rect{X: r.X + float32(index%2)*(w+gridGap), Y: r.Y + float32(index/2)*(h+gridGap), W: w, H: h}
 }
 
 func aiHistoryLabels(n *whiteboard.AINode) ([]string, []string) {
@@ -211,25 +213,27 @@ func (b *Board) aiHistoryImageControls(c *ui.Context, o BoardOptions, e *whitebo
 	values, labels := aiHistoryLabels(n)
 	for i, index := range images {
 		r := aiHistoryCell(l.preview, len(images), i)
-		ui.Row(c.Key(fmt.Sprintf("ai-image-cell-%s-%d", e.ID, i))).Absolute().Left(x+r.X*z).Top(y+(r.Y+r.H-26)*z).Size(r.W, 26).TransformOrigin(0, 0).Scale(z, z).Gap(4).Children(func() {
-			label := strconv.Itoa(index + 1)
+		ui.Row(c.Key(fmt.Sprintf("ai-image-cell-%s-%d", e.ID, i))).Absolute().Left(x+(r.X+4)*z).Top(y+(r.Y+r.H-25)*z).Size(max(0, r.W-8), 24).TransformOrigin(0, 0).Scale(z, z).Gap(4).AlignItems(ui.Center).Children(func() {
 			if h.compare {
 				field := []string{"对比图片 A", "对比图片 B", "对比图片 C", "对比图片 D"}[i]
-				ui.Text(c, string(rune('A'+i))).FontSize(12).TextColor(st.muted).PaddingX(4)
+				ui.Box(c).Size(18, 18).Radius(4).Background(st.surface).Border(1, st.border).Center().Shrink(0).Children(func() {
+					ui.Text(c, string(rune('A'+i))).FontSize(11).FontWeight(600).TextColor(st.text)
+				})
 				if value, ok := aiInlineSelect(c, "image", i18n.T(field), strconv.Itoa(index), values, labels, false); ok {
 					selected, _ := strconv.Atoi(value)
 					*[]*int{&h.a, &h.b, &h.c, &h.d}[i] = selected
 				}
 			} else {
 				selected := index == b.aiHistoryCurrent(e, n)
+				label := i18n.T("设为输出")
 				if selected {
-					label += " · " + i18n.T("输出")
+					label = i18n.T("已选输出")
 				}
-				if boardFlatButton(c, "select", label, selected, st).Height(26).Grow(1).MinWidth(0).PaddingX(6).Label(fmt.Sprintf(i18n.T("使用第 %d 张图片"), index+1)).Clicked() {
+				if boardFlatButton(c, "select", label, selected, st).Height(22).Grow(1).MinWidth(0).PaddingX(6).Label(fmt.Sprintf(i18n.T("使用第 %d 张图片"), index+1)).Clicked() {
 					b.aiSelectImage(o, e, n, index)
 				}
 			}
-			if o.AI.OpenHistoryImage != nil && boardFlatButton(c, "open", i18n.T("查看"), false, st).Height(26).PaddingX(6).Label(fmt.Sprintf(i18n.T("查看第 %d 张图片"), index+1)).Clicked() {
+			if o.AI.OpenHistoryImage != nil && boardFlatButton(c, "open", i18n.T("查看"), false, st).Height(22).PaddingX(8).Label(fmt.Sprintf(i18n.T("查看第 %d 张图片"), index+1)).Clicked() {
 				o.AI.OpenHistoryImage(e.ID, index)
 			}
 		})
@@ -244,23 +248,24 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 	current := b.aiHistoryCurrent(e, n)
 	values, labels := aiHistoryLabels(n)
 	st := boardChromeFor(o.Theme)
-	ui.Column(c.Key("ai-history-"+e.ID)).Absolute().Left(x+l.history.X*z).Top(y+l.history.Y*z).Size(l.history.W, l.history.H).TransformOrigin(0, 0).Scale(z, z).Gap(4).Children(func() {
+	ui.Column(c.Key("ai-history-"+e.ID)).Absolute().Left(x+l.history.X*z).Top(y+l.history.Y*z).Size(l.history.W, l.history.H).TransformOrigin(0, 0).Scale(z, z).
+		Padding(0, 4).Radius(7).Background(st.surfaceMuted).Border(1, st.divider).Gap(4).Children(func() {
 		ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
-			if boardFlatButton(c, "previous", "‹", false, st).Width(24).Height(26).PaddingX(0).Label(i18n.T("上张图片")).Disabled(current == 0).Clicked() {
+			if boardFlatButton(c, "previous", "‹", false, st).Width(24).Height(24).PaddingX(0).Label(i18n.T("上张图片")).Disabled(current == 0).Clicked() {
 				b.aiSelectImage(o, e, n, current-1)
 			}
 			if v, ok := aiInlineSelect(c, "current", i18n.T("图片历史"), strconv.Itoa(current), values, labels, false); ok {
 				index, _ := strconv.Atoi(v)
 				b.aiSelectImage(o, e, n, index)
 			}
-			if boardFlatButton(c, "next", "›", false, st).Width(24).Height(26).PaddingX(0).Label(i18n.T("下张图片")).Disabled(current == len(n.Outputs)-1).Clicked() {
+			if boardFlatButton(c, "next", "›", false, st).Width(24).Height(24).PaddingX(0).Label(i18n.T("下张图片")).Disabled(current == len(n.Outputs)-1).Clicked() {
 				b.aiSelectImage(o, e, n, current+1)
 			}
 			text, label := i18n.T("对比"), i18n.T("对比图片")
 			if h.compare {
 				text, label = i18n.T("退出"), i18n.T("退出对比")
 			}
-			if boardFlatButton(c, "compare", text, h.compare, st).Height(26).PaddingX(8).Label(label).Disabled(len(n.Outputs) < 2).Clicked() {
+			if boardFlatButton(c, "compare", text, h.compare, st).Height(24).PaddingX(8).Label(label).Disabled(len(n.Outputs) < 2).Clicked() {
 				images := b.aiHistoryImages(e, n)
 				h.compare = !h.compare
 				if h.compare {
@@ -282,9 +287,9 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 		if !h.compare {
 			return
 		}
-		ui.Row(c).Height(26).Gap(4).Children(func() {
+		ui.Row(c).Height(24).Gap(3).Padding(2).Radius(6).Background(st.surface).Border(1, st.divider).Children(func() {
 			for _, mode := range []struct{ value, label string }{{"slider", "滑杆"}, {"two", "两格"}, {"four", "四格"}} {
-				if boardFlatButton(c, mode.value, i18n.T(mode.label), h.mode == mode.value, st).Height(26).Grow(1).Label(i18n.T(mode.label)).Clicked() {
+				if boardFlatButton(c, mode.value, i18n.T(mode.label), h.mode == mode.value, st).Height(20).Grow(1).Label(i18n.T(mode.label)).Clicked() {
 					h.mode = mode.value
 				}
 			}
@@ -298,8 +303,8 @@ func (b *Board) aiHistoryControls(c *ui.Context, o BoardOptions, e *whiteboard.E
 		}{{"A", i18n.T("对比图片 A"), &h.a}, {"B", i18n.T("对比图片 B"), &h.b}}
 		ui.Row(c).Height(26).Gap(4).AlignItems(ui.Center).Children(func() {
 			for _, field := range fields {
-				ui.Box(c).Size(18, 18).Radius(4).Background(st.surfaceMuted).Center().Shrink(0).Children(func() {
-					ui.Text(c, field.label).FontSize(11).FontWeight(600).TextColor(st.muted)
+				ui.Box(c).Size(18, 18).Radius(4).Background(st.surface).Border(1, st.border).Center().Shrink(0).Children(func() {
+					ui.Text(c, field.label).FontSize(11).FontWeight(600).TextColor(st.text)
 				})
 				if v, ok := aiInlineSelect(c, field.label, field.description, strconv.Itoa(*field.value), values, labels, false); ok {
 					*field.value, _ = strconv.Atoi(v)
@@ -366,31 +371,60 @@ func (b *Board) paintAIImageHistory(p *ui.Painter, e *whiteboard.Element, n *whi
 		p.ImageRegion(bm, ui.Rect{}, ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-height)/2, W: w, H: height}, ui.ImageOptions{})
 	}
 	if h.compare && h.mode != "two" && h.mode != "four" {
-		draw(paths[0], r)
-		splitX := r.X + r.W*h.split
-		p.Clip(ui.Rect{X: splitX, Y: r.Y, W: r.W * (1 - h.split), H: r.H}, 0, func() { draw(paths[1], r) })
-		paintCompareDivider(p, r, h.split, zoom)
-		s := compareBadgeScale(zoom)
-		pad := 8 * s
-		paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
-		paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, "B")
-	} else {
-		indices := b.aiHistoryImages(e, n)
-		for i, rel := range paths {
-			cell := aiHistoryCell(r, len(paths), i)
-			picture := cell
-			if len(paths) > 1 {
-				picture.H = max(0, picture.H-26)
-			}
-			p.Clip(picture, 4, func() { draw(rel, picture) })
-			if len(paths) > 1 {
-				color := pal.divider
-				if !h.compare && indices[i] == b.aiHistoryCurrent(e, n) {
-					color = pal.accent
-				}
-				p.Stroke(cell, color, 4, 1)
-			}
-		}
+		p.Clip(r, 8, func() {
+			draw(paths[0], r)
+			splitX := r.X + r.W*h.split
+			p.Clip(ui.Rect{X: splitX, Y: r.Y, W: r.W * (1 - h.split), H: r.H}, 0, func() { draw(paths[1], r) })
+			paintCompareDivider(p, r, h.split, zoom)
+			s := compareBadgeScale(zoom)
+			pad := 8 * s
+			paintCompareBadge(p, r.X+pad, r.Y+pad, zoom, "A")
+			paintCompareBadgeRight(p, r.X+r.W-pad, r.Y+pad, zoom, "B")
+		})
+		p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
+		return
 	}
-	p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
+	indices := b.aiHistoryImages(e, n)
+	if len(paths) <= 1 {
+		p.Clip(r, 8, func() {
+			for _, rel := range paths {
+				draw(rel, r)
+			}
+		})
+		p.Stroke(r, pal.divider.Alpha(0.75), 8, 1)
+		return
+	}
+	for i, rel := range paths {
+		cell := aiHistoryCell(r, len(paths), i)
+		selected := !h.compare && indices[i] == b.aiHistoryCurrent(e, n)
+		p.Fill(cell, pal.cardBg, 8)
+		p.Clip(cell, 8, func() {
+			picture := ui.Rect{X: cell.X, Y: cell.Y, W: cell.W, H: max(0, cell.H-26)}
+			draw(rel, picture)
+			strip := ui.Rect{X: cell.X, Y: cell.Y + picture.H, W: cell.W, H: cell.H - picture.H}
+			p.Fill(strip, pal.footerBg, 0)
+			p.Line(cell.X, cell.Y+picture.H, cell.X+cell.W, cell.Y+picture.H, 1, pal.divider.Alpha(0.75))
+			// Corner tile badge kept clear of center image pixels.
+			if picture.W >= 64 && picture.H >= 48 {
+				badgeText := fmt.Sprintf("#%d", indices[i]+1)
+				badgeBg, badgeInk := ui.RGBA(17, 24, 39, 0.62), ui.RGB(255, 255, 255)
+				if h.compare {
+					badgeText = string(rune('A' + i))
+				} else if selected {
+					badgeText = fmt.Sprintf("#%d · %s", indices[i]+1, i18n.T("输出"))
+					badgeBg = pal.accent
+				}
+				bl := b.aiCardTextFont(fmt.Sprintf("%s#tile-%d-%s", e.ID, i, badgeText), badgeText, 0, ui.Font{Size: 10.5, Weight: 600})
+				bw, bh := bl.Size()
+				br := ui.Rect{X: cell.X + 7, Y: cell.Y + 7, W: bw + 10, H: max(18, bh+4)}
+				p.Fill(br, badgeBg, 5)
+				p.TextLayout(bl, br.X+5, br.Y+(br.H-bh)/2, badgeInk)
+			}
+		})
+		borderCol, borderW := pal.divider, float32(1)
+		if selected {
+			borderCol, borderW = pal.accent, 2
+		}
+		p.Stroke(cell, borderCol, 8, borderW)
+	}
 }

@@ -264,6 +264,29 @@ func TestSpaceBarOverflowAndKeyboard(t *testing.T) {
 	}
 }
 
+func TestSpaceBarAllSpacesMenuOnOverflow(t *testing.T) {
+	a, tt := newTestApp(t)
+	for i := 1; i < 12; i++ {
+		a.state.Add(fmt.Sprintf("Space %d", i), t.TempDir())
+	}
+	tt.SetSize(640, 420)
+	r, ok := tt.Find("全部空间")
+	if !ok || r.X < 640-sidebarWidth || r.X+r.W > 640 {
+		t.Fatalf("all-spaces picker missing or overflowed: found=%v rect=%+v", ok, r)
+	}
+	if err := tt.Click("全部空间"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("Space 10"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.state.ActiveSpace().Name != "Space 10" {
+		t.Fatalf("active space = %q, want Space 10", a.state.ActiveSpace().Name)
+	}
+}
+
 func TestSpaceRestoresEditorAndTreeScroll(t *testing.T) {
 	a, tt := newTestApp(t)
 	first := a.state.ActiveSpace()

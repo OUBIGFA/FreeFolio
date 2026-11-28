@@ -43,6 +43,10 @@ func keyTestApp(t *testing.T) (*App, *ui.Tester, *[]string) {
 	}
 	a.openSettings(tabAI)
 	tt.Frame()
+	if err := tt.Click("供应商与连接"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	return a, tt, &calls
 }
 
@@ -122,7 +126,9 @@ func TestOneBotMediaKeyUsesOnlyImageEndpoint(t *testing.T) {
 // The reasoning effort is a select of named levels, the default first.
 func TestOneBotReasoningSelect(t *testing.T) {
 	a, tt, _ := keyTestApp(t)
-	tt.Scroll(680, 500, 0, 800)
+	if err := tt.Click("生成参数"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Frame()
 	if err := tt.Click("服务默认"); err != nil {
 		t.Fatal(err)
