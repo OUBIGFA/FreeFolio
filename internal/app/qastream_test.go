@@ -91,12 +91,12 @@ func TestQAStreamPacesBatchedParagraphsAndCode(t *testing.T) {
 func TestQABatchedCompletionRetainsAnimation(t *testing.T) {
 	answer := strings.Repeat("这段回答先全部到达，再在界面中逐字淡入。\n\n", 12) + "最后一行 [计划.md#L5]"
 	a, tt := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply(answer)}})
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	qaAdvance(tt, 500*time.Millisecond)
 	a.qa.input = "测试快速返回的完整回答"
-	a.askQA() // scripted sends TextDelta + StepDone + finish before a frame
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	a.qa.askQA() // scripted sends TextDelta + StepDone + finish before a frame
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := s.turns[0]
 	tt.Frame()
 	if turn.running || !turn.revealing || !s.running() || turn.displayAnswer() == answer || tt.HasText("来源") {
@@ -126,13 +126,13 @@ func TestQABatchedCompletionRetainsAnimation(t *testing.T) {
 
 func TestQAStopFinishesBufferedPresentation(t *testing.T) {
 	a, tt := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply(strings.Repeat("待显示的文字", 100))}})
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	qaAdvance(tt, 500*time.Millisecond)
 	a.qa.input = "测试"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := s.turns[0]
 	if s.cancel != nil || !tt.HasText("停止") {
 		t.Fatal("presentation has no stop control after the request finishes")
@@ -146,10 +146,10 @@ func TestQAStopFinishesBufferedPresentation(t *testing.T) {
 
 func TestQAToolResetDiscardsQueuedPresentation(t *testing.T) {
 	a, tt := qaApp(t, &scripted{})
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	qaAdvance(tt, 500*time.Millisecond)
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{running: true}
 	s.turns = []*qaTurn{turn}
 	tt.Frame()
@@ -262,9 +262,9 @@ func TestQACharFadeTimingAndLayout(t *testing.T) {
 	}
 	a, tt := newTestApp(t)
 	turn := &qaTurn{question: "Layout", answer: "A stable **bold** paragraph whose characters fade in without changing line breaks.\n\nNext paragraph.", running: true}
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	before, ok := tt.Find("Next paragraph.")
@@ -280,10 +280,10 @@ func TestQACharFadeTimingAndLayout(t *testing.T) {
 
 func TestQAStreamStopReducedMotionAndCopy(t *testing.T) {
 	a, tt := qaApp(t, &scripted{})
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{question: "Stop", running: true}
 	s.turns = []*qaTurn{turn}
 	s.cancel = func() {}
@@ -293,7 +293,7 @@ func TestQAStreamStopReducedMotionAndCopy(t *testing.T) {
 	if turn.displayAnswer() == turn.answer {
 		t.Fatal("expected a buffered tail")
 	}
-	a.finishQA(s, turn, nil, context.Canceled)
+	a.qa.finishQA(s, turn, nil, context.Canceled)
 	tt.Frame()
 	if turn.displayAnswer() != turn.answer || !tt.HasText("已停止") || turn.view.blocks[0].fade.active(tt.Now()) {
 		t.Fatal("cancel lost text or kept animating")

@@ -27,12 +27,12 @@ type aiKeyring struct {
 
 // Legacy plaintext credentials are deliberately not reused. A malformed new
 // keyring is an error, not permission to discard its other connections.
-func (a *App) readAIKeys() (aiKeyring, error) {
+func (ob *qaState) readAIKeys() (aiKeyring, error) {
 	out := aiKeyring{Version: 2, Keys: map[string][]string{}}
-	if a.qa.secrets == nil {
+	if ob.secrets == nil {
 		return out, errors.New(i18n.T("本地凭据存储不可用"))
 	}
-	data, err := a.qa.secrets.Get(apiKeySecret)
+	data, err := ob.secrets.Get(apiKeySecret)
 	if errors.Is(err, os.ErrNotExist) {
 		return out, nil
 	}
@@ -69,32 +69,32 @@ func (a *App) readAIKeys() (aiKeyring, error) {
 	return out, nil
 }
 
-func (a *App) writeAIKeys(keys aiKeyring) error {
+func (ob *qaState) writeAIKeys(keys aiKeyring) error {
 	if len(keys.Keys) == 0 {
-		return a.qa.secrets.Delete(apiKeySecret)
+		return ob.secrets.Delete(apiKeySecret)
 	}
 	keys.Version = 2
 	data, err := json.Marshal(keys)
 	if err != nil {
 		return err
 	}
-	return a.qa.secrets.Set(apiKeySecret, data)
+	return ob.secrets.Set(apiKeySecret, data)
 }
 
-func (a *App) qaSettings() agent.Settings {
-	c := a.prefs.AI.Current()
+func (ob *qaState) qaSettings() agent.Settings {
+	c := ob.host.preferences().AI.Current()
 	if c == nil {
 		return agent.Settings{}
 	}
 	if c.Protocol == agent.ChatGPT {
-		return a.chatGPTSettings()
+		return ob.host.chatGPT().chatGPTSettings()
 	}
-	q := &a.qa
+	q := ob
 	if !q.keyRead || q.keyID != c.ID {
 		q.keyRead = true
 		q.keyID = c.ID
 		q.keys = nil
-		keys, err := a.readAIKeys()
+		keys, err := ob.readAIKeys()
 		q.keyErr = err
 		if err == nil {
 			q.keys = keys.Keys[c.ID]
@@ -127,16 +127,16 @@ func splitAPIKeys(text string) []string {
 
 // saveAIKey adds the field's keys to the connection's, skipping any it
 // already has.
-func (a *App) saveAIKey() error {
-	added := splitAPIKeys(a.qa.keyInput)
+func (ob *qaState) saveAIKey() error {
+	added := splitAPIKeys(ob.keyInput)
 	if len(added) == 0 {
 		return nil
 	}
-	c := a.prefs.AI.Current()
+	c := ob.host.preferences().AI.Current()
 	if c == nil {
 		return errors.New(i18n.T("请先添加供应商"))
 	}
-	keys, err := a.readAIKeys()
+	keys, err := ob.readAIKeys()
 	var list []string
 	if err == nil {
 		list = keys.Keys[c.ID]
@@ -146,32 +146,32 @@ func (a *App) saveAIKey() error {
 			}
 		}
 		keys.Keys[c.ID] = list
-		err = a.writeAIKeys(keys)
+		err = ob.writeAIKeys(keys)
 	}
 	if err != nil {
-		a.notify("无法保存 API Key：%s", err.Error())
+		ob.host.notify("无法保存 API Key：%s", err.Error())
 		return fmt.Errorf(i18n.T("无法保存 API Key：%s"), err.Error())
 	}
-	a.qa.keys, a.qa.keyID, a.qa.keyRead, a.qa.keyErr, a.qa.keyInput = list, c.ID, true, nil, ""
+	ob.keys, ob.keyID, ob.keyRead, ob.keyErr, ob.keyInput = list, c.ID, true, nil, ""
 	return nil
 }
 
-func (a *App) deleteAIKey(id string) error {
-	keys, err := a.readAIKeys()
+func (ob *qaState) deleteAIKey(id string) error {
+	keys, err := ob.readAIKeys()
 	if err != nil {
 		return err
 	}
 	delete(keys.Keys, id)
-	return a.writeAIKeys(keys)
+	return ob.writeAIKeys(keys)
 }
 
 // removeAIKey removes one key of the current connection.
-func (a *App) removeAIKey(key string) {
-	c := a.prefs.AI.Current()
+func (ob *qaState) removeAIKey(key string) {
+	c := ob.host.preferences().AI.Current()
 	if c == nil {
 		return
 	}
-	keys, err := a.readAIKeys()
+	keys, err := ob.readAIKeys()
 	if err == nil {
 		list := slices.DeleteFunc(slices.Clone(keys.Keys[c.ID]), func(k string) bool { return k == key })
 		if len(list) == 0 {
@@ -179,18 +179,18 @@ func (a *App) removeAIKey(key string) {
 		} else {
 			keys.Keys[c.ID] = list
 		}
-		err = a.writeAIKeys(keys)
+		err = ob.writeAIKeys(keys)
 	}
 	if err != nil {
-		a.notify("无法移除 API Key：%s", err.Error())
+		ob.host.notify("无法移除 API Key：%s", err.Error())
 		return
 	}
-	a.qa.keyRead = false
-	delete(a.qa.keyShown, key)
-	a.qaSettings()
+	ob.keyRead = false
+	delete(ob.keyShown, key)
+	ob.qaSettings()
 }
 
-func (a *App) addAIConnection(preset string) {
+func (ob *qaState) addAIConnection(preset string) {
 	p := agent.PresetOf(preset)
 	protocol := p.Protocol
 	if protocol == "" {
@@ -198,110 +198,110 @@ func (a *App) addAIConnection(preset string) {
 	}
 	base, name := p.BaseURL, p.Name
 	if p.Protocol == agent.ChatGPT {
-		for suffix := 2; slices.ContainsFunc(a.prefs.AI.Connections, func(c prefs.AIConnection) bool { return c.Name == name }); suffix++ {
+		for suffix := 2; slices.ContainsFunc(ob.host.preferences().AI.Connections, func(c prefs.AIConnection) bool { return c.Name == name }); suffix++ {
 			name = fmt.Sprintf("%s %d", p.Name, suffix)
 		}
 	}
 	c := prefs.AIConnection{ID: model.NewID(), Name: name, Vendor: preset, Protocol: protocol, BaseURL: base}
-	a.prefs.AI.Connections = append(a.prefs.AI.Connections, c)
-	a.selectAIConnection(c.ID)
+	ob.host.preferences().AI.Connections = append(ob.host.preferences().AI.Connections, c)
+	ob.selectAIConnection(c.ID)
 }
 
-func (a *App) selectAIConnection(id string) {
-	if a.prefs.AI.Find(id) == nil {
+func (ob *qaState) selectAIConnection(id string) {
+	if ob.host.preferences().AI.Find(id) == nil {
 		return
 	}
-	a.cancelModelFetch()
-	a.prefs.AI.Active = id
-	a.qa.keyRead = false
-	a.qa.keyInput = ""
-	a.qa.manualName = ""
-	a.qa.modelSearch = ""
-	a.qa.capabilityModel = ""
-	a.qa.clearModelsFor = ""
-	a.qa.modelsFor = ""
-	a.qa.modelsErr = nil
-	a.qa.catalogErr = nil
-	a.savePrefs()
-	loaded := a.chatgpt.loaded[id]
-	a.loadChatGPTSession(id, false)
-	if loaded && a.prefs.AI.Current().Protocol == agent.ChatGPT && a.chatGPTSession().Sharing {
-		a.fetchModels()
+	ob.cancelModelFetch()
+	ob.host.preferences().AI.Active = id
+	ob.keyRead = false
+	ob.keyInput = ""
+	ob.manualName = ""
+	ob.modelSearch = ""
+	ob.capabilityModel = ""
+	ob.clearModelsFor = ""
+	ob.modelsFor = ""
+	ob.modelsErr = nil
+	ob.catalogErr = nil
+	ob.host.savePrefs()
+	loaded := ob.host.chatGPT().loaded[id]
+	ob.host.chatGPT().loadChatGPTSession(id, false)
+	if loaded && ob.host.preferences().AI.Current().Protocol == agent.ChatGPT && ob.host.chatGPT().chatGPTSession().Sharing {
+		ob.fetchModels()
 	}
 }
 
-func (a *App) removeAIConnection() {
-	id := a.prefs.AI.Active
+func (ob *qaState) removeAIConnection() {
+	id := ob.host.preferences().AI.Active
 	if id == "" {
 		return
 	}
-	if c := a.prefs.AI.Current(); c != nil && c.Protocol == agent.ChatGPT {
-		a.disconnectChatGPT(true)
+	if c := ob.host.preferences().AI.Current(); c != nil && c.Protocol == agent.ChatGPT {
+		ob.host.chatGPT().disconnectChatGPT(true)
 		return
 	}
-	if err := a.deleteAIKey(id); err != nil {
-		a.notify("无法移除 API Key：%s", err.Error())
+	if err := ob.deleteAIKey(id); err != nil {
+		ob.host.notify("无法移除 API Key：%s", err.Error())
 		return
 	}
-	a.cancelModelFetch()
-	a.prefs.AI.Connections = slices.DeleteFunc(a.prefs.AI.Connections, func(c prefs.AIConnection) bool { return c.ID == id })
-	a.prefs.AI.Active = ""
-	a.qa.keyRead = false
-	a.qa.keyInput = ""
-	if len(a.prefs.AI.Connections) > 0 {
-		a.selectAIConnection(a.prefs.AI.Connections[0].ID)
+	ob.cancelModelFetch()
+	ob.host.preferences().AI.Connections = slices.DeleteFunc(ob.host.preferences().AI.Connections, func(c prefs.AIConnection) bool { return c.ID == id })
+	ob.host.preferences().AI.Active = ""
+	ob.keyRead = false
+	ob.keyInput = ""
+	if len(ob.host.preferences().AI.Connections) > 0 {
+		ob.selectAIConnection(ob.host.preferences().AI.Connections[0].ID)
 	} else {
-		a.savePrefs()
+		ob.host.savePrefs()
 	}
 }
 
 func modelsKey(s agent.Settings) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(s.ConnectionID+"\x00"+s.Protocol+"\x00"+s.BaseURL+"\x00"+s.APIKey)))
 }
-func (a *App) modelListSettings() agent.Settings {
-	s := a.qaSettings()
-	if key := strings.TrimSpace(a.qa.keyInput); key != "" {
+func (ob *qaState) modelListSettings() agent.Settings {
+	s := ob.qaSettings()
+	if key := strings.TrimSpace(ob.keyInput); key != "" {
 		s.APIKey = key
 	}
 	return s
 }
-func (a *App) cancelModelFetch() {
-	if a.qa.modelsCancel != nil {
-		a.qa.modelsCancel()
-		a.qa.modelsCancel = nil
+func (ob *qaState) cancelModelFetch() {
+	if ob.modelsCancel != nil {
+		ob.modelsCancel()
+		ob.modelsCancel = nil
 	}
-	a.qa.modelsEpoch++
-	a.qa.modelsBusy = false
+	ob.modelsEpoch++
+	ob.modelsBusy = false
 }
-func (a *App) dropStaleModels() {
-	if a.qa.modelsFor != "" && a.qa.modelsFor != modelsKey(a.qaSettings()) {
-		a.cancelModelFetch()
-		a.qa.modelsFor = ""
-		a.qa.modelsErr = nil
+func (ob *qaState) dropStaleModels() {
+	if ob.modelsFor != "" && ob.modelsFor != modelsKey(ob.qaSettings()) {
+		ob.cancelModelFetch()
+		ob.modelsFor = ""
+		ob.modelsErr = nil
 	}
 }
 
-func (a *App) fetchModels() {
-	q := &a.qa
+func (ob *qaState) fetchModels() {
+	q := ob
 	if q.modelsBusy {
 		return
 	}
-	c := a.prefs.AI.Current()
+	c := ob.host.preferences().AI.Current()
 	if c == nil {
 		return
 	}
 	if strings.TrimSpace(q.keyInput) != "" {
-		if err := a.saveAIKey(); err != nil {
+		if err := ob.saveAIKey(); err != nil {
 			q.modelsErr = err
 			return
 		}
 	}
-	s := a.qaSettings()
+	s := ob.qaSettings()
 	if err := s.CheckService(); err != nil {
 		q.modelsErr = err
 		return
 	}
-	a.cancelModelFetch()
+	ob.cancelModelFetch()
 	epoch := q.modelsEpoch
 	id, key := c.ID, modelsKey(s)
 	q.modelsFor = key
@@ -342,15 +342,15 @@ func (a *App) fetchModels() {
 		}
 		q.modelsBusy = false
 		q.modelsCancel = nil
-		c := a.prefs.AI.Find(id)
-		if c == nil || a.prefs.AI.Active != id || modelsKey(a.qaSettings()) != key {
+		c := ob.host.preferences().AI.Find(id)
+		if c == nil || ob.host.preferences().AI.Active != id || modelsKey(ob.qaSettings()) != key {
 			q.modelsFor = ""
 			return
 		}
 		q.modelsErr = err
 		q.catalogErr = catalogErr
 		if s.Protocol == agent.ChatGPT {
-			a.loadChatGPTSession(id, true)
+			ob.host.chatGPT().loadChatGPTSession(id, true)
 		}
 		if err != nil {
 			return
@@ -389,37 +389,37 @@ func (a *App) fetchModels() {
 			c.Model = ""
 		}
 		q.models = models
-		a.savePrefs()
+		ob.host.savePrefs()
 	}
-	if q.sync || a.win == nil {
+	if q.sync || ob.host.window() == nil {
 		done(load(s))
 		return
 	}
-	go func() { models, err := load(s); a.win.Update(func() { done(models, err) }) }()
+	go func() { models, err := load(s); ob.host.window().Update(func() { done(models, err) }) }()
 }
 
-func (a *App) fetchModelCapabilities() {
-	c := a.prefs.AI.Current()
-	if c == nil || c.Protocol == agent.ChatGPT || a.qa.modelsBusy {
+func (ob *qaState) fetchModelCapabilities() {
+	c := ob.host.preferences().AI.Current()
+	if c == nil || c.Protocol == agent.ChatGPT || ob.modelsBusy {
 		return
 	}
-	s := a.qaSettings()
+	s := ob.qaSettings()
 	id := c.ID
-	a.cancelModelFetch()
-	epoch := a.qa.modelsEpoch
-	a.qa.modelsBusy = true
-	a.qa.catalogErr = nil
+	ob.cancelModelFetch()
+	epoch := ob.modelsEpoch
+	ob.modelsBusy = true
+	ob.catalogErr = nil
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	a.qa.modelsCancel = cancel
+	ob.modelsCancel = cancel
 	done := func(models []agent.ModelInfo, err error) {
 		defer cancel()
-		if a.qa.modelsEpoch != epoch {
+		if ob.modelsEpoch != epoch {
 			return
 		}
-		a.qa.modelsBusy = false
-		a.qa.modelsCancel = nil
-		a.qa.catalogErr = err
-		c := a.prefs.AI.Find(id)
+		ob.modelsBusy = false
+		ob.modelsCancel = nil
+		ob.catalogErr = err
+		c := ob.host.preferences().AI.Find(id)
 		if err != nil || c == nil {
 			return
 		}
@@ -432,18 +432,21 @@ func (a *App) fetchModelCapabilities() {
 				c.Models[i] = agent.MergeModelInfo(m, fallback)
 			}
 		}
-		a.savePrefs()
+		ob.host.savePrefs()
 	}
-	if a.qa.sync || a.win == nil {
+	if ob.sync || ob.host.window() == nil {
 		done(agent.FetchCatalog(ctx, s.Vendor))
 		return
 	}
-	go func() { models, err := agent.FetchCatalog(ctx, s.Vendor); a.win.Update(func() { done(models, err) }) }()
+	go func() {
+		models, err := agent.FetchCatalog(ctx, s.Vendor)
+		ob.host.window().Update(func() { done(models, err) })
+	}()
 }
 
-func (a *App) addManualAIModel() {
-	c := a.prefs.AI.Current()
-	id := strings.TrimSpace(a.qa.manualName)
+func (ob *qaState) addManualAIModel() {
+	c := ob.host.preferences().AI.Current()
+	id := strings.TrimSpace(ob.manualName)
 	if c == nil || id == "" {
 		return
 	}
@@ -451,30 +454,30 @@ func (a *App) addManualAIModel() {
 		if c.Models[i].ID == id {
 			c.Models[i].Enabled = true
 			c.Model = id
-			a.qa.manualName = ""
-			a.savePrefs()
+			ob.manualName = ""
+			ob.host.savePrefs()
 			return
 		}
 	}
 	c.Models = append(c.Models, agent.ModelInfo{ID: id, Name: id, Enabled: true, Source: "user"})
 	c.Model = id
-	a.qa.manualName = ""
-	a.savePrefs()
+	ob.manualName = ""
+	ob.host.savePrefs()
 }
 
-func (a *App) clearProviderModels() {
-	conn := a.prefs.AI.Current()
-	if conn == nil || a.qa.clearModelsFor != conn.ID {
+func (ob *qaState) clearProviderModels() {
+	conn := ob.host.preferences().AI.Current()
+	if conn == nil || ob.clearModelsFor != conn.ID {
 		return
 	}
-	a.cancelModelFetch()
+	ob.cancelModelFetch()
 	conn.Models, conn.Model = nil, ""
-	a.qa.models, a.qa.modelsErr, a.qa.catalogErr = nil, nil, nil
-	a.qa.modelsFor, a.qa.modelSearch, a.qa.capabilityModel, a.qa.clearModelsFor = "", "", "", ""
-	for role, model := range a.prefs.AI.Whiteboard {
+	ob.models, ob.modelsErr, ob.catalogErr = nil, nil, nil
+	ob.modelsFor, ob.modelSearch, ob.capabilityModel, ob.clearModelsFor = "", "", "", ""
+	for role, model := range ob.host.preferences().AI.Whiteboard {
 		if model.Connection == conn.ID {
-			delete(a.prefs.AI.Whiteboard, role)
+			delete(ob.host.preferences().AI.Whiteboard, role)
 		}
 	}
-	a.savePrefs()
+	ob.host.savePrefs()
 }

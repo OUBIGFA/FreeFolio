@@ -20,7 +20,7 @@ func TestOneBotOpensBesideWhiteboardWithoutResizeAnimation(t *testing.T) {
 			settle(tt)
 			b := a.doc.board
 			zoom, x, y := b.Zoom, b.PanX, b.PanY
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			if a.qa.shown < 200 || a.qa.resizing {
 				t.Fatalf("whiteboard stayed in the panel resize animation: width %v", a.qa.shown)
@@ -28,7 +28,7 @@ func TestOneBotOpensBesideWhiteboardWithoutResizeAnimation(t *testing.T) {
 			if b.Zoom != zoom || b.PanX != x || b.PanY != y {
 				t.Fatal("opening OneBot moved the whiteboard viewport")
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			if a.qa.shown != 0 {
 				t.Fatal("whiteboard kept animating after closing OneBot")

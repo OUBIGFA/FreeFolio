@@ -166,7 +166,7 @@ func (a *App) focusView(c *ui.Context) {
 			ui.Column(c.Key("page")).Grow(1).MinHeight(0).Children(func() {
 				a.conflictBar(c)
 				if a.doc.isMDZ() {
-					a.mdzView(c, a.doc, w-18, true)
+					a.mdzFiles.mdzView(c, a.doc, w-18, true)
 				} else if a.doc.isDatabase() {
 					a.databaseWorkspace(c, a.doc, w-18)
 				} else {
@@ -246,11 +246,11 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		CreateWhiteboard: func() { a.insertWhiteboard(d) },
 		OpenWhiteboard:   func(url string) { a.openBoardEmbed(d, url) },
 		BoardOptions:     a.boardOptions(c, d),
-		EditWithAI:       func(instruction string) { run(func() { a.editSelectionWithOneBot(instruction) }) },
-		AddToAI:          func() { run(func() { a.addSelectionToOneBot(d) }) },
+		EditWithAI:       func(instruction string) { run(func() { a.qa.editSelectionWithOneBot(instruction) }) },
+		AddToAI:          func() { run(func() { a.qa.addSelectionToOneBot(d) }) },
 		FontSize:         a.prefs.ReadingSize(),
 		LineHeight:       a.prefs.ReadingLine(),
-		FontFamily:       a.bodyFont(),
+		FontFamily:       a.fonts.bodyFont(),
 		Column:           a.prefs.Column(),
 		NoAutoPair:       a.prefs.NoAutoPair,
 		AutoSpace:        a.prefs.AutoSpace,
@@ -282,13 +282,13 @@ func (a *App) editorOptionsFor(c *ui.Context, width float32, focus bool, d *docu
 		Bindings:         a.editorBindings(),
 		Outline:          !a.prefs.OutlineClosed,
 		SetOutline:       a.setOutline,
-		Bookmarks:        a.marksOf(d),
+		Bookmarks:        a.bookmarks.marksOf(d),
 		ToggleBookmark: func(id string) {
-			a.toggleBookmark(d, id)
+			a.bookmarks.toggleBookmark(d, id)
 		},
-		LabelBookmark: func(id, label string) { a.labelBookmark(d.space.ID, d.rel, id, label) },
+		LabelBookmark: func(id, label string) { a.bookmarks.labelBookmark(d.space.ID, d.rel, id, label) },
 		BookmarkKey:   a.cachedBookmarkShortKey(),
-		Reserved:      a.reservedKeys(),
+		Reserved:      a.bookmarks.reservedKeys(),
 	}
 	if a.files != nil && d.space == a.files.locations {
 		// Space search, backlinks and tags have no meaning for a loose file.

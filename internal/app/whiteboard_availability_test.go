@@ -18,23 +18,23 @@ func TestLocalNodeRequiresDownloadDependenciesAndEngineSupport(t *testing.T) {
 	a.prefs.ComfyUI.Dir = t.TempDir()
 	a.resources.installed = map[string]bool{}
 	m := editor.BoardAIModel{Connection: "comfyui-zimage", Model: "z-detail"}
-	if got := a.boardModelAvailability(m); !got.NeedsDownload || got.Unavailable == "" {
+	if got := a.boardAI.boardModelAvailability(m); !got.NeedsDownload || got.Unavailable == "" {
 		t.Fatal("missing LoRA enabled")
 	}
 	a.resources.installed["z-detail"] = true
-	if !a.boardModelAvailability(m).NeedsDownload {
+	if !a.boardAI.boardModelAvailability(m).NeedsDownload {
 		t.Fatal("missing base enabled")
 	}
 	a.resources.installed["z-image-turbo-int8"] = true
-	if got := a.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
+	if got := a.boardAI.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
 		t.Fatalf("downloaded model cannot start the engine on demand: %+v", got)
 	}
 	a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true, LoRANative: true}
-	if got := a.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
+	if got := a.boardAI.boardModelAvailability(m); got.NeedsDownload || got.Unavailable != "" {
 		t.Fatalf("ready model disabled: %+v", got)
 	}
 	a.resources.comfyCaps.LoRANative = false
-	if a.boardModelAvailability(m).Unavailable == "" {
+	if a.boardAI.boardModelAvailability(m).Unavailable == "" {
 		t.Fatal("missing native LoRA node enabled")
 	}
 }
@@ -46,12 +46,12 @@ func TestBoardComfyStaysIdleUntilNodeRun(t *testing.T) {
 			// An isolated missing engine makes a startup attempt observable without
 			// launching Python or touching the user's ComfyUI installation.
 			a.prefs.ComfyUI.Dir = filepath.Join(t.TempDir(), "missing-engine")
-			a.resources.dir = a.resourceDirectory()
+			a.resources.dir = a.resources.resourceDirectory()
 			a.resources.installed = map[string]bool{"z-image-turbo-int8": true}
 			switch state {
 			case "stopped":
 				a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true}
-				a.stopComfyUI()
+				a.resources.stopComfyUI()
 				if a.resources.comfyCaps != nil {
 					t.Fatal("stopping retained stale engine capabilities")
 				}
@@ -65,7 +65,7 @@ func TestBoardComfyStaysIdleUntilNodeRun(t *testing.T) {
 				t.Fatal(err)
 			}
 			tt.Advance(time.Second)
-			model := a.boardAIDefault(whiteboard.AIImage)
+			model := a.boardAI.boardAIDefault(whiteboard.AIImage)
 			if model.Connection != "comfyui-zimage" || model.Model != "z-image-turbo-int8" {
 				t.Fatalf("idle engine blocked model selection: %+v", model)
 			}
@@ -134,12 +134,12 @@ func TestLoRADescriptionDistinguishesRepairTasks(t *testing.T) {
 	a, _ := newTestApp(t)
 	for _, id := range []string{"qwen-restore", "qwen-mosaic"} {
 		p, _ := localresource.ComfyPack(id)
-		_, _, detail := a.packDetailAndBadge(p)
+		_, _, detail := a.resources.packDetailAndBadge(p)
 		if !strings.Contains(detail, p.Description) || p.Description == "" {
 			t.Fatal("resource row missing purpose")
 		}
 	}
-	if a.boardRoleUnavailable(whiteboard.AIAudio) == "" {
+	if a.boardAI.boardRoleUnavailable(whiteboard.AIAudio) == "" {
 		t.Fatal("audio available without downloads")
 	}
 }
@@ -147,11 +147,11 @@ func TestLoRADescriptionDistinguishesRepairTasks(t *testing.T) {
 func TestDownloadedLoRAEnablesOnlyWhenItsFilesAreMounted(t *testing.T) {
 	a, _ := newTestApp(t)
 	a.prefs.ComfyUI.Dir = t.TempDir()
-	a.resources.dir = a.resourceDirectory()
+	a.resources.dir = a.resources.resourceDirectory()
 	a.resources.installed = map[string]bool{"z-detail": true, "z-image-turbo-int8": true}
 	a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true, LoRANative: true, ModelFiles: map[string][]string{}}
 	model := editor.BoardAIModel{Connection: "comfyui-zimage", Model: "z-detail"}
-	if a.boardModelAvailability(model).Unavailable == "" {
+	if a.boardAI.boardModelAvailability(model).Unavailable == "" {
 		t.Fatal("unmounted weights enabled")
 	}
 	pack, _ := localresource.ComfyPack("z-detail")
@@ -160,10 +160,10 @@ func TestDownloadedLoRAEnablesOnlyWhenItsFilesAreMounted(t *testing.T) {
 		parts := strings.Split(f.RelPath, "/")
 		a.resources.comfyCaps.ModelFiles[parts[1]] = append(a.resources.comfyCaps.ModelFiles[parts[1]], parts[len(parts)-1])
 	}
-	if got := a.boardModelAvailability(model); got.Unavailable != "" || got.NeedsDownload {
+	if got := a.boardAI.boardModelAvailability(model); got.Unavailable != "" || got.NeedsDownload {
 		t.Fatalf("verified available model disabled: %+v", got)
 	}
-	if a.boardRoleUnavailable(whiteboard.AILoRA) != "" {
+	if a.boardAI.boardRoleUnavailable(whiteboard.AILoRA) != "" {
 		t.Fatal("ready LoRA role disabled")
 	}
 }

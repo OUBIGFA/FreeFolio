@@ -9,29 +9,22 @@ import (
 
 // Repeatedly squeezing a media-heavy canvas forces expensive GPU presentation
 // during every sidebar animation frame. Keep its viewport and switch once.
-func (a *App) oneBotMotion() time.Duration {
-	if a.qa.dragging || a.qa.resizing {
+func (ob *qaState) oneBotMotion() time.Duration {
+	if ob.dragging || ob.resizing {
 		return 0
 	}
-	board := func(d *document) bool { return d != nil && (d.board != nil || d.boardLoading || d.boardOverlay != nil) }
-	if a.split != nil {
-		for _, p := range a.split.panes {
-			if board(p.doc) {
-				return 0
-			}
-		}
-	} else if board(a.doc) {
+	if ob.host.boardOnScreen() {
 		return 0
 	}
 	return slide
 }
 
-func (a *App) oneBotWidth(docked float32) float32 {
-	w := a.prefs.OneBotWidth
+func (ob *qaState) oneBotWidth(docked float32) float32 {
+	w := ob.host.preferences().OneBotWidth
 	if w <= 0 {
 		w = qaWidth
 	}
-	available := max(0, a.winW-docked)
+	available := max(0, ob.host.windowWidth()-docked)
 	if available == 0 {
 		return w
 	}
@@ -42,57 +35,57 @@ func (a *App) oneBotWidth(docked float32) float32 {
 
 // oneBotResizerTop is where the divider starts: under the header in the
 // spaces, the panel's full height under the file bar.
-func (a *App) oneBotResizerTop(c *ui.Context) float32 {
-	if a.files != nil {
+func (ob *qaState) oneBotResizerTop(c *ui.Context) float32 {
+	if ob.host.fileLocations() != nil {
 		return 0
 	}
-	return a.oneBotHeadHeight(c)
+	return ob.oneBotHeadHeight(c)
 }
 
 // The divider uses the existing native splitter interaction. Handle input is
 // resolved before both panels are built, so dragging has no animated lag.
-func (a *App) oneBotResizer(c *ui.Context, docked float32) {
-	if !a.qa.open || a.qa.shown < 1 || a.qaActiveSpace() == nil {
-		a.qa.dragging = false
+func (ob *qaState) oneBotResizer(c *ui.Context, docked float32) {
+	if !ob.open || ob.shown < 1 || ob.qaActiveSpace() == nil {
+		ob.dragging = false
 		return
 	}
 	hint := i18n.T("拖动调整宽度；双击恢复默认；方向键微调")
-	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(a.oneBotResizerTop(c)).Bottom(8).Right(a.qa.shown).Width(8).
+	h := ui.Box(c.Key("onebot-resizer")).Absolute().Top(ob.oneBotResizerTop(c)).Bottom(8).Right(ob.shown).Width(8).
 		Cursor(ui.CursorResizeEW).Focusable().Role(ui.RoleSplitter).Label(i18n.T("调整 OneBot 宽度")).Description(hint)
 	set := func(w float32) {
-		a.prefs.OneBotWidth = w
-		a.prefs.OneBotWidth = a.oneBotWidth(docked)
-		if a.prefs.OneBotWidth == qaWidth {
-			a.prefs.OneBotWidth = 0
+		ob.host.preferences().OneBotWidth = w
+		ob.host.preferences().OneBotWidth = ob.oneBotWidth(docked)
+		if ob.host.preferences().OneBotWidth == qaWidth {
+			ob.host.preferences().OneBotWidth = 0
 		}
-		a.qa.resizing = true
+		ob.resizing = true
 		c.After(0)
 	}
 	dx, _, held := h.Dragged()
 	if held {
-		if !a.qa.dragging {
-			a.qa.dragging = true
-			a.qa.dragWidth = a.oneBotWidth(docked)
+		if !ob.dragging {
+			ob.dragging = true
+			ob.dragWidth = ob.oneBotWidth(docked)
 		}
-		a.qa.dragWidth -= dx
-		set(a.qa.dragWidth)
-	} else if a.qa.dragging {
-		a.qa.dragging = false
-		a.savePrefs()
+		ob.dragWidth -= dx
+		set(ob.dragWidth)
+	} else if ob.dragging {
+		ob.dragging = false
+		ob.host.savePrefs()
 	}
 	switch {
 	case h.DoubleClicked() || h.Shortcut(0, ui.KeyEnter):
 		set(qaWidth)
-		a.qa.dragWidth = a.oneBotWidth(docked)
-		a.savePrefs()
+		ob.dragWidth = ob.oneBotWidth(docked)
+		ob.host.savePrefs()
 	case h.Shortcut(0, ui.KeyLeft):
-		set(a.oneBotWidth(docked) + 10)
-		a.savePrefs()
+		set(ob.oneBotWidth(docked) + 10)
+		ob.host.savePrefs()
 	case h.Shortcut(0, ui.KeyRight):
-		set(a.oneBotWidth(docked) - 10)
-		a.savePrefs()
+		set(ob.oneBotWidth(docked) - 10)
+		ob.host.savePrefs()
 	}
-	h.Right(a.oneBotWidth(docked))
+	h.Right(ob.oneBotWidth(docked))
 	resizeGrip(c, h, false, held || h.Hovered() || h.FocusVisible(), false)
-	a.resizerTip(c, h, hint)
+	ob.host.resizerTip(c, h, hint)
 }

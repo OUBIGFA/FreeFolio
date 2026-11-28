@@ -81,20 +81,20 @@ type oneBotTask struct {
 	cancel       context.CancelFunc
 }
 
-func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
-	sp := a.qaActiveSpace()
+func (ob *qaState) captureOneBotTask(scope string) (*oneBotTask, error) {
+	sp := ob.qaActiveSpace()
 	if sp == nil {
 		return nil, errors.New(i18n.T("空间已不存在"))
 	}
-	t := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: sp.ID, Scope: scope, Direct: a.prefs.AI.Direct, Created: time.Now()}
+	t := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: sp.ID, Scope: scope, Direct: ob.host.preferences().AI.Direct, Created: time.Now()}
 	if scope == "new" {
 		return t, nil
 	}
 	var docs []*document
 	if scope == "documents" {
-		for _, rel := range a.qa.editPaths {
+		for _, rel := range ob.editPaths {
 			var d *document
-			for _, open := range a.residentDocuments() {
+			for _, open := range ob.host.residentDocuments() {
 				if open.space.ID == sp.ID && open.rel == rel {
 					d = open
 					break
@@ -109,8 +109,8 @@ func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
 			}
 			docs = append(docs, d)
 		}
-	} else if a.doc != nil {
-		docs = []*document{a.doc}
+	} else if ob.host.activeDocument() != nil {
+		docs = []*document{ob.host.activeDocument()}
 	}
 	if len(docs) == 0 && scope != "new" {
 		return nil, errors.New(i18n.T("请先打开文档"))
@@ -207,12 +207,12 @@ func (a *App) captureOneBotTask(scope string) (*oneBotTask, error) {
 	return t, nil
 }
 
-func (a *App) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTask {
-	sp := a.qaSpaceByID(spaceID)
+func (ob *qaState) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTask {
+	sp := ob.qaSpaceByID(spaceID)
 	if sp == nil || len(rels) == 0 {
 		return nil
 	}
-	t := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: sp.ID, Direct: a.prefs.AI.Direct, Created: time.Now()}
+	t := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: sp.ID, Direct: ob.host.preferences().AI.Direct, Created: time.Now()}
 	seen := map[string]bool{}
 	for _, rel := range rels {
 		if rel == "" || seen[rel] || (!vault.IsMarkdown(rel) && !strings.EqualFold(path.Ext(rel), ".arcmd")) {
@@ -220,7 +220,7 @@ func (a *App) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTa
 		}
 		seen[rel] = true
 		var d *document
-		for _, open := range a.residentDocuments() {
+		for _, open := range ob.host.residentDocuments() {
 			if open.space == sp && open.rel == rel {
 				d = open
 				break
@@ -261,7 +261,7 @@ func (a *App) captureOneBotEditableDocs(spaceID string, rels []string) *oneBotTa
 	return t
 }
 
-func (a *App) mergeOneBotEditableAttachments(task *oneBotTask, items []oneBotAttachmentItem) {
+func (ob *qaState) mergeOneBotEditableAttachments(task *oneBotTask, items []oneBotAttachmentItem) {
 	if task == nil || (task.Scope != "document" && task.Scope != "documents") {
 		return
 	}
@@ -279,7 +279,7 @@ func (a *App) mergeOneBotEditableAttachments(task *oneBotTask, items []oneBotAtt
 	if len(extraRels) == 0 {
 		return
 	}
-	if extra := a.captureOneBotEditableDocs(task.SpaceID, extraRels); extra != nil {
+	if extra := ob.captureOneBotEditableDocs(task.SpaceID, extraRels); extra != nil {
 		task.Targets = append(task.Targets, extra.Targets...)
 		if len(task.Targets) > 1 {
 			task.Scope = "documents"
@@ -305,35 +305,35 @@ func makeOneBotTarget(d *document, target model.EditTarget) oneBotTarget {
 	return captured
 }
 
-func (a *App) beginOneBotEdit(scope string) bool {
-	t, err := a.captureOneBotTask(scope)
+func (ob *qaState) beginOneBotEdit(scope string) bool {
+	t, err := ob.captureOneBotTask(scope)
 	if err != nil {
-		a.notify("%s", err.Error())
+		ob.host.notify("%s", err.Error())
 		return false
 	}
-	a.qa.editTask = t
-	a.qa.editScope = scope
-	a.qa.open = true
-	a.qa.historyOpen = false
-	a.qa.focusInput = true
-	a.qa.editMode = true
+	ob.editTask = t
+	ob.editScope = scope
+	ob.open = true
+	ob.historyOpen = false
+	ob.focusInput = true
+	ob.editMode = true
 	return true
 }
 
 // editSelectionWithOneBot opens OneBot on the editor's selection. A preset
 // instruction from the selection bar is sent at once, as if typed, so the
 // candidate edits the captured selection; the user's unsent draft stays.
-func (a *App) editSelectionWithOneBot(instruction string) {
-	if !a.beginOneBotEdit("selection") || instruction == "" {
+func (ob *qaState) editSelectionWithOneBot(instruction string) {
+	if !ob.beginOneBotEdit("selection") || instruction == "" {
 		return
 	}
-	draft := a.qa.input
-	a.qa.input = instruction
-	a.askQA()
-	a.qa.input = draft
+	draft := ob.input
+	ob.input = instruction
+	ob.askQA()
+	ob.input = draft
 }
 
-func (a *App) oneBotTargetDoc(task *oneBotTask, target *oneBotTarget) (*document, error) {
+func (ob *qaState) oneBotTargetDoc(task *oneBotTask, target *oneBotTarget) (*document, error) {
 	if target.doc != nil && !target.doc.closed.Load() {
 		return target.doc, nil
 	}
@@ -342,12 +342,12 @@ func (a *App) oneBotTargetDoc(task *oneBotTask, target *oneBotTarget) (*document
 	}
 	// Reopening requires semantic equality with the persisted original target;
 	// Markdown imports assign fresh IDs, so bind only after exact block matching.
-	sp := a.qaSpaceByID(task.SpaceID)
+	sp := ob.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return nil, errors.New(i18n.T("空间已不存在"))
 	}
 	var d *document
-	for _, open := range a.residentDocuments() {
+	for _, open := range ob.host.residentDocuments() {
 		if open.space == sp && open.rel == target.Path {
 			d = open
 			break
@@ -432,11 +432,11 @@ func mapOneBotBlockIDs(before, after *model.Block, ids map[string]string) {
 	}
 }
 
-func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, follow bool) {
+func (ob *qaState) runOneBotEdit(task *oneBotTask, instruction string, count int, follow bool) {
 	if task == nil || task.Running || task.Applying {
 		return
 	}
-	if err := a.qaReady(); err != nil {
+	if err := ob.qaReady(); err != nil {
 		task.Error = err.Error()
 		return
 	}
@@ -451,16 +451,16 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 	task.Running = true
 	task.Generation++
 	epoch := task.Generation
-	settings := a.qaSettings()
+	settings := ob.qaSettings()
 	task.connectionID = settings.ConnectionID
-	if len(a.qa.attachments) > 0 {
-		parts, _, _ := splitOneBotAttachmentItems(a.qa.attachments)
+	if len(ob.attachments) > 0 {
+		parts, _, _ := splitOneBotAttachmentItems(ob.attachments)
 		task.Parts = parts
-		a.qa.attachments = nil
+		ob.attachments = nil
 	}
 	provider := settings.NewProvider()
-	if a.qa.provider != nil {
-		provider = a.qa.provider(settings)
+	if ob.provider != nil {
+		provider = ob.provider(settings)
 	}
 	var prior string
 	if follow && task.Selected < len(task.Candidates) {
@@ -497,13 +497,13 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 	}
 	var readTools []agent.Tool
 	if settings.Capabilities.Tools != agent.Unsupported && task.Scope != "selection" {
-		if fs := a.qaSpace(task.SpaceID); fs != nil {
+		if fs := ob.qaSpace(task.SpaceID); fs != nil {
 			readTools = agent.SpaceTools(fs)
 		}
 	}
 	deliver := func(f func()) { f() }
-	if !a.qa.sync && a.win != nil {
-		deliver = func(f func()) { a.win.Update(f) }
+	if !ob.sync && ob.host.window() != nil {
+		deliver = func(f func()) { ob.host.window().Update(f) }
 	}
 	work := func() {
 		var wg sync.WaitGroup
@@ -540,7 +540,7 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 						task.Candidates[i].Error = qaErrorText(resultErr)
 						return
 					}
-					prepared, err := a.prepareOneBotFileCandidate(task, draft)
+					prepared, err := ob.prepareOneBotFileCandidate(task, draft)
 					if err != nil {
 						task.Candidates[i].Error = err.Error()
 						return
@@ -549,7 +549,7 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 					task.Candidates[i] = prepared
 				})
 			}
-			if a.qa.sync || a.win == nil {
+			if ob.sync || ob.host.window() == nil {
 				run()
 			} else {
 				go run()
@@ -562,24 +562,24 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 				return
 			}
 			task.Running = false
-			a.loadChatGPTSession(settings.ConnectionID, true)
+			ob.host.chatGPT().loadChatGPTSession(settings.ConnectionID, true)
 			task.cancel = nil
 			cancel()
 			if task.Stopped {
 				return
 			}
-			if err := a.persistOneBotTask(task); err != nil {
+			if err := ob.persistOneBotTask(task); err != nil {
 				task.Error = err.Error()
 				return
 			}
 			if task.Direct && count == 1 && task.Candidates[0].Complete && len(task.Candidates[0].Changes) > 0 {
-				if err := a.applyOneBotCandidate(task, 0, -1); err != nil {
+				if err := ob.applyOneBotCandidate(task, 0, -1); err != nil {
 					task.Error = err.Error()
 				}
 			}
 		})
 	}
-	if a.qa.sync || a.win == nil {
+	if ob.sync || ob.host.window() == nil {
 		work()
 	} else {
 		go work()
@@ -588,8 +588,8 @@ func (a *App) runOneBotEdit(task *oneBotTask, instruction string, count int, fol
 
 // Continue from the exact result of the previous edit instead of reusing its
 // obsolete original selection. The earlier task stays in persisted history.
-func (a *App) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
-	next := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: previous.SpaceID, Scope: previous.Scope, Direct: a.prefs.AI.Direct, Created: time.Now(), NewPath: previous.NewPath}
+func (ob *qaState) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
+	next := &oneBotTask{Version: 1, ID: model.NewID(), SpaceID: previous.SpaceID, Scope: previous.Scope, Direct: ob.host.preferences().AI.Direct, Created: time.Now(), NewPath: previous.NewPath}
 	if previous.Selected < 0 || previous.Selected >= len(previous.Candidates) {
 		return nil, model.ErrEditConflict
 	}
@@ -599,12 +599,12 @@ func (a *App) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
 			if ch.Operation.Kind != "create_document" || ch.Status != "saved" {
 				continue
 			}
-			sp := a.qaSpaceByID(previous.SpaceID)
+			sp := ob.qaSpaceByID(previous.SpaceID)
 			if sp == nil {
 				return nil, model.ErrEditConflict
 			}
 			var d *document
-			for _, open := range a.residentDocuments() {
+			for _, open := range ob.host.residentDocuments() {
 				if open.space.ID == sp.ID && open.rel == ch.Path {
 					d = open
 					break
@@ -644,7 +644,7 @@ func (a *App) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
 			continue
 		}
 		original := targets[old.ID]
-		d, err := a.oneBotTargetDoc(previous, original)
+		d, err := ob.oneBotTargetDoc(previous, original)
 		if err != nil {
 			return nil, err
 		}
@@ -752,8 +752,8 @@ func (a *App) continueOneBotTask(previous *oneBotTask) (*oneBotTask, error) {
 	return next, nil
 }
 
-func (a *App) stopOneBotEdit() {
-	if task := a.qa.editTask; task != nil {
+func (ob *qaState) stopOneBotEdit() {
+	if task := ob.editTask; task != nil {
 		task.Stopped = true
 		task.Running = false
 		task.Generation++
@@ -761,25 +761,25 @@ func (a *App) stopOneBotEdit() {
 			task.cancel()
 			task.cancel = nil
 		}
-		if err := a.persistOneBotTask(task); err != nil {
+		if err := ob.persistOneBotTask(task); err != nil {
 			task.Error = err.Error()
 		}
 	}
 }
 
-func (a *App) persistOneBotTask(t *oneBotTask) error {
+func (ob *qaState) persistOneBotTask(t *oneBotTask) error {
 	data, err := json.MarshalIndent(t, "", "  ")
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(a.cfg.ConfigDir, "onebot", "tasks")
+	dir := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "tasks")
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	return fsutil.WriteFileAtomic(filepath.Join(dir, t.ID+".json"), data, 0600)
 }
 
-func (a *App) checkpointOneBot(task *oneBotTask, d *document) error {
+func (ob *qaState) checkpointOneBot(task *oneBotTask, d *document) error {
 	content := d.text()
 	if strings.EqualFold(path.Ext(d.rel), ".arcmd") {
 		var err error
@@ -792,21 +792,21 @@ func (a *App) checkpointOneBot(task *oneBotTask, d *document) error {
 		_, err := history.SaveMilestone(d.space.Root, d.rel, content, "OneBot "+task.Created.Format("2006-01-02 15:04:05"), time.Now())
 		return err
 	}
-	dir := filepath.Join(a.cfg.ConfigDir, "onebot", "recovery", task.ID)
+	dir := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "recovery", task.ID)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	return fsutil.WriteFileAtomic(filepath.Join(dir, model.NewID()+path.Ext(d.rel)), []byte(content), 0600)
 }
 
-func (a *App) applyOneBotCandidate(task *oneBotTask, index, only int) error {
-	if a.win != nil && !a.qa.sync {
-		return a.applyOneBotAsync(task, index, only)
+func (ob *qaState) applyOneBotCandidate(task *oneBotTask, index, only int) error {
+	if ob.host.window() != nil && !ob.sync {
+		return ob.applyOneBotAsync(task, index, only)
 	}
-	return a.applyOneBotSync(task, index, only)
+	return ob.applyOneBotSync(task, index, only)
 }
 
-func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
+func (ob *qaState) applyOneBotSync(task *oneBotTask, index, only int) error {
 	if task == nil || task.Running || task.Stopped || index < 0 || index >= len(task.Candidates) {
 		return errors.New(i18n.T("当前方案不能应用"))
 	}
@@ -831,7 +831,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 	var order []*document
 	for _, ch := range selected {
 		if ch.Operation.Kind == "create_document" {
-			sp := a.qaSpaceByID(task.SpaceID)
+			sp := ob.qaSpaceByID(task.SpaceID)
 			if sp == nil || sp.IsExternal() {
 				return model.ErrEditConflict
 			}
@@ -850,7 +850,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 		if target == nil {
 			return model.ErrEditConflict
 		}
-		d, err := a.oneBotTargetDoc(task, target)
+		d, err := ob.oneBotTargetDoc(task, target)
 		if err != nil {
 			return err
 		}
@@ -878,11 +878,11 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 	}
 	// All recovery points are durable before the first document changes.
 	for _, d := range order {
-		if err := a.checkpointOneBot(task, d); err != nil {
+		if err := ob.checkpointOneBot(task, d); err != nil {
 			return err
 		}
 	}
-	if err := a.persistOneBotTask(task); err != nil {
+	if err := ob.persistOneBotTask(task); err != nil {
 		return err
 	}
 	for _, d := range order {
@@ -905,7 +905,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 			ch.Receipt = &receipt
 			ch.Batch = batch
 		}
-		if err = a.persistOneBotTask(task); err != nil {
+		if err = ob.persistOneBotTask(task); err != nil {
 			task.Error = err.Error()
 			return err
 		}
@@ -913,7 +913,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 			for _, ch := range changes {
 				ch.Error = err.Error()
 			}
-			a.persistOneBotTask(task)
+			ob.persistOneBotTask(task)
 			return err
 		}
 		for _, ch := range changes {
@@ -937,7 +937,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 		if ch.Operation.Kind != "create_document" {
 			continue
 		}
-		sp := a.qaSpaceByID(task.SpaceID)
+		sp := ob.qaSpaceByID(task.SpaceID)
 		if sp == nil {
 			return errors.New(i18n.T("空间已不存在"))
 		}
@@ -950,7 +950,7 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 		}
 		if err = fsutil.CreateFileAtomic(full, []byte(ch.NewText), 0644); err != nil {
 			ch.Error = err.Error()
-			a.persistOneBotTask(task)
+			ob.persistOneBotTask(task)
 			return err
 		}
 		ch.Status = "saved"
@@ -965,5 +965,5 @@ func (a *App) applyOneBotSync(task *oneBotTask, index, only int) error {
 			}
 		}
 	}
-	return a.persistOneBotTask(task)
+	return ob.persistOneBotTask(task)
 }

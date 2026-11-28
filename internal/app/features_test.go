@@ -233,7 +233,7 @@ func TestRecentlyDeleted(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root(a), "Journal/Ideas.md")); !os.IsNotExist(err) {
 		t.Fatal("still there")
 	}
-	a.openTrash()
+	a.library.openTrash()
 	settle(tt)
 	if !tt.HasText("最近删除") || !tt.HasText("Ideas") || !tt.HasText("Personal / Journal · 刚刚删除") {
 		t.Fatalf("window: %q", tt.Texts())

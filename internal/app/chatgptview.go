@@ -29,11 +29,11 @@ func chatGPTSignInButton(c *ui.Context, label string, disabled bool) ui.Element 
 	return e
 }
 
-func (a *App) chatGPTAccountView(c *ui.Context) {
+func (cg *chatGPTState) chatGPTAccountView(c *ui.Context) {
 	t := c.Theme()
-	g := &a.chatgpt
-	id := a.prefs.AI.Active
-	s := a.chatGPTSession()
+	g := cg
+	id := cg.host.preferences().AI.Active
+	s := cg.chatGPTSession()
 	ui.Column(c.Key("chatgpt-account")).Padding(12).Gap(10).Children(func() {
 		ui.Row(c.Key("chatgpt-header")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			ui.Text(c, i18n.T("使用 ChatGPT 套餐")).FontSize(14).FontWeight(500)
@@ -62,7 +62,7 @@ func (a *App) chatGPTAccountView(c *ui.Context) {
 		ui.Row(c.Key("actions")).Gap(8).Wrap().Children(func() {
 			if g.busyID == id && g.cancel != nil {
 				if ui.Button(c.Key("cancel"), i18n.T("取消登录")).Clicked() {
-					a.cancelChatGPTSignIn()
+					cg.cancelChatGPTSignIn()
 				}
 			} else {
 				label := i18n.T("使用 ChatGPT 继续")
@@ -70,17 +70,17 @@ func (a *App) chatGPTAccountView(c *ui.Context) {
 					label = i18n.T("重新登录 ChatGPT")
 				}
 				if chatGPTSignInButton(c, label, g.busyID != "" || g.loading[id]).Clicked() {
-					a.startChatGPTSignIn(false)
+					cg.startChatGPTSignIn(false)
 				}
 				if s.Status == chatgpt.Connected && !s.Sharing && ui.Button(c.Key("consent"), i18n.T("允许使用 ChatGPT 套餐")).Disabled(g.busyID != "").Clicked() {
-					a.startChatGPTSignIn(true)
+					cg.startChatGPTSignIn(true)
 				}
 				if (s.Status != chatgpt.Disconnected || s.Pending) && ui.Button(c.Key("disconnect"), i18n.T("断开 ChatGPT 连接")).Disabled(g.busyID != "").Clicked() {
-					a.disconnectChatGPT(false)
+					cg.disconnectChatGPT(false)
 				}
 			}
 			if ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
-				a.openChatGPTUsage()
+				cg.openChatGPTUsage()
 			}
 		})
 		if err := g.errors[id]; err != nil {
@@ -89,25 +89,25 @@ func (a *App) chatGPTAccountView(c *ui.Context) {
 	})
 }
 
-func (a *App) chatGPTUsageView(c *ui.Context) {
-	conn := a.prefs.AI.Current()
+func (cg *chatGPTState) chatGPTUsageView(c *ui.Context) {
+	conn := cg.host.preferences().AI.Current()
 	if conn == nil || conn.Protocol != agent.ChatGPT {
 		return
 	}
 	text := i18n.T("ChatGPT 未连接")
-	if a.chatGPTSession().Sharing {
+	if cg.chatGPTSession().Sharing {
 		text = i18n.T("正在使用 ChatGPT 套餐")
 	}
 	ui.Row(c.Key("chatgpt-usage")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Text(c, text).FontSize(12).TextColor(c.Theme().TextMuted).Grow(1)
 		if quietOneBotAction(c, "manage", i18n.T("管理用量")).Clicked() {
-			a.openChatGPTUsage()
+			cg.openChatGPTUsage()
 		}
 	})
 }
 
-func (a *App) chatGPTWelcomeView(c *ui.Context) {
-	if !a.chatgpt.welcome {
+func (cg *chatGPTState) chatGPTWelcomeView(c *ui.Context) {
+	if !cg.welcome {
 		return
 	}
 	ui.Overlay(c.Key("chatgpt-welcome"), func() {
@@ -119,12 +119,12 @@ func (a *App) chatGPTWelcomeView(c *ui.Context) {
 				ui.Text(c, i18n.T("OneBot 中符合条件的请求将使用你的 ChatGPT 套餐或点数；你可以随时在 ChatGPT 设置中查看用量和调整此应用的限额")).FontSize(13)
 				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 					if ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
-						a.openChatGPTUsage()
+						cg.openChatGPTUsage()
 					}
 					if ui.Button(c.Key("ok"), i18n.T("知道了")).Clicked() {
-						a.prefs.AI.ChatGPTWelcomeSeen = true
-						a.chatgpt.welcome = false
-						a.savePrefs()
+						cg.host.preferences().AI.ChatGPTWelcomeSeen = true
+						cg.welcome = false
+						cg.host.savePrefs()
 					}
 				})
 			})

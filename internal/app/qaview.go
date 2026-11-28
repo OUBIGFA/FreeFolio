@@ -2,14 +2,14 @@ package app
 
 import (
 	"fmt"
-	"github.com/OUBIGFA/FreeFolio/internal/solar"
-	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/solar"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/egoist/mygo/ui"
@@ -44,8 +44,8 @@ var fileQAExamples = []string{
 
 // oneBotSpaceName names what OneBot reads: the open files in the file
 // browser, the space otherwise.
-func (a *App) oneBotSpaceName(sp *space.Space) string {
-	if a.files != nil && sp == a.files.locations {
+func (ob *qaState) oneBotSpaceName(sp *space.Space) string {
+	if sp != nil && sp == ob.host.fileLocations() {
 		return i18n.T("已打开的文件")
 	}
 	return sp.Name
@@ -56,41 +56,41 @@ const fileQAHeadHeight = 40
 
 // oneBotHeadHeight keeps OneBot's header level with the toolbar beside it
 // in the spaces; under the file bar it needs no title bar room.
-func (a *App) oneBotHeadHeight(c *ui.Context) float32 {
-	if a.files != nil {
+func (ob *qaState) oneBotHeadHeight(c *ui.Context) float32 {
+	if ob.host.fileLocations() != nil {
 		return fileQAHeadHeight
 	}
-	return max(a.titleBar(c).Height, mainBarHeight)
+	return max(ob.host.titleBar(c).Height, mainBarHeight)
 }
 
 // qaPanel is the question panel right of the document: its header level
 // with the toolbar, a card with the conversation and the question field.
 // It slides open as the sidebar does.
-func (a *App) qaPanel(c *ui.Context, docked float32) {
+func (ob *qaState) qaPanel(c *ui.Context, docked float32) {
 	t := c.Theme()
-	sp := a.qaActiveSpace()
+	sp := ob.qaActiveSpace()
 	col := ui.Column(c.Key("qa-dock")).Shrink(0).Clip()
-	w := a.qa.shown
+	w := ob.shown
 	col.Width(w).Hidden(w < 0.5).Children(func() {
 		if w < 0.5 || sp == nil {
 			return
 		}
-		bar := a.titleBar(c)
-		if !a.prefs.SidebarLeft {
+		bar := ob.host.titleBar(c)
+		if !ob.host.preferences().SidebarLeft {
 			bar.Right = max(0, bar.Right-docked)
 		}
-		flat := a.files != nil
+		flat := ob.host.fileLocations() != nil
 		fill := pick(t, white.Alpha(0.88), t.Surface)
-		qaCol := ui.Column(c.Key("qa")).Width(a.oneBotWidth(docked)).Grow(1).MinHeight(0)
+		qaCol := ui.Column(c.Key("qa")).Width(ob.oneBotWidth(docked)).Grow(1).MinHeight(0)
 		if flat {
 			qaCol.Background(fill).BorderWidth(0, 0, 0, 1).BorderColor(t.Border)
 		} else {
 			qaCol.Padding(0, 8, 8, 0)
 		}
 		qaCol.Children(func() {
-			s := a.qaSession(sp.ID)
-			name := a.oneBotSpaceName(sp)
-			head := ui.Row(c.Key("qa-head")).Height(a.oneBotHeadHeight(c)).Gap(6).AlignItems(ui.Center)
+			s := ob.qaSession(sp.ID)
+			name := ob.oneBotSpaceName(sp)
+			head := ui.Row(c.Key("qa-head")).Height(ob.oneBotHeadHeight(c)).Gap(6).AlignItems(ui.Center)
 			if flat {
 				head.Padding(0, 8, 0, 12).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.6))
 			} else {
@@ -102,70 +102,70 @@ func (a *App) qaPanel(c *ui.Context, docked float32) {
 				ui.Text(c, "·").FontSize(12).TextColor(t.TextMuted.Alpha(0.55)).NoWrap()
 				ui.Text(c, name).FontSize(12.5).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				a.oneBotHeaderMenu(c)
+				ob.oneBotHeaderMenu(c)
 				histBtn := iconButton(c, "qa-history", iconHistory, i18n.T("历史记录"), i18n.T("历史记录"), false)
-				if a.qa.historyOpen {
+				if ob.historyOpen {
 					histBtn.Background(t.Accent.Alpha(0.14)).TextColor(t.Accent)
 				}
 				if histBtn.Clicked() {
-					a.toggleOneBotHistory()
+					ob.toggleOneBotHistory()
 				}
-				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话（清空界面并重新开始）"), len(s.turns) == 0 && !a.qa.historyOpen).Clicked() {
-					a.clearQA()
+				if iconButton(c, "qa-new", iconNewChat, i18n.T("新对话"), i18n.T("新对话（清空界面并重新开始）"), len(s.turns) == 0 && !ob.historyOpen).Clicked() {
+					ob.clearQA()
 				}
-				if iconButton(c, "qa-close", iconX, i18n.T("关闭 OneBot"), a.withKey(i18n.T("关闭 OneBot"), "ask"), false).Clicked() {
-					a.qa.open = false
+				if iconButton(c, "qa-close", iconX, i18n.T("关闭 OneBot"), ob.host.withKey(i18n.T("关闭 OneBot"), "ask"), false).Clicked() {
+					ob.open = false
 				}
 			})
 			card := ui.Column(c.Key("qa-card")).Grow(1).MinHeight(0).Clip()
 			if !flat {
 				card.Radius(panelRadius).Background(fill).Border(1, t.Border)
 			}
-			if !a.qa.historyOpen {
+			if !ob.historyOpen {
 				fileOver := card.FileDragOver()
 				droppedFiles := card.DroppedFiles()
 				_, appOver := ui.DragOver[dragged](card)
 				droppedDrag, isAppDrop := ui.Drop[dragged](card)
 				_, favOver := ui.DragOver[favoriteDrag](qaCol)
 				droppedFav, isFavDrop := ui.Drop[favoriteDrag](qaCol)
-				a.qa.dropHover = fileOver || appOver || favOver
+				ob.dropHover = fileOver || appOver || favOver
 				if len(droppedFiles) > 0 {
-					a.addOneBotFiles(droppedFiles)
+					ob.addOneBotFiles(droppedFiles)
 				}
 				if isAppDrop {
-					a.dragGrab.consumed = true
-					rels := a.oneBotDraggedRels(droppedDrag)
+					ob.host.consumeDragGrab()
+					rels := ob.oneBotDraggedRels(droppedDrag)
 					if len(rels) > 1 {
-						a.clearPicks("")
+						ob.host.clearPicks("")
 					}
-					a.addOneBotSpaceRefs(droppedDrag.space, rels)
+					ob.addOneBotSpaceRefs(droppedDrag.space, rels)
 				}
-				if isFavDrop && droppedFav.index >= 0 && droppedFav.index < len(a.state.Favorites) {
-					fav := a.state.Favorites[droppedFav.index]
-					a.addOneBotSpaceRefs(fav.Space, []string{fav.Path})
+				if isFavDrop && droppedFav.index >= 0 && droppedFav.index < len(ob.host.spaces().Favorites) {
+					fav := ob.host.spaces().Favorites[droppedFav.index]
+					ob.addOneBotSpaceRefs(fav.Space, []string{fav.Path})
 				}
 			} else {
-				a.qa.dropHover = false
+				ob.dropHover = false
 			}
 			card.Children(func() {
-				if a.qa.historyOpen {
-					a.oneBotHistoryPanel(c, sp.ID, s)
+				if ob.historyOpen {
+					ob.oneBotHistoryPanel(c, sp.ID, s)
 					return
 				}
-				a.qaBody(c, sp.ID, name, s)
-				a.oneBotComposer(c, s)
+				ob.qaBody(c, sp.ID, name, s)
+				ob.oneBotComposer(c, s)
 			})
 		})
 	})
 }
 
-func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
+func (ob *qaState) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 	t := c.Theme()
 	s.beginCitationFrame(c)
 	if len(s.turns) == 0 {
 		s.finishCitationFrame(c)
 		ui.Box(c.Key("welcome-above")).Grow(1)
-		ui.Scroll(c.Key("qa-welcome")).MinHeight(0).Shrink(1).PaddingX(14).AlignItems(ui.Center).Children(func() { a.qaEmpty(c, name) })
+		ui.Scroll(c.Key("qa-welcome")).MinHeight(0).Shrink(1).PaddingX(14).AlignItems(ui.Center).Children(func() { ob.qaEmpty(c, name) })
 		ui.Box(c.Key("welcome-below")).Grow(1)
 		return
 	}
@@ -173,10 +173,10 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 		turn.prepareStream(c)
 	}
 	rows := s.visibleRowsWith(func() *spacefs.FS {
-		if fs := a.qa.spaces[spaceID]; fs != nil {
+		if fs := ob.spaces[spaceID]; fs != nil {
 			return fs
 		}
-		return a.qaSpace(spaceID)
+		return ob.qaSpace(spaceID)
 	})
 	for _, turn := range s.turns {
 		turn.view.animate(c.Now(), turn.animateAnswer(c))
@@ -206,25 +206,25 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 			ui.Column(c.Key("content")).Padding(0, 0, gap, 0).Children(func() {
 				switch r.kind {
 				case qaQuestionRow:
-					a.qaQuestion(c, spaceID, s, r.turn)
+					ob.qaQuestion(c, spaceID, s, r.turn)
 				case qaStepsRow:
-					a.qaSteps(c, spaceID, r.turn)
+					ob.qaSteps(c, spaceID, r.turn)
 				case qaAnswerRow:
-					a.qaAnswerBlock(c, spaceID, s, r.turn, &r.turn.view.blocks[r.index])
+					ob.qaAnswerBlock(c, spaceID, s, r.turn, &r.turn.view.blocks[r.index])
 				case qaSourcesRow:
-					a.qaTurnFooter(c, spaceID, s, r.turn)
+					ob.qaTurnFooter(c, spaceID, s, r.turn)
 				case qaStatusRow:
-					a.qaStatus(c, spaceID, r.turn)
+					ob.qaStatus(c, spaceID, r.turn)
 				case qaEditRow:
-					a.oneBotReply(c, r.turn.edit)
+					ob.oneBotReply(c, r.turn.edit)
 				case qaContextBreakRow:
-					a.qaContextBreak(c, spaceID, s, r.turn)
+					ob.qaContextBreak(c, spaceID, s, r.turn)
 				}
 			})
 		})
 		_, lastVis := s.list.Visible()
 		if len(s.turns) > 0 && lastVis >= 0 && !s.list.AtEnd() {
-			col := previewColors(t, a.look)
+			col := previewColors(t, ob.host.currentLook())
 			ui.Row(c.Key("qa-jump-pos")).Absolute().Left(0).Right(0).Bottom(10).Justify(ui.Center).PassThrough().
 				Transition(ui.ElementTransition{
 					Duration: 150 * time.Millisecond,
@@ -255,7 +255,7 @@ func (a *App) qaBody(c *ui.Context, spaceID, name string, s *qaSession) {
 		}
 	})
 	s.finishCitationFrame(c)
-	a.qaCitationPreview(c, s)
+	ob.qaCitationPreview(c, s)
 }
 
 // qaRoundButton is the round send or stop button beside the field.
@@ -275,7 +275,7 @@ func qaRoundButton(c *ui.Context, key string, icon *ui.SVG, label string, disabl
 	return b
 }
 
-func (a *App) qaEmpty(c *ui.Context, name string) {
+func (ob *qaState) qaEmpty(c *ui.Context, name string) {
 	t := c.Theme()
 	ui.Column(c.Key("qa-empty")).Role(ui.RoleGroup).Label(i18n.T("新对话")).WidthPercent(100).MaxWidth(320).Gap(10).Padding(8, 2).AlignItems(ui.Center).Children(func() {
 		ui.Box(c.Key("qa-badge")).Size(34, 34).Radius(9).Background(t.Accent.Alpha(0.09)).Center().Children(func() {
@@ -283,26 +283,26 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 		})
 		ui.Column(c).Gap(4).AlignItems(ui.Center).Children(func() {
 			title, hint := fmt.Sprintf(i18n.T("向「%s」提问"), name), i18n.T("搜索这个空间的文档，并在回答中标出来源")
-			if a.files != nil {
+			if ob.host.fileLocations() != nil {
 				title, hint = i18n.T("向打开的文件提问"), i18n.T("搜索已打开的文件，并在回答中标出来源")
 			}
 			ui.Text(c, title).FontSize(18).FontWeight(600).TextAlign(ui.Center)
 			ui.Text(c, hint).
 				FontSize(13).LineHeight(1.45).TextColor(t.TextMuted).TextAlign(ui.Center)
 		})
-		if err := a.qaReady(); err != nil {
+		if err := ob.qaReady(); err != nil {
 			ui.Column(c.Key("qa-unset-card")).Gap(10).Padding(12, 16).Radius(10).AlignItems(ui.Center).
 				Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.5)).Children(func() {
 				ui.Text(c, err.Error()).FontSize(12).TextColor(t.TextMuted).TextAlign(ui.Center)
 				if ui.PrimaryButton(c.Key("qa-setup"), i18n.T("设置模型")).Clicked() {
-					a.openSettings(tabAI)
+					ob.host.openSettings(tabAI)
 				}
 			})
 			return
 		}
 		ui.Column(c).Gap(6).AlignItems(ui.Stretch).WidthPercent(100).Children(func() {
 			examples := qaExamples
-			if a.files != nil {
+			if ob.host.fileLocations() != nil {
 				examples = fileQAExamples
 			}
 			for i, ex := range examples {
@@ -318,8 +318,8 @@ func (a *App) qaEmpty(c *ui.Context, name string) {
 					ui.Text(c, ex).FontSize(12.5).LineHeight(1.4).TextColor(ink).TextAlign(ui.Center).Shrink(1).MinWidth(0)
 				})
 				if row.Clicked() {
-					a.qa.input = ex
-					a.askQA()
+					ob.input = ex
+					ob.askQA()
 				}
 			}
 		})
@@ -352,38 +352,38 @@ func qaQuietIconAction(c *ui.Context, key string, icon *ui.SVG, label, tooltip s
 	return b
 }
 
-func (a *App) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
+func (ob *qaState) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
 	ui.Column(c.Key("q")).Gap(5).AlignItems(ui.End).Transition(ui.ElementTransition{
 		Duration: 180 * time.Millisecond,
 		Enter:    &ui.Motion{Y: 5, Opacity: 0},
 	}).Children(func() {
-		a.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
-		a.oneBotAttachmentBadges(c, "q-attachments", turn.attachments, nil)
-		if a.qa.editingTurn == turn {
+		ob.oneBotQuoteBadges(c, "q-quotes", turn.quotes, false)
+		ob.oneBotAttachmentBadges(c, "q-attachments", turn.attachments, nil)
+		if ob.editingTurn == turn {
 			ui.Column(c.Key("q-edit")).WidthPercent(100).MaxWidth(520).Padding(10, 12).Radius(12).
 				Background(field(t)).Border(1, t.Accent.Alpha(0.55)).Gap(8).Children(func() {
-				edIn := ui.TextInput(c.Key("edit-turn-input"), &a.qa.editingText).Multiline(true).MinHeight(56).
+				edIn := ui.TextInput(c.Key("edit-turn-input"), &ob.editingText).Multiline(true).MinHeight(56).
 					Border(0, t.Border).Background(ui.Color{}).Padding(0).Label(i18n.T("编辑问题"))
-				if a.qa.focusEditTurn {
-					a.qa.focusEditTurn = false
+				if ob.focusEditTurn {
+					ob.focusEditTurn = false
 					edIn.Focus()
 				}
 				if edIn.Focused() && c.Shortcut(0, ui.KeyEscape) {
-					a.cancelEditQATurn()
+					ob.cancelEditQATurn()
 					return
 				}
-				canSave := strings.TrimSpace(a.qa.editingText) != "" || len(turn.attachments) > 0 || len(turn.quotes) > 0
+				canSave := strings.TrimSpace(ob.editingText) != "" || len(turn.attachments) > 0 || len(turn.quotes) > 0
 				if (edIn.Submitted() || (edIn.Focused() && c.Shortcut(ui.Cmd, ui.KeyEnter))) && canSave {
-					a.submitEditQATurn(spaceID)
+					ob.submitEditQATurn(spaceID)
 					return
 				}
 				ui.Row(c.Key("edit-actions")).Gap(6).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 					if ui.Button(c.Key("edit-cancel"), i18n.T("取消")).FontSize(12).Clicked() {
-						a.cancelEditQATurn()
+						ob.cancelEditQATurn()
 					}
 					if ui.PrimaryButton(c.Key("edit-save"), i18n.T("保存并发送")).FontSize(12).Disabled(!canSave).Clicked() {
-						a.submitEditQATurn(spaceID)
+						ob.submitEditQATurn(spaceID)
 					}
 				})
 			})
@@ -396,17 +396,17 @@ func (a *App) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTu
 			})
 			if !turn.running && !turn.revealing {
 				copyKey := fmt.Sprintf("qcopy-%p", turn)
-				copied := a.isQACopied(c, copyKey)
+				copied := ob.isQACopied(c, copyKey)
 				ui.Row(c.Key("q-actions")).Gap(2).AlignItems(ui.Center).Children(func() {
 					copyTip, copyIcon := i18n.T("复制问题"), iconCopy
 					if copied {
 						copyTip, copyIcon = i18n.T("已复制"), iconCheck
 					}
 					if qaQuietIconAction(c, "q-copy", copyIcon, i18n.T("复制问题"), copyTip, copied, false).Clicked() {
-						a.copyQAText(c, copyKey, turn.question)
+						ob.copyQAText(c, copyKey, turn.question)
 					}
 					if qaQuietIconAction(c, "q-edit", iconPencil, i18n.T("编辑并重发"), i18n.T("编辑并重发"), false, s.running()).Clicked() {
-						a.beginEditQATurn(turn)
+						ob.beginEditQATurn(turn)
 					}
 				})
 			}
@@ -414,29 +414,29 @@ func (a *App) qaQuestion(c *ui.Context, spaceID string, s *qaSession, turn *qaTu
 	})
 }
 
-func (a *App) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
+func (ob *qaState) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
 	ui.Column(c.Key("turn-footer")).Gap(6).Children(func() {
 		if len(turn.view.refs) > 0 {
-			a.qaSources(c, spaceID, turn)
+			ob.qaSources(c, spaceID, turn)
 		}
 		isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
 		canRegen := turn.answer != "" || turn.stopped || turn.err != nil || len(turn.steps) > 0
 		ui.Row(c.Key("qa-actions")).Gap(2).Wrap().AlignItems(ui.Center).Children(func() {
 			if turn.answer != "" {
 				copyKey := fmt.Sprintf("acopy-%p", turn)
-				copied := a.isQACopied(c, copyKey)
+				copied := ob.isQACopied(c, copyKey)
 				copyIcon, copyTip := iconCopy, i18n.T("复制")
 				if copied {
 					copyIcon, copyTip = iconCheck, i18n.T("已复制")
 				}
 				if qaQuietIconAction(c, "copy", copyIcon, i18n.T("复制"), copyTip, copied, false).Clicked() {
-					a.copyQAText(c, copyKey, qaCleanCopyMarkdown(turn.answer))
+					ob.copyQAText(c, copyKey, qaCleanCopyMarkdown(turn.answer))
 				}
 			}
 			if canRegen {
 				if qaQuietIconAction(c, "regenerate", iconReload, i18n.T("重新生成"), i18n.T("重新生成回复"), false, s.running()).Clicked() {
-					a.retryQA(spaceID, turn)
+					ob.retryQA(spaceID, turn)
 				}
 			}
 			if !s.running() && isLast && (turn.stopped || turn.finishReason == "length") {
@@ -450,43 +450,43 @@ func (a *App) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qa
 					ui.Text(c, i18n.T("继续生成")).FontSize(11.5).FontWeight(500).TextColor(t.Text.Alpha(0.82)).NoWrap()
 				})
 				if cont.Clicked() {
-					a.continueQA(spaceID, turn)
+					ob.continueQA(spaceID, turn)
 				}
 			}
-			if turn.answer != "" && a.canInsertQAToDoc() {
+			if turn.answer != "" && ob.canInsertQAToDoc() {
 				insKey := fmt.Sprintf("ains-%p", turn)
-				inserted := a.isQACopied(c, insKey)
+				inserted := ob.isQACopied(c, insKey)
 				insIcon, insTip := iconFilePlus, i18n.T("插入到当前文档")
 				if inserted {
 					insIcon, insTip = iconCheck, i18n.T("已插入到文档")
 				}
 				if qaQuietIconAction(c, "insert-doc", insIcon, i18n.T("插入到当前文档"), insTip, inserted, false).Clicked() {
-					a.insertQATurnToDoc(c, insKey, turn)
+					ob.insertQATurnToDoc(c, insKey, turn)
 				}
 			}
 			more := qaQuietIconAction(c, "more", iconEllipsis, i18n.T("更多操作"), i18n.T("更多操作"), false, false)
 			more.Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 				if turn.answer != "" {
 					if m.Item(i18n.T("复制纯文本")).Chosen() {
-						a.copyQAText(c, fmt.Sprintf("acopy-%p", turn), qaPlainCopyText(turn.answer))
+						ob.copyQAText(c, fmt.Sprintf("acopy-%p", turn), qaPlainCopyText(turn.answer))
 					}
 				}
 				if isLast && (turn.answer != "" || turn.stopped) {
 					if m.Item(i18n.T("从此轮继续生成")).Disabled(s.running()).Chosen() {
-						a.continueQA(spaceID, turn)
+						ob.continueQA(spaceID, turn)
 					}
 				}
 				if m.Item(i18n.T("从此轮新建分支对话")).Disabled(s.running()).Chosen() {
-					a.forkOneBotFromTurn(spaceID, turn)
+					ob.forkOneBotFromTurn(spaceID, turn)
 				}
 				if isLast {
 					if m.Item(i18n.T("清除上下文（从此处重新开始）")).Disabled(s.running() || turn.contextBreakAfter).Chosen() {
-						a.clearOneBotContext(spaceID)
+						ob.clearOneBotContext(spaceID)
 					}
 				}
 				m.Separator()
 				if m.Item(i18n.T("删除此轮及后续")).Disabled(s.running()).Chosen() {
-					a.deleteQATurnFrom(spaceID, turn)
+					ob.deleteQATurnFrom(spaceID, turn)
 				}
 			})
 			ui.Spacer(c)
@@ -497,7 +497,7 @@ func (a *App) qaTurnFooter(c *ui.Context, spaceID string, s *qaSession, turn *qa
 	})
 }
 
-func (a *App) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
+func (ob *qaState) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn) {
 	t := c.Theme()
 	isLast := len(s.turns) > 0 && s.turns[len(s.turns)-1] == turn
 	ui.Row(c.Key("context-break")).Gap(8).Padding(4, 0).AlignItems(ui.Center).Children(func() {
@@ -516,7 +516,7 @@ func (a *App) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *
 					ui.Text(c, i18n.T("撤销")).FontSize(11).FontWeight(600).TextColor(t.Accent).NoWrap()
 				})
 				if undo.Clicked() {
-					a.undoOneBotContextBreak(spaceID, turn)
+					ob.undoOneBotContextBreak(spaceID, turn)
 				}
 			}
 		})
@@ -524,7 +524,7 @@ func (a *App) qaContextBreak(c *ui.Context, spaceID string, s *qaSession, turn *
 	})
 }
 
-func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
+func (ob *qaState) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 	t := c.Theme()
 	if (turn.running || turn.revealing) && turn.displayAnswer() == "" && len(turn.steps) == 0 {
 		label := i18n.T("正在查找")
@@ -562,13 +562,13 @@ func (a *App) qaStatus(c *ui.Context, spaceID string, turn *qaTurn) {
 			})
 			ui.Row(c).Gap(8).Children(func() {
 				if chatGPTUsageLimit(turn.err) && ui.Button(c.Key("usage"), i18n.T("管理用量")).Clicked() {
-					a.openChatGPTUsage()
+					ob.host.chatGPT().openChatGPTUsage()
 				}
 				if ui.Button(c.Key("retry"), i18n.T("重试")).Clicked() {
-					a.retryQA(spaceID, turn)
+					ob.retryQA(spaceID, turn)
 				}
-				if a.qaReady() != nil && ui.Button(c.Key("setup"), i18n.T("设置模型")).Clicked() {
-					a.openSettings(tabAI)
+				if ob.qaReady() != nil && ui.Button(c.Key("setup"), i18n.T("设置模型")).Clicked() {
+					ob.host.openSettings(tabAI)
 				}
 			})
 		})
@@ -641,7 +641,7 @@ func (t *qaTurn) consultedTitles() []string {
 // qaSteps renders the unified Agent Exploration Card: live Ghost + active
 // headline while exploring, compact docIcon-badged summary once answering,
 // and a smoothly collapsible vertical timeline of interactive steps.
-func (a *App) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
+func (ob *qaState) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 	t := c.Theme()
 	waiting := (turn.running || turn.revealing) && turn.displayAnswer() == ""
 	open := turn.stepsOpen()
@@ -735,14 +735,14 @@ func (a *App) qaSteps(c *ui.Context, spaceID string, turn *qaTurn) {
 			ui.Box(c).Height(1).Background(separator(t))
 			ui.Column(c.Key("timeline")).Padding(6, 8, 7, 10).Children(func() {
 				for i, st := range turn.steps {
-					a.qaStepItem(c, spaceID, st, i, len(turn.steps))
+					ob.qaStepItem(c, spaceID, st, i, len(turn.steps))
 				}
 			})
 		})
 	})
 }
 
-func (a *App) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, total int) {
+func (ob *qaState) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, total int) {
 	t := c.Theme()
 	meta := stepMeta(st.call)
 	hits := st.ensureHits()
@@ -830,7 +830,7 @@ func (a *App) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, total
 			if row.Clicked() {
 				switch {
 				case canJump:
-					a.openCitation(spaceID, agent.Citation{Path: meta.docPath, From: meta.from, To: meta.to})
+					ob.openCitation(spaceID, agent.Citation{Path: meta.docPath, From: meta.from, To: meta.to})
 				case canExpand:
 					st.open = !st.open
 				}
@@ -868,7 +868,7 @@ func (a *App) qaStepItem(c *ui.Context, spaceID string, st *qaStep, index, total
 							}
 						})
 						if hRow.Clicked() && h.path != "" {
-							a.openCitation(spaceID, agent.Citation{Path: h.path, From: max(h.line, 1), To: max(h.line, 1)})
+							ob.openCitation(spaceID, agent.Citation{Path: h.path, From: max(h.line, 1), To: max(h.line, 1)})
 						}
 					}
 				})

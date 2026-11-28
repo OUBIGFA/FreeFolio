@@ -32,7 +32,7 @@ func keyTestApp(t *testing.T) (*App, *ui.Tester, *[]string) {
 	a, tt := newTestApp(t)
 	setupOneBot(a, "good")
 	a.qa.keyInput = "bad"
-	_ = a.saveAIKey()
+	_ = a.qa.saveAIKey()
 	a.qa.sync = true
 	var calls []string
 	a.qa.provider = func(s agent.Settings) agent.Provider {
@@ -60,10 +60,10 @@ func TestOneBotTestsAllKeys(t *testing.T) {
 	if len(*calls) != 2 {
 		t.Fatalf("tested %q, want both keys", *calls)
 	}
-	if r, _ := a.keyTestOf("good"); r.busy || r.err != nil {
+	if r, _ := a.qa.keyTestOf("good"); r.busy || r.err != nil {
 		t.Fatalf("good key: %+v", r)
 	}
-	if r, _ := a.keyTestOf("bad"); r.err == nil {
+	if r, _ := a.qa.keyTestOf("bad"); r.err == nil {
 		t.Fatal("the refused key must fail")
 	}
 	texts := strings.Join(tt.Texts(), "|")
@@ -82,13 +82,13 @@ func TestOneBotTestsOneKey(t *testing.T) {
 	if len(*calls) != 1 || (*calls)[0] != "bad" {
 		t.Fatalf("tested %q, want only Key 2", *calls)
 	}
-	if _, ok := a.keyTestOf("good"); ok {
+	if _, ok := a.qa.keyTestOf("good"); ok {
 		t.Fatal("Key 1 was not tested")
 	}
 	c := a.prefs.AI.Current()
 	c.Models = append(c.Models, agent.ModelInfo{ID: "other", Enabled: true})
 	c.Model = "other"
-	if _, ok := a.keyTestOf("bad"); ok {
+	if _, ok := a.qa.keyTestOf("bad"); ok {
 		t.Fatal("a result must not outlive a change of model")
 	}
 }
@@ -116,8 +116,8 @@ func TestOneBotMediaKeyUsesOnlyImageEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	good, ok := a.keyTestOf("good")
-	bad, tested := a.keyTestOf("bad")
+	good, ok := a.qa.keyTestOf("good")
+	bad, tested := a.qa.keyTestOf("bad")
 	if strings.Join(calls, ",") != "Bearer good,Bearer bad" || !ok || good.err != nil || !tested || bad.err == nil {
 		t.Fatalf("calls=%q good=%+v bad=%+v", calls, good, bad)
 	}

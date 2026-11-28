@@ -33,7 +33,7 @@ func TestWhiteboardClassifiesLocalAndRemoteOllama(t *testing.T) {
 		{"https://ollama.com", false},
 	} {
 		a.prefs.AI.Connections = []prefs.AIConnection{{ID: "saved-connection", Name: "Ollama", Protocol: agent.Ollama, BaseURL: tc.address, Models: []agent.ModelInfo{{ID: "model", Enabled: true}}}}
-		models := a.boardAIModels(whiteboard.AIText)
+		models := a.boardAI.boardAIModels(whiteboard.AIText)
 		if len(models) != 1 || models[0].Local != tc.local {
 			t.Errorf("%s: model source = %+v, want local=%v", tc.address, models, tc.local)
 		}
@@ -102,7 +102,7 @@ func TestGeminiCatalogFeedsWhiteboardAndOneBotImages(t *testing.T) {
 	if data, err := o.AI.ReadFile(out.Path); err != nil || !bytes.Equal(data, buf.Bytes()) {
 		t.Fatalf("board attachment: %v", err)
 	}
-	tool := a.chatImageTool(d)
+	tool := a.boardAI.chatImageTool(d)
 	if tool == nil {
 		t.Fatal("Gemini image tool missing")
 	}
@@ -167,7 +167,7 @@ func TestWhiteboardAINodesUseOneBotConnections(t *testing.T) {
 		t.Fatal("nothing was chosen, yet a model was remembered")
 	}
 	o.AI.Remember(whiteboard.AIImage, o.AI.Models(whiteboard.AIImage)[0])
-	if a.boardAIDefault(whiteboard.AIImage).Model != "gpt-image-1" {
+	if a.boardAI.boardAIDefault(whiteboard.AIImage).Model != "gpt-image-1" {
 		t.Fatal("remembered model not used")
 	}
 }
@@ -194,7 +194,7 @@ func TestOneBotEditsTheOpenWhiteboardWithTools(t *testing.T) {
 	a.newWhiteboard("")
 	tt.Frame()
 	d := a.doc
-	a.ask(d.space.ID, "帮我搭一个用户痛点分析", nil)
+	a.qa.ask(d.space.ID, "帮我搭一个用户痛点分析", nil)
 	var nodes, notes int
 	for _, e := range d.board.Scene.Elements {
 		if n := whiteboard.AINodeOf(e); n != nil && n.Instruction == "列出痛点" && len(d.board.Scene.AIInputs(e.ID)) == 1 {
@@ -234,7 +234,7 @@ func TestOneBotGeneratesPicturesBesideTheOpenDocument(t *testing.T) {
 	a.refreshTree()
 	a.open("灯塔.md")
 	tt.Frame()
-	a.ask(a.doc.space.ID, "画一座灯塔", nil)
+	a.qa.ask(a.doc.space.ID, "画一座灯塔", nil)
 	if !strings.HasPrefix(saved, "saved: ![](") {
 		t.Fatalf("tool result %q", saved)
 	}

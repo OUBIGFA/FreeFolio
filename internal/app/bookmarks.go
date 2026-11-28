@@ -14,6 +14,29 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// bookmarksHost is what bookmarks need from the window.
+type bookmarksHost interface {
+	activeDocument() *document
+	docHint(id, rel string) string
+	fileMarks() *space.State
+	keyLabel(id string) string
+	notify(format string, args ...any)
+	openAnywhere(id, rel string) bool
+	openPalette()
+	palettePanel() *palette
+	reservedCombos() []editor.Combo
+	residentDocuments() []*document
+	saveState()
+	spaces() *space.State
+}
+
+// bookmarkFeature keeps the bookmarks of every space and the file browser.
+type bookmarkFeature struct {
+	host bookmarksHost
+	// gen counts changes to the bookmarks, which documents resolve again.
+	gen uint64
+}
+
 // Bookmarks mark places in documents: top-level blocks, kept in
 // spaces.json rather than in the document, so marking a place neither
 // edits the document nor converts a Markdown file. A bookmark finds its
@@ -53,25 +76,25 @@ func topBlock(d *document, id string) *model.Block {
 
 // marksOf are the blocks of the document with a bookmark, by ID, with
 // their labels.
-func (a *App) bookmarkState(spaceID string) *space.State {
-	if a.files != nil && spaceID == space.ExternalID {
-		return &a.files.marks
+func (bk *bookmarkFeature) bookmarkState(spaceID string) *space.State {
+	if marks := bk.host.fileMarks(); marks != nil && spaceID == space.ExternalID {
+		return marks
 	}
-	return a.state
+	return bk.host.spaces()
 }
 
-func (a *App) marksOf(d *document) map[string]string {
+func (bk *bookmarkFeature) marksOf(d *document) map[string]string {
 	if d == nil || d.loadErr != nil {
 		return nil
 	}
-	st := a.bookmarkState(d.space.ID)
+	st := bk.bookmarkState(d.space.ID)
 	mk := &d.marks
 	rev := d.ed.Revision()
-	if mk.known && mk.rev == rev && mk.gen == a.bookmarkGen {
+	if mk.known && mk.rev == rev && mk.gen == bk.gen {
 		return mk.m
 	}
 	if len(st.Bookmarks) == 0 {
-		mk.rev, mk.gen, mk.known, mk.bound, mk.m = rev, a.bookmarkGen, true, true, nil
+		mk.rev, mk.gen, mk.known, mk.bound, mk.m = rev, bk.gen, true, true, nil
 		return nil
 	}
 	m := map[string]string{}
@@ -94,9 +117,9 @@ func (a *App) marksOf(d *document) map[string]string {
 			m[blk.ID] = b.Label
 		}
 	}
-	mk.rev, mk.gen, mk.known, mk.bound, mk.m = rev, a.bookmarkGen, true, true, m
+	mk.rev, mk.gen, mk.known, mk.bound, mk.m = rev, bk.gen, true, true, m
 	if rebound {
-		a.saveState()
+		bk.host.saveState()
 	}
 	return m
 }
@@ -104,19 +127,19 @@ func (a *App) marksOf(d *document) map[string]string {
 // syncExcerpts writes the current text of a document's bookmarked blocks
 // to their bookmarks once the document is saved, so lists show what the
 // block says now.
-func (a *App) syncExcerpts(d *document) {
-	if d == nil || d.loadErr != nil || len(a.state.Bookmarks) == 0 {
+func (bk *bookmarkFeature) syncExcerpts(d *document) {
+	if d == nil || d.loadErr != nil || len(bk.host.spaces().Bookmarks) == 0 {
 		return
 	}
 	mk := &d.marks
 	rev := d.ed.Revision()
-	if mk.excerptRev == rev && mk.excerptGen == a.bookmarkGen || d.dirty() {
+	if mk.excerptRev == rev && mk.excerptGen == bk.gen || d.dirty() {
 		return
 	}
-	mk.excerptRev, mk.excerptGen = rev, a.bookmarkGen
+	mk.excerptRev, mk.excerptGen = rev, bk.gen
 	changed := false
-	for i := range a.state.Bookmarks {
-		b := &a.state.Bookmarks[i]
+	for i := range bk.host.spaces().Bookmarks {
+		b := &bk.host.spaces().Bookmarks[i]
 		if b.Space != d.space.ID || b.Path != d.rel {
 			continue
 		}
@@ -127,24 +150,24 @@ func (a *App) syncExcerpts(d *document) {
 		}
 	}
 	if changed {
-		a.saveState()
+		bk.host.saveState()
 	}
 }
 
 // bookmarksChanged takes a change to the bookmarks: every document
 // resolves its own again, and spaces.json keeps it.
-func (a *App) bookmarksChanged() {
-	a.bookmarkGen++
-	a.saveState()
+func (bk *bookmarkFeature) bookmarksChanged() {
+	bk.gen++
+	bk.host.saveState()
 }
 
 // toggleBookmark marks the top-level block of the document, or takes its
 // bookmark away.
-func (a *App) toggleBookmark(d *document, id string) {
+func (bk *bookmarkFeature) toggleBookmark(d *document, id string) {
 	if d == nil || d.loadErr != nil {
 		return
 	}
-	st := a.bookmarkState(d.space.ID)
+	st := bk.bookmarkState(d.space.ID)
 	if !st.RemoveBookmark(d.space.ID, d.rel, id) {
 		blk := topBlock(d, id)
 		if blk == nil {
@@ -152,61 +175,61 @@ func (a *App) toggleBookmark(d *document, id string) {
 		}
 		st.AddBookmark(space.Bookmark{Space: d.space.ID, Path: d.rel, Block: id, Excerpt: editor.BlockExcerpt(blk), Created: time.Now()})
 	}
-	a.bookmarksChanged()
+	bk.bookmarksChanged()
 }
 
 // labelBookmark names the bookmark on the block of the document; an empty
 // label shows the excerpt again.
-func (a *App) labelBookmark(spaceID, rel, id, label string) {
-	st := a.bookmarkState(spaceID)
+func (bk *bookmarkFeature) labelBookmark(spaceID, rel, id, label string) {
+	st := bk.bookmarkState(spaceID)
 	if i := st.BookmarkIndex(spaceID, rel, id); i >= 0 && st.Bookmarks[i].Label != label {
 		st.Bookmarks[i].Label = label
-		a.bookmarksChanged()
+		bk.bookmarksChanged()
 	}
 }
 
 // bookmarkable is the open document when bookmarks work in it: loaded and
 // shown as rich text.
-func (a *App) bookmarkable() *document {
-	if d := a.doc; d != nil && d.loadErr == nil && !d.source && !d.isPDF() && !d.isMDZ() && !d.isDatabase() {
+func (bk *bookmarkFeature) bookmarkable() *document {
+	if d := bk.host.activeDocument(); d != nil && d.loadErr == nil && !d.source && !d.isPDF() && !d.isMDZ() && !d.isDatabase() {
 		return d
 	}
 	return nil
 }
 
 // toggleBookmarkAtCaret marks the block holding the caret, or unmarks it.
-func (a *App) toggleBookmarkAtCaret() {
-	d := a.bookmarkable()
+func (bk *bookmarkFeature) toggleBookmarkAtCaret() {
+	d := bk.bookmarkable()
 	if d == nil {
 		return
 	}
 	if blk := d.ed.BookmarkTarget(); blk != nil {
-		a.toggleBookmark(d, blk.ID)
+		bk.toggleBookmark(d, blk.ID)
 	}
 }
 
 // caretMarked reports whether the block holding the caret has a bookmark.
-func (a *App) caretMarked(d *document) bool {
+func (bk *bookmarkFeature) caretMarked(d *document) bool {
 	blk := d.ed.BookmarkTarget()
 	if blk == nil {
 		return false
 	}
-	_, ok := a.marksOf(d)[blk.ID]
+	_, ok := bk.marksOf(d)[blk.ID]
 	return ok
 }
 
 // stepBookmark goes to the next bookmark of the open document after the
 // caret's block (dir 1) or before it (-1), round from the end to the
 // start.
-func (a *App) stepBookmark(dir int) {
-	d := a.bookmarkable()
+func (bk *bookmarkFeature) stepBookmark(dir int) {
+	d := bk.bookmarkable()
 	if d == nil {
 		return
 	}
-	marks := a.marksOf(d)
+	marks := bk.marksOf(d)
 	blocks := d.ed.Doc.Blocks
 	if len(marks) == 0 || len(blocks) == 0 {
-		a.notify("这篇文档还没有书签；按 %s 标记当前段落", a.firstKey("bookmark"))
+		bk.host.notify("这篇文档还没有书签；按 %s 标记当前段落", bk.firstKey("bookmark"))
 		return
 	}
 	at := d.ed.CaretBlock()
@@ -221,8 +244,8 @@ func (a *App) stepBookmark(dir int) {
 
 // firstKey is the first key of the command, or its name in the command
 // bar when it has none.
-func (a *App) firstKey(id string) string {
-	if k := a.keyLabel(id); k != "" {
+func (bk *bookmarkFeature) firstKey(id string) string {
+	if k := bk.host.keyLabel(id); k != "" {
 		return strings.Split(k, " / ")[0]
 	}
 	return i18n.T("命令栏「添加书签」")
@@ -230,9 +253,8 @@ func (a *App) firstKey(id string) string {
 
 // reservedKeys are the keys of the bookmark commands, which the page must
 // not take for itself.
-func (a *App) reservedKeys() []editor.Combo {
-	a.ensureKeyCache()
-	return a.cachedReserved
+func (bk *bookmarkFeature) reservedKeys() []editor.Combo {
+	return bk.host.reservedCombos()
 }
 
 // sameBookmark reports whether two bookmarks are the same one, though its
@@ -242,10 +264,10 @@ func sameBookmark(x, y space.Bookmark) bool {
 }
 
 // liveBookmark is the bookmark as the state has it now.
-func (a *App) liveBookmark(b space.Bookmark) (*space.Bookmark, bool) {
-	for i := range a.state.Bookmarks {
-		if sameBookmark(a.state.Bookmarks[i], b) {
-			return &a.state.Bookmarks[i], true
+func (bk *bookmarkFeature) liveBookmark(b space.Bookmark) (*space.Bookmark, bool) {
+	for i := range bk.host.spaces().Bookmarks {
+		if sameBookmark(bk.host.spaces().Bookmarks[i], b) {
+			return &bk.host.spaces().Bookmarks[i], true
 		}
 	}
 	return nil, false
@@ -253,21 +275,21 @@ func (a *App) liveBookmark(b space.Bookmark) (*space.Bookmark, bool) {
 
 // openBookmark opens the bookmark's document and goes to its block; a
 // bookmark whose block is gone opens the document at the top.
-func (a *App) openBookmark(b space.Bookmark) {
-	if d := a.doc; d == nil || d.space.ID != b.Space || d.rel != b.Path {
-		if !a.openAnywhere(b.Space, b.Path) {
+func (bk *bookmarkFeature) openBookmark(b space.Bookmark) {
+	if d := bk.host.activeDocument(); d == nil || d.space.ID != b.Space || d.rel != b.Path {
+		if !bk.host.openAnywhere(b.Space, b.Path) {
 			return
 		}
 	}
-	d := a.doc
+	d := bk.host.activeDocument()
 	if d.loadErr != nil {
 		return
 	}
 	if d.source {
 		d.toggleMode()
 	}
-	marks := a.marksOf(d)
-	live, ok := a.liveBookmark(b)
+	marks := bk.marksOf(d)
+	live, ok := bk.liveBookmark(b)
 	if !ok {
 		return
 	}
@@ -275,25 +297,25 @@ func (a *App) openBookmark(b space.Bookmark) {
 		d.ed.RevealBlock(live.Block)
 		return
 	}
-	a.notify("书签「%s」的位置已失效：那段内容已被删除或合并", live.Title())
+	bk.host.notify("书签「%s」的位置已失效：那段内容已被删除或合并", live.Title())
 }
 
 // removeBookmark takes the bookmark away, wherever its document is.
-func (a *App) removeBookmark(b space.Bookmark) {
-	if live, ok := a.liveBookmark(b); ok && a.state.RemoveBookmark(live.Space, live.Path, live.Block) {
-		a.bookmarksChanged()
+func (bk *bookmarkFeature) removeBookmark(b space.Bookmark) {
+	if live, ok := bk.liveBookmark(b); ok && bk.host.spaces().RemoveBookmark(live.Space, live.Path, live.Block) {
+		bk.bookmarksChanged()
 	}
 }
 
 // openBookmarks shows the bookmarks in the command bar.
-func (a *App) openBookmarks() {
-	a.openPalette()
-	a.palette.bookmarks = true
+func (bk *bookmarkFeature) openBookmarks() {
+	bk.host.openPalette()
+	bk.host.palettePanel().bookmarks = true
 }
 
 // residentDoc is the document at the place if it is in memory.
-func (a *App) residentDoc(spaceID, rel string) *document {
-	for _, d := range a.residentDocuments() {
+func (bk *bookmarkFeature) residentDoc(spaceID, rel string) *document {
+	for _, d := range bk.host.residentDocuments() {
 		if d.space.ID == spaceID && d.rel == rel {
 			return d
 		}
@@ -304,7 +326,7 @@ func (a *App) residentDoc(spaceID, rel string) *document {
 // bookmarkResults are the command bar's bookmarks: the open document's in
 // the order of the page, then its lost ones, then every other document's,
 // newest first; the query filters them by title and document.
-func (a *App) bookmarkResults(q string) []action {
+func (bk *bookmarkFeature) bookmarkResults(q string) []action {
 	q = strings.TrimSpace(q)
 	var out []action
 	add := func(b space.Bookmark, kind, hint string, lost bool) {
@@ -319,12 +341,12 @@ func (a *App) bookmarkResults(q string) []action {
 		}
 		bm := b
 		out = append(out, action{kind: kind, title: title, hint: hint, bookmark: &bm, faded: lost,
-			run: func() { a.openBookmark(bm) }})
+			run: func() { bk.openBookmark(bm) }})
 	}
 	var rest []space.Bookmark
-	if d := a.bookmarkable(); d != nil {
-		marks := a.marksOf(d)
-		mine := a.state.BookmarksIn(d.space.ID, d.rel)
+	if d := bk.bookmarkable(); d != nil {
+		marks := bk.marksOf(d)
+		mine := bk.host.spaces().BookmarksIn(d.space.ID, d.rel)
 		for _, blk := range d.ed.Doc.Blocks {
 			if _, ok := marks[blk.ID]; !ok {
 				continue
@@ -341,8 +363,8 @@ func (a *App) bookmarkResults(q string) []action {
 			}
 		}
 	}
-	for _, b := range a.state.Bookmarks {
-		if d := a.bookmarkable(); d != nil && b.Space == d.space.ID && b.Path == d.rel {
+	for _, b := range bk.host.spaces().Bookmarks {
+		if d := bk.bookmarkable(); d != nil && b.Space == d.space.ID && b.Path == d.rel {
 			continue
 		}
 		rest = append(rest, b)
@@ -350,12 +372,12 @@ func (a *App) bookmarkResults(q string) []action {
 	slices.SortStableFunc(rest, func(x, y space.Bookmark) int { return y.Created.Compare(x.Created) })
 	for _, b := range rest {
 		hint := vault.Title(b.Path)
-		if where := a.docHint(b.Space, b.Path); where != "" {
+		if where := bk.host.docHint(b.Space, b.Path); where != "" {
 			hint = where + " / " + hint
 		}
 		lost := false
-		if d := a.residentDoc(b.Space, b.Path); d != nil && d.loadErr == nil {
-			_, found := a.marksOf(d)[b.Block]
+		if d := bk.residentDoc(b.Space, b.Path); d != nil && d.loadErr == nil {
+			_, found := bk.marksOf(d)[b.Block]
 			lost = !found
 		}
 		add(b, i18n.T("书签"), hint, lost)
@@ -365,15 +387,15 @@ func (a *App) bookmarkResults(q string) []action {
 
 // bookmarkRow draws a bookmark's row in the command bar: its title, or the
 // field naming it while it is being renamed, and its menu.
-func (a *App) bookmarkRow(c *ui.Context, row ui.Element, act action) bool {
-	p := &a.palette
+func (bk *bookmarkFeature) bookmarkRow(c *ui.Context, row ui.Element, act action) bool {
+	p := bk.host.palettePanel()
 	b := *act.bookmark
 	row.ContextMenu(func(m *ui.Menu) {
 		if m.Item(i18n.T("重命名")).Chosen() {
 			p.renaming, p.renameOn, p.newLabel, p.renameFocused = b, true, b.Label, false
 		}
 		if m.Item(i18n.T("移除书签")).Chosen() {
-			a.removeBookmark(b)
+			bk.removeBookmark(b)
 		}
 	})
 	if !p.renameOn || !sameBookmark(p.renaming, b) {
@@ -392,8 +414,8 @@ func (a *App) bookmarkRow(c *ui.Context, row ui.Element, act action) bool {
 			p.renameFocused = true
 		}
 		if input.Submitted() || left {
-			if live, ok := a.liveBookmark(b); ok {
-				a.labelBookmark(live.Space, live.Path, live.Block, strings.TrimSpace(p.newLabel))
+			if live, ok := bk.liveBookmark(b); ok {
+				bk.labelBookmark(live.Space, live.Path, live.Block, strings.TrimSpace(p.newLabel))
 			}
 			p.renameOn = false
 		}
@@ -402,6 +424,6 @@ func (a *App) bookmarkRow(c *ui.Context, row ui.Element, act action) bool {
 }
 
 // shortKey is the first key of the command, "" when it has none.
-func (a *App) shortKey(id string) string {
-	return strings.Split(a.keyLabel(id), " / ")[0]
+func (bk *bookmarkFeature) shortKey(id string) string {
+	return strings.Split(bk.host.keyLabel(id), " / ")[0]
 }

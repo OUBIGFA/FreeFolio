@@ -228,13 +228,13 @@ func TestBoardImageHistoryViewerKeepsOutputAndOpensRequestedAttachment(t *testin
 	source.Locked = true
 	before := string(source.CustomData)
 	for i := range outputs {
-		a.boardAI(d).OpenHistoryImage(source.ID, i)
+		a.boardAI.boardAI(d).OpenHistoryImage(source.ID, i)
 		opened := a.boardImages[len(a.boardImages)-1]
 		if opened.image == nil || opened.editing || opened.exportPath != outputs[i].Path || string(source.CustomData) != before {
 			t.Fatalf("history viewer changed selection or loaded wrong attachment: %+v", opened)
 		}
 	}
-	a.boardAI(d).OpenHistoryImage(source.ID, 1)
+	a.boardAI.boardAI(d).OpenHistoryImage(source.ID, 1)
 	if len(a.boardImages) != 3 {
 		t.Fatal("reopening an existing image duplicated its window")
 	}

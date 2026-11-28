@@ -32,9 +32,9 @@ func (a *App) Content() *ui.Content { return ui.View(a.View) }
 
 // View builds the window from the state, every frame.
 func (a *App) View(c *ui.Context) {
-	defer a.gitApplyingView(c)
+	defer a.gitSync.gitApplyingView(c)
 	defer a.importGuideView(c)
-	c.Root().Font(a.interfaceFont())
+	c.Root().Font(a.fonts.interfaceFont())
 	a.now, a.reduceMotion = c.Now(), c.Preferences().ReduceMotion
 	a.applyPendingDatabasePeekMode()
 	a.frame++
@@ -45,8 +45,8 @@ func (a *App) View(c *ui.Context) {
 	if a.pendingDupUndo != nil && a.renaming == "" {
 		a.flushPendingDupUndo("", "")
 	}
-	a.cloudTick(c)
-	a.gitTick(c)
+	a.cloud.cloudTick(c)
+	a.gitSync.gitTick(c)
 	a.memTrim.tick(c)
 	if a.versions.open && a.versions.for_ == a.doc {
 		a.versions.view(c)
@@ -115,9 +115,9 @@ func (a *App) View(c *ui.Context) {
 			if a.autosaveEnabled() {
 				d.autosaveWith(c, post)
 			}
-			a.cloudSaved(d)
+			a.documentSaved(d)
 			a.followTitle()
-			a.syncExcerpts(a.doc)
+			a.bookmarks.syncExcerpts(a.doc)
 		})
 	}
 	for _, n := range a.notices {
@@ -128,8 +128,8 @@ func (a *App) View(c *ui.Context) {
 		c.AddToast(u)
 	}
 	a.undos = a.undos[:0]
-	a.updateTick(c)
-	a.updateToastTick()
+	a.updates.updateTick(c)
+	a.updates.updateToastTick()
 
 	frame := ui.Row(c).Fill().AlignItems(ui.Stretch)
 	if !a.prefs.SidebarLeft {
@@ -170,7 +170,7 @@ func (a *App) View(c *ui.Context) {
 		if a.library.open {
 			// The library takes over the sidebar, widened for its rail,
 			// shown even when the sidebar is folded away.
-			inner = a.libraryWidth(winW)
+			inner = a.library.libraryWidth(winW)
 			target = inner
 		}
 		// Dragged, the edge follows the pointer at once.
@@ -184,7 +184,7 @@ func (a *App) View(c *ui.Context) {
 				return
 			}
 			if a.library.open {
-				a.libraryView(c, inner)
+				a.library.libraryView(c, inner)
 				if a.prefs.SidebarLeft {
 					// Keep the brand in the leading title-bar band while the
 					// library rail runs full height underneath without a seam.
@@ -220,15 +220,15 @@ func (a *App) View(c *ui.Context) {
 	a.previewView(c)
 	a.paletteView(c)
 	a.newModalView(c)
-	a.updateToast(c)
+	a.updates.updateToast(c)
 	a.settingsView(c)
-	a.chatGPTWelcomeView(c)
+	a.chatgpt.chatGPTWelcomeView(c)
 	a.replaceView(c)
 	a.unsavedPromptView(c)
 	a.tagRenameView(c)
 	a.versions.view(c)
 	a.pdfExportView(c)
-	a.pdfPagesView(c)
+	a.pdfPages.pdfPagesView(c)
 	a.databasePeekModal(c)
 	a.tourView(c)
 	a.mainWindowButtons(c)
@@ -361,16 +361,16 @@ func (a *App) oneBotEditShortcuts(c *ui.Context) bool {
 		return false
 	}
 	if task := a.qa.editTask; task != nil && (task.Running || task.Applying) && c.Shortcut(0, ui.KeyEscape) {
-		a.stopOneBotEdit()
+		a.qa.stopOneBotEdit()
 		return true
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyEnter) {
-		a.askQA()
+		a.qa.askQA()
 		return true
 	}
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter) {
 		if task := a.qa.editTask; task != nil {
-			if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
+			if err := a.qa.applyOneBotCandidate(task, task.Selected, -1); err != nil {
 				task.Error = err.Error()
 			}
 		}
@@ -442,9 +442,9 @@ func (a *App) shortcuts(c *ui.Context) {
 	case a.pressed(c, "settings"):
 		a.openSettings(tabGeneral)
 	case a.pressed(c, "overview"):
-		a.toggleOverview()
+		a.library.toggleOverview()
 	case a.pressed(c, "library"):
-		a.toggleLibrary()
+		a.library.toggleLibrary()
 	case a.pressed(c, "mindmap"):
 		a.toggleActiveDocumentMap()
 	case a.pressed(c, "outline"):
@@ -458,17 +458,17 @@ func (a *App) shortcuts(c *ui.Context) {
 	case !a.overlayBlocksZoom() && a.canZoomPage(a.doc) && a.pressed(c, "zoom-reset"):
 		a.resetPageZoom()
 	case a.pressed(c, "bookmark"):
-		a.toggleBookmarkAtCaret()
+		a.bookmarks.toggleBookmarkAtCaret()
 	case a.pressed(c, "bookmarks"):
-		a.openBookmarks()
+		a.bookmarks.openBookmarks()
 	case a.pressed(c, "prev-bookmark"):
-		a.stepBookmark(-1)
+		a.bookmarks.stepBookmark(-1)
 	case a.pressed(c, "next-bookmark"):
-		a.stepBookmark(1)
+		a.bookmarks.stepBookmark(1)
 	case a.pressed(c, "history"):
 		a.versions.show()
 	case a.pressed(c, "ask"):
-		a.toggleQA()
+		a.qa.toggleQA()
 	case a.pressed(c, "export-pdf"):
 		a.exportPDF()
 	}
@@ -551,13 +551,13 @@ func (a *App) main(c *ui.Context, docked float32) {
 	t := c.Theme()
 	main := ui.Row(c.Key("main")).Grow(1).MinWidth(0).AlignItems(ui.Stretch)
 	main.Children(func() {
-		a.oneBotResizer(c, docked)
+		a.qa.oneBotResizer(c, docked)
 		target := float32(0)
 		if a.qa.open && a.state.ActiveSpace() != nil && (!a.spaceForm.open || a.spaceForm.id != "") {
-			target = a.oneBotWidth(docked)
+			target = a.qa.oneBotWidth(docked)
 		}
 		// Resolve resize input before both panels; only opening/closing animates.
-		motion := a.oneBotMotion()
+		motion := a.qa.oneBotMotion()
 		if motion == 0 {
 			a.qa.shown = main.Jump("qa-width", target)
 		} else {
@@ -587,7 +587,7 @@ func (a *App) main(c *ui.Context, docked float32) {
 			card.Children(func() { a.documentContent(c, a.doc, w-docked-right-left-2-panel) })
 		})
 		if !a.spaceForm.open || a.spaceForm.id != "" {
-			a.qaPanel(c, docked)
+			a.qa.qaPanel(c, docked)
 		}
 	})
 }
@@ -678,7 +678,7 @@ func (a *App) documentContent(c *ui.Context, d *document, cardWidth float32) {
 	page.Children(func() {
 		a.conflictBarFor(c, d)
 		if d.isMDZ() {
-			a.mdzView(c, d, cardWidth, false)
+			a.mdzFiles.mdzView(c, d, cardWidth, false)
 		} else if d.isDatabase() {
 			a.databaseWorkspace(c, d, cardWidth)
 		} else {
@@ -755,7 +755,7 @@ func (a *App) toolbar(c *ui.Context, docked float32) {
 			ask.Background(navigationFill(c.Theme()))
 		}
 		if ask.Clicked() {
-			a.toggleQA()
+			a.qa.toggleQA()
 		}
 		a.moreMenu(c)
 		// Closing the document, at the page's top-right corner, shows the

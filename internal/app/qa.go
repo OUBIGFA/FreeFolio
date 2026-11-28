@@ -22,9 +22,12 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/formats"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/mdz"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/spacefs"
+	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -48,7 +51,50 @@ type secretStore interface {
 	Delete(key string) error
 }
 
+// oneBotHost is what OneBot needs from the window: documents and spaces,
+// trash and undo, the shared chrome and the ChatGPT connection.
+type oneBotHost interface {
+	activeDocument() *document
+	activeTree() []*vault.Node
+	appConfig() Config
+	boardAgentTools(d *document, deliver func(func())) []agent.Tool
+	boardOnScreen() bool
+	cachedTree(id string) []*vault.Node
+	chatGPT() *chatGPTState
+	chatImageTool(d *document) *agent.Tool
+	clearPicks(anchor string)
+	clock() time.Time
+	consumeDragGrab()
+	currentLook() spaceLook
+	docNodes() []*vault.Node
+	fileLocations() *space.Space
+	filePicker() func(done func(paths []string))
+	isDocOf(d dragged) bool
+	notify(format string, args ...any)
+	offerUndo(title, name string, undo func())
+	openAnywhere(id, rel string) bool
+	openRecordPeek(dbDoc *document, store *database.Store, sp *space.Space, rec *database.Record, mode string)
+	openSettings(tab string)
+	preferences() *prefs.Prefs
+	rawGroupFor(spID, rel string) []string
+	refreshTree()
+	replaceReferences(old, replacement *document)
+	residentDocuments() []*document
+	resizerTip(c *ui.Context, h ui.Element, hint string)
+	restoreDeleted(it trashbin.Item)
+	savePrefs()
+	saveState()
+	spaces() *space.State
+	titleBar(c *ui.Context) ui.TitleBar
+	trashBin() *trashbin.Bin
+	trashItem(p string) error
+	window() *mygo.Window
+	windowWidth() float32
+	withKey(tip, id string) string
+}
+
 type qaState struct {
+	host                oneBotHost
 	editOptionsOpen     bool
 	attachments         []oneBotAttachmentItem
 	dropHover           bool
@@ -226,20 +272,20 @@ type qaStepHit struct {
 }
 
 // qaReady reports whether a question can be asked, and why not.
-func (a *App) qaReady() error {
-	if a.prefs == nil {
+func (ob *qaState) qaReady() error {
+	if ob.host.preferences() == nil {
 		return errors.New(i18n.T("无法读取设置"))
 	}
-	if a.prefs.AI.Current() == nil {
+	if ob.host.preferences().AI.Current() == nil {
 		return errors.New(i18n.T("请先添加供应商"))
 	}
-	settings := a.qaSettings()
+	settings := ob.qaSettings()
 	if settings.Protocol == agent.ChatGPT {
-		if a.chatgpt.busyID == settings.ConnectionID {
+		if ob.host.chatGPT().busyID == settings.ConnectionID {
 			return errors.New(i18n.T("正在处理 ChatGPT 连接"))
 		}
-		if !a.chatGPTSession().Sharing && !a.chatGPTSession().Pending {
-			if a.chatGPTSession().Status == chatgpt.Connected {
+		if !ob.host.chatGPT().chatGPTSession().Sharing && !ob.host.chatGPT().chatGPTSession().Pending {
+			if ob.host.chatGPT().chatGPTSession().Status == chatgpt.Connected {
 				return errors.New(i18n.T("已登录 ChatGPT，但尚未允许使用套餐；请在设置中授权"))
 			}
 			return errors.New(i18n.T("请先登录 ChatGPT"))
@@ -248,8 +294,8 @@ func (a *App) qaReady() error {
 	switch err := settings.Check(); {
 	case err == nil:
 		return nil
-	case errors.Is(err, agent.ErrNoKey) && a.qa.keyErr != nil:
-		return errors.New(i18n.T("无法读取 API Key：") + a.qa.keyErr.Error())
+	case errors.Is(err, agent.ErrNoKey) && ob.keyErr != nil:
+		return errors.New(i18n.T("无法读取 API Key：") + ob.keyErr.Error())
 	case errors.Is(err, agent.ErrBadAddress):
 		return errors.New(i18n.T("服务地址须以 https:// 开头（本机服务可用 http://）"))
 	case errors.Is(err, agent.ErrNoModel):
@@ -259,8 +305,8 @@ func (a *App) qaReady() error {
 	}
 }
 
-func (a *App) qaSession(spaceID string) *qaSession {
-	q := &a.qa
+func (ob *qaState) qaSession(spaceID string) *qaSession {
+	q := ob
 	if q.sessions == nil {
 		q.sessions = map[string]*qaSession{}
 	}
@@ -493,12 +539,12 @@ func pageOfDatabaseStore(name string, store *database.Store) *spacefs.Page {
 
 // qaSpace is the space's read-only view, with the unsaved text of its
 // open documents.
-func (a *App) qaSpace(spaceID string) *spacefs.FS {
-	sp := a.qaSpaceByID(spaceID)
+func (ob *qaState) qaSpace(spaceID string) *spacefs.FS {
+	sp := ob.qaSpaceByID(spaceID)
 	if sp == nil {
 		return nil
 	}
-	q := &a.qa
+	q := ob
 	if q.spaces == nil {
 		q.spaces = map[string]*spacefs.FS{}
 	}
@@ -515,7 +561,7 @@ func (a *App) qaSpace(spaceID string) *spacefs.FS {
 		fs.SetFiles(files)
 	}
 	live := map[string]*spacefs.Page{}
-	for _, d := range a.residentDocuments() {
+	for _, d := range ob.host.residentDocuments() {
 		if d.space == sp && d.loadErr == nil && d.isDatabase() {
 			live[d.rel] = pageOfDatabaseStore(d.rel, d.dbView.Store)
 			continue
@@ -529,35 +575,35 @@ func (a *App) qaSpace(spaceID string) *spacefs.FS {
 }
 
 // toggleQA opens or closes the panel; opening puts the caret in it.
-func (a *App) toggleQA() {
-	a.qa.open = !a.qa.open
-	a.qa.focusInput = a.qa.open
+func (ob *qaState) toggleQA() {
+	ob.open = !ob.open
+	ob.focusInput = ob.open
 }
 
 // askQA asks the active space the question typed.
-func (a *App) askQA() {
-	text := strings.TrimSpace(a.qa.input)
-	sp := a.qaActiveSpace()
-	if sp == nil || a.qaSession(sp.ID).running() {
+func (ob *qaState) askQA() {
+	text := strings.TrimSpace(ob.input)
+	sp := ob.qaActiveSpace()
+	if sp == nil || ob.qaSession(sp.ID).running() {
 		return
 	}
-	if !a.qa.editMode && len(a.qa.attachments) == 0 && len(a.qa.quotes) == 0 {
+	if !ob.editMode && len(ob.attachments) == 0 && len(ob.quotes) == 0 {
 		switch text {
 		case "/clear":
-			a.qa.input = ""
-			a.clearOneBotContext(sp.ID)
+			ob.input = ""
+			ob.clearOneBotContext(sp.ID)
 			return
 		case "/new":
-			a.qa.input = ""
-			a.clearQA()
+			ob.input = ""
+			ob.clearQA()
 			return
 		}
 	}
-	if text == "" && (a.qa.editMode || len(a.qa.attachments) == 0) {
+	if text == "" && (ob.editMode || len(ob.attachments) == 0) {
 		return
 	}
-	if a.qa.editMode {
-		task := a.qa.editTask
+	if ob.editMode {
+		task := ob.editTask
 		if task != nil && !task.Running && !task.Applying {
 			applied := false
 			for _, candidate := range task.Candidates {
@@ -568,75 +614,75 @@ func (a *App) askQA() {
 				}
 			}
 			if applied {
-				next, err := a.continueOneBotTask(task)
+				next, err := ob.continueOneBotTask(task)
 				if err != nil {
 					task.Error = err.Error()
 					return
 				}
-				a.keepOneBotTask(task)
+				ob.keepOneBotTask(task)
 				task = next
-				a.qa.editTask = next
-				a.qa.editFollow = false
+				ob.editTask = next
+				ob.editFollow = false
 			} else if len(task.Candidates) > 0 {
-				a.keepOneBotTask(task)
+				ob.keepOneBotTask(task)
 				next := *task
 				next.ID = model.NewID()
 				next.Targets = append([]oneBotTarget(nil), task.Targets...)
 				next.Receipts = nil
 				next.cancel = nil
 				task = &next
-				a.qa.editTask = task
+				ob.editTask = task
 			}
 		}
 		if task == nil {
-			scope := a.qa.editScope
+			scope := ob.editScope
 			if scope == "" {
 				scope = "document"
 			}
 			var err error
-			task, err = a.captureOneBotTask(scope)
+			task, err = ob.captureOneBotTask(scope)
 			if err != nil {
-				a.notify("%s", err.Error())
+				ob.host.notify("%s", err.Error())
 				return
 			}
-			a.qa.editTask = task
+			ob.editTask = task
 		}
 		if task.Running || task.Applying {
 			return
 		}
 		if task.Scope == "new" {
-			task.NewPath = strings.TrimSpace(a.qa.editNewPath)
+			task.NewPath = strings.TrimSpace(ob.editNewPath)
 		}
-		task.Direct = a.prefs.AI.Direct
-		count := a.qa.editCount
+		task.Direct = ob.host.preferences().AI.Direct
+		count := ob.editCount
 		if count < 1 {
 			count = 1
 		}
-		a.qa.input = ""
-		quotes := a.qa.quotes
-		a.qa.quotes = nil
-		items := a.qa.attachments
-		a.qa.attachments = nil
+		ob.input = ""
+		quotes := ob.quotes
+		ob.quotes = nil
+		items := ob.attachments
+		ob.attachments = nil
 		parts, badges, _ := splitOneBotAttachmentItems(items)
-		a.mergeOneBotEditableAttachments(task, items)
+		ob.mergeOneBotEditableAttachments(task, items)
 		task.Parts = parts
 		task.Quotes = oneBotQuotePrompt(quotes)
-		s := a.qaSession(task.SpaceID)
-		turn := &qaTurn{model: a.qaSettings().Model, start: len(s.history), question: text, quotes: quotes, attachments: badges, parts: parts, edit: task}
+		s := ob.qaSession(task.SpaceID)
+		turn := &qaTurn{model: ob.qaSettings().Model, start: len(s.history), question: text, quotes: quotes, attachments: badges, parts: parts, edit: task}
 		s.turns = append(s.turns, turn)
 		s.list.ScrollToEnd()
-		a.saveOneBotConversation(task.SpaceID, s)
-		a.runOneBotEdit(task, text, count, a.qa.editFollow)
-		a.qa.editFollow = false
+		ob.saveOneBotConversation(task.SpaceID, s)
+		ob.runOneBotEdit(task, text, count, ob.editFollow)
+		ob.editFollow = false
 		return
 	}
-	a.qa.input = ""
-	quotes := a.qa.quotes
-	a.qa.quotes = nil
-	items := a.qa.attachments
-	a.qa.attachments = nil
+	ob.input = ""
+	quotes := ob.quotes
+	ob.quotes = nil
+	items := ob.attachments
+	ob.attachments = nil
 	parts, badges, writableRels := splitOneBotAttachmentItems(items)
-	a.askWithAttachments(sp.ID, text, quotes, parts, badges, writableRels)
+	ob.askWithAttachments(sp.ID, text, quotes, parts, badges, writableRels)
 }
 
 func splitOneBotAttachmentItems(items []oneBotAttachmentItem) (parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
@@ -659,16 +705,16 @@ func splitOneBotAttachmentItems(items []oneBotAttachmentItem) (parts []agent.Con
 
 // ask runs a question in the space with the ID. Quoted selections go
 // before the question in the model's copy only; the turn shows badges.
-func (a *App) ask(spaceID, question string, quotes []oneBotQuote) {
-	a.askWithAttachments(spaceID, question, quotes, nil, nil, nil)
+func (ob *qaState) ask(spaceID, question string, quotes []oneBotQuote) {
+	ob.askWithAttachments(spaceID, question, quotes, nil, nil, nil)
 }
 
-func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote, parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) askWithAttachments(spaceID, question string, quotes []oneBotQuote, parts []agent.ContentPart, badges []oneBotAttachmentBadge, writableRels []string) {
+	s := ob.qaSession(spaceID)
 	s.contextStart = max(0, min(s.contextStart, len(s.history)))
-	offset := a.qa.loaderSeed
-	a.qa.loaderSeed++
-	settings := a.qaSettings()
+	offset := ob.loaderSeed
+	ob.loaderSeed++
+	settings := ob.qaSettings()
 	turn := &qaTurn{
 		model:       settings.Model,
 		question:    question,
@@ -682,27 +728,27 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 	s.turns = append(s.turns, turn)
 	s.list.FollowEnd = true
 	s.list.ScrollToEnd()
-	if err := a.qaReady(); err != nil {
+	if err := ob.qaReady(); err != nil {
 		turn.running, turn.err = false, err
-		a.saveOneBotConversation(spaceID, s)
+		ob.saveOneBotConversation(spaceID, s)
 		return
 	}
-	fs := a.qaSpace(spaceID)
+	fs := ob.qaSpace(spaceID)
 	if fs == nil {
 		turn.running, turn.err = false, errors.New(i18n.T("空间已不存在"))
-		a.saveOneBotConversation(spaceID, s)
+		ob.saveOneBotConversation(spaceID, s)
 		return
 	}
 	var provider agent.Provider = settings.NewProvider()
-	if a.qa.provider != nil {
-		provider = a.qa.provider(settings)
+	if ob.provider != nil {
+		provider = ob.provider(settings)
 	}
 	open := ""
-	if a.doc != nil && a.doc.space.ID == spaceID && a.doc.loadErr == nil {
-		open = a.doc.rel
+	if ob.host.activeDocument() != nil && ob.host.activeDocument().space.ID == spaceID && ob.host.activeDocument().loadErr == nil {
+		open = ob.host.activeDocument().rel
 	}
-	name := a.qaSpaceByID(spaceID).Name
-	now := a.now
+	name := ob.qaSpaceByID(spaceID).Name
+	now := ob.host.clock()
 	if s.source != "" && s.source != settings.Signature() {
 		s.history = agent.NeutralHistory(s.history)
 	}
@@ -715,27 +761,27 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 		text = oneBotQuotePrompt(quotes) + "\n" + text
 	}
 	s.history = append(s.history, agent.Message{Role: agent.User, Text: text, Parts: parts})
-	a.saveOneBotConversation(spaceID, s)
+	ob.saveOneBotConversation(spaceID, s)
 	history := append([]agent.Message(nil), s.history[s.contextStart:]...)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	deliver := func(f func()) { f() }
-	if !a.qa.sync && a.win != nil {
-		deliver = func(f func()) { a.win.Update(f) }
+	if !ob.sync && ob.host.window() != nil {
+		deliver = func(f func()) { ob.host.window().Update(f) }
 	}
 	var writableAll []string
 	// An open whiteboard is edited through its own tools, never as JSON.
 	var board *document
-	if a.doc != nil && a.doc.space.ID == spaceID && a.doc.board != nil && !a.doc.ed.ReadOnly && a.doc.loadErr == nil {
-		board = a.doc
-	} else if a.doc != nil && a.doc.space.ID == spaceID && !a.doc.ed.ReadOnly && !a.doc.ed.Composing() {
-		writableAll = append(writableAll, a.doc.rel)
+	if ob.host.activeDocument() != nil && ob.host.activeDocument().space.ID == spaceID && ob.host.activeDocument().board != nil && !ob.host.activeDocument().ed.ReadOnly && ob.host.activeDocument().loadErr == nil {
+		board = ob.host.activeDocument()
+	} else if ob.host.activeDocument() != nil && ob.host.activeDocument().space.ID == spaceID && !ob.host.activeDocument().ed.ReadOnly && !ob.host.activeDocument().ed.Composing() {
+		writableAll = append(writableAll, ob.host.activeDocument().rel)
 	}
 	writableAll = append(writableAll, writableRels...)
-	editTask := a.captureOneBotEditableDocs(spaceID, writableAll)
+	editTask := ob.captureOneBotEditableDocs(spaceID, writableAll)
 	var imageTool *agent.Tool
-	if a.doc != nil && a.doc.space.ID == spaceID {
-		imageTool = a.chatImageTool(a.doc)
+	if ob.host.activeDocument() != nil && ob.host.activeDocument().space.ID == spaceID {
+		imageTool = ob.host.chatImageTool(ob.host.activeDocument())
 	}
 	run := func() {
 		overview, _ := fs.Overview(6000)
@@ -751,7 +797,7 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 		system := agent.Prompt(agent.Context{Space: name, Overview: overview, Open: open, Now: now})
 		if board != nil && settings.Capabilities.Tools != agent.Unsupported {
 			system += "\n" + boardAgentSystem
-			tools = append(tools, a.boardAgentTools(board, deliver)...)
+			tools = append(tools, ob.host.boardAgentTools(board, deliver)...)
 		}
 		if imageTool != nil && settings.Capabilities.Tools != agent.Unsupported {
 			tools = append(tools, *imageTool)
@@ -784,28 +830,28 @@ func (a *App) askWithAttachments(spaceID, question string, quotes []oneBotQuote,
 			err = agent.ErrIncomplete
 		}
 		deliver(func() {
-			a.finishQA(s, turn, added, err)
-			if err == nil && !turn.stopped && a.qa.sessions[spaceID] == s && workspace != nil && len(workspace.Changes()) > 0 && turn.finishReason == "stop" {
-				candidate, e := a.prepareOneBotFileCandidate(editTask, agent.FileDraft{Summary: turn.answer, Changes: workspace.Changes()})
+			ob.finishQA(s, turn, added, err)
+			if err == nil && !turn.stopped && ob.sessions[spaceID] == s && workspace != nil && len(workspace.Changes()) > 0 && turn.finishReason == "stop" {
+				candidate, e := ob.prepareOneBotFileCandidate(editTask, agent.FileDraft{Summary: turn.answer, Changes: workspace.Changes()})
 				if e != nil {
 					turn.err = e
-					a.saveOneBotConversation(spaceID, s)
+					ob.saveOneBotConversation(spaceID, s)
 					return
 				}
 				editTask.Instruction = question
 				editTask.Candidates = []*oneBotCandidate{candidate}
 				turn.edit = editTask
-				a.keepOneBotTask(editTask)
+				ob.keepOneBotTask(editTask)
 				if editTask.Direct {
-					if e := a.applyOneBotCandidate(editTask, 0, -1); e != nil {
+					if e := ob.applyOneBotCandidate(editTask, 0, -1); e != nil {
 						turn.err = e
 					}
 				}
-				a.saveOneBotConversation(spaceID, s)
+				ob.saveOneBotConversation(spaceID, s)
 			}
 		})
 	}
-	if a.qa.sync || a.win == nil {
+	if ob.sync || ob.host.window() == nil {
 		run()
 		return
 	}
@@ -854,9 +900,9 @@ func (t *qaTurn) apply(e agent.Event) {
 
 // finishQA ends a run: its messages join the conversation, closed with an
 // answer even when it stopped, as a model must see every call answered.
-func (a *App) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error) {
+func (ob *qaState) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error) {
 	if id, _, ok := strings.Cut(s.source, "|"); ok {
-		a.loadChatGPTSession(id, true)
+		ob.host.chatGPT().loadChatGPTSession(id, true)
 	}
 	s.cancel = nil
 	t.running, t.thinking, t.retrying = false, false, false
@@ -877,16 +923,16 @@ func (a *App) finishQA(s *qaSession, t *qaTurn, added []agent.Message, err error
 	case err != nil:
 		t.err = err
 	}
-	a.saveOneBotConversation(s.spaceID, s)
+	ob.saveOneBotConversation(s.spaceID, s)
 }
 
 // stopQA stops the active space's question.
-func (a *App) stopQA() {
-	sp := a.qaActiveSpace()
+func (ob *qaState) stopQA() {
+	sp := ob.qaActiveSpace()
 	if sp == nil {
 		return
 	}
-	s := a.qaSession(sp.ID)
+	s := ob.qaSession(sp.ID)
 	if s.cancel != nil {
 		s.cancel()
 	}
@@ -896,20 +942,20 @@ func (a *App) stopQA() {
 		if t.running {
 			t.stopped = true
 		}
-		t.stream.sync(t.answer, a.now)
-		a.saveOneBotConversation(sp.ID, s)
+		t.stream.sync(t.answer, ob.host.clock())
+		ob.saveOneBotConversation(sp.ID, s)
 	}
 }
 
 // retryQA asks any turn again, truncating downstream turns cleanly.
-func (a *App) retryQA(spaceID string, t *qaTurn) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) retryQA(spaceID string, t *qaTurn) {
+	s := ob.qaSession(spaceID)
 	idx := slices.Index(s.turns, t)
 	if s.running() || t == nil || idx < 0 {
 		return
 	}
-	if a.qa.editingTurn != nil && slices.Index(s.turns[:idx], a.qa.editingTurn) < 0 {
-		a.cancelEditQATurn()
+	if ob.editingTurn != nil && slices.Index(s.turns[:idx], ob.editingTurn) < 0 {
+		ob.cancelEditQATurn()
 	}
 	if s.preview.turn != nil || s.preview.pendingTurn != nil {
 		s.preview = qaPreviewState{}
@@ -917,7 +963,7 @@ func (a *App) retryQA(spaceID string, t *qaTurn) {
 	s.turns = s.turns[:idx]
 	s.history = s.history[:min(max(t.start, 0), len(s.history))]
 	recomputeContextStart(s)
-	a.askWithAttachments(spaceID, t.question, t.quotes, t.parts, t.attachments, writableRelsForTurn(spaceID, t))
+	ob.askWithAttachments(spaceID, t.question, t.quotes, t.parts, t.attachments, writableRelsForTurn(spaceID, t))
 }
 
 func writableRelsForTurn(spaceID string, t *qaTurn) []string {
@@ -962,8 +1008,8 @@ func activeContextTurns(s *qaSession) int {
 
 // clearOneBotContext drops prior turns from future model context while preserving
 // the visible conversation above an inline divider.
-func (a *App) clearOneBotContext(spaceID string) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) clearOneBotContext(spaceID string) {
+	s := ob.qaSession(spaceID)
 	if s == nil || s.running() || len(s.turns) == 0 {
 		return
 	}
@@ -973,71 +1019,71 @@ func (a *App) clearOneBotContext(spaceID string) {
 		last.contextBreakAfter = true
 	}
 	s.contextStart = len(s.history)
-	a.cancelEditQATurn()
-	a.qa.editMode = false
-	a.qa.editTask = nil
-	a.qa.editFollow = false
-	a.qa.focusInput = true
+	ob.cancelEditQATurn()
+	ob.editMode = false
+	ob.editTask = nil
+	ob.editFollow = false
+	ob.focusInput = true
 	s.list.ScrollToEnd()
-	a.saveOneBotConversation(spaceID, s)
+	ob.saveOneBotConversation(spaceID, s)
 }
 
-func (a *App) undoOneBotContextBreak(spaceID string, turn *qaTurn) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) undoOneBotContextBreak(spaceID string, turn *qaTurn) {
+	s := ob.qaSession(spaceID)
 	if s == nil || s.running() || len(s.turns) == 0 || turn == nil || s.turns[len(s.turns)-1] != turn || !turn.contextBreakAfter {
 		return
 	}
 	turn.contextBreakAfter = false
 	s.contextStart = min(max(turn.prevContextStart, 0), len(s.history))
-	a.saveOneBotConversation(spaceID, s)
+	ob.saveOneBotConversation(spaceID, s)
 }
 
-func (a *App) continueQA(spaceID string, turn *qaTurn) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) continueQA(spaceID string, turn *qaTurn) {
+	s := ob.qaSession(spaceID)
 	if s == nil || s.running() || len(s.turns) == 0 || s.turns[len(s.turns)-1] != turn {
 		return
 	}
-	a.askWithAttachments(spaceID, i18n.T("请从上次中断处继续，不要重复已输出的内容"), nil, nil, nil, nil)
+	ob.askWithAttachments(spaceID, i18n.T("请从上次中断处继续，不要重复已输出的内容"), nil, nil, nil, nil)
 }
 
-func (a *App) beginEditQATurn(turn *qaTurn) {
+func (ob *qaState) beginEditQATurn(turn *qaTurn) {
 	if turn == nil {
 		return
 	}
-	a.qa.editingTurn = turn
-	a.qa.editingText = turn.question
-	a.qa.focusEditTurn = true
+	ob.editingTurn = turn
+	ob.editingText = turn.question
+	ob.focusEditTurn = true
 }
 
-func (a *App) cancelEditQATurn() {
-	a.qa.editingTurn = nil
-	a.qa.editingText = ""
-	a.qa.focusEditTurn = false
+func (ob *qaState) cancelEditQATurn() {
+	ob.editingTurn = nil
+	ob.editingText = ""
+	ob.focusEditTurn = false
 }
 
-func (a *App) submitEditQATurn(spaceID string) {
-	turn := a.qa.editingTurn
-	text := strings.TrimSpace(a.qa.editingText)
-	s := a.qaSession(spaceID)
+func (ob *qaState) submitEditQATurn(spaceID string) {
+	turn := ob.editingTurn
+	text := strings.TrimSpace(ob.editingText)
+	s := ob.qaSession(spaceID)
 	idx := slices.Index(s.turns, turn)
 	if turn == nil || idx < 0 || s.running() || (text == "" && len(turn.attachments) == 0 && len(turn.quotes) == 0) {
 		return
 	}
-	a.cancelEditQATurn()
+	ob.cancelEditQATurn()
 	s.preview = qaPreviewState{}
 	s.turns = s.turns[:idx]
 	s.history = s.history[:min(max(turn.start, 0), len(s.history))]
 	recomputeContextStart(s)
-	a.askWithAttachments(spaceID, text, turn.quotes, turn.parts, turn.attachments, writableRelsForTurn(spaceID, turn))
+	ob.askWithAttachments(spaceID, text, turn.quotes, turn.parts, turn.attachments, writableRelsForTurn(spaceID, turn))
 }
 
-func (a *App) forkOneBotFromTurn(spaceID string, target *qaTurn) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) forkOneBotFromTurn(spaceID string, target *qaTurn) {
+	s := ob.qaSession(spaceID)
 	idx := slices.Index(s.turns, target)
 	if s.running() || target == nil || idx < 0 {
 		return
 	}
-	a.saveOneBotConversation(spaceID, s)
+	ob.saveOneBotConversation(spaceID, s)
 	histEnd := len(s.history)
 	if idx+1 < len(s.turns) {
 		histEnd = min(max(s.turns[idx+1].start, 0), len(s.history))
@@ -1070,7 +1116,7 @@ func (a *App) forkOneBotFromTurn(spaceID string, target *qaTurn) {
 				cp.steps[j] = &stepCopy
 			}
 		}
-		cp.stream.sync(cp.answer, a.clockNow())
+		cp.stream.sync(cp.answer, ob.clockNow())
 		turns[i] = cp
 	}
 	fork := &qaSession{
@@ -1081,77 +1127,77 @@ func (a *App) forkOneBotFromTurn(spaceID string, target *qaTurn) {
 		list:    ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth},
 	}
 	recomputeContextStart(fork)
-	a.qa.sessions[spaceID] = fork
-	a.cancelEditQATurn()
-	a.qa.editTask = nil
-	a.qa.editMode = false
-	a.qa.editFollow = false
-	a.qa.historyOpen = false
-	a.qa.focusInput = true
-	a.saveOneBotConversation(spaceID, fork)
+	ob.sessions[spaceID] = fork
+	ob.cancelEditQATurn()
+	ob.editTask = nil
+	ob.editMode = false
+	ob.editFollow = false
+	ob.historyOpen = false
+	ob.focusInput = true
+	ob.saveOneBotConversation(spaceID, fork)
 	fork.list.ScrollToEnd()
-	a.notify("%s", i18n.T("已从此轮新建分支对话"))
+	ob.host.notify("%s", i18n.T("已从此轮新建分支对话"))
 }
 
-func (a *App) deleteQATurnFrom(spaceID string, target *qaTurn) {
-	s := a.qaSession(spaceID)
+func (ob *qaState) deleteQATurnFrom(spaceID string, target *qaTurn) {
+	s := ob.qaSession(spaceID)
 	idx := slices.Index(s.turns, target)
 	if s.running() || target == nil || idx < 0 {
 		return
 	}
-	a.cancelEditQATurn()
+	ob.cancelEditQATurn()
 	s.preview = qaPreviewState{}
 	if idx == 0 {
-		a.qa.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-		a.qa.focusInput = true
+		ob.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+		ob.focusInput = true
 		return
 	}
 	s.turns = s.turns[:idx]
 	s.history = s.history[:min(max(target.start, 0), len(s.history))]
 	recomputeContextStart(s)
-	a.saveOneBotConversation(spaceID, s)
+	ob.saveOneBotConversation(spaceID, s)
 }
 
 const qaCopiedDuration = 1800 * time.Millisecond
 
-func (a *App) copyQAText(c *ui.Context, key, text string) {
+func (ob *qaState) copyQAText(c *ui.Context, key, text string) {
 	if text == "" {
 		return
 	}
 	c.WriteClipboard(text)
-	a.qa.copiedKey = key
-	a.qa.copiedUntil = c.Now().Add(qaCopiedDuration)
+	ob.copiedKey = key
+	ob.copiedUntil = c.Now().Add(qaCopiedDuration)
 	c.After(qaCopiedDuration)
 }
 
-func (a *App) isQACopied(c *ui.Context, key string) bool {
-	if key == "" || a.qa.copiedKey != key {
+func (ob *qaState) isQACopied(c *ui.Context, key string) bool {
+	if key == "" || ob.copiedKey != key {
 		return false
 	}
-	rem := a.qa.copiedUntil.Sub(c.Now())
+	rem := ob.copiedUntil.Sub(c.Now())
 	if rem <= 0 {
-		a.qa.copiedKey = ""
+		ob.copiedKey = ""
 		return false
 	}
 	c.After(rem)
 	return true
 }
 
-func (a *App) canInsertQAToDoc() bool {
-	return a.doc != nil && a.doc.loadErr == nil && a.doc.board == nil && !a.doc.source && a.doc.ed != nil && !a.doc.ed.ReadOnly
+func (ob *qaState) canInsertQAToDoc() bool {
+	return ob.host.activeDocument() != nil && ob.host.activeDocument().loadErr == nil && ob.host.activeDocument().board == nil && !ob.host.activeDocument().source && ob.host.activeDocument().ed != nil && !ob.host.activeDocument().ed.ReadOnly
 }
 
-func (a *App) insertQATurnToDoc(c *ui.Context, key string, turn *qaTurn) {
-	if turn == nil || !a.canInsertQAToDoc() {
+func (ob *qaState) insertQATurnToDoc(c *ui.Context, key string, turn *qaTurn) {
+	if turn == nil || !ob.canInsertQAToDoc() {
 		return
 	}
 	cleaned := qaCleanCopyMarkdown(turn.answer)
 	if cleaned == "" {
 		return
 	}
-	if a.doc.ed.InsertMarkdown(cleaned) {
-		a.qa.copiedKey = key
-		a.qa.copiedUntil = c.Now().Add(qaCopiedDuration)
+	if ob.host.activeDocument().ed.InsertMarkdown(cleaned) {
+		ob.copiedKey = key
+		ob.copiedUntil = c.Now().Add(qaCopiedDuration)
 		c.After(qaCopiedDuration)
 	}
 }
@@ -1224,12 +1270,12 @@ func exportOneBotConversationMarkdown(s *qaSession) string {
 }
 
 // clearQA starts a new conversation in the active space.
-func (a *App) clearQA() {
-	sp := a.qaActiveSpace()
+func (ob *qaState) clearQA() {
+	sp := ob.qaActiveSpace()
 	if sp == nil {
 		return
 	}
-	s := a.qaSession(sp.ID)
+	s := ob.qaSession(sp.ID)
 	if s.cancel != nil {
 		s.cancel()
 	}
@@ -1238,36 +1284,36 @@ func (a *App) clearQA() {
 		s.turns[len(s.turns)-1].stopped = true
 	}
 	if len(s.turns) > 0 {
-		a.saveOneBotConversation(sp.ID, s)
+		ob.saveOneBotConversation(sp.ID, s)
 	}
-	a.qa.sessions[sp.ID] = &qaSession{spaceID: sp.ID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-	a.qa.historyOpen = false
-	a.qa.historyConfirmClear = false
-	a.qa.focusInput = true
-	a.qa.copiedKey = ""
-	a.cancelEditQATurn()
-	if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
-		a.stopOneBotEdit()
+	ob.sessions[sp.ID] = &qaSession{spaceID: sp.ID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+	ob.historyOpen = false
+	ob.historyConfirmClear = false
+	ob.focusInput = true
+	ob.copiedKey = ""
+	ob.cancelEditQATurn()
+	if ob.editTask != nil && (ob.editTask.Running || ob.editTask.Applying) {
+		ob.stopOneBotEdit()
 	}
-	a.qa.editTask = nil
-	a.qa.editMode = false
-	a.qa.editFollow = false
-	a.qa.attachments = nil
-	a.qa.quotes = nil
+	ob.editTask = nil
+	ob.editMode = false
+	ob.editFollow = false
+	ob.attachments = nil
+	ob.quotes = nil
 }
 
 // openCitation opens the cited document of the space at the cited block.
-func (a *App) openCitation(spaceID string, c agent.Citation) {
-	fs := a.qa.spaces[spaceID]
+func (ob *qaState) openCitation(spaceID string, c agent.Citation) {
+	fs := ob.spaces[spaceID]
 	if fs == nil {
-		fs = a.qaSpace(spaceID)
+		fs = ob.qaSpace(spaceID)
 	}
-	if fs == nil || !a.openAnywhere(spaceID, c.Path) || a.doc == nil || a.doc.loadErr != nil {
-		a.notify("找不到引用的文档：%s", c.Path)
+	if fs == nil || !ob.host.openAnywhere(spaceID, c.Path) || ob.host.activeDocument() == nil || ob.host.activeDocument().loadErr != nil {
+		ob.host.notify("找不到引用的文档：%s", c.Path)
 		return
 	}
-	if a.doc.source {
-		a.doc.toggleMode()
+	if ob.host.activeDocument().source {
+		ob.host.activeDocument().toggleMode()
 	}
 	page, err := fs.Page(c.Path)
 	if err != nil {
@@ -1277,36 +1323,36 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 	if !ok {
 		return
 	}
-	if a.doc.isPDF() {
+	if ob.host.activeDocument().isPDF() {
 		// A PDF's parts are its pages, "page:N" (pdfQAPage).
 		if n, err := strconv.Atoi(strings.TrimPrefix(at.Block, "page:")); err == nil && n >= 1 {
-			a.doc.pdf.GoToPage(n-1, false)
+			ob.host.activeDocument().pdf.GoToPage(n-1, false)
 		}
-		a.doc.pdf.RequestFocus = true
+		ob.host.activeDocument().pdf.RequestFocus = true
 		return
 	}
-	if a.doc.board != nil {
-		a.doc.board.RevealElement(at.Block)
+	if ob.host.activeDocument().board != nil {
+		ob.host.activeDocument().board.RevealElement(at.Block)
 		return
 	}
-	if a.doc.isMDZ() {
+	if ob.host.activeDocument().isMDZ() {
 		if pagePath, ok := strings.CutPrefix(at.Block, "mdz:"); ok {
-			a.doc.mdz.openPage(pagePath, true, "")
+			ob.host.activeDocument().mdz.openPage(pagePath, true, "")
 		}
-		a.doc.mdz.requestFocus = true
+		ob.host.activeDocument().mdz.requestFocus = true
 		return
 	}
-	if a.doc.isDatabase() {
+	if ob.host.activeDocument().isDatabase() {
 		if key, ok := strings.CutPrefix(at.Block, "rec:"); ok {
-			if rec := findDatabaseRecordByKey(a.doc.dbView.Store, c.Path, key); rec != nil {
-				a.openRecordPeek(a.doc, a.doc.dbView.Store, a.doc.space, rec, dbview.OpenSidePeek)
+			if rec := findDatabaseRecordByKey(ob.host.activeDocument().dbView.Store, c.Path, key); rec != nil {
+				ob.host.openRecordPeek(ob.host.activeDocument(), ob.host.activeDocument().dbView.Store, ob.host.activeDocument().space, rec, dbview.OpenSidePeek)
 			}
 		}
 		return
 	}
-	blocks := a.doc.ed.Doc.Blocks
+	blocks := ob.host.activeDocument().ed.Doc.Blocks
 	if at.Block == "__frontmatter__" && len(blocks) > 0 {
-		a.doc.ed.RevealBlock(blocks[0].ID)
+		ob.host.activeDocument().ed.RevealBlock(blocks[0].ID)
 		return
 	}
 	id := ""
@@ -1321,7 +1367,7 @@ func (a *App) openCitation(spaceID string, c agent.Citation) {
 		id = blocks[at.Index].ID
 	}
 	if id != "" {
-		a.doc.ed.RevealBlock(id)
+		ob.host.activeDocument().ed.RevealBlock(id)
 	}
 }
 
@@ -1721,17 +1767,17 @@ func qaErrorText(err error) string {
 
 // qaActiveSpace is the space OneBot works in: the file browser's opened
 // files while it is shown, the active space otherwise.
-func (a *App) qaActiveSpace() *space.Space {
-	if a.files != nil {
-		return a.files.locations
+func (ob *qaState) qaActiveSpace() *space.Space {
+	if ob.host.fileLocations() != nil {
+		return ob.host.fileLocations()
 	}
-	return a.state.ActiveSpace()
+	return ob.host.spaces().ActiveSpace()
 }
 
 // qaSpaceByID finds a space OneBot refers to, the file browser's included.
-func (a *App) qaSpaceByID(id string) *space.Space {
-	if a.files != nil && id == a.files.locations.ID {
-		return a.files.locations
+func (ob *qaState) qaSpaceByID(id string) *space.Space {
+	if ob.host.fileLocations() != nil && id == ob.host.fileLocations().ID {
+		return ob.host.fileLocations()
 	}
-	return a.state.Get(id)
+	return ob.host.spaces().Get(id)
 }

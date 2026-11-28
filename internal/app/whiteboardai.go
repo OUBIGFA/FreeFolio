@@ -15,12 +15,37 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/localresource"
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/video"
 )
+
+// whiteboardAIHost is what whiteboard AI nodes need from the window: model
+// services, local resources, image windows and attachments.
+type whiteboardAIHost interface {
+	chatGPT() *chatGPTState
+	findNamedFrom(id, name string) (*space.Space, string, bool)
+	notify(format string, args ...any)
+	openBoardImage(d *document, id string, edit bool)
+	openBoardImageAt(d *document, id string, edit bool, index int)
+	optionalResources() *resourceState
+	pickBoardNodeImage(d *document, nodeID string)
+	preferences() *prefs.Prefs
+	providerFactory() func(agent.Settings) agent.Provider
+	readAIKeys() (aiKeyring, error)
+	saveBoardImageAs(parent *mygo.Window, rel string, read func(string) ([]byte, error), done func(error))
+	savePrefs()
+	window() *mygo.Window
+	writeAssetFor(d *document, dir, name string, data []byte) (string, error)
+}
+
+// whiteboardAIFeature runs whiteboard AI nodes and lists their models.
+type whiteboardAIFeature struct {
+	host whiteboardAIHost
+}
 
 // The whiteboard's AI nodes run on OneBot's connections: the same
 // providers, keys, ChatGPT sign-ins and model choices, never a separate
@@ -30,15 +55,15 @@ import (
 const boardAISystem = "You are OneBot working inside the user's FreeFolio whiteboard. The user's instruction comes first, then the inputs connected to this node, in order. Answer with the requested content only, without preamble or commentary. Use the language of the instruction unless asked otherwise."
 
 // boardAIModels lists the enabled models able to run a node of the role.
-func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) {
-	a.ensureResourcesInspected()
+func (wa *whiteboardAIFeature) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) {
+	wa.host.optionalResources().ensureResourcesInspected()
 	defer func() {
 		for i := range out {
-			out[i] = a.boardModelAvailability(out[i])
+			out[i] = wa.boardModelAvailability(out[i])
 		}
 	}()
 	if role == whiteboard.AIModel {
-		a.ensureResourcesInspected()
+		wa.host.optionalResources().ensureResourcesInspected()
 		for _, p := range localresource.ComfyPacks {
 			connection := ""
 			if p.Kind == "zimage" {
@@ -48,12 +73,12 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 			} else {
 				continue
 			}
-			out = append(out, editor.BoardAIModel{Connection: connection, ConnectionName: "ComfyUI", Model: p.ModelID, Name: p.Name, Local: true, NeedsDownload: !a.resources.installed[p.ID]})
+			out = append(out, editor.BoardAIModel{Connection: connection, ConnectionName: "ComfyUI", Model: p.ModelID, Name: p.Name, Local: true, NeedsDownload: !wa.host.optionalResources().installed[p.ID]})
 		}
 		return out
 	}
 	if role == whiteboard.AILoRA {
-		for _, preset := range a.boardEnhancementPresets() {
+		for _, preset := range wa.boardEnhancementPresets() {
 			if preset.Model.BaseModel != "" {
 				out = append(out, preset.Model)
 			}
@@ -64,10 +89,10 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 		for _, model := range localresource.Models {
 			out = append(out, editor.BoardAIModel{Connection: "local", Model: model.ID, Name: model.Name})
 		}
-		a.ensureResourcesInspected()
-		caps := a.resources.comfyCaps
+		wa.host.optionalResources().ensureResourcesInspected()
+		caps := wa.host.optionalResources().comfyCaps
 		for _, pack := range localresource.ComfyPacks {
-			installed := a.resources.installed[pack.ID]
+			installed := wa.host.optionalResources().installed[pack.ID]
 			switch pack.Kind {
 			case "rmbg3":
 				if installed || (caps != nil && caps.RMBG3Native && len(caps.RMBG3Models) > 0) {
@@ -97,10 +122,10 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 			}
 			out = append(out, editor.BoardAIModel{Connection: "local-ncnn", Model: model.ID, Name: label})
 		}
-		a.ensureResourcesInspected()
-		caps := a.resources.comfyCaps
+		wa.host.optionalResources().ensureResourcesInspected()
+		caps := wa.host.optionalResources().comfyCaps
 		for _, pack := range localresource.ComfyPacks {
-			if pack.Kind == "seedvr2" && (a.resources.installed[pack.ID] || (caps != nil && caps.SeedVR2Native && slices.Contains(caps.SeedVR2Models, path.Base(pack.Files[0].RelPath)))) {
+			if pack.Kind == "seedvr2" && (wa.host.optionalResources().installed[pack.ID] || (caps != nil && caps.SeedVR2Native && slices.Contains(caps.SeedVR2Models, path.Base(pack.Files[0].RelPath)))) {
 				out = append(out, editor.BoardAIModel{
 					Connection:     "comfyui-seedvr2",
 					ConnectionName: "ComfyUI",
@@ -114,7 +139,7 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 				out = append(out, editor.BoardAIModel{Connection: "comfyui", ConnectionName: "ComfyUI", Model: model, Name: model})
 			}
 		}
-		for _, preset := range a.boardEnhancementPresets() {
+		for _, preset := range wa.boardEnhancementPresets() {
 			if preset.Role != role {
 				continue
 			}
@@ -132,10 +157,10 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 		return out
 	}
 	if role == whiteboard.AIImage || role == whiteboard.AIEnhance {
-		a.ensureResourcesInspected()
-		caps := a.resources.comfyCaps
+		wa.host.optionalResources().ensureResourcesInspected()
+		caps := wa.host.optionalResources().comfyCaps
 		for _, pack := range localresource.ComfyPacks {
-			installed := a.resources.installed[pack.ID]
+			installed := wa.host.optionalResources().installed[pack.ID]
 			switch pack.Kind {
 			case "zimage":
 				if role == whiteboard.AIImage && (installed || (caps != nil && caps.ZImageNative && len(caps.ZImageModels) > 0)) {
@@ -149,7 +174,7 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 			}
 		}
 	}
-	for _, c := range a.prefs.AI.Connections {
+	for _, c := range wa.host.preferences().AI.Connections {
 		for _, m := range c.Models {
 			if !m.Enabled {
 				continue
@@ -175,7 +200,7 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 			}
 		}
 	}
-	for _, preset := range a.boardEnhancementPresets() {
+	for _, preset := range wa.boardEnhancementPresets() {
 		if preset.Role == role {
 			out = append(out, preset.Model)
 		}
@@ -185,16 +210,16 @@ func (a *App) boardAIModels(role whiteboard.AIRole) (out []editor.BoardAIModel) 
 
 // boardAIDefault is the model the role last used, while it still exists,
 // else OneBot's own model for text, else the first that can run it.
-func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
-	models := a.boardAIModels(role)
-	if ref, ok := a.prefs.AI.Whiteboard[string(role)]; ok {
+func (wa *whiteboardAIFeature) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
+	models := wa.boardAIModels(role)
+	if ref, ok := wa.host.preferences().AI.Whiteboard[string(role)]; ok {
 		for _, m := range models {
 			if m.Connection == ref.Connection && m.Model == ref.Model && !m.NeedsDownload && m.Unavailable == "" {
 				return m
 			}
 		}
 	}
-	if c := a.prefs.AI.Current(); c != nil && role == whiteboard.AIText {
+	if c := wa.host.preferences().AI.Current(); c != nil && role == whiteboard.AIText {
 		for _, m := range models {
 			if m.Connection == c.ID && m.Model == c.Model {
 				return m
@@ -209,23 +234,23 @@ func (a *App) boardAIDefault(role whiteboard.AIRole) editor.BoardAIModel {
 	return editor.BoardAIModel{}
 }
 
-func (a *App) rememberBoardAIModel(role whiteboard.AIRole, m editor.BoardAIModel) {
-	if a.prefs.AI.Whiteboard == nil {
-		a.prefs.AI.Whiteboard = map[string]prefs.AIModelRef{}
+func (wa *whiteboardAIFeature) rememberBoardAIModel(role whiteboard.AIRole, m editor.BoardAIModel) {
+	if wa.host.preferences().AI.Whiteboard == nil {
+		wa.host.preferences().AI.Whiteboard = map[string]prefs.AIModelRef{}
 	}
-	a.prefs.AI.Whiteboard[string(role)] = prefs.AIModelRef{Connection: m.Connection, Model: m.Model}
-	a.savePrefs()
+	wa.host.preferences().AI.Whiteboard[string(role)] = prefs.AIModelRef{Connection: m.Connection, Model: m.Model}
+	wa.host.savePrefs()
 }
 
 // connectionSettings are the settings of a connection and model, as
 // qaSettings makes them for OneBot's current one.
-func (a *App) connectionSettings(c *prefs.AIConnection, model string, keys map[string][]string) agent.Settings {
+func (wa *whiteboardAIFeature) connectionSettings(c *prefs.AIConnection, model string, keys map[string][]string) agent.Settings {
 	s := agent.Settings{ConnectionID: c.ID, BaseURL: strings.TrimSpace(c.BaseURL), Model: model, KeyStrategy: c.KeyStrategy, Protocol: c.Protocol, Vendor: c.Vendor, Parameters: c.Parameters}
 	if c.Protocol == agent.ChatGPT {
-		a.ensureChatGPT()
+		wa.host.chatGPT().ensureChatGPT()
 		s.Vendor, s.BaseURL = "chatgpt", "https://api.openai.com/v1"
-		if session, ok := a.chatgpt.sessions[c.ID]; ok && (session.Sharing || session.Pending) {
-			s.TokenSource = a.chatgpt.client.Source(c.ID)
+		if session, ok := wa.host.chatGPT().sessions[c.ID]; ok && (session.Sharing || session.Pending) {
+			s.TokenSource = wa.host.chatGPT().client.Source(c.ID)
 		}
 	} else {
 		s.APIKeys = slices.Clone(keys[c.ID])
@@ -246,7 +271,7 @@ func (a *App) connectionSettings(c *prefs.AIConnection, model string, keys map[s
 }
 
 // boardAI lends a board document OneBot's connections.
-func (a *App) boardAI(d *document) *editor.BoardAI {
+func (wa *whiteboardAIFeature) boardAI(d *document) *editor.BoardAI {
 	dir := path.Dir(d.rel)
 	full := func(rel string) (string, error) {
 		return vault.Resolve(d.space.Root, path.Clean(path.Join(dir, unescapeImagePath(rel))))
@@ -258,18 +283,18 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		}
 		return readBoardBytes(f, 256<<20)
 	}
-	ai := &editor.BoardAI{Models: a.boardAIModels, Unavailable: a.boardRoleUnavailable, Presets: a.boardEnhancementPresets, Default: a.boardAIDefault, Remember: a.rememberBoardAIModel, ReadFile: read}
-	ai.ReplaceImage = func(nodeID string) { a.pickBoardNodeImage(d, nodeID) }
-	ai.OpenImage = func(id string, edit bool) { a.openBoardImage(d, id, edit) }
-	ai.OpenHistoryImage = func(id string, index int) { a.openBoardImageAt(d, id, false, index) }
+	ai := &editor.BoardAI{Models: wa.boardAIModels, Unavailable: wa.boardRoleUnavailable, Presets: wa.boardEnhancementPresets, Default: wa.boardAIDefault, Remember: wa.rememberBoardAIModel, ReadFile: read}
+	ai.ReplaceImage = func(nodeID string) { wa.host.pickBoardNodeImage(d, nodeID) }
+	ai.OpenImage = func(id string, edit bool) { wa.host.openBoardImage(d, id, edit) }
+	ai.OpenHistoryImage = func(id string, index int) { wa.host.openBoardImageAt(d, id, false, index) }
 	ai.SaveImage = func(rel string) {
-		a.saveBoardImageAs(a.win, rel, read, func(err error) {
+		wa.host.saveBoardImageAs(wa.host.window(), rel, read, func(err error) {
 			if err != nil {
-				a.notify("另存为失败；%v", err)
+				wa.host.notify("另存为失败；%v", err)
 			}
 		})
 	}
-	ai.Prepare = func() (*editor.BoardAIRunner, error) { return a.boardAIRunner(d) }
+	ai.Prepare = func() (*editor.BoardAIRunner, error) { return wa.boardAIRunner(d) }
 	ai.OpenFile = func(rel string) {
 		if f, err := full(rel); err == nil {
 			mygo.Shell.OpenPath(f)
@@ -282,9 +307,9 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 		}
 		return video.Open(f)
 	}
-	if a.win != nil {
+	if wa.host.window() != nil {
 		ai.ImportCanvas = func(done func([]byte, error)) {
-			win := a.win
+			win := wa.host.window()
 			go func() {
 				files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("导入 JSON Canvas"), Filters: []mygo.FileFilter{{Name: "JSON Canvas", Extensions: []string{"canvas"}}}})
 				if err != nil || len(files) == 0 {
@@ -300,13 +325,13 @@ func (a *App) boardAI(d *document) *editor.BoardAI {
 
 // boardAIRunner captures the settings and credentials of every connection
 // on the main thread; the runner's calls then run off it.
-func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
-	keyring, keyErr := a.readAIKeys()
+func (wa *whiteboardAIFeature) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
+	keyring, keyErr := wa.host.readAIKeys()
 	settings := map[string]agent.Settings{}
-	for i := range a.prefs.AI.Connections {
-		c := &a.prefs.AI.Connections[i]
+	for i := range wa.host.preferences().AI.Connections {
+		c := &wa.host.preferences().AI.Connections[i]
 		for _, m := range c.Models {
-			settings[c.ID+"\x00"+m.ID] = a.connectionSettings(c, m.ID, keyring.Keys)
+			settings[c.ID+"\x00"+m.ID] = wa.connectionSettings(c, m.ID, keyring.Keys)
 		}
 	}
 	find := func(n whiteboard.AINode) (agent.Settings, error) {
@@ -319,11 +344,11 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 		return s, nil
 	}
-	providerFor := a.qa.provider
+	providerFor := wa.host.providerFactory()
 	sp, rel := d.space, d.rel
 	post := func(fn func()) { fn() }
-	if a.win != nil {
-		post = a.win.Update
+	if wa.host.window() != nil {
+		post = wa.host.window().Update
 	}
 	r := &editor.BoardAIRunner{}
 	r.Text = func(ctx context.Context, job editor.BoardAIJob, delta func(string)) (string, error) {
@@ -356,9 +381,9 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 		return added[len(added)-1].Text, nil
 	}
-	resourceDir := a.resourceDirectory()
-	comfyMgr := a.comfyManager()
-	comfyCfg := a.comfyConfig()
+	resourceDir := wa.host.optionalResources().resourceDirectory()
+	comfyMgr := wa.host.optionalResources().comfyManager()
+	comfyCfg := wa.host.optionalResources().comfyConfig()
 	r.Media = func(ctx context.Context, job editor.BoardAIJob, progress func(string)) ([]editor.BoardAIMedia, error) {
 		if job.Node.Connection == "comfyui-media" {
 			if comfyCfg.Dir == "" && comfyCfg.URL == "" {
@@ -390,7 +415,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if strings.ToLower(path.Ext(result.Filename)) != ext {
 				return nil, errors.New(i18n.T("生成文件格式不正确"))
 			}
-			asset, err := a.writeAssetFor(d, path.Dir(rel), "generated-"+kind+ext, result.Data)
+			asset, err := wa.host.writeAssetFor(d, path.Dir(rel), "generated-"+kind+ext, result.Data)
 			if err != nil {
 				return nil, err
 			}
@@ -436,7 +461,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if err = ctx.Err(); err != nil {
 				return nil, err
 			}
-			url, err := a.writeAssetFor(d, path.Dir(rel), "cutout.png", data)
+			url, err := wa.host.writeAssetFor(d, path.Dir(rel), "cutout.png", data)
 			if err != nil {
 				return nil, err
 			}
@@ -478,7 +503,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			if err = ctx.Err(); err != nil {
 				return nil, err
 			}
-			url, err := a.writeAssetFor(d, path.Dir(rel), "upscale.png", data)
+			url, err := wa.host.writeAssetFor(d, path.Dir(rel), "upscale.png", data)
 			if err != nil {
 				return nil, err
 			}
@@ -553,7 +578,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 			out := make([]editor.BoardAIMedia, 0, len(imgs))
 			for i, imgData := range imgs {
 				name := fmt.Sprintf("ai-image-%d.png", i+1)
-				url, err := a.writeAssetFor(d, path.Dir(rel), name, imgData)
+				url, err := wa.host.writeAssetFor(d, path.Dir(rel), name, imgData)
 				if err != nil {
 					return out, err
 				}
@@ -601,7 +626,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 				return out, fmt.Errorf(i18n.T("服务返回了不支持的文件类型：%s"), asset.MIME)
 			}
 			name := fmt.Sprintf("ai-%s-%d%s", kind, i+1, ext)
-			url, err := a.writeAssetFor(d, path.Dir(rel), name, asset.Data)
+			url, err := wa.host.writeAssetFor(d, path.Dir(rel), name, asset.Data)
 			if err != nil {
 				return out, err
 			}
@@ -620,7 +645,7 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 		}
 		ch := make(chan found, 1)
 		post(func() {
-			target, file, ok := a.findNamedFrom(sp.ID, name)
+			target, file, ok := wa.host.findNamedFrom(sp.ID, name)
 			ch <- found{file, ok && target == sp}
 		})
 		f := <-ch
@@ -653,20 +678,20 @@ func (a *App) boardAIRunner(d *document) (*editor.BoardAIRunner, error) {
 // chatImageTool lets OneBot's conversation make pictures with the image
 // model the whiteboard last used (or the first able one), saved as an
 // attachment of the open document d. It is nil without such a model.
-func (a *App) chatImageTool(d *document) *agent.Tool {
+func (wa *whiteboardAIFeature) chatImageTool(d *document) *agent.Tool {
 	if d == nil || d.ed.ReadOnly || d.loadErr != nil {
 		return nil
 	}
-	m := a.boardAIDefault(whiteboard.AIImage)
-	c := a.prefs.AI.Find(m.Connection)
+	m := wa.boardAIDefault(whiteboard.AIImage)
+	c := wa.host.preferences().AI.Find(m.Connection)
 	if c == nil || m.Model == "" {
 		return nil
 	}
-	keyring, err := a.readAIKeys()
+	keyring, err := wa.host.readAIKeys()
 	if err != nil {
 		return nil
 	}
-	s := a.connectionSettings(c, m.Model, keyring.Keys)
+	s := wa.connectionSettings(c, m.Model, keyring.Keys)
 	rel := d.rel
 	sizeHelp := "size is WxH or auto."
 	if len(m.ImageSizes) > 0 {
@@ -693,7 +718,7 @@ func (a *App) chatImageTool(d *document) *agent.Tool {
 				if ext == "" {
 					return "", fmt.Errorf("unsupported image type %s", asset.MIME)
 				}
-				url, err := a.writeAssetFor(d, path.Dir(rel), fmt.Sprintf("onebot-image-%d%s", i+1, ext), asset.Data)
+				url, err := wa.host.writeAssetFor(d, path.Dir(rel), fmt.Sprintf("onebot-image-%d%s", i+1, ext), asset.Data)
 				if err != nil {
 					return "", err
 				}

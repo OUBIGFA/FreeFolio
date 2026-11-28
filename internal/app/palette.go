@@ -309,8 +309,8 @@ func (a *App) actions() []action {
 		}
 	}
 	cmd(i18n.T("切换侧边栏"), a.keyLabel("sidebar"), a.toggleSidebar)
-	cmd(i18n.T("资料库"), a.keyLabel("library"), a.toggleLibrary)
-	cmd(i18n.T("所有空间"), a.keyLabel("overview"), a.toggleOverview)
+	cmd(i18n.T("资料库"), a.keyLabel("library"), a.library.toggleLibrary)
+	cmd(i18n.T("所有空间"), a.keyLabel("overview"), a.library.toggleOverview)
 	focus := i18n.T("进入专注模式")
 	if a.focus {
 		focus = i18n.T("退出专注模式")
@@ -409,35 +409,35 @@ func (a *App) actions() []action {
 	if a.qa.open {
 		ask = i18n.T("关闭 OneBot")
 	}
-	cmd(ask, a.keyLabel("ask"), a.toggleQA)
-	cmd(i18n.T("OneBot：新对话"), "", func() { a.qa.open = true; a.clearQA() })
+	cmd(ask, a.keyLabel("ask"), a.qa.toggleQA)
+	cmd(i18n.T("OneBot：新对话"), "", func() { a.qa.open = true; a.qa.clearQA() })
 	cmd(i18n.T("OneBot 设置"), "", func() { a.openSettings(tabAI) })
-	cmd(i18n.T("OneBot：修改选区"), "", func() { a.beginOneBotEdit("selection") })
-	cmd(i18n.T("OneBot：修改当前章节"), "", func() { a.beginOneBotEdit("section") })
-	cmd(i18n.T("OneBot：修改整篇文档"), "", func() { a.beginOneBotEdit("document") })
-	cmd(i18n.T("书签"), a.keyLabel("bookmarks"), a.openBookmarks)
+	cmd(i18n.T("OneBot：修改选区"), "", func() { a.qa.beginOneBotEdit("selection") })
+	cmd(i18n.T("OneBot：修改当前章节"), "", func() { a.qa.beginOneBotEdit("section") })
+	cmd(i18n.T("OneBot：修改整篇文档"), "", func() { a.qa.beginOneBotEdit("document") })
+	cmd(i18n.T("书签"), a.keyLabel("bookmarks"), a.bookmarks.openBookmarks)
 	cmd(i18n.T("本地 Agent 接入设置…"), "", func() { a.openSettings(tabAI) })
 	cmd(i18n.T("安装本地 Agent Skill"), "", a.installAgentSkillsAction)
 	cmd(i18n.T("按标签浏览"), "#", func() { a.openPalette(); a.palette.query = "#" })
-	cmd(i18n.T("最近删除"), "", a.openTrash)
+	cmd(i18n.T("最近删除"), "", a.library.openTrash)
 	if len(a.state.Spaces) > 1 {
 		cmd(i18n.T("下一个空间"), a.keyLabel("next-space"), func() { a.stepSpace(1) })
 		cmd(i18n.T("上一个空间"), a.keyLabel("prev-space"), func() { a.stepSpace(-1) })
 	}
-	cmd(i18n.T("插件"), "", a.openPlugins)
+	cmd(i18n.T("插件"), "", a.library.openPlugins)
 	cmd(i18n.T("设置"), a.keyLabel("settings"), func() { a.openSettings(tabGeneral) })
 	cmd(i18n.T("键盘快捷键"), "", func() { a.openSettings(tabShortcuts) })
 	cmd(i18n.T("关于 FreeFolio"), "", func() { a.openSettings(tabAbout) })
 	cmd(i18n.T("新手教程"), "", a.startTour)
-	cmd(i18n.T("检查更新"), "", a.checkForUpdates)
-	if n := a.updateNotice(); n != nil && n.Kind == update.Ready {
-		cmd(i18n.T("重新启动以安装更新"), "", a.installUpdate)
+	cmd(i18n.T("检查更新"), "", a.updates.checkForUpdates)
+	if n := a.updates.updateNotice(); n != nil && n.Kind == update.Ready {
+		cmd(i18n.T("重新启动以安装更新"), "", a.updates.installUpdate)
 	}
 	auto := i18n.T("关闭自动更新")
 	if a.prefs.NoAutoUpdate {
 		auto = i18n.T("开启自动更新")
 	}
-	cmd(auto, "", a.toggleAutoUpdate)
+	cmd(auto, "", a.updates.toggleAutoUpdate)
 	cmd(i18n.T("刷新文档列表"), "", a.refreshTree)
 	if a.canGo(-1) {
 		cmd(i18n.T("后退"), "⌘[", func() { a.goHistory(-1) })
@@ -461,14 +461,14 @@ func (a *App) actions() []action {
 			pin = i18n.T("取消置顶文档")
 		}
 		cmd(pin, "", func() { a.togglePin(sp, rel) })
-		if d := a.bookmarkable(); d != nil {
+		if d := a.bookmarks.bookmarkable(); d != nil {
 			mark := i18n.T("添加书签")
-			if a.caretMarked(d) {
+			if a.bookmarks.caretMarked(d) {
 				mark = i18n.T("移除书签")
 			}
-			cmd(mark, a.keyLabel("bookmark"), a.toggleBookmarkAtCaret)
-			cmd(i18n.T("上一个书签"), a.keyLabel("prev-bookmark"), func() { a.stepBookmark(-1) })
-			cmd(i18n.T("下一个书签"), a.keyLabel("next-bookmark"), func() { a.stepBookmark(1) })
+			cmd(mark, a.keyLabel("bookmark"), a.bookmarks.toggleBookmarkAtCaret)
+			cmd(i18n.T("上一个书签"), a.keyLabel("prev-bookmark"), func() { a.bookmarks.stepBookmark(-1) })
+			cmd(i18n.T("下一个书签"), a.keyLabel("next-bookmark"), func() { a.bookmarks.stepBookmark(1) })
 		}
 		if inPins(sp, rel) {
 			cmd(i18n.T("关闭并保持置顶"), "", func() { a.closeOpen(sp, rel) })
@@ -503,7 +503,7 @@ func (a *App) actions() []action {
 				}
 			}
 			if mdzDoc.mdz.archive != nil && len(mdzDoc.mdz.pages) > 0 {
-				cmd(i18n.T("MDZip：解包另存为文档"), "", func() { a.unpackMDZAsDocument(mdzDoc) })
+				cmd(i18n.T("MDZip：解包另存为文档"), "", func() { a.mdzFiles.unpackMDZAsDocument(mdzDoc) })
 			}
 		} else if a.doc.isDatabase() {
 			dbDoc := a.doc
@@ -559,7 +559,7 @@ func (a *App) actions() []action {
 			cmd(i18n.T("导出 Markdown 文件"), "", a.exportMarkdown)
 			cmd(i18n.T("将当前文档存为模板"), "", a.saveAsTemplate)
 			cmd(i18n.T("导出 HTML 网页"), "", a.exportHTML)
-			cmd(i18n.T("导出 MDZip (.mdz)"), "", a.exportMDZ)
+			cmd(i18n.T("导出 MDZip (.mdz)"), "", a.mdzFiles.exportMDZ)
 		}
 		cmd(i18n.T("在新窗口中打开当前文档"), "", func() { a.openInWindow(sp, rel) })
 		cmd(i18n.T("在文件管理器中显示文档"), "", func() { a.revealIn(sp, rel) })
@@ -585,7 +585,7 @@ func (a *App) actions() []action {
 func (a *App) results() []action {
 	q := a.palette.query
 	if a.palette.bookmarks {
-		return a.bookmarkResults(q)
+		return a.bookmarks.bookmarkResults(q)
 	}
 	if strings.TrimSpace(q) == "" {
 		return a.idleResults()
@@ -758,7 +758,7 @@ func (a *App) paletteView(c *ui.Context) {
 				empty := i18n.T("没有匹配的结果")
 				switch {
 				case p.bookmarks && len(a.state.Bookmarks) == 0:
-					empty = i18n.T("还没有书签 · 按 ") + a.firstKey("bookmark") + i18n.T(" 标记当前段落")
+					empty = i18n.T("还没有书签 · 按 ") + a.bookmarks.firstKey("bookmark") + i18n.T(" 标记当前段落")
 				case p.bookmarks:
 					empty = i18n.T("没有匹配的书签")
 				}
@@ -796,7 +796,7 @@ func (a *App) paletteView(c *ui.Context) {
 					if i == p.index && p.reveal {
 						row.ScrollIntoView()
 					}
-					if act.bookmark != nil && a.bookmarkRow(c, row, act) {
+					if act.bookmark != nil && a.bookmarks.bookmarkRow(c, row, act) {
 						continue
 					}
 					row.Children(func() {

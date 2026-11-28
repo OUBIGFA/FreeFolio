@@ -99,7 +99,7 @@ func (a *App) openBoardImageAt(d *document, id string, edit bool, index int) {
 	a.boardImages = append(a.boardImages, w)
 	w.win = a.makeWindow(i18n.T("图片查看与标注"), func(c *ui.Context) { a.boardImageView(c, w) }, func() bool { return a.closeBoardImage(w) })
 	watchBoardImageOutsidePress(w.win, func() { a.dismissBoardImageOutside(w) })
-	read := a.boardAI(d).ReadFile
+	read := a.boardAI.boardAI(d).ReadFile
 	a.backgroundResult(func() func() {
 		var data []byte
 		var err error
@@ -274,7 +274,7 @@ func (a *App) saveBoardImage(w *boardImageWindow, generate bool) {
 }
 
 func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
-	c.Root().Font(a.interfaceFont())
+	c.Root().Font(a.fonts.interfaceFont())
 	t := c.Theme()
 	bar := c.TitleBar()
 	d := w.doc
@@ -324,7 +324,7 @@ func (a *App) boardImageView(c *ui.Context, w *boardImageWindow) {
 					if w.exportPath != "" && ui.Button(c.Key("save-image-as"), i18n.T("另存为")).Label(i18n.T("图片另存为")).Disabled(w.saving || w.loading).Clicked() {
 						w.saving, w.err = true, ""
 						parent, _ := w.win.(*mygo.Window)
-						a.saveBoardImageAs(parent, w.exportPath, a.boardAI(w.doc).ReadFile, func(err error) {
+						a.saveBoardImageAs(parent, w.exportPath, a.boardAI.boardAI(w.doc).ReadFile, func(err error) {
 							w.saving = false
 							if err != nil {
 								w.err = fmt.Sprintf(i18n.T("另存为失败；%v"), err)

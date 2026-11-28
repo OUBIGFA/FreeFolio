@@ -156,7 +156,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 				}
 				ui.Spacer(c)
 				if width >= 190 {
-					ui.Text(c, a.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
+					ui.Text(c, a.bookmarks.firstKey("palette")).FontSize(11).TextColor(t.TextMuted).NoWrap()
 				}
 			})
 			if search.Clicked() {
@@ -181,7 +181,7 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 		}
 		a.favorites(c)
 		a.pagerView(c)
-		a.updateBanner(c)
+		a.updates.updateBanner(c)
 		// The spaces sit at the foot, over the settings, as Arc's.
 		ui.Column(c.Key("space-switcher")).PaddingX(12).Children(func() { a.spaceBar(c) })
 		ui.Row(c.Key("sidebar-settings")).Padding(2, 12, 0, 12).Gap(2).AlignItems(ui.Center).Children(func() {
@@ -217,12 +217,12 @@ func (a *App) sidebar(c *ui.Context, floating bool) {
 				wordMaxW := max(28, a.sidebarW()-24-settingsW-118-8)
 				a.doc.ed.WordButtonFit(c, wordMaxW, 28)
 			}
-			a.sidebarCloudActions(c)
+			a.cloud.sidebarCloudActions(c)
 			if iconButton(c, "open-file", iconFolderOpen, i18n.T("打开文件"), i18n.T("打开文件"), false).Size(28, 28).Clicked() {
 				a.chooseExternalFiles()
 			}
-			if a.libraryFootButton(c).Size(28, 28).Clicked() {
-				a.toggleLibrary()
+			if a.library.libraryFootButton(c).Size(28, 28).Clicked() {
+				a.library.toggleLibrary()
 			}
 		})
 	})
@@ -1451,7 +1451,7 @@ func (a *App) listMenu(m *ui.Menu, sp *space.Space) {
 		revealDir(sp.Root)
 	}
 	if m.Item(i18n.T("最近删除")).Chosen() {
-		a.openTrash()
+		a.library.openTrash()
 	}
 }
 

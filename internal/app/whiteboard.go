@@ -418,7 +418,7 @@ func (a *App) boardOptionsWith(theme *ui.Theme, d *document) editor.BoardOptions
 	// Only a board document owns its results' paths; a Markdown document's
 	// embedded preview gets no AI tools.
 	if d.board != nil && d.loadErr == nil {
-		o.AI = a.boardAI(d)
+		o.AI = a.boardAI.boardAI(d)
 	}
 	o.ResolveFile = func(f *whiteboard.FileData) ([]byte, error) {
 		rel := path.Clean(path.Join(path.Dir(d.rel), f.Path))

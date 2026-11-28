@@ -12,8 +12,8 @@ import (
 
 func TestResourceTransfersHaveIndependentControls(t *testing.T) {
 	a := &App{}
-	first := a.resourceTransferFor("one")
-	second := a.resourceTransferFor("two")
+	first := a.resources.resourceTransferFor("one")
+	second := a.resources.resourceTransferFor("two")
 	one, cancelOne := context.WithCancel(context.Background())
 	defer cancelOne()
 	two, cancelTwo := context.WithCancel(context.Background())
@@ -24,17 +24,17 @@ func TestResourceTransfersHaveIndependentControls(t *testing.T) {
 	second.received.Store(160)
 	first.resume = func() {}
 	second.resume = func() {}
-	a.pauseResourceDownload(first)
-	a.finishResourceDownload(first, context.Canceled)
+	a.resources.pauseResourceDownload(first)
+	a.resources.finishResourceDownload(first, context.Canceled)
 	if !first.paused || one.Err() == nil || two.Err() != nil || second.received.Load() != 160 {
 		t.Fatal("pause affected another download")
 	}
-	a.stopResourceDownload(first)
-	if first.busy != "" || !a.resourcesDownloading() {
+	a.resources.stopResourceDownload(first)
+	if first.busy != "" || !a.resources.resourcesDownloading() {
 		t.Fatal("stop removed other active task")
 	}
-	a.finishResourceDownload(second, errors.New("network failed"))
-	if second.err == nil || first.err != nil || a.resourcesDownloading() {
+	a.resources.finishResourceDownload(second, errors.New("network failed"))
+	if second.err == nil || first.err != nil || a.resources.resourcesDownloading() {
 		t.Fatal("failure state leaked across rows")
 	}
 }
@@ -44,7 +44,7 @@ func TestActiveDownloadKeepsOtherResourcesAvailable(t *testing.T) {
 	a.openSettings(tabResources)
 	a.resources.tab = 3
 	tt.Frame()
-	job := a.resourceTransferFor("z-detail")
+	job := a.resources.resourceTransferFor("z-detail")
 	job.busy = "z-detail"
 	job.total = 100
 	job.received.Store(40)
@@ -68,13 +68,13 @@ func TestActiveDownloadKeepsOtherResourcesAvailable(t *testing.T) {
 	}
 	pack, _ := localresource.ComfyPack("z-detail")
 	a.resources.confirm = pack.ID
-	a.packAction(pack, true)
+	a.resources.packAction(pack, true)
 	if job.busy != "z-detail" {
 		t.Fatal("resource removed while downloading")
 	}
-	before := a.resourceDirectory()
-	a.setResourceDirectory(t.TempDir())
-	if a.resourceDirectory() != before {
+	before := a.resources.resourceDirectory()
+	a.resources.setResourceDirectory(t.TempDir())
+	if a.resources.resourceDirectory() != before {
 		t.Fatal("moved directory during download")
 	}
 }
@@ -89,11 +89,11 @@ func TestParallelResourceProgressSnapshot(t *testing.T) {
 	for i, id := range []string{"ace15-turbo", "stable-audio3"} {
 		pack, _ := localresource.ComfyPack(id)
 		plan, _ := localresource.PackDownload(pack)
-		job := a.resourceTransferFor(id)
+		job := a.resources.resourceTransferFor(id)
 		job.busy = id
 		job.cancel = func() {}
 		job.resume = func() {}
-		a.setPackDownloadProgress(job, pack, plan)
+		a.resources.setPackDownloadProgress(job, pack, plan)
 		job.received.Store(job.total * int64(i+1) / 4)
 	}
 	tt.Frame()

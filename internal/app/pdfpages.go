@@ -20,6 +20,7 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/fsutil"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/pdfedit"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -46,7 +47,20 @@ var pdfOps = []struct{ id, title string }{
 }
 
 // pdfPagesState is the window editing the pages of a PDF.
+// pdfPagesHost is what the PDF page tools need from the window.
+type pdfPagesHost interface {
+	isResidentDocument(d *document) bool
+	notify(format string, args ...any)
+	offerUndo(title, name string, undo func())
+	openIn(sp *space.Space, rel string)
+	openSystemFile(file string) bool
+	refreshTree()
+	replaceReferences(old, replacement *document)
+	window() *mygo.Window
+}
+
 type pdfPagesState struct {
+	host     pdfPagesHost
 	open     bool
 	doc      *document
 	op       string
@@ -72,11 +86,11 @@ type pdfPagesResult struct {
 }
 
 // openPDFPages opens the window for d, a PDF.
-func (a *App) openPDFPages(d *document) {
+func (pp *pdfPagesState) openPDFPages(d *document) {
 	if d == nil || !d.isPDF() || d.loadErr != nil {
 		return
 	}
-	a.pdfPages = pdfPagesState{open: true, doc: d, op: pdfOpRotate, degrees: 90, span: "1"}
+	*pp = pdfPagesState{host: pp.host, open: true, doc: d, op: pdfOpRotate, degrees: 90, span: "1"}
 }
 
 // pdfStampOf is the stamp readFile gives the PDF at full.
@@ -112,8 +126,8 @@ func pdfInPlace(op string) bool {
 
 // runPDFPages runs the window's operation, off the main thread when there
 // is a window.
-func (a *App) runPDFPages() {
-	s := &a.pdfPages
+func (pp *pdfPagesState) runPDFPages() {
+	s := pp
 	d := s.doc
 	if d == nil || s.busy {
 		return
@@ -145,14 +159,14 @@ func (a *App) runPDFPages() {
 	work := func() pdfPagesResult {
 		return pdfPagesWork(full, title, op, sel, pw, deg, span, merge, stamp)
 	}
-	if a.win == nil {
-		a.finishPDFPages(d, full, op, work())
+	if pp.host.window() == nil {
+		pp.finishPDFPages(d, full, op, work())
 		return
 	}
-	win := a.win
+	win := pp.host.window()
 	go func() {
 		res := work()
-		win.Update(func() { a.finishPDFPages(d, full, op, res) })
+		win.Update(func() { pp.finishPDFPages(d, full, op, res) })
 	}()
 }
 
@@ -276,8 +290,8 @@ func createUniqueFile(dir, base, ext string, data []byte) (string, error) {
 }
 
 // finishPDFPages shows what the operation did, on the main thread.
-func (a *App) finishPDFPages(d *document, full, op string, res pdfPagesResult) {
-	s := &a.pdfPages
+func (pp *pdfPagesState) finishPDFPages(d *document, full, op string, res pdfPagesResult) {
+	s := pp
 	if s.doc == d {
 		s.busy = false
 	}
@@ -293,54 +307,54 @@ func (a *App) finishPDFPages(d *document, full, op string, res pdfPagesResult) {
 		s.open = false
 	}
 	if pdfInPlace(op) {
-		cur := a.reopenPDF(d)
+		cur := pp.reopenPDF(d)
 		before, after, perm := res.before, res.after, res.perm
-		a.offerUndo(i18n.T("已修改 PDF"), d.rel, func() {
+		pp.host.offerUndo(i18n.T("已修改 PDF"), d.rel, func() {
 			if now, _, err := pdfStampOf(full); err != nil || now != after {
-				a.notify("PDF 在修改后又有变化，没有撤销")
+				pp.host.notify("PDF 在修改后又有变化，没有撤销")
 				return
 			}
 			if err := fsutil.WriteFileAtomic(full, before, perm); err != nil {
-				a.notify("撤销失败；%v", err)
+				pp.host.notify("撤销失败；%v", err)
 				return
 			}
-			a.reopenPDF(cur)
+			pp.reopenPDF(cur)
 		})
 		return
 	}
-	a.refreshTree()
+	pp.host.refreshTree()
 	if len(res.created) == 1 && op != pdfOpSplit {
 		if d.space.IsExternal() {
-			a.openSystemFile(res.created[0])
+			pp.host.openSystemFile(res.created[0])
 		} else {
-			a.openIn(d.space, path.Join(path.Dir(d.rel), filepath.Base(res.created[0])))
+			pp.host.openIn(d.space, path.Join(path.Dir(d.rel), filepath.Base(res.created[0])))
 		}
 	}
-	a.notify("已生成 %d 个 PDF 文件", len(res.created))
+	pp.host.notify("已生成 %d 个 PDF 文件", len(res.created))
 }
 
 // reopenPDF reads d's file again into a new document in its place and
 // returns it, or d when it is no longer open.
-func (a *App) reopenPDF(d *document) *document {
-	if d == nil || !a.isResidentDocument(d) {
+func (pp *pdfPagesState) reopenPDF(d *document) *document {
+	if d == nil || !pp.host.isResidentDocument(d) {
 		return d
 	}
 	text, err := readFile(d.space, d.rel)
 	if err != nil {
-		a.notify("重新载入 %s 失败；%v", d.title(), err)
+		pp.host.notify("重新载入 %s 失败；%v", d.title(), err)
 		return d
 	}
 	fresh := openPDFDocument(d.space, d.rel, text)
-	a.replaceReferences(d, fresh)
+	pp.host.replaceReferences(d, fresh)
 	return fresh
 }
 
 // chooseMergePDFs asks for the PDFs to merge after the open one.
-func (a *App) chooseMergePDFs() {
-	if a.win == nil {
+func (pp *pdfPagesState) chooseMergePDFs() {
+	if pp.host.window() == nil {
 		return
 	}
-	win, d := a.win, a.pdfPages.doc
+	win, d := pp.host.window(), pp.doc
 	go func() {
 		files, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("选择要合并的 PDF"), Multiple: true,
 			Filters: []mygo.FileFilter{{Name: "PDF", Extensions: []string{"pdf"}}}})
@@ -348,16 +362,16 @@ func (a *App) chooseMergePDFs() {
 			return
 		}
 		win.Update(func() {
-			if a.pdfPages.doc == d {
-				a.pdfPages.merge = append(a.pdfPages.merge, files...)
+			if pp.doc == d {
+				pp.merge = append(pp.merge, files...)
 			}
 		})
 	}()
 }
 
 // pdfPagesView is the window.
-func (a *App) pdfPagesView(c *ui.Context) {
-	s := &a.pdfPages
+func (pp *pdfPagesState) pdfPagesView(c *ui.Context) {
+	s := pp
 	if !s.open {
 		return
 	}
@@ -400,7 +414,7 @@ func (a *App) pdfPagesView(c *ui.Context) {
 					label = fmt.Sprintf(i18n.T("已选 %d 个 PDF，继续添加"), n)
 				}
 				if ui.Button(c.Key("pdf-merge-pick"), label).Clicked() {
-					a.chooseMergePDFs()
+					pp.chooseMergePDFs()
 				}
 				for i, m := range s.merge {
 					ui.Text(c.Key(fmt.Sprintf("pdf-merge-%d", i)), filepath.Base(m)).FontSize(12).TextColor(t.TextMuted).SingleLine().MinWidth(0)
@@ -445,7 +459,7 @@ func (a *App) pdfPagesView(c *ui.Context) {
 					go_ = i18n.T("正在处理")
 				}
 				if ui.PrimaryButton(c.Key("pdf-pages-go"), go_).Disabled(s.busy).Clicked() {
-					a.runPDFPages()
+					pp.runPDFPages()
 				}
 			})
 		})

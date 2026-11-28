@@ -225,7 +225,7 @@ func (a *App) windowView(c *ui.Context, w *docWindow) {
 		}
 		if d.isMDZ() {
 			width, _ := c.Size()
-			a.mdzView(c, d, width, false)
+			a.mdzFiles.mdzView(c, d, width, false)
 			return
 		}
 		if d.isDatabase() {

@@ -180,7 +180,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	a, tt := qaApp(t, &scripted{})
 	tt.Key(ui.Cmd, ui.KeyJ)
 	tt.Advance(slide)
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{question: "查找空间里的任务", running: true}
 	s.turns = append(s.turns, turn)
 	stopped := false
@@ -226,7 +226,7 @@ func TestQALoaderFollowsWaitingTurnAndVariesByPhase(t *testing.T) {
 	if err := tt.Click("停止"); err != nil || !stopped {
 		t.Fatal("stop did not cancel")
 	}
-	a.finishQA(s, turn, nil, context.Canceled)
+	a.qa.finishQA(s, turn, nil, context.Canceled)
 	tt.Frame()
 	if tt.HasText("正在查找") || !tt.HasText("已停止") {
 		t.Fatal("stopped turn retained its loader")

@@ -38,7 +38,7 @@ func TestLoRAResourceTabsFilterByBaseModel(t *testing.T) {
 			t.Fatal("removed adapter shown or tab starts downloads")
 		}
 	}
-	for _, preset := range a.boardEnhancementPresets() {
+	for _, preset := range a.boardAI.boardEnhancementPresets() {
 		if preset.Model.Model == "qwen-character-swap" && preset.Role != whiteboard.AIImage {
 			t.Fatal("two-image adapter uses one-image enhancement")
 		}
@@ -46,7 +46,7 @@ func TestLoRAResourceTabsFilterByBaseModel(t *testing.T) {
 			t.Fatal("removed adapter still offered as a preset")
 		}
 	}
-	models := a.boardAIModels(whiteboard.AIModel)
+	models := a.boardAI.boardAIModels(whiteboard.AIModel)
 	found := false
 	for _, model := range models {
 		if model.Model == "qwen-image-2.1-int8" {
@@ -58,7 +58,7 @@ func TestLoRAResourceTabsFilterByBaseModel(t *testing.T) {
 	}
 	pack, _ := localresource.ComfyPack("qwen-fusal-turbo")
 	download, _ := localresource.PackDownload(pack)
-	a.setPackDownloadProgress(&a.resources.resourceTransfer, pack, download)
+	a.resources.setPackDownloadProgress(&a.resources.resourceTransfer, pack, download)
 	if a.resources.total != 671174216 || a.resources.dependencyLabel != "依赖下载" {
 		t.Fatal("extra encoder is counted as LoRA weight")
 	}

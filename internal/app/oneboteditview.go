@@ -16,52 +16,52 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func (a *App) oneBotScopeView(c *ui.Context) {
+func (ob *qaState) oneBotScopeView(c *ui.Context) {
 	ui.Row(c.Key("scope")).Gap(6).Wrap().Children(func() {
 		label := i18n.T("选择修改范围")
-		if task := a.qa.editTask; task != nil {
+		if task := ob.editTask; task != nil {
 			label = oneBotScopeLabel(task.Scope)
 		}
 		ui.MenuButton(c.Key("choose"), label, func(m *ui.Menu) {
 			for _, scope := range []string{"selection", "section", "document", "documents", "new"} {
 				if m.Item(oneBotScopeLabel(scope)).Chosen() {
-					if a.qa.editTask != nil && a.qa.editTask.Running {
+					if ob.editTask != nil && ob.editTask.Running {
 						return
 					}
 					if scope == "documents" {
-						a.qa.editScope = scope
-						a.qa.editDocumentsOpen = true
+						ob.editScope = scope
+						ob.editDocumentsOpen = true
 					} else {
-						a.beginOneBotEdit(scope)
+						ob.beginOneBotEdit(scope)
 					}
 				}
 			}
 		})
-		before := a.prefs.AI.Direct
-		ui.Checkbox(c.Key("direct"), &a.prefs.AI.Direct, i18n.T("直接修改"))
-		if before != a.prefs.AI.Direct {
-			a.savePrefs()
+		before := ob.host.preferences().AI.Direct
+		ui.Checkbox(c.Key("direct"), &ob.host.preferences().AI.Direct, i18n.T("直接修改"))
+		if before != ob.host.preferences().AI.Direct {
+			ob.host.savePrefs()
 		}
 	})
 	ui.Row(c.Key("candidate-count")).Gap(8).Children(func() {
 		ui.Text(c, i18n.T("候选数量"))
-		n := a.qa.editCount
+		n := ob.editCount
 		if n < 1 {
 			n = 1
 		}
 		value := fmt.Sprint(n)
 		ui.Combobox(c.Key("count"), &value, []string{"1", "2", "3", "4", "5"}).Width(70)
-		fmt.Sscan(value, &a.qa.editCount)
+		fmt.Sscan(value, &ob.editCount)
 		if ui.Button(c.Key("three"), i18n.T("提供三个方案")).Clicked() {
-			a.qa.editCount = 3
-			a.prefs.AI.Direct = false
-			a.savePrefs()
+			ob.editCount = 3
+			ob.host.preferences().AI.Direct = false
+			ob.host.savePrefs()
 		}
 	})
-	if a.qa.editScope == "new" {
-		ui.TextInput(c.Key("new-path"), &a.qa.editNewPath).Placeholder("New document.md").Label(i18n.T("新文档路径"))
+	if ob.editScope == "new" {
+		ui.TextInput(c.Key("new-path"), &ob.editNewPath).Placeholder("New document.md").Label(i18n.T("新文档路径"))
 	}
-	if task := a.qa.editTask; task != nil && len(task.Targets) > 0 {
+	if task := ob.editTask; task != nil && len(task.Targets) > 0 {
 		paths := map[string]bool{}
 		for _, target := range task.Targets {
 			paths[target.Path] = true
@@ -73,24 +73,24 @@ func (a *App) oneBotScopeView(c *ui.Context) {
 		slices.Sort(names)
 		ui.Text(c, strings.Join(names, " · ")).FontSize(12).TextColor(c.Theme().TextMuted)
 	}
-	if a.qa.editDocumentsOpen {
-		ui.TextInput(c.Key("find-doc"), &a.qa.editDocQuery).Placeholder(i18n.T("搜索文档"))
-		for _, node := range a.docs {
-			if !strings.Contains(strings.ToLower(node.Path), strings.ToLower(a.qa.editDocQuery)) {
+	if ob.editDocumentsOpen {
+		ui.TextInput(c.Key("find-doc"), &ob.editDocQuery).Placeholder(i18n.T("搜索文档"))
+		for _, node := range ob.host.docNodes() {
+			if !strings.Contains(strings.ToLower(node.Path), strings.ToLower(ob.editDocQuery)) {
 				continue
 			}
-			checked := slices.Contains(a.qa.editPaths, node.Path)
+			checked := slices.Contains(ob.editPaths, node.Path)
 			if ui.Checkbox(c.Key(node.Path), &checked, node.Path).Changed() {
 				if checked {
-					a.qa.editPaths = append(a.qa.editPaths, node.Path)
+					ob.editPaths = append(ob.editPaths, node.Path)
 				} else {
-					a.qa.editPaths = slices.DeleteFunc(a.qa.editPaths, func(p string) bool { return p == node.Path })
+					ob.editPaths = slices.DeleteFunc(ob.editPaths, func(p string) bool { return p == node.Path })
 				}
 			}
 		}
 		if ui.Button(c.Key("confirm-docs"), i18n.T("使用选定文档")).Clicked() {
-			a.beginOneBotEdit("documents")
-			a.qa.editDocumentsOpen = false
+			ob.beginOneBotEdit("documents")
+			ob.editDocumentsOpen = false
 		}
 	}
 }
@@ -128,7 +128,7 @@ func oneBotChangeStatus(s string) string {
 	}
 }
 
-func (a *App) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index int, ch *oneBotChange) {
+func (ob *qaState) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index int, ch *oneBotChange) {
 	t := c.Theme()
 	ui.Column(c.Key("change")).Gap(8).Padding(9, 10).Radius(9).
 		Background(t.Text.Alpha(0.02)).Border(1, t.Border.Alpha(0.55)).Children(func() {
@@ -188,77 +188,77 @@ func (a *App) oneBotChangeView(c *ui.Context, task *oneBotTask, candidate, index
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			if ch.Status == "pending" {
 				if oneBotApplyButton(c, "accept", i18n.T("应用这处")).Disabled(task.Applying).Clicked() {
-					if err := a.applyOneBotCandidate(task, candidate, index); err != nil {
+					if err := ob.applyOneBotCandidate(task, candidate, index); err != nil {
 						ch.Error = err.Error()
 						task.Error = err.Error()
 					}
 				}
 				if quietOneBotAction(c, "reject", i18n.T("拒绝这处")).Disabled(task.Applying).Clicked() {
 					ch.Status = "rejected"
-					a.keepOneBotTask(task)
+					ob.keepOneBotTask(task)
 				}
 			}
 			if quietOneBotAction(c, "locate", i18n.T("定位原文")).Clicked() {
-				a.openAnywhere(task.SpaceID, ch.Path)
-				if a.doc != nil {
-					if start, end, err := a.doc.ed.ResolveEdit(ch.Operation.Target); err == nil {
-						a.doc.ed.SetSelection(start, end)
-						a.doc.ed.RequestFocus = true
+				ob.host.openAnywhere(task.SpaceID, ch.Path)
+				if ob.host.activeDocument() != nil {
+					if start, end, err := ob.host.activeDocument().ed.ResolveEdit(ch.Operation.Target); err == nil {
+						ob.host.activeDocument().ed.SetSelection(start, end)
+						ob.host.activeDocument().ed.RequestFocus = true
 					}
 				}
 			}
 			if ch.Status == "applied" && quietOneBotAction(c, "save", i18n.T("重试保存")).Clicked() {
-				a.retryOneBotSave(task, ch)
+				ob.retryOneBotSave(task, ch)
 			}
 		})
 	})
 }
 
-func (a *App) keepOneBotTask(task *oneBotTask) {
-	if err := a.persistOneBotTask(task); err != nil {
+func (ob *qaState) keepOneBotTask(task *oneBotTask) {
+	if err := ob.persistOneBotTask(task); err != nil {
 		task.Error = err.Error()
 		return
 	}
-	if s := a.qa.sessions[task.SpaceID]; s != nil {
+	if s := ob.sessions[task.SpaceID]; s != nil {
 		for _, turn := range s.turns {
 			if turn.edit == task {
-				a.saveOneBotConversation(task.SpaceID, s)
+				ob.saveOneBotConversation(task.SpaceID, s)
 				break
 			}
 		}
 	}
 }
-func (a *App) restartOneBotTask(task *oneBotTask) {
+func (ob *qaState) restartOneBotTask(task *oneBotTask) {
 	if task.Running {
 		return
 	}
-	a.keepOneBotTask(task)
-	a.qa.editTask = nil
-	a.qa.editPaths = nil
+	ob.keepOneBotTask(task)
+	ob.editTask = nil
+	ob.editPaths = nil
 	seen := map[string]bool{}
 	for _, target := range task.Targets {
 		if !seen[target.Path] {
 			seen[target.Path] = true
-			a.qa.editPaths = append(a.qa.editPaths, target.Path)
+			ob.editPaths = append(ob.editPaths, target.Path)
 		}
 	}
 	scope := task.Scope
 	if scope == "selection" {
-		a.notify("%s", i18n.T("请重新选择需要修改的内容"))
+		ob.host.notify("%s", i18n.T("请重新选择需要修改的内容"))
 		return
 	}
-	next, err := a.captureOneBotTask(scope)
+	next, err := ob.captureOneBotTask(scope)
 	if err != nil {
 		task.Error = err.Error()
-		a.qa.editTask = task
+		ob.editTask = task
 		return
 	}
-	a.qa.editTask = next
-	a.qa.input = task.Instruction
-	a.qa.focusInput = true
+	ob.editTask = next
+	ob.input = task.Instruction
+	ob.focusInput = true
 }
 
-func (a *App) retryOneBotSave(task *oneBotTask, ch *oneBotChange) {
+func (ob *qaState) retryOneBotSave(task *oneBotTask, ch *oneBotChange) {
 	for i := range task.Targets {
 		target := &task.Targets[i]
 		if target.ID != ch.TargetID {
@@ -275,12 +275,12 @@ func (a *App) retryOneBotSave(task *oneBotTask, ch *oneBotChange) {
 		}
 		ch.Status = "saved"
 		ch.Error = ""
-		a.keepOneBotTask(task)
+		ob.keepOneBotTask(task)
 		return
 	}
 }
 
-func (a *App) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate) {
+func (ob *qaState) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate) {
 	seen := map[string]bool{}
 	for i := len(candidate.Changes) - 1; i >= 0; i-- {
 		ch := candidate.Changes[i]
@@ -289,7 +289,7 @@ func (a *App) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate
 		}
 		if ch.Receipt == nil {
 			if ch.Operation.Kind == "create_document" {
-				if err := a.revertOneBotCreation(task, ch); err != nil {
+				if err := ob.revertOneBotCreation(task, ch); err != nil {
 					ch.Error = err.Error()
 				} else {
 					ch.Status = "reverted"
@@ -313,8 +313,8 @@ func (a *App) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate
 			}
 		}
 		if d == nil || d.closed.Load() {
-			if a.openAnywhere(task.SpaceID, ch.Path) {
-				d = a.doc
+			if ob.host.openAnywhere(task.SpaceID, ch.Path) {
+				d = ob.host.activeDocument()
 			} else {
 				d = nil
 			}
@@ -351,15 +351,15 @@ func (a *App) revertOneBotCandidate(task *oneBotTask, candidate *oneBotCandidate
 			}
 		}
 	}
-	a.keepOneBotTask(task)
+	ob.keepOneBotTask(task)
 }
 
-func (a *App) revertOneBotCreation(task *oneBotTask, ch *oneBotChange) error {
-	sp := a.qaSpaceByID(task.SpaceID)
+func (ob *qaState) revertOneBotCreation(task *oneBotTask, ch *oneBotChange) error {
+	sp := ob.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return errors.New(i18n.T("空间已不存在"))
 	}
-	for _, d := range a.residentDocuments() {
+	for _, d := range ob.host.residentDocuments() {
 		if d.space.ID == sp.ID && d.rel == ch.Path && (d.dirty() || d.saving) {
 			return model.ErrEditConflict
 		}
@@ -375,33 +375,33 @@ func (a *App) revertOneBotCreation(task *oneBotTask, ch *oneBotChange) error {
 	if err != nil {
 		return err
 	}
-	kept, err := a.bin.Add(sp.ID, sp.Name, sp.Root, ch.Path, time.Now())
+	kept, err := ob.host.trashBin().Add(sp.ID, sp.Name, sp.Root, ch.Path, time.Now())
 	if err != nil {
 		return err
 	}
-	if err = a.trashItem(full); err != nil {
+	if err = ob.host.trashItem(full); err != nil {
 		return err
 	}
-	for _, d := range a.residentDocuments() {
+	for _, d := range ob.host.residentDocuments() {
 		if d.space.ID == sp.ID && d.rel == ch.Path {
-			a.replaceReferences(d, nil)
+			ob.host.replaceReferences(d, nil)
 		}
 	}
-	a.state.Forget(sp.ID, ch.Path)
-	a.saveState()
-	a.refreshTree()
-	a.offerUndo(i18n.T("已移到废纸篓"), ch.Path, func() { a.restoreDeleted(kept) })
+	ob.host.spaces().Forget(sp.ID, ch.Path)
+	ob.host.saveState()
+	ob.host.refreshTree()
+	ob.host.offerUndo(i18n.T("已移到废纸篓"), ch.Path, func() { ob.host.restoreDeleted(kept) })
 	return nil
 }
 
-func (a *App) loadOneBotHistory() {
-	dir := filepath.Join(a.cfg.ConfigDir, "onebot", "tasks")
+func (ob *qaState) loadOneBotHistory() {
+	dir := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "tasks")
 	entries, err := os.ReadDir(dir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		a.notify("%s", err.Error())
+		ob.host.notify("%s", err.Error())
 		return
 	}
-	a.qa.editHistory = nil
+	ob.editHistory = nil
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -423,18 +423,18 @@ func (a *App) loadOneBotHistory() {
 				ch.Receipt = task.Receipts[ch.Batch]
 			}
 		}
-		a.qa.editHistory = append(a.qa.editHistory, &task)
+		ob.editHistory = append(ob.editHistory, &task)
 	}
-	slices.SortFunc(a.qa.editHistory, func(a, b *oneBotTask) int { return b.Created.Compare(a.Created) })
+	slices.SortFunc(ob.editHistory, func(a, b *oneBotTask) int { return b.Created.Compare(a.Created) })
 }
-func (a *App) oneBotHistoryView(c *ui.Context) {
+func (ob *qaState) oneBotHistoryView(c *ui.Context) {
 	t := c.Theme()
-	if len(a.qa.editHistory) == 0 {
+	if len(ob.editHistory) == 0 {
 		ui.Text(c, i18n.T("暂无编辑记录")).FontSize(12.5).TextColor(t.TextMuted).Padding(6, 0)
 		return
 	}
 	ui.Column(c).Gap(6).Children(func() {
-		for _, task := range a.qa.editHistory {
+		for _, task := range ob.editHistory {
 			ui.Row(c.Key(task.ID)).Gap(8).Padding(7, 9).Radius(7).AlignItems(ui.Center).
 				Background(t.Surface).Border(1, t.Border.Alpha(0.55)).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
@@ -442,11 +442,11 @@ func (a *App) oneBotHistoryView(c *ui.Context) {
 					ui.Text(c, task.Created.Format("2006-01-02 15:04")).FontSize(11).TextColor(t.TextMuted)
 				})
 				if quietOneBotAction(c, "open", i18n.T("打开记录")).Clicked() {
-					a.qa.editTask = task
-					a.attachOneBotTask(task)
-					a.qa.editHistoryOpen = false
-					a.qa.editScope = task.Scope
-					a.qa.editNewPath = task.NewPath
+					ob.editTask = task
+					ob.attachOneBotTask(task)
+					ob.editHistoryOpen = false
+					ob.editScope = task.Scope
+					ob.editNewPath = task.NewPath
 					task.Stopped = false
 				}
 				del := ui.Box(c.Key("delete")).Size(26, 26).Radius(6).Center().Shrink(0).
@@ -459,7 +459,7 @@ func (a *App) oneBotHistoryView(c *ui.Context) {
 				}
 				del.Children(func() { ui.Icon(c, iconTrash).FontSize(13.5).TextColor(delInk) })
 				if del.Clicked() {
-					a.deleteOneBotEditTask(task.ID)
+					ob.deleteOneBotEditTask(task.ID)
 				}
 			})
 		}

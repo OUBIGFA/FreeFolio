@@ -22,13 +22,13 @@ const keyTestTimeout = 30 * time.Second
 // testAIKeys asks the current model one short question with each of keys
 // alone, all at once; "" tests a service that needs no key. A key answers
 // as soon as the reply starts, which ends the request.
-func (a *App) testAIKeys(keys ...string) {
-	c := a.prefs.AI.Current()
+func (ob *qaState) testAIKeys(keys ...string) {
+	c := ob.host.preferences().AI.Current()
 	if c == nil || c.Protocol == agent.ChatGPT {
 		return
 	}
-	q := &a.qa
-	base := a.qaSettings()
+	q := ob
+	base := ob.qaSettings()
 	sig := base.Signature()
 	if q.keyTestFor != sig {
 		q.keyTestFor, q.keyTests = sig, nil
@@ -88,26 +88,26 @@ func (a *App) testAIKeys(keys ...string) {
 			}
 			q.keyTests[key] = keyTest{err: err, took: took, gen: gen}
 		}
-		if q.sync || a.win == nil {
+		if q.sync || ob.host.window() == nil {
 			done(run())
 			continue
 		}
-		go func() { took, err := run(); a.win.Update(func() { done(took, err) }) }()
+		go func() { took, err := run(); ob.host.window().Update(func() { done(took, err) }) }()
 	}
 }
 
 // keyTestsCurrent are the key tests made with the provider as it is set
 // now: a change of address or model leaves the earlier ones behind.
-func (a *App) keyTestsCurrent() map[string]keyTest {
-	if a.prefs.AI.Current() == nil || a.qa.keyTestFor != a.qaSettings().Signature() {
+func (ob *qaState) keyTestsCurrent() map[string]keyTest {
+	if ob.host.preferences().AI.Current() == nil || ob.keyTestFor != ob.qaSettings().Signature() {
 		return nil
 	}
-	return a.qa.keyTests
+	return ob.keyTests
 }
 
 // keyTestsBusy reports a test still running for the current provider.
-func (a *App) keyTestsBusy() bool {
-	for _, r := range a.keyTestsCurrent() {
+func (ob *qaState) keyTestsBusy() bool {
+	for _, r := range ob.keyTestsCurrent() {
 		if r.busy {
 			return true
 		}
@@ -116,7 +116,7 @@ func (a *App) keyTestsBusy() bool {
 }
 
 // keyTestOf is the last test of key for the current provider.
-func (a *App) keyTestOf(key string) (keyTest, bool) {
-	r, ok := a.keyTestsCurrent()[key]
+func (ob *qaState) keyTestOf(key string) (keyTest, bool) {
+	r, ok := ob.keyTestsCurrent()[key]
 	return r, ok
 }

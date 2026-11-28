@@ -123,7 +123,7 @@ func TestQAAnswersWithCitationsThatOpenTheBlock(t *testing.T) {
 	}}
 	a, tt := qaApp(t, model)
 	os.WriteFile(filepath.Join(root(a), "计划.md"), []byte("# 计划\n\n## 决定\n\n决定延期发布，原因是支付联调。\n\n证书还没下来。\n"), 0o644)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Type("为什么延期？")
@@ -132,7 +132,7 @@ func TestQAAnswersWithCitationsThatOpenTheBlock(t *testing.T) {
 	if sys := model.reqs[0].System; !strings.Contains(sys, `space "Personal"`) || !strings.Contains(sys, "计划.md") {
 		t.Fatalf("system prompt:\n%s", sys)
 	}
-	qaSettle(t, tt, a.qaSession(a.state.ActiveSpace().ID).turns[0])
+	qaSettle(t, tt, a.qa.qaSession(a.state.ActiveSpace().ID).turns[0])
 	for _, want := range []string{
 		"为什么延期？",
 		"查找了 2 步 · 阅读 1 处",
@@ -162,8 +162,8 @@ func TestQAAnswersWithCitationsThatOpenTheBlock(t *testing.T) {
 			t.Errorf("no %q in expanded sources: %q", want, tt.Texts())
 		}
 	}
-	if a.qa.input != "" || len(a.qaSession(a.state.ActiveSpace().ID).history) != 6 {
-		t.Fatalf("history %+v", a.qaSession(a.state.ActiveSpace().ID).history)
+	if a.qa.input != "" || len(a.qa.qaSession(a.state.ActiveSpace().ID).history) != 6 {
+		t.Fatalf("history %+v", a.qa.qaSession(a.state.ActiveSpace().ID).history)
 	}
 	// The steps unfold to show clean structured labels and line ranges.
 	tt.Click("查找了 2 步 · 阅读 1 处")
@@ -196,7 +196,7 @@ func TestQAAnswersWithCitationsThatOpenTheBlock(t *testing.T) {
 	// A follow-up sees the conversation so far.
 	model.steps = append(model.steps, reply("好的"))
 	a.qa.input = "谢谢"
-	a.askQA()
+	a.qa.askQA()
 	if n := len(model.reqs[3].Messages); n != 7 || model.reqs[3].Messages[6].Text != "谢谢" {
 		t.Fatalf("follow-up sent %d messages", n)
 	}
@@ -213,13 +213,13 @@ func TestQASearchToolStepJumpAndLiveToggle(t *testing.T) {
 	os.WriteFile(filepath.Join(root(a), "项目/发布计划.md"), []byte("# 发布计划\n\n## 风险\n\n安全证书审批延迟。\n"), 0o644)
 	os.WriteFile(filepath.Join(root(a), "项目/周报.md"), []byte("# 周报\n\n已同步证书进度。\n"), 0o644)
 
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 
 	// Verify live step toggle works even while turn is running!
 	sp := a.state.ActiveSpace().ID
-	s := a.qaSession(sp)
+	s := a.qa.qaSession(sp)
 	liveTurn := &qaTurn{
 		question: "正在跑的时候能折叠步骤吗？",
 		running:  true,
@@ -241,11 +241,11 @@ func TestQASearchToolStepJumpAndLiveToggle(t *testing.T) {
 	}
 
 	// Reset and run full scripted search + multi-document grouped citations.
-	a.clearQA()
+	a.qa.clearQA()
 	tt.Frame()
 	a.qa.input = "证书有什么风险？"
-	a.askQA()
-	qaSettle(t, tt, a.qaSession(sp).turns[0])
+	a.qa.askQA()
+	qaSettle(t, tt, a.qa.qaSession(sp).turns[0])
 	if !tt.HasText("2 个来源") {
 		t.Fatalf("missing collapsed sources toggle: %q", tt.Texts())
 	}
@@ -290,8 +290,8 @@ func TestQAReadsUnsavedEditsAndStaysInItsSpace(t *testing.T) {
 		t.Fatal("the edit was saved already")
 	}
 	a.qa.input = "我刚写了什么？"
-	a.askQA()
-	h := a.qaSession(a.state.ActiveSpace().ID).history
+	a.qa.askQA()
+	h := a.qa.qaSession(a.state.ActiveSpace().ID).history
 	if !strings.Contains(h[2].Text, a.doc.rel+":") {
 		t.Fatalf("unsaved text not searched: %q", h[2].Text)
 	}
@@ -303,11 +303,11 @@ func TestQAReadsUnsavedEditsAndStaysInItsSpace(t *testing.T) {
 func TestQAStopAndRetry(t *testing.T) {
 	model := &scripted{}
 	a, tt := qaApp(t, model)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	sp := a.state.ActiveSpace().ID
-	s := a.qaSession(sp)
+	s := a.qa.qaSession(sp)
 	// A run stopped partway keeps what it said and closes the turn.
 	turn := &qaTurn{question: "q", running: true, answer: "一半"}
 	s.turns = append(s.turns, turn)
@@ -318,7 +318,7 @@ func TestQAStopAndRetry(t *testing.T) {
 	if !tt.HasText("一半") {
 		t.Fatalf("partial answer: %q", tt.Texts())
 	}
-	a.finishQA(s, turn, []agent.Message{{Role: agent.Assistant, Calls: []agent.ToolCall{{ID: "x"}}}, {Role: agent.ToolRole, CallID: "x"}}, context.Canceled)
+	a.qa.finishQA(s, turn, []agent.Message{{Role: agent.Assistant, Calls: []agent.ToolCall{{ID: "x"}}}, {Role: agent.ToolRole, CallID: "x"}}, context.Canceled)
 	tt.Frame()
 	last := s.history[len(s.history)-1]
 	if !turn.stopped || s.running() || !tt.HasText("已停止") || last.Role != agent.Assistant || !strings.Contains(last.Text, "一半") {
@@ -329,7 +329,7 @@ func TestQAStopAndRetry(t *testing.T) {
 	failing := &qaTurn{question: "再问", start: len(s.history), running: true}
 	s.turns = append(s.turns, failing)
 	s.history = append(s.history, agent.Message{Role: agent.User, Text: "再问"})
-	a.finishQA(s, failing, nil, &agent.APIError{Status: 500, Message: "overloaded"})
+	a.qa.finishQA(s, failing, nil, &agent.APIError{Status: 500, Message: "overloaded"})
 	tt.Frame()
 	if !tt.HasText("重试") || !tt.HasText("模型服务出错（500）：overloaded") {
 		t.Fatalf("error: %q", tt.Texts())
@@ -346,7 +346,7 @@ func TestQAStopAndRetry(t *testing.T) {
 	// A new conversation starts empty.
 	tt.Click("新对话")
 	tt.Frame()
-	if len(a.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
+	if len(a.qa.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
 		t.Fatalf("new: %q", tt.Texts())
 	}
 }
@@ -356,7 +356,7 @@ func TestQAKeyStoreErrorIsShown(t *testing.T) {
 	setupOneBot(a, "")
 	a.qa.secrets = failingSecrets{}
 	a.qa.keyRead = false
-	if err := a.qaReady(); err == nil || !strings.Contains(err.Error(), "无法读取 API Key") {
+	if err := a.qa.qaReady(); err == nil || !strings.Contains(err.Error(), "无法读取 API Key") {
 		t.Fatalf("%v", err)
 	}
 }

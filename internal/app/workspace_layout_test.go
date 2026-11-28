@@ -11,7 +11,7 @@ import (
 
 func TestOneBotDraftFitsItsContents(t *testing.T) {
 	app, tester := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply("收到")}})
-	app.toggleQA()
+	app.qa.toggleQA()
 	settle(tester)
 	field := func() ui.Rect {
 		t.Helper()
@@ -43,7 +43,7 @@ func TestOneBotDraftFitsItsContents(t *testing.T) {
 	app.qa.input = "发出这条消息"
 	field()
 	tester.Key(0, ui.KeyEnter)
-	if sent := field(); len(app.qaSession(app.state.ActiveSpace().ID).turns) != 1 || app.qa.input != "" || sent != empty {
+	if sent := field(); len(app.qa.qaSession(app.state.ActiveSpace().ID).turns) != 1 || app.qa.input != "" || sent != empty {
 		t.Fatalf("send did not dock an empty draft: %v, draft %q", sent, app.qa.input)
 	}
 }
@@ -51,7 +51,7 @@ func TestOneBotDraftFitsItsContents(t *testing.T) {
 func TestOneBotWelcomeCenteredAboveDockedDraft(t *testing.T) {
 	app, tester := newTestApp(t)
 	setupOneBot(app, "key")
-	app.toggleQA()
+	app.qa.toggleQA()
 	settle(tester)
 	bounds := func(label string) ui.Rect {
 		t.Helper()
@@ -105,7 +105,7 @@ func TestOneBotWelcomeCenteredAboveDockedDraft(t *testing.T) {
 
 func TestOneBotPresetRowsStayUnfilled(t *testing.T) {
 	app, tester := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply("收到")}})
-	app.toggleQA()
+	app.qa.toggleQA()
 	settle(tester)
 	for _, question := range qaExamples {
 		row, found := tester.Find(question)
@@ -127,7 +127,7 @@ func TestOneBotPresetRowsStayUnfilled(t *testing.T) {
 	if err := tester.Click(qaExamples[0]); err != nil {
 		t.Fatal(err)
 	}
-	turns := app.qaSession(app.state.ActiveSpace().ID).turns
+	turns := app.qa.qaSession(app.state.ActiveSpace().ID).turns
 	if len(turns) != 1 || turns[0].question != qaExamples[0] {
 		t.Fatal("clicking a preset did not send that question")
 	}
@@ -198,7 +198,7 @@ func TestOneBotAttachmentListLeavesRoomForDraft(t *testing.T) {
 	setupOneBot(app, "key")
 	tester.SetSize(640, 420)
 	app.prefs.OneBotWidth = 280
-	app.toggleQA()
+	app.qa.toggleQA()
 	for index := range oneBotMaxAttachments {
 		app.qa.attachments = append(app.qa.attachments, oneBotAttachmentItem{Part: agent.ContentPart{Name: fmt.Sprintf("一个较长的附件名称-%02d.md", index)}})
 	}

@@ -57,12 +57,12 @@ func TestSelectionBarAddToOneBotQuotesSelection(t *testing.T) {
 		t.Fatal("quote badge missing", tt.Texts())
 	}
 	// Adding the same selection again keeps one badge.
-	a.addSelectionToOneBot(d)
+	a.qa.addSelectionToOneBot(d)
 	if len(a.qa.quotes) != 1 {
 		t.Fatal("duplicate quote")
 	}
 	a.qa.input = "这句话什么意思？"
-	a.askQA()
+	a.qa.askQA()
 	settle(tt)
 	want := `<user_selected_content path="` + d.rel + `" startLine="3" endLine="3">` + "\n```" + d.rel + "\n3|hello\n```\n</user_selected_content>\n\n这句话什么意思？"
 	if sent != want {
@@ -71,7 +71,7 @@ func TestSelectionBarAddToOneBotQuotesSelection(t *testing.T) {
 	if len(a.qa.quotes) != 0 {
 		t.Fatal("quotes stay after sending")
 	}
-	turns := a.qaSession(a.state.ActiveSpace().ID).turns
+	turns := a.qa.qaSession(a.state.ActiveSpace().ID).turns
 	if last := turns[len(turns)-1]; last.question != "这句话什么意思？" || len(last.quotes) != 1 {
 		t.Fatalf("turn %q %+v", last.question, last.quotes)
 	}

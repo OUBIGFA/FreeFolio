@@ -85,7 +85,7 @@ func TestBoardEnhancementRunnerWritesNativeLoRAResult(t *testing.T) {
 	}))
 	defer srv.Close()
 	a.prefs.ComfyUI.URL = srv.URL
-	runner, err := a.boardAIRunner(a.doc)
+	runner, err := a.boardAI.boardAIRunner(a.doc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 		}
 		savePNG(t, filepath.Join(dir, name), tt)
 	}
-	job := a.resourceTransferFor("z-detail")
+	job := a.resources.resourceTransferFor("z-detail")
 	job.busy = "z-detail"
 	job.total = 170127776
 	job.received.Store(54000000)
@@ -187,7 +187,7 @@ func TestEnhancementResourcesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.setPackDownloadProgress(job, pack, download)
+	a.resources.setPackDownloadProgress(job, pack, download)
 	job.received.Store(job.ownStart / 2)
 	tt.Frame()
 	savePNG(t, filepath.Join(dir, "lora-base-size.png"), tt)
@@ -213,7 +213,7 @@ func TestEnhancementNodesSnapshot(t *testing.T) {
 		e := b.Scene.ElementByID(id)
 		n := whiteboard.AINodeOf(e)
 		n.Model, n.Title = tc.id, tc.title
-		for _, preset := range a.boardEnhancementPresets() {
+		for _, preset := range a.boardAI.boardEnhancementPresets() {
 			if preset.Model.Model == tc.id {
 				n.Connection = preset.Model.Connection
 				n.Instruction = preset.Model.Instruction
@@ -237,7 +237,7 @@ func TestModelFlowSnapshot(t *testing.T) {
 	tt.SetSize(1600, 1000)
 	a.newWhiteboard("")
 	a.prefs.ComfyUI.Dir = t.TempDir()
-	a.resources.dir = a.resourceDirectory()
+	a.resources.dir = a.resources.resourceDirectory()
 	a.resources.installed = map[string]bool{"z-detail": true, "z-image-turbo-int8": true}
 	a.resources.comfyCaps = &localresource.ComfyCapabilities{ZImageNative: true, LoRANative: true}
 	tt.Frame()
@@ -277,10 +277,10 @@ func TestModelFlowSnapshot(t *testing.T) {
 
 func TestAllEnhancementPacksHaveMatchingNodes(t *testing.T) {
 	a, _ := newTestApp(t)
-	if model := a.boardAIDefault(whiteboard.AIImage); model.Model != "" {
+	if model := a.boardAI.boardAIDefault(whiteboard.AIImage); model.Model != "" {
 		t.Fatal("an unavailable LoRA became the default image model")
 	}
-	presets := a.boardEnhancementPresets()
+	presets := a.boardAI.boardEnhancementPresets()
 	for _, pack := range localresource.ComfyPacks {
 		if pack.ResourceTab() == 1 {
 			continue

@@ -180,7 +180,7 @@ func TestOneBotDropMultiFilesImagesAndEditInConversation(t *testing.T) {
 	}
 	a.refreshTree()
 	a.open("Welcome.md")
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -241,7 +241,7 @@ func TestOneBotDropMultiFilesImagesAndEditInConversation(t *testing.T) {
 	tt.Type("结合图片和外部参考修改 Plan.md")
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	turn := a.qaSession(sp.ID).turns[0]
+	turn := a.qa.qaSession(sp.ID).turns[0]
 	qaSettle(t, tt, turn)
 
 	if turn.err != nil {
@@ -259,7 +259,7 @@ func TestOneBotDropMultiFilesImagesAndEditInConversation(t *testing.T) {
 	}
 
 	// Verify conversation JSON does not store raw base64 data.
-	convData, err := os.ReadFile(filepath.Join(a.oneBotConversationDir(), a.qaSession(sp.ID).id+".json"))
+	convData, err := os.ReadFile(filepath.Join(a.qa.oneBotConversationDir(), a.qa.qaSession(sp.ID).id+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestOneBotSidebarDragFolderMultiSelectAndFavoriteDrop(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.refreshTree()
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -368,7 +368,7 @@ func TestOneBotClipboardPasteImageFilesAndText(t *testing.T) {
 		reply("收到附件。"),
 	}}
 	a, tt := qaApp(t, model)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -422,7 +422,7 @@ func TestOneBotClipboardPasteImageFilesAndText(t *testing.T) {
 	}
 	tt.Frame()
 	sp := a.state.ActiveSpace()
-	qaSettle(t, tt, a.qaSession(sp.ID).turns[0])
+	qaSettle(t, tt, a.qa.qaSession(sp.ID).turns[0])
 	if len(model.reqs) != 1 || len(model.reqs[0].Messages[0].Parts) != 3 {
 		t.Fatalf("attachment-only send failed: %+v", model.reqs)
 	}

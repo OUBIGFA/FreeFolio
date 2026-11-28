@@ -183,12 +183,12 @@ func TestWhiteboardKnowledgeCitationsAndRename(t *testing.T) {
 	e.OriginalText = e.Text
 	s.Elements = append(s.Elements, e)
 	a.boardChanged(d)
-	fs := a.qaSpace(d.space.ID)
+	fs := a.qa.qaSpace(d.space.ID)
 	page, err := fs.Page(d.rel)
 	if err != nil || !strings.Contains(strings.Join(page.Lines, "\n"), "接口文档") {
 		t.Fatalf("QA page: %+v %v", page, err)
 	}
-	a.openCitation(d.space.ID, agent.Citation{Path: d.rel, From: 1, To: 1})
+	a.qa.openCitation(d.space.ID, agent.Citation{Path: d.rel, From: 1, To: 1})
 	if !d.board.Selected[e.ID] {
 		t.Fatal("citation did not locate board element")
 	}

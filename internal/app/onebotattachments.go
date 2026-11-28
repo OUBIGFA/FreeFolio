@@ -80,7 +80,7 @@ type oneBotSpaceSnapshot struct {
 	ReadOnly map[string]bool
 }
 
-func (a *App) oneBotSpaceSnapshotFor(sp *space.Space) *oneBotSpaceSnapshot {
+func (ob *qaState) oneBotSpaceSnapshotFor(sp *space.Space) *oneBotSpaceSnapshot {
 	if sp == nil {
 		return nil
 	}
@@ -91,7 +91,7 @@ func (a *App) oneBotSpaceSnapshotFor(sp *space.Space) *oneBotSpaceSnapshot {
 		Live:     map[string]string{},
 		ReadOnly: map[string]bool{},
 	}
-	for _, d := range a.residentDocuments() {
+	for _, d := range ob.host.residentDocuments() {
 		if d.space == nil || d.space.ID != sp.ID || d.loadErr != nil {
 			continue
 		}
@@ -848,8 +848,8 @@ func expandDroppedPaths(paths []string, limit int) ([]string, bool) {
 	return out, truncated
 }
 
-func (a *App) hasOneBotAttachmentPath(canon, spaceID, rel string) bool {
-	for _, item := range a.qa.attachments {
+func (ob *qaState) hasOneBotAttachmentPath(canon, spaceID, rel string) bool {
+	for _, item := range ob.attachments {
 		if canon != "" && item.FullPath == canon {
 			return true
 		}
@@ -860,42 +860,42 @@ func (a *App) hasOneBotAttachmentPath(canon, spaceID, rel string) bool {
 	return false
 }
 
-func (a *App) appendOneBotAttachments(items []oneBotAttachmentItem, failures []string, truncated bool) {
+func (ob *qaState) appendOneBotAttachments(items []oneBotAttachmentItem, failures []string, truncated bool) {
 	hitLimit := false
 	for _, item := range items {
-		if len(a.qa.attachments) >= oneBotMaxAttachments {
+		if len(ob.attachments) >= oneBotMaxAttachments {
 			hitLimit = true
 			break
 		}
-		if a.hasOneBotAttachmentPath(item.FullPath, item.SpaceID, item.RelPath) {
+		if ob.hasOneBotAttachmentPath(item.FullPath, item.SpaceID, item.RelPath) {
 			continue
 		}
-		a.qa.attachments = append(a.qa.attachments, item)
+		ob.attachments = append(ob.attachments, item)
 	}
 	if hitLimit || truncated {
-		a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+		ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 	}
 	if len(failures) > 0 {
-		a.notify("%s", strings.Join(failures, "\n"))
+		ob.host.notify("%s", strings.Join(failures, "\n"))
 	}
-	a.qa.open = true
-	a.qa.historyOpen = false
-	a.qa.focusInput = true
+	ob.open = true
+	ob.historyOpen = false
+	ob.focusInput = true
 }
 
-func (a *App) addOneBotFiles(paths []string) {
+func (ob *qaState) addOneBotFiles(paths []string) {
 	if len(paths) == 0 {
 		return
 	}
-	remaining := oneBotMaxAttachments - len(a.qa.attachments)
+	remaining := oneBotMaxAttachments - len(ob.attachments)
 	if remaining <= 0 {
-		a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+		ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		return
 	}
 	expanded, truncated := expandDroppedPaths(paths, remaining)
 	if len(expanded) == 0 {
 		if truncated {
-			a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+			ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		}
 		return
 	}
@@ -903,19 +903,19 @@ func (a *App) addOneBotFiles(paths []string) {
 	var unique []string
 	for _, p := range expanded {
 		canon := canonicalAttachmentPath(p)
-		if seen[canon] || a.hasOneBotAttachmentPath(canon, "", "") {
+		if seen[canon] || ob.hasOneBotAttachmentPath(canon, "", "") {
 			continue
 		}
 		seen[canon] = true
 		unique = append(unique, p)
 	}
 	if len(unique) == 0 {
-		a.qa.open = true
-		a.qa.historyOpen = false
-		a.qa.focusInput = true
+		ob.open = true
+		ob.historyOpen = false
+		ob.focusInput = true
 		return
 	}
-	snap := a.oneBotSpaceSnapshotFor(a.qaActiveSpace())
+	snap := ob.oneBotSpaceSnapshotFor(ob.qaActiveSpace())
 	process := func() ([]oneBotAttachmentItem, []string) {
 		var items []oneBotAttachmentItem
 		var failures []string
@@ -933,31 +933,31 @@ func (a *App) addOneBotFiles(paths []string) {
 		}
 		return items, failures
 	}
-	if a.qa.sync || a.win == nil {
+	if ob.sync || ob.host.window() == nil {
 		items, failures := process()
-		a.appendOneBotAttachments(items, failures, truncated)
+		ob.appendOneBotAttachments(items, failures, truncated)
 		return
 	}
-	win := a.win
+	win := ob.host.window()
 	go func() {
 		items, failures := process()
 		win.Update(func() {
-			a.appendOneBotAttachments(items, failures, truncated)
+			ob.appendOneBotAttachments(items, failures, truncated)
 		})
 	}()
 }
 
-func (a *App) addOneBotClipboardImage(pngData []byte) {
+func (ob *qaState) addOneBotClipboardImage(pngData []byte) {
 	if len(pngData) == 0 {
 		return
 	}
-	if len(a.qa.attachments) >= oneBotMaxAttachments {
-		a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+	if len(ob.attachments) >= oneBotMaxAttachments {
+		ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		return
 	}
 	n := 1
 	used := map[string]bool{}
-	for _, item := range a.qa.attachments {
+	for _, item := range ob.attachments {
 		used[item.Part.Name] = true
 	}
 	name := fmt.Sprintf("pasted-image-%d.png", n)
@@ -977,14 +977,14 @@ func (a *App) addOneBotClipboardImage(pngData []byte) {
 	if thumb, err := ui.DecodeBitmapScaled(pngData, oneBotThumbSize); err == nil {
 		item.Thumb = thumb
 	}
-	a.qa.attachments = append(a.qa.attachments, item)
-	a.qa.open = true
-	a.qa.historyOpen = false
-	a.qa.focusInput = true
+	ob.attachments = append(ob.attachments, item)
+	ob.open = true
+	ob.historyOpen = false
+	ob.focusInput = true
 }
 
-func (a *App) oneBotDraggedRels(d dragged) []string {
-	sp := a.qaSpaceByID(d.space)
+func (ob *qaState) oneBotDraggedRels(d dragged) []string {
+	sp := ob.qaSpaceByID(d.space)
 	if sp == nil {
 		return nil
 	}
@@ -1010,16 +1010,16 @@ func (a *App) oneBotDraggedRels(d dragged) []string {
 			}
 		}
 	}
-	for _, rel := range a.rawGroupFor(d.space, d.rel) {
-		if a.isDocOf(dragged{d.space, rel}) {
+	for _, rel := range ob.host.rawGroupFor(d.space, d.rel) {
+		if ob.host.isDocOf(dragged{d.space, rel}) {
 			add(rel)
 			continue
 		}
 		var tree []*vault.Node
-		if active := a.qaActiveSpace(); active != nil && active.ID == d.space {
-			tree = a.tree
-		} else if cached, ok := a.pageTrees[d.space]; ok && cached.err == nil {
-			tree = cached.nodes
+		if active := ob.qaActiveSpace(); active != nil && active.ID == d.space {
+			tree = ob.host.activeTree()
+		} else {
+			tree = ob.host.cachedTree(d.space)
 		}
 		if folder := vault.Find(tree, rel); folder != nil && folder.Dir {
 			walkFolder(folder.Children)
@@ -1028,19 +1028,19 @@ func (a *App) oneBotDraggedRels(d dragged) []string {
 	return out
 }
 
-func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
-	sp := a.qaSpaceByID(spaceID)
+func (ob *qaState) addOneBotSpaceRefs(spaceID string, rels []string) {
+	sp := ob.qaSpaceByID(spaceID)
 	if sp == nil || len(rels) == 0 {
 		return
 	}
-	remaining := oneBotMaxAttachments - len(a.qa.attachments)
+	remaining := oneBotMaxAttachments - len(ob.attachments)
 	if remaining <= 0 {
-		a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+		ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		return
 	}
-	active := a.qaActiveSpace()
+	active := ob.qaActiveSpace()
 	canEdit := active != nil && active.ID == sp.ID
-	snap := a.oneBotSpaceSnapshotFor(sp)
+	snap := ob.oneBotSpaceSnapshotFor(sp)
 
 	type job struct {
 		rel      string
@@ -1056,7 +1056,7 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 			truncated = true
 			break
 		}
-		if a.hasOneBotAttachmentPath("", sp.ID, rel) {
+		if ob.hasOneBotAttachmentPath("", sp.ID, rel) {
 			continue
 		}
 		var canon string
@@ -1065,7 +1065,7 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 				canon = canonicalAttachmentPath(full)
 			}
 		}
-		if a.hasOneBotAttachmentPath(canon, sp.ID, rel) {
+		if ob.hasOneBotAttachmentPath(canon, sp.ID, rel) {
 			continue
 		}
 		j := job{
@@ -1085,11 +1085,11 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 	}
 	if len(jobs) == 0 {
 		if truncated {
-			a.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
+			ob.host.notify("%s", fmt.Sprintf(i18n.T("一次最多添加 %d 个附件"), oneBotMaxAttachments))
 		}
-		a.qa.open = true
-		a.qa.historyOpen = false
-		a.qa.focusInput = true
+		ob.open = true
+		ob.historyOpen = false
+		ob.focusInput = true
 		return
 	}
 	spCopy := *sp
@@ -1137,39 +1137,39 @@ func (a *App) addOneBotSpaceRefs(spaceID string, rels []string) {
 		}
 		return items, failures
 	}
-	if a.qa.sync || a.win == nil {
+	if ob.sync || ob.host.window() == nil {
 		items, failures := process()
-		a.appendOneBotAttachments(items, failures, truncated)
+		ob.appendOneBotAttachments(items, failures, truncated)
 		return
 	}
-	win := a.win
+	win := ob.host.window()
 	go func() {
 		items, failures := process()
 		win.Update(func() {
-			a.appendOneBotAttachments(items, failures, truncated)
+			ob.appendOneBotAttachments(items, failures, truncated)
 		})
 	}()
 }
 
-func (a *App) pickOneBotAttachments() {
+func (ob *qaState) pickOneBotAttachments() {
 	done := func(paths []string) {
-		a.addOneBotFiles(paths)
+		ob.addOneBotFiles(paths)
 	}
-	if a.pickFiles != nil {
-		a.pickFiles(done)
+	if pick := ob.host.filePicker(); pick != nil {
+		pick(done)
 		return
 	}
-	if a.win == nil {
+	if ob.host.window() == nil {
 		return
 	}
-	win := a.win
+	win := ob.host.window()
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.T("添加参考附件"), Multiple: true})
 		if err != nil || len(paths) == 0 {
 			return
 		}
 		win.Update(func() {
-			a.addOneBotFiles(paths)
+			ob.addOneBotFiles(paths)
 		})
 	}()
 }

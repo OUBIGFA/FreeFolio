@@ -136,9 +136,9 @@ func TestPDFPagesEdit(t *testing.T) {
 	}
 	a.open("Paper.pdf")
 	tt.Frame()
-	a.openPDFPages(a.doc)
+	a.pdfPages.openPDFPages(a.doc)
 	a.pdfPages.op = pdfOpExtract
-	a.runPDFPages()
+	a.pdfPages.runPDFPages()
 	if a.pdfPages.err != "" {
 		t.Fatal(a.pdfPages.err)
 	}
@@ -151,9 +151,9 @@ func TestPDFPagesEdit(t *testing.T) {
 	}
 	a.open("Paper.pdf")
 	tt.Frame()
-	a.openPDFPages(a.doc)
+	a.pdfPages.openPDFPages(a.doc)
 	a.pdfPages.op, a.pdfPages.degrees = pdfOpRotate, 90
-	a.runPDFPages()
+	a.pdfPages.runPDFPages()
 	if a.pdfPages.err != "" || a.pdfPages.open {
 		t.Fatalf("rotate: %q", a.pdfPages.err)
 	}

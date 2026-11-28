@@ -203,7 +203,7 @@ func (a *App) ensureKeyCache() {
 	res = append(res, a.combos("mindmap")...)
 	a.cachedEditorBindings = eb
 	a.cachedReserved = res
-	a.cachedBookmarkKey = a.shortKey("bookmark")
+	a.cachedBookmarkKey = a.bookmarks.shortKey("bookmark")
 	a.keysCachePrefs = a.prefs
 	a.keysCacheGen = a.keyGen
 	a.keysCacheLen = n

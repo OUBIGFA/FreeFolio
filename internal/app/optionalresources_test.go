@@ -21,10 +21,10 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 		t.Fatal("missing cutout choices")
 	}
 	root := t.TempDir()
-	a.setResourceDirectory(root)
+	a.resources.setResourceDirectory(root)
 	tester.Frame()
 	saved, err := a.prefStore.Load()
-	if err != nil || saved.ResourceDir != root || a.resourceDirectory() != root {
+	if err != nil || saved.ResourceDir != root || a.resources.resourceDirectory() != root {
 		t.Fatalf("resource directory not saved: %v %v", saved.ResourceDir, err)
 	}
 	files, err := filepath.Glob(filepath.Join(root, "*"))
@@ -66,7 +66,7 @@ func TestOptionalResourcesChooseDirectoryAndDoNotAutoDownload(t *testing.T) {
 			t.Fatalf("missing download action for %s", pack.Name)
 		}
 	}
-	a.setComfyDirectory(root)
+	a.resources.setComfyDirectory(root)
 	tester.Frame()
 	saved, err = a.prefStore.Load()
 	if err != nil || saved.ComfyUI.Dir != root {
@@ -79,7 +79,7 @@ func TestOptionalResourcesChangeDirectoryMigratesFiles(t *testing.T) {
 	oldDir := t.TempDir()
 	newDir := t.TempDir()
 
-	a.setResourceDirectory(oldDir)
+	a.resources.setResourceDirectory(oldDir)
 	tester.Frame()
 
 	// Seed a known ComfyUI pack file with exact size plus an unrelated user file.
@@ -101,7 +101,7 @@ func TestOptionalResourcesChangeDirectoryMigratesFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a.setResourceDirectory(newDir)
+	a.resources.setResourceDirectory(newDir)
 	tester.Frame()
 
 	if a.resources.err != nil {
@@ -111,8 +111,8 @@ func TestOptionalResourcesChangeDirectoryMigratesFiles(t *testing.T) {
 		t.Fatalf("resources still busy after headless migration: %q", a.resources.busy)
 	}
 	saved, err := a.prefStore.Load()
-	if err != nil || saved.ResourceDir != newDir || a.resourceDirectory() != newDir {
-		t.Fatalf("resource directory not updated after migration: saved=%q current=%q err=%v", saved.ResourceDir, a.resourceDirectory(), err)
+	if err != nil || saved.ResourceDir != newDir || a.resources.resourceDirectory() != newDir {
+		t.Fatalf("resource directory not updated after migration: saved=%q current=%q err=%v", saved.ResourceDir, a.resources.resourceDirectory(), err)
 	}
 	if _, err := os.Stat(oldPackFile); !os.IsNotExist(err) {
 		t.Fatalf("old resource file still exists: %v", err)
@@ -140,7 +140,7 @@ func TestBoardCutoutIncludesRMBG3FP8AndSa2VA(t *testing.T) {
 		RMBG3Models: []string{"RMBG-3.0-fp8.safetensors"},
 		Sa2VANode:   "XJSa2VAImageSegmentationV2",
 	}
-	models := a.boardAIModels(whiteboard.AICutout)
+	models := a.boardAI.boardAIModels(whiteboard.AICutout)
 	want := map[string]bool{
 		"comfyui-rmbg3\x00rmbg3-fp8":                    false,
 		"comfyui-sa2va\x00ByteDance/Sa2VA-InternVL3-2B": false,
@@ -172,7 +172,7 @@ func TestBoardUpscaleAndImageIncludeSeedVR2ZImageAndQwenImage(t *testing.T) {
 		QwenImageModels: []string{"qwen_image_2.1_turbo_int8_convrot.safetensors"},
 	}
 	var hasSeedVR2 bool
-	for _, m := range a.boardAIModels(whiteboard.AIUpscale) {
+	for _, m := range a.boardAI.boardAIModels(whiteboard.AIUpscale) {
 		if m.Connection == "comfyui-seedvr2" && m.Model == "seedvr2-7b-sharp-int8" {
 			hasSeedVR2 = true
 		}
@@ -181,7 +181,7 @@ func TestBoardUpscaleAndImageIncludeSeedVR2ZImageAndQwenImage(t *testing.T) {
 		t.Fatal("missing SeedVR2 7B Sharp in AIUpscale models")
 	}
 	var hasZImage, hasQwen bool
-	for _, m := range a.boardAIModels(whiteboard.AIImage) {
+	for _, m := range a.boardAI.boardAIModels(whiteboard.AIImage) {
 		if m.Connection == "comfyui-zimage" && m.Model == "z-image-turbo-int8" {
 			hasZImage = true
 		}

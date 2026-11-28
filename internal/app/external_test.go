@@ -54,7 +54,7 @@ func TestLooseFilesStayOutOfSearchAndLibrary(t *testing.T) {
 	if len(a.textHits("unique content")) != 0 || len(a.textHits("secret sibling")) != 0 {
 		t.Fatal("search indexed a loose file")
 	}
-	a.loadLibrary()
+	a.library.loadLibrary()
 	if _, ok := a.library.trees[space.ExternalID]; ok {
 		t.Fatal("library contains loose documents")
 	}

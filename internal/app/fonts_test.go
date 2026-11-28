@@ -12,33 +12,33 @@ func TestFontPreviewCancelAndCommit(t *testing.T) {
 	a, tt := newTestApp(t)
 	a.fonts.families = []ui.FontFamily{{Name: "Arial"}, {Name: "SimSun"}}
 	a.fonts.loaded = true
-	a.openFontPicker(false)
-	a.previewFont("SimSun")
+	a.fonts.openFontPicker(false)
+	a.fonts.previewFont("SimSun")
 	tt.Frame()
-	if a.bodyFont() != "SimSun" || a.prefs.BodyFont != "" {
+	if a.fonts.bodyFont() != "SimSun" || a.prefs.BodyFont != "" {
 		t.Fatal("preview must not persist choice")
 	}
-	a.closeFontPicker()
-	if a.bodyFont() != "" {
+	a.fonts.closeFontPicker()
+	if a.fonts.bodyFont() != "" {
 		t.Fatal("cancel did not restore font")
 	}
-	a.openFontPicker(false)
-	a.chooseFont("Arial")
+	a.fonts.openFontPicker(false)
+	a.fonts.chooseFont("Arial")
 	if a.prefs.BodyFont != "Arial" || len(a.prefs.RecentBodyFonts) != 1 {
 		t.Fatal("font choice not saved")
 	}
-	a.openFontPicker(true)
-	a.previewFont("SimSun")
-	if a.interfaceFont() != "SimSun" || a.bodyFont() != "Arial" {
+	a.fonts.openFontPicker(true)
+	a.fonts.previewFont("SimSun")
+	if a.fonts.interfaceFont() != "SimSun" || a.fonts.bodyFont() != "Arial" {
 		t.Fatal("UI preview changed body font")
 	}
-	a.closeFontPicker()
-	a.openFontPicker(false)
-	a.previewFont("")
-	if a.bodyFont() != "" {
+	a.fonts.closeFontPicker()
+	a.fonts.openFontPicker(false)
+	a.fonts.previewFont("")
+	if a.fonts.bodyFont() != "" {
 		t.Fatal("system-font preview kept the saved custom font")
 	}
-	a.closeFontPicker()
+	a.fonts.closeFontPicker()
 }
 
 func TestFontKeyboardSelectionStaysVisibleAndCancelDoesNotPersist(t *testing.T) {
@@ -48,15 +48,15 @@ func TestFontKeyboardSelectionStaysVisibleAndCancelDoesNotPersist(t *testing.T) 
 	for i := 0; i < 80; i++ {
 		a.fonts.families = append(a.fonts.families, ui.FontFamily{Name: fmt.Sprintf("Font %03d", i)})
 	}
-	a.openFontPicker(false)
+	a.fonts.openFontPicker(false)
 	tt.Frame()
 	tt.Frame()
 	for i := 0; i < 35; i++ {
 		tt.Key(0, ui.KeyDown)
 	}
 	tt.Frame()
-	selected := a.fontChoices()[a.fonts.index]
-	if a.bodyFont() != selected.name || a.prefs.BodyFont != "" {
+	selected := a.fonts.fontChoices()[a.fonts.index]
+	if a.fonts.bodyFont() != selected.name || a.prefs.BodyFont != "" {
 		t.Fatal("keyboard preview changed saved choice")
 	}
 	if _, ok := tt.Find(selected.label); !ok {
@@ -81,7 +81,7 @@ func TestFontUIPreviewButtonsDoNotJumpAndUseNewSpecimen(t *testing.T) {
 		{Name: "SimSun"},
 		{Name: "Consolas", Monospaced: true},
 	}
-	a.openFontPicker(true)
+	a.fonts.openFontPicker(true)
 	tt.Frame()
 	tt.Frame()
 	if !tt.HasText("自由的文字胜于一切 · Abc 123") {
@@ -103,7 +103,7 @@ func TestFontUIPreviewButtonsDoNotJumpAndUseNewSpecimen(t *testing.T) {
 			math.Abs(float64((a.Y+a.H/2)-(b.Y+b.H/2))) < 1.0
 	}
 	for _, family := range []string{"Arial", "Georgia", "Microsoft YaHei", "SimSun", "Consolas", ""} {
-		a.previewFont(family)
+		a.fonts.previewFont(family)
 		tt.Frame()
 		tt.Frame()
 		gotSettings, ok := tt.Find("设置")
@@ -119,7 +119,7 @@ func TestFontUIPreviewButtonsDoNotJumpAndUseNewSpecimen(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	rows := a.fontChoices()
+	rows := a.fonts.fontChoices()
 	if len(rows) != 1 || rows[0].name != "Consolas" {
 		t.Fatalf("category filter failed: %+v", rows)
 	}

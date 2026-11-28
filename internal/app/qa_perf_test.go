@@ -15,11 +15,11 @@ func BenchmarkQA(b *testing.B) {
 	for _, turns := range []int{1, 40} {
 		b.Run(fmt.Sprintf("Scroll/%d", turns), func(b *testing.B) {
 			a, tt := newTestApp(b)
-			s := a.qaSession(a.state.ActiveSpace().ID)
+			s := a.qa.qaSession(a.state.ActiveSpace().ID)
 			for i := range turns {
 				s.turns = append(s.turns, &qaTurn{question: fmt.Sprintf("Question %d", i), answer: strings.Repeat("- **进展**：支付联调已完成，证书审批仍在进行，下一步需要验证回调 [计划.md#L5]。\n\n", 60)})
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			tt.Advance(slide)
 			tt.Frame()
@@ -45,7 +45,7 @@ func BenchmarkQA(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			for elapsed := time.Duration(0); elapsed <= slide; elapsed += 16 * time.Millisecond {
 				tt.Advance(16 * time.Millisecond)
@@ -56,10 +56,10 @@ func BenchmarkQA(b *testing.B) {
 
 func BenchmarkQAStreaming(b *testing.B) {
 	a, tt := newTestApp(b)
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{question: "Stream a long answer", running: true, answer: strings.Repeat("A completed paragraph stays stable while the tail streams.\n\n", 200)}
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(time.Second)
 	b.ReportAllocs()
@@ -77,9 +77,9 @@ func BenchmarkQAStreaming(b *testing.B) {
 func BenchmarkQAWindowResize(b *testing.B) {
 	a, tt := newTestApp(b)
 	a.doc.ed = editor.New(qaResizeDocument())
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{{question: "总结一下", answer: strings.Repeat("- **主要内容**：这是一篇长文档的简短回答。\n\n", 10)}}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	a.doc.ed.Scroll.Y = 100000
@@ -105,7 +105,7 @@ func BenchmarkQARapidResize(b *testing.B) {
 		b.Run(fmt.Sprintf("pause=%v", pause), func(b *testing.B) {
 			a, tt := newTestApp(b)
 			a.doc.ed = editor.New(qaResizeDocument())
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			tt.Advance(slide)
 			a.doc.ed.Scroll.Y = 100000

@@ -18,9 +18,9 @@ import (
 var bannerEnter = ui.Animation{Duration: 260 * time.Millisecond, Ease: ui.CubicBezier(0.2, 0.9, 0.3, 1)}
 
 // updateBanner is the banner above the spaces at the foot of the sidebar.
-func (a *App) updateBanner(c *ui.Context) {
-	u := &a.updates
-	n := a.updateNotice()
+func (up *updateState) updateBanner(c *ui.Context) {
+	u := up
+	n := up.updateNotice()
 	kind := ""
 	switch {
 	case n != nil:
@@ -29,21 +29,21 @@ func (a *App) updateBanner(c *ui.Context) {
 		kind = "updated"
 	}
 	if kind != u.shown {
-		u.shown, u.shownSince = kind, a.now
+		u.shown, u.shownSince = kind, up.host.clock()
 	}
 	if kind == "" {
 		return
 	}
-	bl := bannerColors(a.look)
-	entering := a.now.Sub(u.shownSince) < time.Millisecond
+	bl := bannerColors(up.host.currentLook())
+	entering := up.host.clock().Sub(u.shownSince) < time.Millisecond
 	ui.Column(c.Key("update-banner")).Padding(0, 12, 6, 12).Children(func() {
 		if n != nil {
-			a.readyCard(c, *n, bl, entering)
+			up.readyCard(c, *n, bl, entering)
 		} else {
-			a.updatedCard(c, bl, entering)
+			up.updatedCard(c, bl, entering)
 		}
 	})
-	if entering && !a.reduceMotion {
+	if entering && !up.host.motionReduced() {
 		c.AnimationFrame()
 	}
 }
@@ -79,9 +79,9 @@ func bannerDismissButton(c *ui.Context, bl bannerLook) bool {
 
 // readyCard notifies that a new version is downloaded and ready to restart,
 // or available for download in Settings > Updates.
-func (a *App) readyCard(c *ui.Context, n update.Notice, bl bannerLook, entering bool) {
+func (up *updateState) readyCard(c *ui.Context, n update.Notice, bl bannerLook, entering bool) {
 	card := bannerCard(c, "update-ready", true, bl)
-	if !a.reduceMotion {
+	if !up.host.motionReduced() {
 		pose := ui.Pose{}
 		if entering {
 			pose = ui.Pose{Y: 8, Fade: 1}
@@ -119,19 +119,19 @@ func (a *App) readyCard(c *ui.Context, n update.Notice, bl bannerLook, entering 
 		})
 	})
 	if dismissed {
-		a.dismissBanner()
+		up.dismissBanner()
 		return
 	}
 	if activated {
-		a.actOnNotice(n)
+		up.actOnNotice(n)
 	}
 }
 
 // updatedCard shows that this launch is running a freshly installed version.
-func (a *App) updatedCard(c *ui.Context, bl bannerLook, entering bool) {
-	u := &a.updates
+func (up *updateState) updatedCard(c *ui.Context, bl bannerLook, entering bool) {
+	u := up
 	card := bannerCard(c, "update-done", false, bl)
-	if !a.reduceMotion {
+	if !up.host.motionReduced() {
 		pose := ui.Pose{}
 		if entering {
 			pose = ui.Pose{Y: 8, Fade: 1}
@@ -178,14 +178,14 @@ func (a *App) updatedCard(c *ui.Context, bl bannerLook, entering bool) {
 						ui.Icon(c, iconArrowUpRight).FontSize(12).Shrink(0).TextColor(arrowInk)
 					})
 					if r.Clicked() {
-						a.openUpdatePage(row.url)
+						up.openUpdatePage(row.url)
 					}
 				}
 			})
 		})
 	})
 	if dismissed {
-		a.dismissBanner()
+		up.dismissBanner()
 	}
 }
 
@@ -195,16 +195,16 @@ var toastSpring = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 440,
 
 // updateToast says the banner's news at the top right of the page while
 // the sidebar is hidden (Cra's update toast), until its ✕ or its button.
-func (a *App) updateToast(c *ui.Context) {
-	u := &a.updates
+func (up *updateState) updateToast(c *ui.Context) {
+	u := up
 	if u.toast == nil {
 		return
 	}
 	n := *u.toast
-	tl := toastColors(a.look)
+	tl := toastColors(up.host.currentLook())
 	top := float32(8)
-	if !a.focus {
-		top += max(a.titleBar(c).Height, 46)
+	if !up.host.focusMode() {
+		top += max(up.host.titleBar(c).Height, 46)
 	}
 	ui.Overlay(c, func() {
 		pill := ui.Row(c.Key("update-toast")).Absolute().Right(8+9).Top(top).Height(42).Radius(10).
@@ -214,7 +214,7 @@ func (a *App) updateToast(c *ui.Context) {
 		pill.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, ui.LinearGradient{From: tl.top, To: tl.bottom, Angle: 180}, 10)
 		})
-		if !a.reduceMotion {
+		if !up.host.motionReduced() {
 			if u.toastFrames == 0 {
 				pill.AnimatePose(ui.Pose{Scale: 0.4}, toastSpring)
 				c.AnimationFrame()
@@ -246,7 +246,7 @@ func (a *App) updateToast(c *ui.Context) {
 			}
 			x.Children(func() { ui.Icon(c, iconX).FontSize(11).TextColor(tl.text) })
 			if b.Clicked() {
-				a.actOnNotice(n)
+				up.actOnNotice(n)
 			}
 			if x.Clicked() {
 				u.toast = nil
@@ -258,8 +258,8 @@ func (a *App) updateToast(c *ui.Context) {
 // updateOverview renders the version header, current status, download progress
 // and contextual actions in Settings > Updates. Navigation stays available
 // while checks and downloads run.
-func (a *App) updateOverview(c *ui.Context) {
-	u := &a.updates
+func (up *updateState) updateOverview(c *ui.Context) {
+	u := up
 	t := c.Theme()
 	busy := u.checking || u.downloading || u.installing
 
@@ -277,7 +277,7 @@ func (a *App) updateOverview(c *ui.Context) {
 	case u.downloading:
 		icon = iconDownload
 		fg, bg = t.Accent, t.Accent.Alpha(0.10)
-	case !a.updatesEnabled() || u.phase == phaseNoRelease:
+	case !up.updatesEnabled() || u.phase == phaseNoRelease:
 		icon = iconInfo
 	case u.phase == phaseFailed:
 		icon = iconAlert
@@ -299,13 +299,13 @@ func (a *App) updateOverview(c *ui.Context) {
 		ui.Row(c.Key("update-header")).Padding(14, 16).Gap(14).AlignItems(ui.Center).Children(func() {
 			ui.Box(c.Key("update-badge")).Size(36, 36).Radius(8).Shrink(0).Center().Background(bg).Children(func() {
 				if spinning {
-					ui.Spinner(c.Key("update-spinner")).TextColor(fg).Label(a.updateSummary())
+					ui.Spinner(c.Key("update-spinner")).TextColor(fg).Label(up.updateSummary())
 				} else {
 					ui.Icon(c, icon).FontSize(17).TextColor(fg)
 				}
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-				ui.Text(c.Key("update-status"), a.updateSummary()).FontSize(14).FontWeight(600).TextColor(statusColor).LineHeight(1.4).Selectable()
+				ui.Text(c.Key("update-status"), up.updateSummary()).FontSize(14).FontWeight(600).TextColor(statusColor).LineHeight(1.4).Selectable()
 				ui.Row(c.Key("update-meta")).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
 					ui.Text(c, i18n.T("当前版本 ")+Version).FontSize(12).TextColor(t.TextMuted)
 					if !u.lastCheck.IsZero() {
@@ -316,7 +316,7 @@ func (a *App) updateOverview(c *ui.Context) {
 			})
 			ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(func() {
 				if ui.Button(c.Key("check-now"), i18n.T("检查更新")).Disabled(busy).Clicked() {
-					a.checkForUpdates()
+					up.checkForUpdates()
 				}
 			})
 		})
@@ -339,7 +339,7 @@ func (a *App) updateOverview(c *ui.Context) {
 							}
 						})
 						if ui.Button(c.Key("cancel-download"), i18n.T("取消")).Clicked() {
-							a.cancelUpdateDownload()
+							up.cancelUpdateDownload()
 						}
 					})
 				}
@@ -347,7 +347,7 @@ func (a *App) updateOverview(c *ui.Context) {
 			return
 		}
 
-		hasActions := !a.updatesEnabled() || u.phase == phaseFailed || u.ready != "" || u.release != nil
+		hasActions := !up.updatesEnabled() || u.phase == phaseFailed || u.ready != "" || u.release != nil
 		if !hasActions {
 			return
 		}
@@ -369,35 +369,35 @@ func (a *App) updateOverview(c *ui.Context) {
 		}
 		ui.Row(c.Key("update-actions")).Padding(12, 16).Gap(8).Wrap().AlignItems(ui.Center).Background(stripBg).Children(func() {
 			switch {
-			case !a.updatesEnabled():
+			case !up.updatesEnabled():
 				if ui.Button(c.Key("download-page"), i18n.T("前往下载页面")).Clicked() {
-					a.openUpdatePage(update.ReleaseURL(""))
+					up.openUpdatePage(update.ReleaseURL(""))
 				}
 			case u.phase == phaseFailed:
 				if ui.PrimaryButton(c.Key("retry-update"), i18n.T("重试")).Clicked() {
 					if u.release != nil {
 						u.ready = ""
-						a.installUpdate()
+						up.installUpdate()
 					} else {
-						a.checkUpdates(true)
+						up.checkUpdates(true)
 					}
 				}
 				if ui.Button(c.Key("manual-download"), i18n.T("手动下载")).Clicked() {
-					a.openUpdatePage(update.ReleaseURL(""))
+					up.openUpdatePage(update.ReleaseURL(""))
 				}
 			case u.ready != "":
 				if ui.PrimaryButton(c.Key("install-update"), i18n.T("安装并重新启动")).Clicked() {
-					a.installUpdate()
+					up.installUpdate()
 				}
 				if ui.Button(c.Key("release-page"), i18n.T("查看发布页")).Clicked() {
-					a.openUpdatePage(update.ReleaseURL(u.ready))
+					up.openUpdatePage(update.ReleaseURL(u.ready))
 				}
 			case u.release != nil:
 				if ui.PrimaryButton(c.Key("download-install"), i18n.T("下载并安装")).Clicked() {
-					a.installUpdate()
+					up.installUpdate()
 				}
 				if ui.Button(c.Key("release-page"), i18n.T("查看发布页")).Clicked() {
-					a.openUpdatePage(update.ReleaseURL(u.release.Version()))
+					up.openUpdatePage(update.ReleaseURL(u.release.Version()))
 				}
 			}
 		})
@@ -406,8 +406,8 @@ func (a *App) updateOverview(c *ui.Context) {
 
 // updateReleaseNotes displays the structured release notes for a found or
 // downloaded release in its own section below the status overview.
-func (a *App) updateReleaseNotes(c *ui.Context) {
-	u := &a.updates
+func (up *updateState) updateReleaseNotes(c *ui.Context) {
+	u := up
 	if u.release == nil || u.checking {
 		return
 	}

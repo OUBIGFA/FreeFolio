@@ -62,7 +62,7 @@ func TestFeaturesSnapshot(t *testing.T) {
 			case "trash":
 				a.trashFile = os.RemoveAll
 				a.trash("Journal")
-				a.openTrash()
+				a.library.openTrash()
 			case "shortcuts":
 				a.openSettings(tabShortcuts)
 			case "backlinks":

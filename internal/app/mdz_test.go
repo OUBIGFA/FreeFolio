@@ -119,8 +119,8 @@ func TestExportAndOpenMDZRoundTrip(t *testing.T) {
 	settle(tt)
 
 	// Export twice to verify auto-numbering never overwrites.
-	a.exportMDZ()
-	a.exportMDZ()
+	a.mdzFiles.exportMDZ()
+	a.mdzFiles.exportMDZ()
 	mdz1 := filepath.Join(sp.Root, "Architecture.mdz")
 	mdz2 := filepath.Join(sp.Root, "Architecture 2.mdz")
 	if _, err := os.Stat(mdz1); err != nil {
@@ -161,11 +161,11 @@ func TestExportAndOpenMDZRoundTrip(t *testing.T) {
 	if ed := a.doc.mdz.activeEditor(); ed == nil || !ed.ReadOnly {
 		t.Fatalf("MDZ active editor must be ReadOnly")
 	}
-	imgRes := a.mdzLoadImage(a.doc, "assets/Diagram.png")
+	imgRes := a.mdzFiles.mdzLoadImage(a.doc, "assets/Diagram.png")
 	if imgRes.Bitmap == nil || imgRes.Problem != 0 {
 		t.Fatalf("expected in-memory image bitmap, got %+v", imgRes)
 	}
-	if sc, _, wbErr := a.mdzLoadWhiteboard(a.doc, "assets/Flow.excalidraw.svg"); wbErr != nil || sc == nil {
+	if sc, _, wbErr := a.mdzFiles.mdzLoadWhiteboard(a.doc, "assets/Flow.excalidraw.svg"); wbErr != nil || sc == nil {
 		t.Fatalf("expected in-memory whiteboard scene, got err=%v", wbErr)
 	}
 	if !strings.Contains(a.doc.mdz.activeEditor().Text(), "架构设计") || !tt.HasText("MDZ") || !tt.HasText("解包另存为文档") {
@@ -199,7 +199,7 @@ func TestExportMDZCustomAttachmentsAndMissingTolerance(t *testing.T) {
 	settle(tt)
 
 	a.notices = nil
-	a.exportMDZ()
+	a.mdzFiles.exportMDZ()
 	exported := filepath.Join(sp.Root, "notes", "Report.mdz")
 	arc, err := mdz.Open(exported)
 	if err != nil {
@@ -241,12 +241,12 @@ func TestOpenMultiPageProjectMDZAndNavigation(t *testing.T) {
 	}
 
 	// Follow relative internal link to setup.md then api.md#auth.
-	a.mdzOpenLink(a.doc, "guide/setup.md")
+	a.mdzFiles.mdzOpenLink(a.doc, "guide/setup.md")
 	settle(tt)
 	if a.doc.mdz.currentPage != "guide/setup.md" {
 		t.Fatalf("currentPage = %q, want guide/setup.md", a.doc.mdz.currentPage)
 	}
-	a.mdzOpenLink(a.doc, "api.md#auth")
+	a.mdzFiles.mdzOpenLink(a.doc, "api.md#auth")
 	settle(tt)
 	if a.doc.mdz.currentPage != "guide/api.md" {
 		t.Fatalf("currentPage = %q, want guide/api.md", a.doc.mdz.currentPage)
@@ -257,7 +257,7 @@ func TestOpenMultiPageProjectMDZAndNavigation(t *testing.T) {
 
 	// Relative link escaping archive root must be blocked per Spec §9.3 / §9.6.
 	a.notices = nil
-	a.mdzOpenLink(a.doc, "../../outside.md")
+	a.mdzFiles.mdzOpenLink(a.doc, "../../outside.md")
 	if a.doc.mdz.currentPage != "guide/setup.md" || len(a.notices) == 0 || !strings.Contains(a.notices[len(a.notices)-1], "归档外部") {
 		t.Fatalf("expected outside-archive link blocked, cur=%q notices=%v", a.doc.mdz.currentPage, a.notices)
 	}
@@ -380,7 +380,7 @@ func TestUnpackMDZAsEditableDocument(t *testing.T) {
 	a.open("Bundle.mdz")
 	settle(tt)
 
-	a.unpackMDZAsDocument(a.doc)
+	a.mdzFiles.unpackMDZAsDocument(a.doc)
 	settle(tt)
 	if a.doc == nil || a.doc.isMDZ() || !strings.HasSuffix(a.doc.rel, ".md") || a.doc.ed.ReadOnly {
 		t.Fatalf("expected unpacked editable .md document open, got rel=%q mdz=%v", a.doc.rel, a.doc.isMDZ())
@@ -506,7 +506,7 @@ func TestMDZBugFixes(t *testing.T) {
 		a.open("notes/Collision.md")
 		settle(tt)
 
-		a.exportMDZ()
+		a.mdzFiles.exportMDZ()
 		exported := filepath.Join(sp.Root, "notes", "Collision.mdz")
 		arc, err := mdz.Open(exported)
 		if err != nil {
@@ -635,23 +635,23 @@ func TestMDZBugFixes(t *testing.T) {
 		settle(tt)
 
 		// Relative "assets/cover.png" inside docs/entry.md must resolve to docs/assets/cover.png (123x77), not root 200x100.
-		gotSub := a.mdzLoadImage(a.doc, "assets/cover.png")
+		gotSub := a.mdzFiles.mdzLoadImage(a.doc, "assets/cover.png")
 		if gotSub.Width != 123 || gotSub.Height != 77 {
 			t.Fatalf("docs/entry.md assets/cover.png loaded %dx%d, want 123x77 (docs/assets/cover.png)", gotSub.Width, gotSub.Height)
 		}
 		// Manifest cover was wired as ../assets/cover.png and resolves to root cover (200x100).
 		ed := a.doc.mdz.activeEditor()
-		gotCover := a.mdzLoadImage(a.doc, ed.Doc.Cover)
+		gotCover := a.mdzFiles.mdzLoadImage(a.doc, ed.Doc.Cover)
 		if gotCover.Width != 200 || gotCover.Height != 100 {
 			t.Fatalf("manifest cover %q loaded %dx%d, want 200x100", ed.Doc.Cover, gotCover.Width, gotCover.Height)
 		}
 		// Embedded HTML external image resolves relative to docs/embeds/demo.html -> docs/embeds/pic.png (91x55).
-		res := a.mdzLoadBookExternalImage(a.doc, "embeds/demo.html", "pic.png")
+		res := a.mdzFiles.mdzLoadBookExternalImage(a.doc, "embeds/demo.html", "pic.png")
 		if res.Width != 91 || res.Height != 55 {
 			t.Fatalf("embedded HTML relative image loaded %dx%d, want 91x55", res.Width, res.Height)
 		}
 		// Unpacking docs/entry.md must extract BOTH root cover (200x100) and docs/assets/cover.png (123x77) without conflating them.
-		a.unpackMDZAsDocument(a.doc)
+		a.mdzFiles.unpackMDZAsDocument(a.doc)
 		settle(tt)
 		if a.doc.isMDZ() {
 			t.Fatalf("expected unpacked .md open")
@@ -681,11 +681,11 @@ func TestMDZBugFixes(t *testing.T) {
 		a.open("ReadOnly.mdz")
 		settle(tt)
 
-		if a.bookmarkable() != nil {
+		if a.bookmarks.bookmarkable() != nil {
 			t.Fatalf("bookmarkable() must be nil for MDZ")
 		}
 		beforeMarks := len(a.state.Bookmarks)
-		a.toggleBookmarkAtCaret()
+		a.bookmarks.toggleBookmarkAtCaret()
 		if len(a.state.Bookmarks) != beforeMarks {
 			t.Fatalf("toggleBookmarkAtCaret mutated bookmarks for MDZ")
 		}
@@ -713,7 +713,7 @@ func TestMDZBugFixes(t *testing.T) {
 		a.doc.preview = "# Source Edited\n\nLive source content 0.5.0.\n"
 		a.doc.noteSourceText()
 
-		a.exportMDZ()
+		a.mdzFiles.exportMDZ()
 		arc, err := mdz.Open(filepath.Join(sp.Root, "SourceNote.mdz"))
 		if err != nil {
 			t.Fatalf("mdz.Open(SourceNote.mdz): %v", err)

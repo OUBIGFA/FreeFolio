@@ -35,11 +35,11 @@ func (a *App) openSettings(tab string) {
 	a.settingsOpen = true
 	a.settingsTab = tab
 	if tab == tabGit {
-		a.initGitSync()
-		a.loadGitSync()
+		a.gitSync.initGitSync()
+		a.gitSync.loadGitSync()
 	}
 	if tab == tabAI {
-		a.loadChatGPTSession(a.prefs.AI.Active, false)
+		a.chatgpt.loadChatGPTSession(a.prefs.AI.Active, false)
 	}
 	a.refreshAgentSkillsCache()
 }
@@ -90,7 +90,7 @@ func (a *App) moreMenu(c *ui.Context) {
 				a.exportHTML()
 			}
 			if sub.Item(i18n.T("导出 MDZip (.mdz)")).Disabled(noText || isMDZ || isDB).Chosen() {
-				a.exportMDZ()
+				a.mdzFiles.exportMDZ()
 			}
 		}).Disabled(noText || isMDZ)
 		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(a.doc))
@@ -111,7 +111,7 @@ func (a *App) moreMenu(c *ui.Context) {
 			a.chooseSaveAs()
 		}
 		if a.menuKey(m.Item(i18n.T("资料库")), "library").Chosen() {
-			a.toggleLibrary()
+			a.library.toggleLibrary()
 		}
 		if a.menuKey(m.Item(i18n.T("设置")), "settings").Chosen() {
 			a.openSettings(tabGeneral)
@@ -148,7 +148,7 @@ func (a *App) settingsView(c *ui.Context) {
 	if !a.settingsOpen {
 		return
 	}
-	defer a.fontPickerView(c)
+	defer a.fonts.fontPickerView(c)
 	defer a.cleanupView(c)
 	t := c.Theme()
 	w, h := c.Size()
@@ -244,15 +244,15 @@ func (a *App) settingsView(c *ui.Context) {
 							case tabUpdates:
 								a.settingsUpdates(c)
 							case tabCloud:
-								a.settingsCloudSync(c)
+								a.cloud.settingsCloudSync(c)
 							case tabGit:
-								a.settingsGitSync(c)
+								a.gitSync.settingsGitSync(c)
 							case tabAI:
-								a.settingsAI(c)
+								a.qa.settingsAI(c)
 							case tabAgents:
 								a.settingsLocalAgents(c, func() { settingsSeparator(c) }, func(key, label, note string, control func()) { settingRow(c, key, label, note, control) })
 							case tabResources:
-								a.settingsResources(c)
+								a.resources.settingsResources(c)
 							case tabAbout:
 								a.settingsAbout(c)
 							default:
@@ -580,7 +580,7 @@ func (a *App) settingsAppearance(c *ui.Context) {
 			}
 			settingRow(c, label, label, note, func() {
 				if ui.Button(c.Key("choose-font"), value).MaxWidth(300).Clicked() {
-					a.openFontPicker(forUI)
+					a.fonts.openFontPicker(forUI)
 				}
 			})
 			if forUI {
@@ -747,7 +747,7 @@ func (a *App) appearancePreview(c *ui.Context) {
 			sheet.Children(func() {
 				editor.View(c.Key("sample-text"), a.sampleEditor, editor.Options{
 					Width: w - 2, Theme: paper, Page: pageStyle(a.paperDark), Column: col,
-					FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.bodyFont(),
+					FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), FontFamily: a.fonts.bodyFont(),
 				})
 			})
 		})
@@ -872,14 +872,14 @@ func (a *App) settingsSpaces(c *ui.Context) {
 // automatic download preference.
 func (a *App) settingsUpdates(c *ui.Context) {
 	settingsHeading(c, i18n.T("更新"), i18n.T("检查并安装 FreeFolio 新版本，自动更新可在后台下载并等待你确认重启"))
-	a.updateOverview(c)
-	a.updateReleaseNotes(c)
+	a.updates.updateOverview(c)
+	a.updates.updateReleaseNotes(c)
 	settingsSection(c, i18n.T("更新偏好"))
 	settingsGroup(c, "update-prefs", func() {
 		auto := !a.prefs.NoAutoUpdate
 		toggleRow(c, "auto-update", i18n.T("自动更新 FreeFolio"), i18n.T("在后台下载新版本，准备好后由你安装；关闭后只提示有新版本"), &auto, nil)
 		if auto == a.prefs.NoAutoUpdate {
-			a.toggleAutoUpdate()
+			a.updates.toggleAutoUpdate()
 		}
 	})
 }

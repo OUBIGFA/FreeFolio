@@ -13,10 +13,23 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/editor"
 	"github.com/OUBIGFA/FreeFolio/internal/fontlibrary"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/egoist/mygo/ui"
 )
 
+// fontsHost is what the font picker needs from the window.
+type fontsHost interface {
+	activeDocument() *document
+	appConfig() Config
+	backgroundResult(work func() func())
+	paperIsDark() bool
+	preferences() *prefs.Prefs
+	savePrefs()
+	trashItem(p string) error
+}
+
 type fontState struct {
+	host                                       fontsHost
 	sample                                     *editor.Editor
 	previewing                                 bool
 	list                                       ui.ListState
@@ -34,43 +47,32 @@ type fontState struct {
 	cancel                                     context.CancelFunc
 }
 
-// backgroundResult runs filesystem work away from the native view and applies
-// its result on the window thread. Headless tests run the same work directly.
-func (a *App) backgroundResult(work func() func()) {
-	if a.win == nil {
-		work()()
-		return
+func (fs *fontState) bodyFont() string {
+	if fs.open && !fs.targetUI && fs.previewing {
+		return fs.preview
 	}
-	win := a.win
-	go func() { apply := work(); win.Update(apply) }()
+	return fs.host.preferences().BodyFamily()
+}
+func (fs *fontState) interfaceFont() string {
+	if fs.open && fs.targetUI && fs.previewing {
+		return fs.preview
+	}
+	return fs.host.preferences().InterfaceFont
+}
+func (fs *fontState) previewFont(name string) { fs.preview = name; fs.previewing = true }
+func (fs *fontState) closeFontPicker() {
+	fs.open = false
+	fs.preview = ""
+	fs.previewing = false
 }
 
-func (a *App) bodyFont() string {
-	if a.fonts.open && !a.fonts.targetUI && a.fonts.previewing {
-		return a.fonts.preview
-	}
-	return a.prefs.BodyFamily()
-}
-func (a *App) interfaceFont() string {
-	if a.fonts.open && a.fonts.targetUI && a.fonts.previewing {
-		return a.fonts.preview
-	}
-	return a.prefs.InterfaceFont
-}
-func (a *App) previewFont(name string) { a.fonts.preview = name; a.fonts.previewing = true }
-func (a *App) closeFontPicker() {
-	a.fonts.open = false
-	a.fonts.preview = ""
-	a.fonts.previewing = false
-}
-
-func (a *App) loadFonts() {
-	if a.fonts.loading || a.fonts.loaded {
+func (fs *fontState) loadFonts() {
+	if fs.loading || fs.loaded {
 		return
 	}
-	a.fonts.loading = true
-	dir := filepath.Join(a.cfg.ConfigDir, "fonts")
-	a.backgroundResult(func() func() {
+	fs.loading = true
+	dir := filepath.Join(fs.host.appConfig().ConfigDir, "fonts")
+	fs.host.backgroundResult(func() func() {
 		installed := map[string]bool{}
 		var problems []string
 		for _, f := range fontlibrary.Catalog {
@@ -100,32 +102,32 @@ func (a *App) loadFonts() {
 		}
 		families := ui.FontFamilies()
 		return func() {
-			a.fonts.families = families
-			a.fonts.installed = installed
-			a.fonts.loading = false
-			a.fonts.loaded = true
-			a.fonts.err = strings.Join(problems, "\n")
+			fs.families = families
+			fs.installed = installed
+			fs.loading = false
+			fs.loaded = true
+			fs.err = strings.Join(problems, "\n")
 		}
 	})
 }
 
-func (a *App) openFontPicker(forUI bool) {
-	a.fonts.open = true
-	a.fonts.targetUI = forUI
-	a.fonts.query = ""
-	a.fonts.lastQuery = ""
-	a.fonts.category = ""
-	a.fonts.preview = ""
-	a.fonts.previewing = false
-	a.fonts.list = ui.ListState{}
-	a.fonts.index = 0
-	if a.doc != nil && a.doc.ed != nil {
-		a.fonts.sample = editor.FromDocument(a.doc.ed.Committed())
+func (fs *fontState) openFontPicker(forUI bool) {
+	fs.open = true
+	fs.targetUI = forUI
+	fs.query = ""
+	fs.lastQuery = ""
+	fs.category = ""
+	fs.preview = ""
+	fs.previewing = false
+	fs.list = ui.ListState{}
+	fs.index = 0
+	if fs.host.activeDocument() != nil && fs.host.activeDocument().ed != nil {
+		fs.sample = editor.FromDocument(fs.host.activeDocument().ed.Committed())
 	} else {
-		a.fonts.sample = editor.New("# 字体预览\n\n自由的文字胜于一切 · Abc 123\n\n选择字体，预览正文的字形与行距")
+		fs.sample = editor.New("# 字体预览\n\n自由的文字胜于一切 · Abc 123\n\n选择字体，预览正文的字形与行距")
 	}
-	a.fonts.sample.ReadOnly = true
-	a.loadFonts()
+	fs.sample.ReadOnly = true
+	fs.loadFonts()
 }
 func recentFont(list []string, name string) []string {
 	list = slices.DeleteFunc(slices.Clone(list), func(s string) bool { return s == name })
@@ -134,19 +136,19 @@ func recentFont(list []string, name string) []string {
 	}
 	return list[:min(5, len(list))]
 }
-func (a *App) chooseFont(name string) {
-	if a.fonts.targetUI {
-		a.prefs.InterfaceFont = name
-		a.prefs.RecentInterfaceFonts = recentFont(a.prefs.RecentInterfaceFonts, name)
+func (fs *fontState) chooseFont(name string) {
+	if fs.targetUI {
+		fs.host.preferences().InterfaceFont = name
+		fs.host.preferences().RecentInterfaceFonts = recentFont(fs.host.preferences().RecentInterfaceFonts, name)
 	} else {
-		a.prefs.BodyFont = name
+		fs.host.preferences().BodyFont = name
 		if name == "" {
-			a.prefs.Font = ""
+			fs.host.preferences().Font = ""
 		}
-		a.prefs.RecentBodyFonts = recentFont(a.prefs.RecentBodyFonts, name)
+		fs.host.preferences().RecentBodyFonts = recentFont(fs.host.preferences().RecentBodyFonts, name)
 	}
-	a.closeFontPicker()
-	a.savePrefs()
+	fs.closeFontPicker()
+	fs.host.savePrefs()
 }
 
 func fontGroup(f ui.FontFamily) string {
@@ -182,8 +184,8 @@ type fontChoice struct {
 	download           *fontlibrary.Font
 }
 
-func (a *App) fontChoices() []fontChoice {
-	f := &a.fonts
+func (fs *fontState) fontChoices() []fontChoice {
+	f := fs
 	var rows []fontChoice
 	match := func(s string) bool {
 		return strings.Contains(strings.ToLower(s), strings.ToLower(strings.TrimSpace(f.query)))
@@ -216,10 +218,10 @@ func (a *App) fontChoices() []fontChoice {
 			}
 		}
 	}
-	appendNamed(a.prefs.FavoriteFonts, "收藏字体")
-	recent := a.prefs.RecentBodyFonts
+	appendNamed(fs.host.preferences().FavoriteFonts, "收藏字体")
+	recent := fs.host.preferences().RecentBodyFonts
 	if f.targetUI {
-		recent = a.prefs.RecentInterfaceFonts
+		recent = fs.host.preferences().RecentInterfaceFonts
 	}
 	appendNamed(recent, "最近使用")
 	for _, group := range []string{"黑体与无衬线", "宋体与衬线", "楷体与手写", "圆体", "等宽", "其他字体"} {
@@ -247,23 +249,23 @@ func (a *App) fontChoices() []fontChoice {
 	return rows
 }
 
-func (a *App) downloadFont(f fontlibrary.Font) {
-	if a.fonts.busy != "" {
+func (fs *fontState) downloadFont(f fontlibrary.Font) {
+	if fs.busy != "" {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	a.fonts.cancel = cancel
-	a.fonts.busy = f.ID
-	a.fonts.err = ""
-	a.fonts.progress = &atomic.Int64{}
-	a.fonts.total = 0
+	fs.cancel = cancel
+	fs.busy = f.ID
+	fs.err = ""
+	fs.progress = &atomic.Int64{}
+	fs.total = 0
 	for _, file := range f.Files {
-		a.fonts.total += file.Bytes
+		fs.total += file.Bytes
 	}
-	progress := a.fonts.progress
-	dir := filepath.Join(a.cfg.ConfigDir, "fonts")
-	targetUI := a.fonts.targetUI
-	a.backgroundResult(func() func() {
+	progress := fs.progress
+	dir := filepath.Join(fs.host.appConfig().ConfigDir, "fonts")
+	targetUI := fs.targetUI
+	fs.host.backgroundResult(func() func() {
 		defer cancel()
 		err := fontlibrary.Download(ctx, nil, dir, f.Files, func(n, total int64) { progress.Store(n) })
 		if err == nil {
@@ -279,32 +281,32 @@ func (a *App) downloadFont(f fontlibrary.Font) {
 			}
 		}
 		return func() {
-			a.fonts.busy = ""
-			a.fonts.cancel = nil
+			fs.busy = ""
+			fs.cancel = nil
 			if err != nil {
-				a.fonts.err = err.Error()
+				fs.err = err.Error()
 				return
 			}
-			if a.fonts.installed == nil {
-				a.fonts.installed = map[string]bool{}
+			if fs.installed == nil {
+				fs.installed = map[string]bool{}
 			}
-			a.fonts.installed[f.ID] = true
-			a.fonts.families = ui.FontFamilies()
-			if a.fonts.open && a.fonts.targetUI == targetUI {
-				a.chooseFont(f.Family)
+			fs.installed[f.ID] = true
+			fs.families = ui.FontFamilies()
+			if fs.open && fs.targetUI == targetUI {
+				fs.chooseFont(f.Family)
 			}
 		}
 	})
 }
 
-func (a *App) removeFont(f fontlibrary.Font) {
-	if a.fonts.busy != "" {
+func (fs *fontState) removeFont(f fontlibrary.Font) {
+	if fs.busy != "" {
 		return
 	}
-	a.fonts.busy = f.ID
-	dir := filepath.Join(a.cfg.ConfigDir, "fonts")
-	trash := a.trashItem
-	a.backgroundResult(func() func() {
+	fs.busy = f.ID
+	dir := filepath.Join(fs.host.appConfig().ConfigDir, "fonts")
+	trash := fs.host.trashItem
+	fs.host.backgroundResult(func() func() {
 		var err error
 		for _, file := range f.Files {
 			p := filepath.Join(dir, file.Name)
@@ -319,45 +321,45 @@ func (a *App) removeFont(f fontlibrary.Font) {
 			}
 		}
 		return func() {
-			a.fonts.busy = ""
+			fs.busy = ""
 			if err != nil {
-				a.fonts.err = err.Error()
+				fs.err = err.Error()
 				return
 			}
-			a.fonts.installed[f.ID] = false
-			if a.prefs.BodyFont == f.Family {
-				a.prefs.BodyFont = ""
+			fs.installed[f.ID] = false
+			if fs.host.preferences().BodyFont == f.Family {
+				fs.host.preferences().BodyFont = ""
 			}
-			if a.prefs.InterfaceFont == f.Family {
-				a.prefs.InterfaceFont = ""
+			if fs.host.preferences().InterfaceFont == f.Family {
+				fs.host.preferences().InterfaceFont = ""
 			}
-			a.fonts.preview = ""
-			a.savePrefs()
+			fs.preview = ""
+			fs.host.savePrefs()
 		}
 	})
 }
 
-func (a *App) fontPickerView(c *ui.Context) {
-	f := &a.fonts
+func (fs *fontState) fontPickerView(c *ui.Context) {
+	f := fs
 	if !f.open {
 		return
 	}
 	t := c.Theme()
 	w, h := c.Size()
-	chromeFont := a.prefs.InterfaceFont
+	chromeFont := fs.host.preferences().InterfaceFont
 	if chromeFont == "" {
 		chromeFont = "system-ui"
 	}
-	previewUIFont := a.interfaceFont()
+	previewUIFont := fs.interfaceFont()
 	if previewUIFont == "" {
 		previewUIFont = "system-ui"
 	}
-	activeFont := a.prefs.BodyFamily()
+	activeFont := fs.host.preferences().BodyFamily()
 	if f.targetUI {
-		activeFont = a.prefs.InterfaceFont
+		activeFont = fs.host.preferences().InterfaceFont
 	}
 	ui.Modal(c.Key("font-picker"), &f.open, func() {
-		rows := a.fontChoices()
+		rows := fs.fontChoices()
 		if f.query != f.lastQuery {
 			f.index = 0
 			f.lastQuery = f.query
@@ -379,14 +381,14 @@ func (a *App) fontPickerView(c *ui.Context) {
 		}
 		preview := func(row fontChoice) {
 			if row.download == nil || f.installed[row.download.ID] {
-				a.previewFont(row.name)
+				fs.previewFont(row.name)
 			}
 		}
 		choose := func(row fontChoice) {
 			if row.download != nil && !f.installed[row.download.ID] {
-				a.downloadFont(*row.download)
+				fs.downloadFont(*row.download)
 			} else {
-				a.chooseFont(row.name)
+				fs.chooseFont(row.name)
 			}
 		}
 		if moved && len(rows) > 0 {
@@ -412,12 +414,12 @@ func (a *App) fontPickerView(c *ui.Context) {
 				ui.Spacer(c)
 				if activeFont != "" {
 					if ui.Button(c.Key("font-reset"), i18n.T("恢复默认")).Clicked() {
-						a.chooseFont("")
+						fs.chooseFont("")
 						return
 					}
 				}
 				if ui.Button(c.Key("font-close"), i18n.T("取消预览")).Clicked() {
-					a.closeFontPicker()
+					fs.closeFontPicker()
 				}
 			})
 			ui.Column(c.Key("font-picker-filters")).Shrink(0).Gap(8).Children(func() {
@@ -552,24 +554,24 @@ func (a *App) fontPickerView(c *ui.Context) {
 							choose(row)
 						}
 						if row.name != "" {
-							starred := slices.Contains(a.prefs.FavoriteFonts, row.name)
+							starred := slices.Contains(fs.host.preferences().FavoriteFonts, row.name)
 							label := i18n.T("收藏字体")
 							if starred {
 								label = i18n.T("取消收藏字体")
 							}
 							if iconButton(c, "font-star", iconStar, label, label, starred).Clicked() {
 								if starred {
-									a.prefs.FavoriteFonts = slices.DeleteFunc(a.prefs.FavoriteFonts, func(s string) bool { return s == row.name })
+									fs.host.preferences().FavoriteFonts = slices.DeleteFunc(fs.host.preferences().FavoriteFonts, func(s string) bool { return s == row.name })
 								} else {
-									a.prefs.FavoriteFonts = append(a.prefs.FavoriteFonts, row.name)
+									fs.host.preferences().FavoriteFonts = append(fs.host.preferences().FavoriteFonts, row.name)
 								}
-								a.savePrefs()
+								fs.host.savePrefs()
 							}
 						}
 						if row.download != nil {
 							if f.installed[row.download.ID] {
 								if ui.Button(c.Key("remove"), i18n.T("移除字体")).Disabled(f.busy != "").Clicked() {
-									a.removeFont(*row.download)
+									fs.removeFont(*row.download)
 								}
 							} else {
 								var size int64
@@ -636,14 +638,14 @@ func (a *App) fontPickerView(c *ui.Context) {
 						})
 					})
 				} else if f.sample != nil {
-					paper := documentTheme(a.paperDark)
+					paper := documentTheme(fs.host.paperIsDark())
 					previewW := float32(320)
 					if modalW < 620 {
 						previewW = modalW
 					}
 					ui.Themed(c.Key("font-page-preview"), paper).Grow(1).MinHeight(0).Background(paper.Background).
 						Border(1, paper.Border).Radius(8).Clip().Children(func() {
-						editor.View(c.Key("font-sample"), f.sample, editor.Options{Width: previewW, Theme: paper, Page: pageStyle(a.paperDark), FontFamily: a.bodyFont(), FontSize: a.prefs.ReadingSize(), LineHeight: a.prefs.ReadingLine(), Column: -1})
+						editor.View(c.Key("font-sample"), f.sample, editor.Options{Width: previewW, Theme: paper, Page: pageStyle(fs.host.paperIsDark()), FontFamily: fs.bodyFont(), FontSize: fs.host.preferences().ReadingSize(), LineHeight: fs.host.preferences().ReadingLine(), Column: -1})
 					})
 				}
 				ui.Row(c.Key("font-preview-footer")).Height(34).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {

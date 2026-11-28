@@ -284,7 +284,7 @@ func TestBrandStaysAtWindowStart(t *testing.T) {
 						folded := mode == "folded"
 						a.library.open = false
 						if mode == "library" {
-							a.openLibrary(libSpaces)
+							a.library.openLibrary(libSpaces)
 						}
 						a.sidebarHidden = folded
 						settle(tt)
@@ -370,7 +370,7 @@ func TestSidebarBrandSnapshot(t *testing.T) {
 				a, tt := titleBarTestApp(t, mode, 1240, windowsTitleBar)
 				a.prefs.SidebarLeft = side == "left"
 				if mode == "library" {
-					a.openLibrary(libSpaces)
+					a.library.openLibrary(libSpaces)
 				} else if mode == "settings" {
 					a.openSettings(tabAppearance)
 				}
@@ -575,7 +575,7 @@ func TestClientCaptionStaysReachable(t *testing.T) {
 	if w.maximized {
 		t.Fatal("restore did not leave maximized mode")
 	}
-	a.openLibrary(libSpaces)
+	a.library.openLibrary(libSpaces)
 	settle(tt)
 	a.qa.open = true
 	settle(tt)

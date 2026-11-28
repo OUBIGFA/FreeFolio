@@ -16,12 +16,12 @@ func TestOneBotReviewUIKeepsSelectionAfterFocusAndApplies(t *testing.T) {
 	a.qa.editTask = task
 	a.qa.editMode = true
 	a.qa.open = true
-	c, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hi"))
+	c, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
-	a.attachOneBotTask(task)
+	a.qa.attachOneBotTask(task)
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -54,7 +54,7 @@ func TestOneBotSnapshot(t *testing.T) {
 				original := "我们的团队将会在下周对目前的计划进行一次重新评估，并根据最新反馈进行相应调整。"
 				a.doc.ed.Engine.ReplaceDocument(editor.ImportMarkdown(original + "\n\n评估结果将在周五的例会上讨论，负责人会提前整理用户反馈。\n"))
 				a.doc.ed.SetSelection(0, model.Len(original))
-				task, err := a.captureOneBotTask("selection")
+				task, err := a.qa.captureOneBotTask("selection")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -62,7 +62,7 @@ func TestOneBotSnapshot(t *testing.T) {
 				a.qa.editMode = true
 				a.qa.open = true
 				task.Instruction = "保持原意，让表达更简洁。"
-				c, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, "团队将于下周根据最新反馈重新评估并调整计划。"))
+				c, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, "团队将于下周根据最新反馈重新评估并调整计划。"))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -72,14 +72,14 @@ func TestOneBotSnapshot(t *testing.T) {
 				}
 				if mode == "alternatives" {
 					for _, text := range []string{"下周，团队将结合最新反馈评估计划并作调整。", "团队计划下周重新评估方案，纳入最新反馈。"} {
-						alternative, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, text))
+						alternative, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, text))
 						if err != nil {
 							t.Fatal(err)
 						}
 						task.Candidates = append(task.Candidates, alternative)
 					}
 				}
-				a.attachOneBotTask(task)
+				a.qa.attachOneBotTask(task)
 				if mode == "review-dark" {
 					tt.SetDark(true)
 				}

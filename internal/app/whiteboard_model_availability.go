@@ -10,8 +10,8 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/whiteboard"
 )
 
-func (a *App) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel {
-	installed := a.resources.installed
+func (wa *whiteboardAIFeature) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel {
+	installed := wa.host.optionalResources().installed
 	if m.Connection == "local" {
 		runtime, ok := localresource.Runtime()
 		m.NeedsDownload = !ok || !installed[runtime.ID] || !installed[m.Model]
@@ -31,12 +31,12 @@ func (a *App) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel 
 	if !strings.HasPrefix(m.Connection, "comfyui") {
 		return m
 	}
-	cfg := a.comfyConfig()
+	cfg := wa.host.optionalResources().comfyConfig()
 	if cfg.Dir == "" && cfg.URL == "" {
 		m.Unavailable = i18n.T("请先配置 ComfyUI")
 		return m
 	}
-	caps := a.resources.comfyCaps
+	caps := wa.host.optionalResources().comfyCaps
 	if caps == nil {
 		// Listing models must not start or reconnect an engine the user stopped.
 		// The run path starts it on demand and validates its nodes and weights.
@@ -123,14 +123,14 @@ func (a *App) boardModelAvailability(m editor.BoardAIModel) editor.BoardAIModel 
 	return m
 }
 
-func (a *App) boardRoleUnavailable(role whiteboard.AIRole) string {
+func (wa *whiteboardAIFeature) boardRoleUnavailable(role whiteboard.AIRole) string {
 	switch role {
 	case whiteboard.AIText, whiteboard.AIImage, whiteboard.AIEnhance, whiteboard.AIModel, whiteboard.AILoRA, whiteboard.AIVideo, whiteboard.AIAudio, whiteboard.AICutout, whiteboard.AIUpscale:
 	default:
 		return ""
 	}
 	reason := i18n.T("没有可用模型")
-	for _, m := range a.boardAIModels(role) {
+	for _, m := range wa.boardAIModels(role) {
 		if !m.NeedsDownload && m.Unavailable == "" {
 			return ""
 		}

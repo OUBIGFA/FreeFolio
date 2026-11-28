@@ -1287,7 +1287,7 @@ func (a *App) ctlDatabaseRecords(raw []byte) (any, error) {
 			trashInfo = tRes
 		}
 		if a.library.open {
-			a.loadLibrary()
+			a.library.loadLibrary()
 		}
 		if err := a.saveDBStoreForControl(sp, dbRel, st, liveDoc); err != nil {
 			return nil, err

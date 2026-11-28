@@ -89,11 +89,11 @@ func (a *App) openQuickNote() {
 			a.quick.window = w
 			a.windows = append(a.windows, w)
 			view := func(c *ui.Context) {
-				c.Root().Font(a.interfaceFont())
+				c.Root().Font(a.fonts.interfaceFont())
 				if a.autosaveEnabled() {
 					d.autosaveWith(c, a.asyncPost())
 				}
-				a.withDocument(d, func() { a.cloudSaved(d) })
+				a.withDocument(d, func() { a.documentSaved(d) })
 				a.windowView(c, w)
 			}
 			close := func() bool { return a.closeWindow(w) }

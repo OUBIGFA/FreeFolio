@@ -187,7 +187,7 @@ func (a *App) documentCorner(c *ui.Context, d *document) {
 		return
 	}
 	if d.isMDZ() {
-		a.mdzCorner(c, d)
+		a.mdzFiles.mdzCorner(c, d)
 		return
 	}
 	if d.isDatabase() {

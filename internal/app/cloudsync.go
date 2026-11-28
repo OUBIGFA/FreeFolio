@@ -48,7 +48,30 @@ type cloudProgress struct {
 	space  string
 	detail cloudsync.Progress
 }
+
+// cloudHost is what cloud sync needs from the window.
+type cloudHost interface {
+	appConfig() Config
+	checkDisk()
+	clock() time.Time
+	flushForTask() bool
+	gitBusy() bool
+	gitSyncsSpace(id string) bool
+	invalidateResolvedImages()
+	openSettings(tab string)
+	refreshSearch()
+	refreshTree()
+	residentDocument(id, rel string) *document
+	residentDocuments() []*document
+	spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size float32, color ui.Color) ui.Element
+	spaces() *space.State
+	trashBinDir() string
+	trashItem(p string) error
+	withDocument(d *document, fn func())
+}
+
 type cloudState struct {
+	host            cloudHost
 	config          cloudsync.Config
 	broken          bool
 	message         string
@@ -71,50 +94,50 @@ type cloudState struct {
 	reconcile, confirmReconcile string
 }
 
-func (a *App) applyLoadedCloudSync(c cloudsync.Config, err error) {
-	a.cloud.config = c
+func (cs *cloudState) applyLoadedCloudSync(c cloudsync.Config, err error) {
+	cs.config = c
 	if err != nil {
-		a.cloud.broken = true
-		a.cloud.failed = true
-		a.cloud.message = fmt.Sprintf(i18n.T("读取同步设置失败：%v"), err)
+		cs.broken = true
+		cs.failed = true
+		cs.message = fmt.Sprintf(i18n.T("读取同步设置失败：%v"), err)
 	}
 }
 
-func (a *App) saveCloudSync() bool {
-	if a.cloud.broken {
-		a.cloud.message = i18n.T("同步设置无法读取，原文件已保留")
+func (cs *cloudState) saveCloudSync() bool {
+	if cs.broken {
+		cs.message = i18n.T("同步设置无法读取，原文件已保留")
 		return false
 	}
-	if a.cloud.busy {
+	if cs.busy {
 		return false
 	}
-	if err := cloudsync.SaveConfig(a.cfg.ConfigDir, a.cloud.config); err != nil {
-		a.cloud.failed = true
-		a.cloud.message = err.Error()
+	if err := cloudsync.SaveConfig(cs.host.appConfig().ConfigDir, cs.config); err != nil {
+		cs.failed = true
+		cs.message = err.Error()
 		return false
 	}
-	a.cloud.failed = false
-	a.cloud.message = i18n.T("同步设置已保存")
-	a.cloud.next = a.cloud.config.Next(a.now)
+	cs.failed = false
+	cs.message = i18n.T("同步设置已保存")
+	cs.next = cs.config.Next(cs.host.clock())
 	return true
 }
 
-func (a *App) startCloudSync(probe, manual bool) {
-	if !probe && a.gitSync.busy {
-		a.cloud.failed = true
-		a.cloud.message = i18n.T("Git 操作正在执行，请稍后再试")
+func (cs *cloudState) startCloudSync(probe, manual bool) {
+	if !probe && cs.host.gitBusy() {
+		cs.failed = true
+		cs.message = i18n.T("Git 操作正在执行，请稍后再试")
 		return
 	}
 	if !probe {
-		for id := range a.cloud.config.Spaces {
-			if cfg := a.gitSync.config.Spaces[id]; cfg != nil && cfg.Enabled {
-				a.cloud.failed = true
-				a.cloud.message = i18n.T("同一空间不能同时启用 Git 与云端同步")
+		for id := range cs.config.Spaces {
+			if cs.host.gitSyncsSpace(id) {
+				cs.failed = true
+				cs.message = i18n.T("同一空间不能同时启用 Git 与云端同步")
 				return
 			}
 		}
 	}
-	s := &a.cloud
+	s := cs
 	// Consume recovery before any early return. A canceled save or failed
 	// preflight must never leave an overwrite queued for an automatic run.
 	reconcile := s.reconcile
@@ -122,11 +145,11 @@ func (a *App) startCloudSync(probe, manual bool) {
 	if s.busy || s.broken {
 		return
 	}
-	if reconcile != "" && (probe || !manual || !a.cloudRecoveryValid()) {
+	if reconcile != "" && (probe || !manual || !cs.cloudRecoveryValid()) {
 		s.failed, s.message = true, i18n.T("同步目标已改变，请先重新同步")
 		return
 	}
-	if !probe && (!s.config.Enabled || !a.flushForTask()) {
+	if !probe && (!s.config.Enabled || !cs.host.flushForTask()) {
 		return
 	}
 	c := s.config
@@ -136,7 +159,7 @@ func (a *App) startCloudSync(probe, manual bool) {
 	}
 	var spaces []space.Space
 	for id := range c.Spaces {
-		if sp := a.state.Get(id); sp != nil && !sp.IsExternal() {
+		if sp := cs.host.spaces().Get(id); sp != nil && !sp.IsExternal() {
 			spaces = append(spaces, *sp)
 		}
 	}
@@ -163,12 +186,9 @@ func (a *App) startCloudSync(probe, manual bool) {
 	s.resolve = nil
 	recheck := s.recheck
 	s.recheck = false
-	stateDir := filepath.Join(a.cfg.ConfigDir, "sync-state")
-	bin := trashbin.Bin{Dir: a.bin.Dir}
-	trash := a.trashFile
-	if trash == nil {
-		trash = mygo.Shell.TrashItem
-	}
+	stateDir := filepath.Join(cs.host.appConfig().ConfigDir, "sync-state")
+	bin := trashbin.Bin{Dir: cs.host.trashBinDir()}
+	trash := cs.host.trashItem
 	if !probe && !manual {
 		s.count++
 	}
@@ -246,8 +266,8 @@ func (a *App) startCloudSync(probe, manual bool) {
 
 // cloudTick is the only consumer of worker results. Active editor state is
 // checked here, on the UI thread, before a worker replaces a local file.
-func (a *App) cloudTick(c *ui.Context) {
-	s := &a.cloud
+func (cs *cloudState) cloudTick(c *ui.Context) {
+	s := cs
 	now := c.Now()
 	if !s.started {
 		// Startup is a one-time launch decision, even when automatic sync is off.
@@ -295,7 +315,7 @@ func (a *App) cloudTick(c *ui.Context) {
 		select {
 		case g := <-s.guards:
 			var err error
-			if d := a.residentDocument(g.space, g.rel); d != nil && (d.saving || d.dirty() || d.ed.Composing() || d.conflict || d.ed.ReadOnly) {
+			if d := cs.host.residentDocument(g.space, g.rel); d != nil && (d.saving || d.dirty() || d.ed.Composing() || d.conflict || d.ed.ReadOnly) {
 				err = errors.New("document has active or protected edits")
 			}
 			g.reply <- err
@@ -358,11 +378,11 @@ func (a *App) cloudTick(c *ui.Context) {
 				}
 			}
 			if !out.probe && (out.result.Downloaded > 0 || out.result.Deleted > 0 || len(out.result.Conflicts) > 0) {
-				a.invalidateResolvedImages()
-				a.refreshTree()
-				a.refreshSearch()
-				for _, d := range a.residentDocuments() {
-					a.withDocument(d, a.checkDisk)
+				cs.host.invalidateResolvedImages()
+				cs.host.refreshTree()
+				cs.host.refreshSearch()
+				for _, d := range cs.host.residentDocuments() {
+					cs.host.withDocument(d, cs.host.checkDisk)
 				}
 			}
 		default:
@@ -389,7 +409,7 @@ func (a *App) cloudTick(c *ui.Context) {
 		due = s.due
 	}
 	if !due.IsZero() && !now.Before(due) {
-		a.startCloudSync(false, false)
+		cs.startCloudSync(false, false)
 		c.After(50 * time.Millisecond)
 		return
 	}
@@ -398,39 +418,38 @@ func (a *App) cloudTick(c *ui.Context) {
 	}
 }
 
-func (a *App) cloudSaved(d *document) {
-	a.gitSaved(d)
+func (cs *cloudState) cloudSaved(d *document) {
 	if !d.justSaved {
 		return
 	}
 	d.justSaved = false
-	if a.cloud.config.Enabled && a.cloud.config.Automatic && a.cloud.config.Spaces[d.space.ID] != "" {
-		a.cloud.due = a.now.Add(15 * time.Second)
+	if cs.config.Enabled && cs.config.Automatic && cs.config.Spaces[d.space.ID] != "" {
+		cs.due = cs.host.clock().Add(15 * time.Second)
 	}
 }
 
-func (a *App) cancelCloudSync() {
-	if a.cloud.cancel != nil {
-		a.cloud.cancel()
+func (cs *cloudState) cancelCloudSync() {
+	if cs.cancel != nil {
+		cs.cancel()
 	}
 }
 
-func (a *App) cloudRecoveryValid() bool {
-	s := &a.cloud
+func (cs *cloudState) cloudRecoveryValid() bool {
+	s := cs
 	r := s.recovery
 	if r == nil || r.target != s.config.TargetID() || s.config.Spaces[r.space] != r.remote {
 		return false
 	}
-	sp := a.state.Get(r.space)
+	sp := cs.host.spaces().Get(r.space)
 	return sp != nil && !sp.IsExternal() && sp.Root == r.root
 }
 
-func (a *App) cloudOverwriteChoices(c *ui.Context) {
-	s := &a.cloud
+func (cs *cloudState) cloudOverwriteChoices(c *ui.Context) {
+	s := cs
 	if s.recovery == nil {
 		return
 	}
-	valid := a.cloudRecoveryValid() && s.config.Enabled && !s.broken
+	valid := cs.cloudRecoveryValid() && s.config.Enabled && !s.broken
 	ui.Text(c, fmt.Sprintf(i18n.T("覆盖范围：%s，单侧文件保留并补齐"), s.recovery.name)).FontSize(12).TextColor(c.Theme().TextMuted)
 	ui.Row(c).Gap(8).Wrap().Children(func() {
 		if ui.Button(c.Key("prefer-remote"), i18n.T("以云端为准")).Disabled(!valid).Clicked() {
@@ -454,9 +473,9 @@ func (a *App) cloudOverwriteChoices(c *ui.Context) {
 	ui.Row(c).Gap(8).Children(func() {
 		if ui.PrimaryButton(c.Key("confirm-overwrite"), i18n.T("确认覆盖并同步")).Disabled(!valid).Clicked() {
 			direction := s.confirmReconcile
-			if a.saveCloudSync() {
+			if cs.saveCloudSync() {
 				s.reconcile, s.resolve, s.recheck = direction, nil, false
-				a.startCloudSync(false, true)
+				cs.startCloudSync(false, true)
 			}
 		}
 		if ui.Button(c.Key("cancel-overwrite"), i18n.T("取消覆盖")).Clicked() {
@@ -467,8 +486,8 @@ func (a *App) cloudOverwriteChoices(c *ui.Context) {
 
 // cloudRecoveryActions offers a different operation when a plain retry cannot
 // help. A recheck keeps the baseline and exposes conflicts for explicit choice.
-func (a *App) cloudRecoveryActions(c *ui.Context) {
-	s := &a.cloud
+func (cs *cloudState) cloudRecoveryActions(c *ui.Context) {
+	s := cs
 	remoteChanged := errors.Is(s.lastError, cloudsync.ErrRemoteChanged)
 	hint := "检查服务地址、账号和同步目录，修改后测试连接，再重试同步"
 	label, target := "检查连接设置", "connection"
@@ -494,15 +513,15 @@ func (a *App) cloudRecoveryActions(c *ui.Context) {
 	}
 	ui.Column(c.Key("cloud-recovery")).Padding(0, 16, 12, 16).Gap(8).Children(func() {
 		if remoteChanged {
-			a.cloudOverwriteChoices(c)
+			cs.cloudOverwriteChoices(c)
 		}
 		ui.Text(c, i18n.T(hint)).FontSize(12).TextColor(c.Theme().TextMuted)
 		ui.Row(c).Gap(8).Wrap().Children(func() {
 			if remoteChanged && ui.PrimaryButton(c.Key("recheck"), i18n.T("重新核对并同步")).Disabled(s.broken || !s.config.Enabled).Clicked() {
-				if a.saveCloudSync() {
+				if cs.saveCloudSync() {
 					s.recheck = true
 					s.resolve = nil
-					a.startCloudSync(false, true)
+					cs.startCloudSync(false, true)
 				}
 			}
 			if ui.Button(c.Key("settings"), i18n.T(label)).Clicked() {
@@ -512,9 +531,9 @@ func (a *App) cloudRecoveryActions(c *ui.Context) {
 	})
 }
 
-func (a *App) settingsCloudSync(c *ui.Context) {
+func (cs *cloudState) settingsCloudSync(c *ui.Context) {
 	t := c.Theme()
-	s := &a.cloud
+	s := cs
 	cfg := &s.config
 	locked := s.busy || s.broken
 	w, _ := c.Size()
@@ -524,26 +543,26 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 
 	// Overview: enable switch, primary actions, and immediate status feedback.
 	settingsGroup(c, "cloud-overview", func() {
-		settingRow(c, "enabled", i18n.T("启用云端同步"), a.cloudSummary(), func() {
+		settingRow(c, "enabled", i18n.T("启用云端同步"), cs.cloudSummary(), func() {
 			ui.Switch(c.Key("control"), &cfg.Enabled).Label(i18n.T("启用云端同步")).Disabled(locked)
 		})
 		settingsSeparator(c)
 		ui.Row(c.Key("cloud-actions")).Padding(settingsRowInset(c), 16).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			if ui.PrimaryButton(c.Key("sync"), i18n.T("立即同步")).Disabled(locked || !cfg.Enabled).Clicked() {
-				if a.saveCloudSync() {
-					a.startCloudSync(false, true)
+				if cs.saveCloudSync() {
+					cs.startCloudSync(false, true)
 				}
 			}
 			if s.busy && ui.Button(c.Key("cancel"), i18n.T("取消同步")).Clicked() {
-				a.cancelCloudSync()
+				cs.cancelCloudSync()
 			}
 			if ui.Button(c.Key("probe"), i18n.T("测试连接")).Disabled(locked).Clicked() {
-				if a.saveCloudSync() {
-					a.startCloudSync(true, true)
+				if cs.saveCloudSync() {
+					cs.startCloudSync(true, true)
 				}
 			}
 			if ui.Button(c.Key("save"), i18n.T("保存同步设置")).Disabled(locked).Clicked() {
-				a.saveCloudSync()
+				cs.saveCloudSync()
 			}
 		})
 		if s.message != "" {
@@ -558,7 +577,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 				ui.Text(c.Key("status"), s.message).FontSize(12).TextColor(col).LineHeight(1.45).Grow(1)
 			})
 			if s.failed && !s.busy {
-				a.cloudRecoveryActions(c)
+				cs.cloudRecoveryActions(c)
 			}
 		}
 	})
@@ -582,7 +601,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 						s.resolve = map[string]map[string]cloudsync.Resolution{
 							conflict.space: {conflict.detail.Path: {UseLocal: local, RemoteHash: conflict.detail.RemoteHash}},
 						}
-						a.startCloudSync(false, true)
+						cs.startCloudSync(false, true)
 					}
 					if ui.Button(c.Key("local"), i18n.T("保留本地版本")).Disabled(s.busy).Clicked() {
 						choose(true)
@@ -650,7 +669,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 			s.recoveryFocus = ""
 		}
 		shown := 0
-		for _, sp := range a.state.Spaces {
+		for _, sp := range cs.host.spaces().Spaces {
 			if sp.IsExternal() {
 				continue
 			}
@@ -663,7 +682,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 				ui.Row(c).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Box(c).Size(30, 30).Radius(controlRadius).Center().
 						Background(spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark).Alpha(0.12)).Children(func() {
-						a.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 15, spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark))
+						cs.host.spaceGlyph(c, sp.Icon, sp.Symbol, sp.Image, sp.Name, 15, spaceAccent(space.ThemeOf(sp).Colors[0], t.Dark))
 					})
 					ui.Column(c).Grow(1).MinWidth(0).Clip().Gap(2).Children(func() {
 						ui.Text(c, sp.Name).FontSize(13).FontWeight(500).SingleLine()
@@ -740,7 +759,7 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 		settingsSeparator(c)
 		settingRow(c, "backups-row", i18n.T("本地恢复备份"), i18n.T("同步替换或删除本地文件前的恢复副本"), func() {
 			if ui.Button(c.Key("backups"), i18n.T("打开恢复备份")).Clicked() {
-				mygo.Shell.OpenPath(filepath.Join(a.cfg.ConfigDir, "sync-state", "backups"))
+				mygo.Shell.OpenPath(filepath.Join(cs.host.appConfig().ConfigDir, "sync-state", "backups"))
 			}
 		})
 		settingsSeparator(c)
@@ -757,8 +776,8 @@ func (a *App) settingsCloudSync(c *ui.Context) {
 		FontSize(12).TextColor(t.TextMuted).Padding(0, 2)
 }
 
-func (a *App) cloudSummary() string {
-	s := &a.cloud
+func (cs *cloudState) cloudSummary() string {
+	s := cs
 	cfg := &s.config
 	if s.broken {
 		return i18n.T("同步设置无法读取，原文件已保留")
@@ -768,7 +787,7 @@ func (a *App) cloudSummary() string {
 	}
 	selected := 0
 	for id := range cfg.Spaces {
-		if sp := a.state.Get(id); sp != nil && !sp.IsExternal() {
+		if sp := cs.host.spaces().Get(id); sp != nil && !sp.IsExternal() {
 			selected++
 		}
 	}
@@ -783,8 +802,8 @@ func (a *App) cloudSummary() string {
 
 // cloudFailure returns the first line of the last sync failure, or "" when
 // nothing failed or a run is in progress (its progress is shown instead).
-func (a *App) cloudFailure() string {
-	s := &a.cloud
+func (cs *cloudState) cloudFailure() string {
+	s := cs
 	if s.busy || !s.failed && !s.broken {
 		return ""
 	}
@@ -796,12 +815,12 @@ func (a *App) cloudFailure() string {
 
 // cloudProblem sums up what needs the user's attention: a failure and the
 // conflicts left to resolve, or "" when sync is fine.
-func (a *App) cloudProblem() string {
+func (cs *cloudState) cloudProblem() string {
 	var parts []string
-	if f := a.cloudFailure(); f != "" {
+	if f := cs.cloudFailure(); f != "" {
 		parts = append(parts, f)
 	}
-	if n := len(a.cloud.conflicts); n > 0 && !a.cloud.busy {
+	if n := len(cs.conflicts); n > 0 && !cs.busy {
 		parts = append(parts, fmt.Sprintf(i18n.T("%d 个冲突待处理"), n))
 	}
 	return strings.Join(parts, " · ")
@@ -809,9 +828,9 @@ func (a *App) cloudProblem() string {
 
 // sidebarCloudActions renders compact cloud-sync icons in the sidebar footer:
 // a direct sync/cancel button and a quick menu for toggling spaces and settings.
-func (a *App) sidebarCloudActions(c *ui.Context) {
+func (cs *cloudState) sidebarCloudActions(c *ui.Context) {
 	t := c.Theme()
-	s := &a.cloud
+	s := cs
 	cfg := &s.config
 	locked := s.busy || s.broken
 
@@ -828,7 +847,7 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		}
 		syncIcon = iconX
 		syncDisabled = false
-	} else if p := a.cloudProblem(); p != "" {
+	} else if p := cs.cloudProblem(); p != "" {
 		syncLabel = i18n.T("解决同步问题")
 		syncTip = syncLabel + " · " + p
 		syncDisabled = false
@@ -843,19 +862,19 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	}
 	if syncBtn.Clicked() {
 		if s.busy {
-			a.cancelCloudSync()
+			cs.cancelCloudSync()
 		} else if s.failed || len(s.conflicts) > 0 {
-			a.openSettings(tabCloud)
+			cs.host.openSettings(tabCloud)
 		} else {
-			a.startCloudSync(false, true)
+			cs.startCloudSync(false, true)
 		}
 	}
 
 	// Cloud Sync quick menu: choose sync spaces, toggle enabled, test, or open settings.
-	cloudTip := i18n.T("云端同步") + " · " + a.cloudSummary()
+	cloudTip := i18n.T("云端同步") + " · " + cs.cloudSummary()
 	if s.busy && s.message != "" {
 		cloudTip = i18n.T("云端同步") + " · " + strings.SplitN(s.message, "\n", 2)[0]
-	} else if p := a.cloudProblem(); p != "" {
+	} else if p := cs.cloudProblem(); p != "" {
 		cloudTip = i18n.T("云端同步") + " · " + p
 	}
 	cloudBtn := iconButton(c, "sidebar-cloud-menu", settingsIcons["cloud"], i18n.T("云端同步"), cloudTip, false).
@@ -871,24 +890,24 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 	cloudBtn.PopoverMenuButton(func(m *ui.Menu) {
 		m.MaxWidth(340)
 		// Lead with the failure so it is seen before any action is chosen.
-		if f := a.cloudFailure(); f != "" {
+		if f := cs.cloudFailure(); f != "" {
 			if m.Item(i18n.T("同步出现问题")).Subtitle(f).Tooltip(f).Danger().Chosen() {
-				a.openSettings(tabCloud)
+				cs.host.openSettings(tabCloud)
 			}
 			m.Separator()
 		}
 		if s.busy {
 			if m.Item(i18n.T("取消同步")).Chosen() {
-				a.cancelCloudSync()
+				cs.cancelCloudSync()
 			}
 		} else {
 			if m.Item(i18n.T("立即同步")).Disabled(locked || !cfg.Enabled).Chosen() {
-				a.startCloudSync(false, true)
+				cs.startCloudSync(false, true)
 			}
 		}
 		m.Submenu(i18n.T("选择同步空间"), func(sub *ui.Menu) {
 			shown := 0
-			for _, sp := range a.state.Spaces {
+			for _, sp := range cs.host.spaces().Spaces {
 				if sp.IsExternal() {
 					continue
 				}
@@ -903,7 +922,7 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 						}
 						cfg.Spaces[sp.ID] = sp.Name
 					}
-					a.saveCloudSync()
+					cs.saveCloudSync()
 				}
 			}
 			if shown == 0 {
@@ -912,20 +931,20 @@ func (a *App) sidebarCloudActions(c *ui.Context) {
 		})
 		if m.Item(i18n.T("启用云端同步")).Checked(cfg.Enabled).Disabled(locked).Chosen() {
 			cfg.Enabled = !cfg.Enabled
-			a.saveCloudSync()
+			cs.saveCloudSync()
 		}
 		if m.Item(i18n.T("测试连接")).Disabled(locked).Chosen() {
-			a.startCloudSync(true, true)
+			cs.startCloudSync(true, true)
 		}
 		if len(s.conflicts) > 0 {
 			m.Separator()
 			if m.Item(fmt.Sprintf(i18n.T("待处理冲突（%d）"), len(s.conflicts))).Danger().Chosen() {
-				a.openSettings(tabCloud)
+				cs.host.openSettings(tabCloud)
 			}
 		}
 		m.Separator()
 		if m.Item(i18n.T("云端同步设置")).Chosen() {
-			a.openSettings(tabCloud)
+			cs.host.openSettings(tabCloud)
 		}
 	})
 }

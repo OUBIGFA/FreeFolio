@@ -32,7 +32,7 @@ func oneBotEditPaths(files []agent.EditFile, newPaths []string) []string {
 
 // The model sees only OpenCode file tools. This adapter projects their final
 // snapshot into FreeFolio's native document transactions and review rows.
-func (a *App) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft) (*oneBotCandidate, error) {
+func (ob *qaState) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft) (*oneBotCandidate, error) {
 	c := &oneBotCandidate{Title: i18n.T("文档修改"), Text: draft.Summary, Complete: true}
 	base := map[string]oneBotTarget{}
 	for _, t := range task.Targets {
@@ -45,7 +45,7 @@ func (a *App) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft
 			if change.Path != task.NewPath || task.NewPath == "" {
 				return nil, errors.New(i18n.T("新文档路径未获指定"))
 			}
-			sp := a.qaSpaceByID(task.SpaceID)
+			sp := ob.qaSpaceByID(task.SpaceID)
 			if sp == nil || sp.IsExternal() {
 				return nil, errors.New(i18n.T("请在空间中创建文档"))
 			}
@@ -125,7 +125,7 @@ func (a *App) prepareOneBotFileCandidate(task *oneBotTask, draft agent.FileDraft
 			}
 			// Bind and validate only changed structures; unrelated edits made
 			// while the model was working do not invalidate the entire file.
-			d, err := a.oneBotTargetDoc(task, &t)
+			d, err := ob.oneBotTargetDoc(task, &t)
 			if err != nil {
 				return nil, err
 			}

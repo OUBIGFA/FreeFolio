@@ -49,7 +49,7 @@ func TestLibrarySpaces(t *testing.T) {
 			t.Fatalf("no card for %s: %q", name, tt.Texts())
 		}
 	}
-	if w := a.libraryWidth(1200); w <= libraryRail+libraryList {
+	if w := a.library.libraryWidth(1200); w <= libraryRail+libraryList {
 		t.Fatalf("the spaces page is %v wide; the cards need more", w)
 	}
 	work := a.state.Spaces[1]
@@ -96,7 +96,7 @@ func TestLibraryPages(t *testing.T) {
 	a, tt := libraryApp(t)
 	a.toggleSidebar()
 	settle(tt)
-	a.toggleLibrary()
+	a.library.toggleLibrary()
 	settle(tt)
 	if _, ok := tt.Find("最近删除"); !ok {
 		t.Fatal("the folded sidebar hides the library")
@@ -115,8 +115,8 @@ func TestLibraryPages(t *testing.T) {
 	if a.library.page != libTrash || !tt.HasText("这里什么都没有") {
 		t.Fatalf("page %v: %q", a.library.page, tt.Texts())
 	}
-	a.toggleLibrary()
-	a.toggleLibrary()
+	a.library.toggleLibrary()
+	a.library.toggleLibrary()
 	tt.Frame()
 	if a.library.page != libTrash {
 		t.Fatal("the library did not reopen on the page last shown")
@@ -131,7 +131,7 @@ func TestLibraryTrash(t *testing.T) {
 	a.trash("Journal/Ideas.md")
 	a.trash("Welcome.md")
 	a.undos = nil // the toasts name the documents, as the page does
-	a.openTrash()
+	a.library.openTrash()
 	settle(tt)
 	if !tt.HasText("今天") || !tt.HasText("Ideas") || !tt.HasText("Welcome") {
 		t.Fatalf("texts %q", tt.Texts())
@@ -192,7 +192,7 @@ func TestLibrarySnapshot(t *testing.T) {
 					a.trash("Journal/Ideas.md")
 					a.trash("Welcome.md")
 				}
-				a.openLibrary(page)
+				a.library.openLibrary(page)
 				for range 6 {
 					tt.Frame()
 					tt.Advance(200 * time.Millisecond)
@@ -220,7 +220,7 @@ func TestLibrarySnapshot(t *testing.T) {
 func TestLibraryEscapeFromSearch(t *testing.T) {
 	a, tt := newTestApp(t)
 	settle(tt)
-	a.openTrash()
+	a.library.openTrash()
 	settle(tt)
 	if !tt.Focused("搜索最近删除") {
 		t.Fatal("the search does not take the keys")
@@ -342,7 +342,7 @@ func TestLibraryDragSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render the library")
 	a, tt := libraryApp(t)
 	tt.SetSize(1240, 760)
-	a.openLibrary(libSpaces)
+	a.library.openLibrary(libSpaces)
 	settle(tt)
 	r, ok := tt.Find("移动空间 Personal")
 	if !ok {

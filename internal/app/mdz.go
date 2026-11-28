@@ -34,6 +34,34 @@ const (
 	mdzRailWidth        = 216
 )
 
+// mdzHost is what MDZip reading, export and unpacking need from the window.
+type mdzHost interface {
+	activeDocument() *document
+	documentForExport(d *document) *model.Document
+	editorOptionsFor(c *ui.Context, width float32, focus bool, d *document) editor.Options
+	forgetPageTree(id string)
+	imageResourceFor(d *document, url string) editor.ImageResource
+	inWindow(d *document) bool
+	notify(format string, args ...any)
+	openAnywhere(id, rel string) bool
+	pageWidthButton(c *ui.Context, d *document)
+	pageZoomButton(c *ui.Context, d *document) ui.Element
+	paperIsDark() bool
+	refreshSearch()
+	refreshTree()
+	revealIn(sp *space.Space, rel string)
+	showPageZoomButton(d *document) bool
+	spaces() *space.State
+	splitShown() bool
+	window() *mygo.Window
+}
+
+// mdzFeature reads, exports and unpacks MDZip archives. Each archive's page
+// state lives on its document (mdzState).
+type mdzFeature struct {
+	host mdzHost
+}
+
 type mdzState struct {
 	mediaBoard *editor.Board
 	mediaPDF   *editor.PDFViewer
@@ -335,14 +363,14 @@ func relativeArchiveURL(fromPage, targetPath string) string {
 	return encodeArchiveRelURL(filepath.ToSlash(rel))
 }
 
-func (a *App) mdzLoadImage(d *document, rawURL string) editor.ImageResource {
+func (mz *mdzFeature) mdzLoadImage(d *document, rawURL string) editor.ImageResource {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return editor.ImageResource{Problem: editor.ImageMissing, Local: true}
 	}
-	return a.mdzLoadImageFrom(d, d.mdz.currentPage, rawURL, true)
+	return mz.mdzLoadImageFrom(d, d.mdz.currentPage, rawURL, true)
 }
 
-func (a *App) mdzLoadImageFrom(d *document, basePage, rawURL string, allowManifestCover bool) editor.ImageResource {
+func (mz *mdzFeature) mdzLoadImageFrom(d *document, basePage, rawURL string, allowManifestCover bool) editor.ImageResource {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return editor.ImageResource{Problem: editor.ImageMissing, Local: true}
 	}
@@ -356,7 +384,7 @@ func (a *App) mdzLoadImageFrom(d *document, basePage, rawURL string, allowManife
 		return editor.ImageResource{Problem: editor.ImageRemote}
 	}
 	if strings.HasPrefix(strings.ToLower(trimmed), "https://") {
-		return a.imageResourceFor(d, trimmed)
+		return mz.host.imageResourceFor(d, trimmed)
 	}
 	var targetPath string
 	if link := m.archive.ResolveLink(basePage, trimmed); link.Kind == mdz.LinkInternal && link.Found {
@@ -422,7 +450,7 @@ func (a *App) mdzLoadImageFrom(d *document, basePage, rawURL string, allowManife
 	return res
 }
 
-func (a *App) mdzLoadBookExternalImage(d *document, bookURL, imgSrc string) editor.ImageResource {
+func (mz *mdzFeature) mdzLoadBookExternalImage(d *document, bookURL, imgSrc string) editor.ImageResource {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return editor.ImageResource{Problem: editor.ImageMissing, Local: true}
 	}
@@ -432,10 +460,10 @@ func (a *App) mdzLoadBookExternalImage(d *document, bookURL, imgSrc string) edit
 			basePage = res.Path
 		}
 	}
-	return a.mdzLoadImageFrom(d, basePage, imgSrc, false)
+	return mz.mdzLoadImageFrom(d, basePage, imgSrc, false)
 }
 
-func (a *App) mdzLoadWhiteboard(d *document, rawURL string) (*whiteboard.Scene, uint64, error) {
+func (mz *mdzFeature) mdzLoadWhiteboard(d *document, rawURL string) (*whiteboard.Scene, uint64, error) {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return nil, 0, errors.New(i18n.T("找不到白板文件"))
 	}
@@ -463,7 +491,7 @@ func (a *App) mdzLoadWhiteboard(d *document, rawURL string) (*whiteboard.Scene, 
 	return sc, 1, nil
 }
 
-func (a *App) mdzLoadPDF(d *document, rawURL string) (*pdfdoc.Document, uint64, error) {
+func (mz *mdzFeature) mdzLoadPDF(d *document, rawURL string) (*pdfdoc.Document, uint64, error) {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return nil, 0, errors.New(i18n.T("找不到 PDF 文件"))
 	}
@@ -491,7 +519,7 @@ func (a *App) mdzLoadPDF(d *document, rawURL string) (*pdfdoc.Document, uint64, 
 	return doc, 1, nil
 }
 
-func (a *App) mdzOpenLink(d *document, rawURL string) {
+func (mz *mdzFeature) mdzOpenLink(d *document, rawURL string) {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return
 	}
@@ -502,7 +530,7 @@ func (a *App) mdzOpenLink(d *document, rawURL string) {
 		if ui.SafeToOpen(rawURL) {
 			mygo.Shell.OpenExternal(rawURL)
 		} else {
-			a.notify("该链接协议不被支持，已阻止打开")
+			mz.host.notify("该链接协议不被支持，已阻止打开")
 		}
 	case mdz.LinkInternal:
 		if res.Found && mdz.IsMarkdownPath(res.Path) {
@@ -511,39 +539,39 @@ func (a *App) mdzOpenLink(d *document, rawURL string) {
 		}
 		if res.Found {
 			if vault.IsWhiteboard(res.Path) {
-				if scene, _, err := a.mdzLoadWhiteboard(d, rawURL); err == nil {
+				if scene, _, err := mz.mdzLoadWhiteboard(d, rawURL); err == nil {
 					m.mediaBoard = editor.NewBoard(scene.Clone())
 					m.mediaPath = res.Path
 				} else {
-					a.notify("打开白板失败；%v", err)
+					mz.host.notify("打开白板失败；%v", err)
 				}
 				return
 			}
 			if vault.IsPDF(res.Path) {
-				if doc, _, err := a.mdzLoadPDF(d, rawURL); err == nil {
+				if doc, _, err := mz.mdzLoadPDF(d, rawURL); err == nil {
 					m.mediaPDF = editor.NewPDFViewer(doc, nil)
 					m.mediaPath = res.Path
 				} else {
-					a.notify("打开 PDF 失败；%v", err)
+					mz.host.notify("打开 PDF 失败；%v", err)
 				}
 				return
 			}
-			a.notify("包内文件：%s（解包后即可打开）", res.Path)
+			mz.host.notify("包内文件：%s（解包后即可打开）", res.Path)
 			return
 		}
-		a.notify("归档中找不到链接目标：%s", rawURL)
+		mz.host.notify("归档中找不到链接目标：%s", rawURL)
 	case mdz.LinkOutsideArchive:
-		a.notify("该链接指向归档外部文件，已按安全策略拦截")
+		mz.host.notify("该链接指向归档外部文件，已按安全策略拦截")
 	default:
 		if res.NearMatch != "" {
-			a.notify("归档中找不到该文件（大小写敏感，是否指 %s？）", res.NearMatch)
+			mz.host.notify("归档中找不到该文件（大小写敏感，是否指 %s？）", res.NearMatch)
 			return
 		}
-		a.notify("归档中找不到链接目标：%s", rawURL)
+		mz.host.notify("归档中找不到链接目标：%s", rawURL)
 	}
 }
 
-func (a *App) mdzOpenWiki(d *document, name string) {
+func (mz *mdzFeature) mdzOpenWiki(d *document, name string) {
 	if d == nil || !d.isMDZ() || d.mdz.archive == nil {
 		return
 	}
@@ -560,11 +588,11 @@ func (a *App) mdzOpenWiki(d *document, name string) {
 			return
 		}
 	}
-	a.notify("归档中找不到双链文档「%s」", target)
+	mz.host.notify("归档中找不到双链文档「%s」", target)
 }
 
-func (a *App) mdzEditorOptions(c *ui.Context, width float32, focus, showRail bool, d *document) editor.Options {
-	opts := a.editorOptionsFor(c, width, focus, d)
+func (mz *mdzFeature) mdzEditorOptions(c *ui.Context, width float32, focus, showRail bool, d *document) editor.Options {
+	opts := mz.host.editorOptionsFor(c, width, focus, d)
 	if d != nil && d.isMDZ() && d.mdz.archive != nil {
 		title := docName(d.title())
 		if d.mdz.currentPage != "" && d.mdz.currentPage != d.mdz.archive.EntryPoint() {
@@ -602,10 +630,10 @@ func (a *App) mdzEditorOptions(c *ui.Context, width float32, focus, showRail boo
 	// Wire purely in-memory archive resource loaders and safe link navigation.
 	opts.DirectLinks = true
 	opts.ReadOnlyNotice = i18n.T("MDZip 归档为只读 · 点击右上角「解包另存为文档」即可编辑")
-	opts.LoadImage = func(u string) editor.ImageResource { return a.mdzLoadImage(d, u) }
+	opts.LoadImage = func(u string) editor.ImageResource { return mz.mdzLoadImage(d, u) }
 
-	opts.OpenLink = func(u string) { a.mdzOpenLink(d, u) }
-	opts.OpenWiki = func(name string) { a.mdzOpenWiki(d, name) }
+	opts.OpenLink = func(u string) { mz.mdzOpenLink(d, u) }
+	opts.OpenWiki = func(name string) { mz.mdzOpenWiki(d, name) }
 	if showRail {
 		// Avoid stacking the editor heading outline next to the multi-page archive rail.
 		opts.Outline = false
@@ -614,18 +642,18 @@ func (a *App) mdzEditorOptions(c *ui.Context, width float32, focus, showRail boo
 	return opts
 }
 
-func (a *App) mdzCorner(c *ui.Context, d *document) {
+func (mz *mdzFeature) mdzCorner(c *ui.Context, d *document) {
 	if d == nil || !d.isMDZ() || d.mdz == nil {
 		return
 	}
 	m := d.mdz
 	t := c.Theme()
 	ui.Row(c.Key("mdz-corner")).Gap(4).AlignItems(ui.Center).Children(func() {
-		if a.showPageZoomButton(d) {
-			a.pageZoomButton(c, d)
+		if mz.host.showPageZoomButton(d) {
+			mz.host.pageZoomButton(c, d)
 		}
 		if canAdjustPageWidth(d) {
-			a.pageWidthButton(c, d)
+			mz.host.pageWidthButton(c, d)
 		}
 		if m.hasActivePage() && len(m.pages) > 1 {
 			ui.Row(c.Key("mdz-page-count")).Height(28).PaddingX(8).Radius(7).AlignItems(ui.Center).Children(func() {
@@ -638,7 +666,7 @@ func (a *App) mdzCorner(c *ui.Context, d *document) {
 			}
 			rail := iconButton(c, "mdz-rail", iconSidebar, tip, tip, false)
 			if m.sidebarOpen {
-				if !a.inWindow(d) && a.split == nil {
+				if !mz.host.inWindow(d) && !mz.host.splitShown() {
 					rail.Background(glass(t))
 				} else {
 					rail.Background(t.Accent.Alpha(.14))
@@ -668,7 +696,7 @@ func (a *App) mdzCorner(c *ui.Context, d *document) {
 				Tooltip(i18n.T("将当前 MDZip 页面及附件解包为可编辑的 Markdown 文档"))
 			if unpack.Hovered() {
 				unpack.Background(hoverFill(t))
-			} else if !a.inWindow(d) && a.split == nil {
+			} else if !mz.host.inWindow(d) && !mz.host.splitShown() {
 				unpack.Background(glass(t))
 			} else {
 				unpack.Background(t.Accent.Alpha(.14))
@@ -677,13 +705,13 @@ func (a *App) mdzCorner(c *ui.Context, d *document) {
 				ui.Text(c, i18n.T("解包另存为文档")).FontSize(12).FontWeight(500).TextColor(t.Text).NoWrap()
 			})
 			if unpack.Clicked() {
-				a.unpackMDZAsDocument(d)
+				mz.unpackMDZAsDocument(d)
 			}
 		}
 	})
 }
 
-func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
+func (mz *mdzFeature) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 	if d == nil || !d.isMDZ() || d.mdz == nil {
 		return
 	}
@@ -710,7 +738,7 @@ func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 		})
 		return
 	}
-	dt := documentTheme(a.paperDark)
+	dt := documentTheme(mz.host.paperIsDark())
 
 	// Case 1: Fatal load or spec validation error.
 	if m.archive == nil {
@@ -720,7 +748,7 @@ func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 			ui.Text(c, mdzErrorMessage(m.loadErr)).FontSize(13).TextColor(dt.TextMuted).MaxWidth(440).TextAlign(ui.Center)
 			if d.space != nil && d.rel != "" {
 				if ui.Button(c.Key("mdz-err-reveal"), i18n.T("在文件管理器中显示")).Clicked() {
-					a.revealIn(d.space, d.rel)
+					mz.host.revealIn(d.space, d.rel)
 				}
 			}
 		})
@@ -736,7 +764,7 @@ func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 				ui.Text(c, i18n.T("该 .mdz 归档中未找到可阅读的 .md 或 .markdown 文件")).FontSize(13).TextColor(dt.TextMuted).MaxWidth(420).TextAlign(ui.Center)
 				if d.space != nil && d.rel != "" {
 					if ui.Button(c.Key("mdz-empty-reveal"), i18n.T("在文件管理器中显示")).Clicked() {
-						a.revealIn(d.space, d.rel)
+						mz.host.revealIn(d.space, d.rel)
 					}
 				}
 				return
@@ -783,11 +811,11 @@ func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 	}
 	ui.Row(c.Key("mdz-body")).Grow(1).MinHeight(0).MinWidth(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
 		if showRail {
-			a.mdzPageRail(c, d, dt)
+			mz.mdzPageRail(c, d, dt)
 			ui.Box(c).Width(1).Shrink(0).AlignSelf(ui.Stretch).Background(dt.Border)
 		}
 		ui.Column(c.Key("mdz-editor-wrap")).Grow(1).MinHeight(0).MinWidth(0).AlignSelf(ui.Stretch).Children(func() {
-			editor.View(c.Key(fmt.Sprintf("mdz:%p:%s", m, m.currentPage)), ed, a.mdzEditorOptions(c, editorW, focus, showRail, d))
+			editor.View(c.Key(fmt.Sprintf("mdz:%p:%s", m, m.currentPage)), ed, mz.mdzEditorOptions(c, editorW, focus, showRail, d))
 		})
 	})
 	if m.pendingOutline {
@@ -798,7 +826,7 @@ func (a *App) mdzView(c *ui.Context, d *document, width float32, focus bool) {
 	}
 }
 
-func (a *App) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
+func (mz *mdzFeature) mdzPageRail(c *ui.Context, d *document, dt *ui.Theme) {
 	m := d.mdz
 	railBg := dt.Background.Mix(dt.Text, 0.025)
 	ui.Column(c.Key("mdz-rail-pane")).Width(mdzRailWidth).Shrink(0).MinHeight(0).AlignSelf(ui.Stretch).
@@ -961,25 +989,25 @@ func headingAnchorSlug(s string) string {
 // exportMDZ bundles the open Markdown document together with its cover, local
 // images, embedded whiteboards/PDFs/books, and local non-Markdown linked files
 // into a conforming MDZip v1.2.0 (.mdz) archive beside the document.
-func (a *App) exportMDZ() {
-	d := a.doc
+func (mz *mdzFeature) exportMDZ() {
+	d := mz.host.activeDocument()
 	if d == nil || d.loadErr != nil || d.isWhiteboard() || d.isPDF() || d.isDatabase() || d.isMDZ() {
 		return
 	}
 	d.ed.UnmarkText()
 	root, nameOnDisk, err := fileLocation(d.space, d.rel)
 	if err != nil {
-		a.notify("导出失败，%v", err)
+		mz.host.notify("导出失败，%v", err)
 		return
 	}
 	docFull, err := vault.Resolve(root, nameOnDisk)
 	if err != nil {
-		a.notify("导出失败，%v", err)
+		mz.host.notify("导出失败，%v", err)
 		return
 	}
 	canonDocDir := canonicalPath(filepath.Dir(docFull))
 
-	srcDoc := a.documentForExport(d)
+	srcDoc := mz.host.documentForExport(d)
 	if srcDoc == nil {
 		return
 	}
@@ -1244,7 +1272,7 @@ func (a *App) exportMDZ() {
 		ModTime: now,
 	})
 	if err != nil {
-		a.notify("导出失败，%v", err)
+		mz.host.notify("导出失败，%v", err)
 		return
 	}
 
@@ -1254,18 +1282,18 @@ func (a *App) exportMDZ() {
 	}
 	rel, err := createNumbered(root, dir, d.title(), vault.ExtMDZ, archiveBytes)
 	if err != nil {
-		a.notify("导出失败，%v", err)
+		mz.host.notify("导出失败，%v", err)
 		return
 	}
-	delete(a.pageTrees, d.space.ID)
-	a.refreshTree()
-	a.refreshSearch()
+	mz.host.forgetPageTree(d.space.ID)
+	mz.host.refreshTree()
+	mz.host.refreshSearch()
 	if missing > 0 {
-		a.notify("已导出 %s（%d 个缺失附件未打包）", rel, missing)
+		mz.host.notify("已导出 %s（%d 个缺失附件未打包）", rel, missing)
 	} else {
-		a.notify("已导出 %s", rel)
+		mz.host.notify("已导出 %s", rel)
 	}
-	if a.win != nil {
+	if mz.host.window() != nil {
 		if full, rErr := vault.Resolve(root, rel); rErr == nil {
 			mygo.Shell.ShowItemInFolder(full)
 		}
@@ -1275,7 +1303,7 @@ func (a *App) exportMDZ() {
 // unpackMDZAsDocument extracts the active page (and all in-archive assets it
 // references) from an .mdz archive into an editable .md document and assets
 // folder inside a regular space, never overwriting existing files.
-func (a *App) unpackMDZAsDocument(d *document) {
+func (mz *mdzFeature) unpackMDZAsDocument(d *document) {
 	if d == nil || !d.isMDZ() || d.mdz == nil || d.mdz.archive == nil {
 		return
 	}
@@ -1288,7 +1316,7 @@ func (a *App) unpackMDZAsDocument(d *document) {
 		pagePath = m.pages[0]
 	}
 	if pagePath == "" {
-		a.notify("压缩包内没有可解包的 Markdown 文档")
+		mz.host.notify("压缩包内没有可解包的 Markdown 文档")
 		return
 	}
 	targetSp := d.space
@@ -1298,7 +1326,7 @@ func (a *App) unpackMDZAsDocument(d *document) {
 	}
 	if targetSp == nil || targetSp.IsExternal() {
 		targetSp = nil
-		for _, sp := range a.state.Spaces {
+		for _, sp := range mz.host.spaces().Spaces {
 			if !sp.IsExternal() {
 				targetSp = sp
 				break
@@ -1307,13 +1335,13 @@ func (a *App) unpackMDZAsDocument(d *document) {
 		dir = ""
 	}
 	if targetSp == nil {
-		a.notify("请先选择一个空间以解包文档")
+		mz.host.notify("请先选择一个空间以解包文档")
 		return
 	}
 
 	mdText, err := m.archive.ReadMarkdown(pagePath)
 	if err != nil {
-		a.notify("解包失败，%v", err)
+		mz.host.notify("解包失败，%v", err)
 		return
 	}
 	doc := editor.ImportMarkdown(mdText)
@@ -1414,14 +1442,14 @@ func (a *App) unpackMDZAsDocument(d *document) {
 	}
 	newRel, err := vault.CreateFile(targetSp.Root, dir, title, ".md", outMD)
 	if err != nil {
-		a.notify("解包失败，%v", err)
+		mz.host.notify("解包失败，%v", err)
 		return
 	}
-	delete(a.pageTrees, targetSp.ID)
-	a.refreshTree()
-	a.refreshSearch()
-	a.openAnywhere(targetSp.ID, newRel)
-	a.notify("已解包为 %s", newRel)
+	mz.host.forgetPageTree(targetSp.ID)
+	mz.host.refreshTree()
+	mz.host.refreshSearch()
+	mz.host.openAnywhere(targetSp.ID, newRel)
+	mz.host.notify("已解包为 %s", newRel)
 }
 
 func writeUnpackedAsset(sp *space.Space, docDir, origName string, data []byte) (string, error) {

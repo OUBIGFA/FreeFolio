@@ -425,7 +425,7 @@ func (a *App) ctlSpaceRemove(raw []byte) (any, error) {
 		a.refreshSearch()
 		a.syncWatches()
 		if a.library.open {
-			a.loadLibrary()
+			a.library.loadLibrary()
 		}
 	}
 	return map[string]any{
@@ -549,7 +549,7 @@ func (a *App) ctlDocSearch(raw []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	vfs := a.qaSpace(sp.ID)
+	vfs := a.qa.qaSpace(sp.ID)
 	if vfs == nil {
 		return nil, fmt.Errorf("cannot open space %q", sp.Name)
 	}
@@ -649,7 +649,7 @@ func (a *App) ctlDocRead(raw []byte) (any, error) {
 		}, nil
 
 	case "pdf", "book", "mdz":
-		vfs := a.qaSpace(sp.ID)
+		vfs := a.qa.qaSpace(sp.ID)
 		if vfs == nil {
 			return nil, errors.New("space reader unavailable")
 		}
@@ -694,7 +694,7 @@ func (a *App) ctlDocRead(raw []byte) (any, error) {
 		},
 	}
 	if p.IncludeOutline || p.IncludeLinks {
-		if vfs := a.qaSpace(sp.ID); vfs != nil {
+		if vfs := a.qa.qaSpace(sp.ID); vfs != nil {
 			if p.IncludeOutline {
 				if ol, oErr := vfs.Outline(rel); oErr == nil {
 					res["outline"] = ol
@@ -1745,7 +1745,7 @@ func (a *App) ctlDocDelete(raw []byte) (any, error) {
 		}
 		a.noteExternalWrite(sp, restoredRel)
 		if a.library.open {
-			a.loadLibrary()
+			a.library.loadLibrary()
 		}
 		return map[string]any{
 			"space":        sp.Name,
@@ -1815,7 +1815,7 @@ func (a *App) safeTrashInSpace(sp *space.Space, rel string) (map[string]any, err
 	_ = a.saveStateStrict()
 	a.noteExternalWrite(sp, rel)
 	if a.library.open {
-		a.loadLibrary()
+		a.library.loadLibrary()
 	}
 	out := map[string]any{
 		"space":    sp.Name,

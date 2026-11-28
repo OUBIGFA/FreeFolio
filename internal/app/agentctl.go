@@ -29,6 +29,7 @@ func newHeadlessApp(cfg Config) (*App, error) {
 		qa:        qaState{secrets: prefs.Secrets{Dir: filepath.Join(cfg.ConfigDir, "credentials")}},
 		trashFile: trashItemHeadless,
 	}
+	a.wirePanels()
 	if p, err := a.prefStore.Load(); err == nil {
 		a.prefs = p
 	} else {

@@ -407,7 +407,7 @@ func (a *App) fileView(c *ui.Context) {
 		case a.pressed(c, "export-pdf"):
 			a.exportPDF()
 		case a.pressed(c, "ask"):
-			a.toggleQA()
+			a.qa.toggleQA()
 		}
 	}
 	a.winW = w
@@ -423,12 +423,12 @@ func (a *App) fileView(c *ui.Context) {
 		// page, parted from it by a line, as the page lies flat under the bar.
 		body := ui.Row(c.Key("file-body")).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
 		body.Children(func() {
-			a.oneBotResizer(c, 0)
+			a.qa.oneBotResizer(c, 0)
 			target := float32(0)
 			if a.qa.open {
-				target = a.oneBotWidth(0)
+				target = a.qa.oneBotWidth(0)
 			}
-			motion := a.oneBotMotion()
+			motion := a.qa.oneBotMotion()
 			if motion == 0 {
 				a.qa.shown = body.Jump("qa-width", target)
 			} else {
@@ -442,14 +442,14 @@ func (a *App) fileView(c *ui.Context) {
 			} else {
 				ui.Column(c.Key("file-empty-pane")).Grow(1).MinWidth(0).Children(func() { a.fileEmpty(c) })
 			}
-			a.qaPanel(c, 0)
+			a.qa.qaPanel(c, 0)
 		})
 	})
 	a.paletteView(c)
 	a.unsavedPromptView(c)
 	a.databasePeekModal(c)
 	a.settingsView(c)
-	a.chatGPTWelcomeView(c)
+	a.chatgpt.chatGPTWelcomeView(c)
 	a.pdfExportView(c)
 	a.mainWindowButtons(c)
 }
@@ -489,7 +489,7 @@ func (a *App) fileBar(c *ui.Context, f *fileSession) {
 				ask.Background(navigationFill(c.Theme()))
 			}
 			if ask.Clicked() {
-				a.toggleQA()
+				a.qa.toggleQA()
 			}
 			a.fileMenu(c, f)
 			if shellAction(c, "return", iconBack, i18n.T("返回空间")).Clicked() {
@@ -705,7 +705,7 @@ func (a *App) fileMenu(c *ui.Context, f *fileSession) {
 		m.Submenu(i18n.T("页面宽度"), a.pageWidthMenu).Disabled(!canAdjustPageWidth(d))
 		m.Submenu(i18n.T("页面缩放"), a.pageZoomMenu).Disabled(!a.canZoomPage(d))
 		if m.Item(i18n.T("导出 MDZip (.mdz)")).Disabled(noDoc || d.isPDF() || d.isMDZ() || d.isDatabase() || d.isWhiteboard()).Chosen() {
-			a.exportMDZ()
+			a.mdzFiles.exportMDZ()
 		}
 		if m.Item(i18n.T("清理不存在的文件")).Chosen() {
 			a.cleanMissingFileTabs()

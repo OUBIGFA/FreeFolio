@@ -18,15 +18,15 @@ func TestQAHorizontalRuleStaysHairline(t *testing.T) {
 		reply("第一部分结束。\n\n---\n\n## 第二部分标题\n\n继续内容。"),
 	}})
 	tt.SetSize(1280, 820)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
 
 	a.qa.input = "测试分隔线粗细"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	qaSettle(t, tt, a.qaSession(a.state.ActiveSpace().ID).turns[0])
+	qaSettle(t, tt, a.qa.qaSession(a.state.ActiveSpace().ID).turns[0])
 	tt.Frame()
 
 	r1, ok1 := tt.Find("第一部分结束。")
@@ -70,15 +70,15 @@ func TestOneBotCopyAnswerCodeAndPrompt(t *testing.T) {
 	os.WriteFile(filepath.Join(root(a), "Beta.md"), []byte("# Beta\n\n\n\nBeta body\n"), 0o644)
 
 	tt.SetSize(1280, 820)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 
 	a.qa.input = "请总结文档内容"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	sp := a.state.ActiveSpace().ID
-	qaSettle(t, tt, a.qaSession(sp).turns[0])
+	qaSettle(t, tt, a.qa.qaSession(sp).turns[0])
 	tt.Frame()
 
 	// Copy prompt button.
@@ -151,19 +151,19 @@ func TestOneBotRegenerateEditAndContinue(t *testing.T) {
 	}}
 	a, tt := qaApp(t, model)
 	tt.SetSize(1280, 820)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	sp := a.state.ActiveSpace().ID
-	s := a.qaSession(sp)
+	s := a.qa.qaSession(sp)
 
 	a.qa.input = "第一个问题"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	qaSettle(t, tt, s.turns[0])
 
 	a.qa.input = "第二个问题"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	qaSettle(t, tt, s.turns[1])
 	tt.Frame()
@@ -220,14 +220,14 @@ func TestOneBotClearContextUndoSlashAndPersistence(t *testing.T) {
 	}}
 	a, tt := qaApp(t, model)
 	tt.SetSize(1280, 820)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	sp := a.state.ActiveSpace().ID
-	s := a.qaSession(sp)
+	s := a.qa.qaSession(sp)
 
 	a.qa.input = "旧主题问题"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	qaSettle(t, tt, s.turns[0])
 	tt.Frame()
@@ -252,7 +252,7 @@ func TestOneBotClearContextUndoSlashAndPersistence(t *testing.T) {
 
 	// /clear slash command triggers context clear.
 	a.qa.input = "/clear"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	if !s.turns[0].contextBreakAfter || !tt.HasText("以上上下文已清除 · 重新开始") {
 		t.Fatal("/clear slash shortcut did not mark context break")
@@ -260,7 +260,7 @@ func TestOneBotClearContextUndoSlashAndPersistence(t *testing.T) {
 
 	// Next turn after clear must only send turn 2 to model, without turn 1 history.
 	a.qa.input = "新主题问题"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	qaSettle(t, tt, s.turns[1])
 	tt.Frame()
@@ -273,17 +273,17 @@ func TestOneBotClearContextUndoSlashAndPersistence(t *testing.T) {
 
 	// Reopen persisted conversation: contextStart & contextBreak survive reload.
 	convID := s.id
-	a.openOneBotConversation(sp, convID) // no-op when already active; force reload via fresh session.
+	a.qa.openOneBotConversation(sp, convID) // no-op when already active; force reload via fresh session.
 	a.qa.sessions[sp] = &qaSession{spaceID: sp, list: ui.ListState{FollowEnd: true}}
-	a.openOneBotConversation(sp, convID)
-	reloaded := a.qaSession(sp)
+	a.qa.openOneBotConversation(sp, convID)
+	reloaded := a.qa.qaSession(sp)
 	if len(reloaded.turns) != 2 || !reloaded.turns[0].contextBreakAfter || reloaded.contextStart != 2 {
 		t.Fatalf("persisted context break not restored: turns=%d ctxStart=%d", len(reloaded.turns), reloaded.contextStart)
 	}
 
 	// Next question on reloaded session also respects restored contextStart.
 	a.qa.input = "续问新主题"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
 	qaSettle(t, tt, reloaded.turns[2])
 	for _, msg := range model.reqs[2].Messages {
@@ -294,9 +294,9 @@ func TestOneBotClearContextUndoSlashAndPersistence(t *testing.T) {
 
 	// /new slash command starts fresh empty session.
 	a.qa.input = "/new"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	if len(a.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
+	if len(a.qa.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
 		t.Fatalf("/new slash command did not reset session: %q", tt.Texts())
 	}
 }
@@ -310,21 +310,21 @@ func TestOneBotForkDeleteAndInsertToDocument(t *testing.T) {
 	a.doc.ed = editor.New("# 目标文档\n\n")
 	a.doc.ed.SetSelection(len("# 目标文档\n\n"), len("# 目标文档\n\n"))
 	tt.SetSize(1280, 820)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	sp := a.state.ActiveSpace().ID
 
 	a.qa.input = "第一问"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	qaSettle(t, tt, a.qaSession(sp).turns[0])
-	origID := a.qaSession(sp).id
+	qaSettle(t, tt, a.qa.qaSession(sp).turns[0])
+	origID := a.qa.qaSession(sp).id
 
 	a.qa.input = "第二问"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	qaSettle(t, tt, a.qaSession(sp).turns[1])
+	qaSettle(t, tt, a.qa.qaSession(sp).turns[1])
 	tt.Frame()
 
 	// Insert cleaned turn 1 answer into writable active document.
@@ -345,7 +345,7 @@ func TestOneBotForkDeleteAndInsertToDocument(t *testing.T) {
 		t.Fatalf("%v; menu=%q", err, tt.Menu())
 	}
 	tt.Frame()
-	fork := a.qaSession(sp)
+	fork := a.qa.qaSession(sp)
 	if fork.id == "" || fork.id == origID || len(fork.turns) != 1 || tt.HasText("第二轮会被截断的回答") {
 		t.Fatalf("fork failed: forkID=%q origID=%q turns=%d", fork.id, origID, len(fork.turns))
 	}
@@ -358,7 +358,7 @@ func TestOneBotForkDeleteAndInsertToDocument(t *testing.T) {
 		t.Fatalf("%v; menu=%q", err, tt.Menu())
 	}
 	tt.Frame()
-	if len(a.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
-		t.Fatalf("delete turn 1 did not reset session: turns=%d", len(a.qaSession(sp).turns))
+	if len(a.qa.qaSession(sp).turns) != 0 || !tt.HasText("向「Personal」提问") {
+		t.Fatalf("delete turn 1 did not reset session: turns=%d", len(a.qa.qaSession(sp).turns))
 	}
 }

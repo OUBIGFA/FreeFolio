@@ -11,6 +11,7 @@ import (
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/localresource"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -29,7 +30,18 @@ type resourceTransfer struct {
 	resume                           func()
 }
 
+// resourcesHost is what the optional resources page needs from the window.
+type resourcesHost interface {
+	appConfig() Config
+	backgroundResult(work func() func())
+	preferences() *prefs.Prefs
+	savePrefs()
+	trashItem(p string) error
+	window() *mygo.Window
+}
+
 type resourceState struct {
+	host             resourcesHost
 	resourceTransfer // Directory migration and exclusive removal state.
 	downloads        map[string]*resourceTransfer
 	tab, loraBaseTab int
@@ -50,29 +62,29 @@ type resourceState struct {
 	inspection   uint64
 }
 
-func (a *App) comfyManager() *localresource.ComfyManager {
-	if a.resources.comfy == nil {
-		a.resources.comfy = localresource.NewComfyManager()
+func (rs *resourceState) comfyManager() *localresource.ComfyManager {
+	if rs.comfy == nil {
+		rs.comfy = localresource.NewComfyManager()
 	}
-	return a.resources.comfy
+	return rs.comfy
 }
 
-func (a *App) comfyConfig() localresource.ComfyConfig {
+func (rs *resourceState) comfyConfig() localresource.ComfyConfig {
 	return localresource.ComfyConfig{
-		Dir:         strings.TrimSpace(a.prefs.ComfyUI.Dir),
-		URL:         strings.TrimSpace(a.prefs.ComfyUI.URL),
-		ResourceDir: a.resourceDirectory(),
+		Dir:         strings.TrimSpace(rs.host.preferences().ComfyUI.Dir),
+		URL:         strings.TrimSpace(rs.host.preferences().ComfyUI.URL),
+		ResourceDir: rs.resourceDirectory(),
 	}
 }
 
-func (a *App) stopComfyUI() {
-	if a.resources.comfy != nil {
-		a.resources.comfy.Stop()
+func (rs *resourceState) stopComfyUI() {
+	if rs.comfy != nil {
+		rs.comfy.Stop()
 	}
-	a.resources.comfyCaps = nil
+	rs.comfyCaps = nil
 }
 
-func (a *App) setComfyDirectory(dir string) {
+func (rs *resourceState) setComfyDirectory(dir string) {
 	dir = strings.TrimSpace(dir)
 	if dir != "" && !filepath.IsAbs(dir) {
 		return
@@ -80,41 +92,41 @@ func (a *App) setComfyDirectory(dir string) {
 	if dir != "" {
 		dir = filepath.Clean(dir)
 	}
-	a.prefs.ComfyUI.Dir = dir
-	a.savePrefs()
-	a.resources.comfyCaps = nil
-	a.resources.comfyErr = nil
-	a.resources.dir = ""
-	a.stopComfyUI()
+	rs.host.preferences().ComfyUI.Dir = dir
+	rs.host.savePrefs()
+	rs.comfyCaps = nil
+	rs.comfyErr = nil
+	rs.dir = ""
+	rs.stopComfyUI()
 }
 
-func (a *App) chooseComfyDirectory() {
-	win := a.win
+func (rs *resourceState) chooseComfyDirectory() {
+	win := rs.host.window()
 	if win == nil {
 		return
 	}
-	opts := mygo.OpenDialogOptions{Parent: win, Directory: true, Title: i18n.T("选择 ComfyUI 目录"), DefaultPath: a.prefs.ComfyUI.Dir}
-	a.backgroundResult(func() func() {
+	opts := mygo.OpenDialogOptions{Parent: win, Directory: true, Title: i18n.T("选择 ComfyUI 目录"), DefaultPath: rs.host.preferences().ComfyUI.Dir}
+	rs.host.backgroundResult(func() func() {
 		picked, err := mygo.Dialog.Open(opts)
 		return func() {
 			if err != nil {
-				a.resources.comfyErr = err
+				rs.comfyErr = err
 			} else if len(picked) > 0 {
-				a.setComfyDirectory(picked[0])
+				rs.setComfyDirectory(picked[0])
 			}
 		}
 	})
 }
 
-func (a *App) probeComfyUI() {
-	s := &a.resources
+func (rs *resourceState) probeComfyUI() {
+	s := rs
 	if s.comfyBusy {
 		return
 	}
 	s.comfyBusy, s.comfyErr = true, nil
-	mgr := a.comfyManager()
-	cfg := a.comfyConfig()
-	a.backgroundResult(func() func() {
+	mgr := rs.comfyManager()
+	cfg := rs.comfyConfig()
+	rs.host.backgroundResult(func() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 		defer cancel()
 		caps, err := mgr.Probe(ctx, cfg)
@@ -128,13 +140,13 @@ func (a *App) probeComfyUI() {
 	})
 }
 
-func (a *App) ensureLocalGPU() {
-	s := &a.resources
+func (rs *resourceState) ensureLocalGPU() {
+	s := rs
 	if s.gpuChecked {
 		return
 	}
 	s.gpuChecked = true
-	a.backgroundResult(func() func() {
+	rs.host.backgroundResult(func() func() {
 		info, ok := localresource.DetectLocalGPU(context.Background())
 		return func() {
 			s.gpuDone = true
@@ -144,36 +156,36 @@ func (a *App) ensureLocalGPU() {
 	})
 }
 
-func (a *App) resourceDirectory() string {
-	if a.prefs.ResourceDir != "" {
-		return a.prefs.ResourceDir
+func (rs *resourceState) resourceDirectory() string {
+	if rs.host.preferences().ResourceDir != "" {
+		return rs.host.preferences().ResourceDir
 	}
-	return filepath.Join(a.cfg.ConfigDir, "resources")
+	return filepath.Join(rs.host.appConfig().ConfigDir, "resources")
 }
 
 const resourceBusyMigrate = "__migrate__"
 
-func (a *App) setResourceDirectory(dir string) {
-	if !filepath.IsAbs(dir) || a.resources.busy != "" || a.resourcesDownloading() {
+func (rs *resourceState) setResourceDirectory(dir string) {
+	if !filepath.IsAbs(dir) || rs.busy != "" || rs.resourcesDownloading() {
 		return
 	}
 	newDir := filepath.Clean(dir)
-	oldDir := filepath.Clean(a.resourceDirectory())
+	oldDir := filepath.Clean(rs.resourceDirectory())
 	if localresource.SameDirectory(oldDir, newDir) {
 		return
 	}
-	a.stopComfyUI()
+	rs.stopComfyUI()
 	items, total, hasComfy := localresource.CollectMigratableFiles(oldDir)
 	if len(items) == 0 && !hasComfy {
-		a.prefs.ResourceDir = newDir
-		a.savePrefs()
-		a.resources.dir = ""
-		a.resources.confirm = ""
-		a.resources.err = nil
-		a.resources.comfyCaps = nil
+		rs.host.preferences().ResourceDir = newDir
+		rs.host.savePrefs()
+		rs.dir = ""
+		rs.confirm = ""
+		rs.err = nil
+		rs.comfyCaps = nil
 		return
 	}
-	s := &a.resources
+	s := rs
 	s.busy, s.confirm, s.err = resourceBusyMigrate, "", nil
 	s.comfyCaps = nil
 	s.received.Store(0)
@@ -181,7 +193,7 @@ func (a *App) setResourceDirectory(dir string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	mgr := s.comfy
-	a.backgroundResult(func() func() {
+	rs.host.backgroundResult(func() func() {
 		defer cancel()
 		err := localresource.Migrate(ctx, oldDir, newDir, func(done, _ int64) {
 			s.received.Store(done)
@@ -195,8 +207,8 @@ func (a *App) setResourceDirectory(dir string) {
 			s.dir = ""
 			s.comfyCaps = nil
 			if err == nil {
-				a.prefs.ResourceDir = newDir
-				a.savePrefs()
+				rs.host.preferences().ResourceDir = newDir
+				rs.host.savePrefs()
 			} else if !errors.Is(err, context.Canceled) {
 				s.err = err
 			}
@@ -204,19 +216,19 @@ func (a *App) setResourceDirectory(dir string) {
 	})
 }
 
-func (a *App) chooseResourceDirectory() {
-	win := a.win
+func (rs *resourceState) chooseResourceDirectory() {
+	win := rs.host.window()
 	if win == nil {
 		return
 	}
-	opts := mygo.OpenDialogOptions{Parent: win, Directory: true, Title: i18n.T("选择资源保存位置"), DefaultPath: a.resourceDirectory()}
-	a.backgroundResult(func() func() {
+	opts := mygo.OpenDialogOptions{Parent: win, Directory: true, Title: i18n.T("选择资源保存位置"), DefaultPath: rs.resourceDirectory()}
+	rs.host.backgroundResult(func() func() {
 		picked, err := mygo.Dialog.Open(opts)
 		return func() {
 			if err != nil {
-				a.resources.err = err
+				rs.err = err
 			} else if len(picked) > 0 {
-				a.setResourceDirectory(picked[0])
+				rs.setResourceDirectory(picked[0])
 			}
 		}
 	})
@@ -233,23 +245,23 @@ func allInspectableSingleResources() []localresource.Resource {
 	return items
 }
 
-func (a *App) ensureResourcesInspected() {
-	root := a.resourceDirectory()
-	if a.resources.dir == root {
+func (rs *resourceState) ensureResourcesInspected() {
+	root := rs.resourceDirectory()
+	if rs.dir == root {
 		return
 	}
-	a.inspectResources(root, allInspectableSingleResources())
+	rs.inspectResources(root, allInspectableSingleResources())
 }
 
-func (a *App) inspectResources(root string, items []localresource.Resource) {
-	state := &a.resources
+func (rs *resourceState) inspectResources(root string, items []localresource.Resource) {
+	state := rs
 	state.dir = root
 	state.inspection++
 	inspection := state.inspection
 	state.installed = nil
 	packs := localresource.ComfyPacks
-	engineDir := a.prefs.ComfyUI.Dir
-	a.backgroundResult(func() func() {
+	engineDir := rs.host.preferences().ComfyUI.Dir
+	rs.host.backgroundResult(func() func() {
 		installed := map[string]bool{}
 		for _, item := range items {
 			installed[item.ID] = localresource.Present(root, item)
@@ -268,17 +280,17 @@ func (a *App) inspectResources(root string, items []localresource.Resource) {
 	})
 }
 
-func (a *App) resourceAction(item localresource.Resource, remove bool) {
-	state := &a.resources
-	if state.busy != "" || (remove && (state.confirm != item.ID || a.resourcesDownloading())) {
+func (rs *resourceState) resourceAction(item localresource.Resource, remove bool) {
+	state := rs
+	if state.busy != "" || (remove && (state.confirm != item.ID || rs.resourcesDownloading())) {
 		return
 	}
 	if job := state.downloads[item.ID]; job != nil && job.busy != "" {
 		return
 	}
-	s := a.resourceTransferFor(item.ID)
+	s := rs.resourceTransferFor(item.ID)
 
-	root := a.resourceDirectory()
+	root := rs.resourceDirectory()
 	s.busy, s.err = item.ID, nil
 	state.confirm = ""
 	if remove {
@@ -286,7 +298,7 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	}
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !remove {
-		s.resume = func() { s.busy = ""; a.resourceAction(item, false) }
+		s.resume = func() { s.busy = ""; rs.resourceAction(item, false) }
 	} else {
 		s.resume = nil
 	}
@@ -307,11 +319,11 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	for _, part := range items {
 		s.total += part.Size
 	}
-	a.backgroundResult(func() func() {
+	rs.host.backgroundResult(func() func() {
 		defer cancel()
 		var err error
 		if remove {
-			err = localresource.Remove(root, item, a.trashItem)
+			err = localresource.Remove(root, item, rs.host.trashItem)
 		} else {
 			var before int64
 			for _, part := range items {
@@ -323,7 +335,7 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 			}
 		}
 		return func() {
-			a.finishResourceDownload(s, err)
+			rs.finishResourceDownload(s, err)
 			if remove {
 				state.busy = ""
 			}
@@ -331,20 +343,20 @@ func (a *App) resourceAction(item localresource.Resource, remove bool) {
 	})
 }
 
-func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
-	state := &a.resources
-	if state.busy != "" || (remove && (state.confirm != pack.ID || a.resourcesDownloading())) {
+func (rs *resourceState) packAction(pack localresource.ResourcePack, remove bool) {
+	state := rs
+	if state.busy != "" || (remove && (state.confirm != pack.ID || rs.resourcesDownloading())) {
 		return
 	}
 	if job := state.downloads[pack.ID]; job != nil && job.busy != "" {
 		return
 	}
-	s := a.resourceTransferFor(pack.ID)
+	s := rs.resourceTransferFor(pack.ID)
 
-	root := a.resourceDirectory()
-	engineDir := a.prefs.ComfyUI.Dir
+	root := rs.resourceDirectory()
+	engineDir := rs.host.preferences().ComfyUI.Dir
 	if !remove && pack.Kind == "audio-tts" {
-		if strings.TrimSpace(a.prefs.ComfyUI.URL) != "" {
+		if strings.TrimSpace(rs.host.preferences().ComfyUI.URL) != "" {
 			s.err = errors.New(i18n.T("自动安装语音插件需由 FreeFolio 启动引擎，请清空服务地址后下载"))
 			return
 		}
@@ -361,7 +373,7 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 	}
 	s.paused, s.pausing, s.stopping = false, false, false
 	if !remove {
-		s.resume = func() { s.busy = ""; a.packAction(pack, false) }
+		s.resume = func() { s.busy = ""; rs.packAction(pack, false) }
 	} else {
 		s.resume = nil
 	}
@@ -380,25 +392,25 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 	if remove {
 		s.cancel = nil
 	}
-	a.setPackDownloadProgress(s, pack, download)
-	mgr := a.resources.comfy
-	a.backgroundResult(func() func() {
+	rs.setPackDownloadProgress(s, pack, download)
+	mgr := rs.comfy
+	rs.host.backgroundResult(func() func() {
 		defer cancel()
 		var err error
 		if remove {
 			if pack.Kind == "audio-tts" {
-				err = localresource.RemoveVoicePlugin(root, a.trashItem)
+				err = localresource.RemoveVoicePlugin(root, rs.host.trashItem)
 			}
 			if err == nil {
-				err = localresource.RemovePack(root, pack, a.trashItem)
+				err = localresource.RemovePack(root, pack, rs.host.trashItem)
 			}
 		} else {
 			err = localresource.InstallPack(ctx, root, download, func(done, _ int64) {
 				s.received.Store(done)
 			})
 			if err == nil && pack.Kind == "audio-tts" {
-				if a.win != nil {
-					a.win.Update(func() { s.installing = true })
+				if rs.host.window() != nil {
+					rs.host.window().Update(func() { s.installing = true })
 				}
 				err = localresource.InstallVoicePlugin(ctx, root, engineDir)
 				if err == nil && mgr != nil {
@@ -414,7 +426,7 @@ func (a *App) packAction(pack localresource.ResourcePack, remove bool) {
 		}
 		return func() {
 			state.comfyCaps = nil
-			a.finishResourceDownload(s, err)
+			rs.finishResourceDownload(s, err)
 			if remove {
 				state.busy = ""
 			}
@@ -437,8 +449,8 @@ func resourceStatusBadge(c *ui.Context, text string, accent bool) {
 	settingsBadge(c, text, tone)
 }
 
-func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, detail string) {
-	s := &a.resources
+func (rs *resourceState) settingsResourceRow(c *ui.Context, item localresource.Resource, detail string) {
+	s := rs
 	t := c.Theme()
 	job := s.downloads[item.ID]
 	activeDL := job != nil && job.busy != ""
@@ -461,24 +473,24 @@ func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, de
 				case activeDL:
 				case s.confirm == item.ID:
 					if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
-						a.resourceAction(item, true)
+						rs.resourceAction(item, true)
 					}
 					if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
 						s.confirm = ""
 					}
 				case s.installed[item.ID]:
-					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
+					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + item.Name).Disabled(s.busy != "" || rs.resourcesDownloading()).Clicked() {
 						s.confirm = item.ID
 					}
 				default:
 					if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + item.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
-						a.resourceAction(item, false)
+						rs.resourceAction(item, false)
 					}
 				}
 			})
 		})
 		if activeDL && job.resume != nil {
-			a.resourceDownloadControls(c, job)
+			rs.resourceDownloadControls(c, job)
 		}
 		if s.confirm == item.ID {
 			warn := i18n.T("所选资源将移到回收站")
@@ -493,8 +505,8 @@ func (a *App) settingsResourceRow(c *ui.Context, item localresource.Resource, de
 	})
 }
 
-func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, badgeText string, badgeAccent bool, detail string) {
-	s := &a.resources
+func (rs *resourceState) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, badgeText string, badgeAccent bool, detail string) {
+	s := rs
 	job := s.downloads[pack.ID]
 	t := c.Theme()
 	activeDL := job != nil && job.busy != ""
@@ -525,24 +537,24 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 				case activeDL:
 				case s.confirm == pack.ID:
 					if ui.Button(c.Key("confirm"), i18n.T("移到回收站")).Clicked() {
-						a.packAction(pack, true)
+						rs.packAction(pack, true)
 					}
 					if ui.Button(c.Key("keep"), i18n.T("取消")).Clicked() {
 						s.confirm = ""
 					}
 				case installed:
-					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
+					if ui.Button(c.Key("remove"), i18n.T("删除")).Label(i18n.T("删除") + " " + pack.Name).Disabled(s.busy != "" || rs.resourcesDownloading()).Clicked() {
 						s.confirm = pack.ID
 					}
 				default:
 					if ui.Button(c.Key("download"), i18n.T("下载")).Label(i18n.T("下载") + " " + pack.Name).Disabled(s.busy != "" || s.installed == nil).Clicked() {
-						a.packAction(pack, false)
+						rs.packAction(pack, false)
 					}
 				}
 			})
 		})
 		if activeDL && job.resume != nil {
-			a.resourceDownloadControls(c, job)
+			rs.resourceDownloadControls(c, job)
 		}
 		if s.confirm == pack.ID {
 			settingsBanner(c, "confirm-warn", i18n.T("所选资源将移到回收站"), "danger", nil)
@@ -553,7 +565,7 @@ func (a *App) settingsPackRow(c *ui.Context, pack localresource.ResourcePack, ba
 	})
 }
 
-func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string, accent bool, detail string) {
+func (rs *resourceState) packDetailAndBadge(pack localresource.ResourcePack) (badge string, accent bool, detail string) {
 	sizeText := formatResourceBytes(pack.TotalSize())
 	license := pack.License
 	if license == "Author permission" {
@@ -616,12 +628,12 @@ func (a *App) packDetailAndBadge(pack localresource.ResourcePack) (badge string,
 	return
 }
 
-func (a *App) settingsResources(c *ui.Context) {
-	s := &a.resources
+func (rs *resourceState) settingsResources(c *ui.Context) {
+	s := rs
 	t := c.Theme()
-	a.ensureLocalGPU()
-	a.ensureResourcesInspected()
-	root := a.resourceDirectory()
+	rs.ensureLocalGPU()
+	rs.ensureResourcesInspected()
+	root := rs.resourceDirectory()
 	engine, supported := localresource.Runtime()
 	upscaleEngine, upscaleSupported := localresource.UpscaleRuntime()
 	items := append([]localresource.Resource(nil), localresource.Models...)
@@ -656,8 +668,8 @@ func (a *App) settingsResources(c *ui.Context) {
 				}
 				return
 			}
-			if ui.Button(c.Key("change"), i18n.T("更改位置")).Tooltip(root).Disabled(s.busy != "" || a.resourcesDownloading()).Clicked() {
-				a.chooseResourceDirectory()
+			if ui.Button(c.Key("change"), i18n.T("更改位置")).Tooltip(root).Disabled(s.busy != "" || rs.resourcesDownloading()).Clicked() {
+				rs.chooseResourceDirectory()
 			}
 		})
 		if s.busy == resourceBusyMigrate {
@@ -700,7 +712,7 @@ func (a *App) settingsResources(c *ui.Context) {
 					case engine.ID:
 						detail = i18n.T("共用运行库，下载抠图模型时自动安装")
 					}
-					a.settingsResourceRow(c, item, fmt.Sprintf("%s · MIT", detail))
+					rs.settingsResourceRow(c, item, fmt.Sprintf("%s · MIT", detail))
 					rowAdded = true
 				}
 			}
@@ -711,7 +723,7 @@ func (a *App) settingsResources(c *ui.Context) {
 				settingRow(c, "no-upscale", i18n.T("本地图片放大"), i18n.T("此平台暂不支持本地图片放大"), func() {})
 			} else {
 				detail := fmt.Sprintf("%s · MIT / BSD-3-Clause", i18n.T("2× / 4× 放大，含照片与动漫模型"))
-				a.settingsResourceRow(c, upscaleEngine, detail)
+				rs.settingsResourceRow(c, upscaleEngine, detail)
 			}
 		})
 	}
@@ -719,22 +731,22 @@ func (a *App) settingsResources(c *ui.Context) {
 	if s.tab == 1 {
 		settingsSection(c, i18n.T("ComfyUI 引擎（GPU 加速）"))
 		if !s.comfyURLInit {
-			s.comfyURL = a.prefs.ComfyUI.URL
+			s.comfyURL = rs.host.preferences().ComfyUI.URL
 			s.comfyURLInit = true
 		}
 		settingsGroup(c, "comfyui-engine", func() {
-			dirNote := a.prefs.ComfyUI.Dir
+			dirNote := rs.host.preferences().ComfyUI.Dir
 			if dirNote == "" {
 				dirNote = i18n.T("请选择本机 ComfyUI 目录")
 			} else {
 				dirNote = shortPath(dirNote)
 			}
 			settingRow(c, "comfy-dir", i18n.T("ComfyUI 目录"), dirNote, func() {
-				if a.prefs.ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
-					a.setComfyDirectory("")
+				if rs.host.preferences().ComfyUI.Dir != "" && ui.Button(c.Key("clear-comfy"), i18n.T("清除")).Disabled(s.comfyBusy || rs.resourcesDownloading()).Clicked() {
+					rs.setComfyDirectory("")
 				}
-				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Tooltip(a.prefs.ComfyUI.Dir).Disabled(s.comfyBusy || a.resourcesDownloading()).Clicked() {
-					a.chooseComfyDirectory()
+				if ui.Button(c.Key("pick-comfy"), i18n.T("选择目录")).Tooltip(rs.host.preferences().ComfyUI.Dir).Disabled(s.comfyBusy || rs.resourcesDownloading()).Clicked() {
+					rs.chooseComfyDirectory()
 				}
 			})
 			settingsSeparator(c)
@@ -762,12 +774,12 @@ func (a *App) settingsResources(c *ui.Context) {
 			}
 			settingRow(c, "comfy-status", i18n.T("连接状态"), status, func() {
 				resourceStatusBadge(c, statusBadge, statusAccent)
-				if a.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
-					a.stopComfyUI()
+				if rs.comfyManager().Running() && ui.Button(c.Key("stop-comfy"), i18n.T("停止引擎")).Disabled(s.comfyBusy).Clicked() {
+					rs.stopComfyUI()
 				}
-				canProbe := !s.comfyBusy && s.busy == "" && (a.prefs.ComfyUI.Dir != "" || strings.TrimSpace(a.prefs.ComfyUI.URL) != "")
+				canProbe := !s.comfyBusy && s.busy == "" && (rs.host.preferences().ComfyUI.Dir != "" || strings.TrimSpace(rs.host.preferences().ComfyUI.URL) != "")
 				if ui.Button(c.Key("probe-comfy"), i18n.T("检测并启动")).Disabled(!canProbe).Clicked() {
-					a.probeComfyUI()
+					rs.probeComfyUI()
 				}
 			})
 			if s.comfyCaps != nil {
@@ -783,9 +795,9 @@ func (a *App) settingsResources(c *ui.Context) {
 			}
 			settingsSeparator(c)
 			settingRow(c, "comfy-url", i18n.T("服务地址（可选）"), i18n.T("连接已运行的服务时填写；留空则按所选目录启动"), func() {
-				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy || a.resourcesDownloading()).Changed() {
-					a.prefs.ComfyUI.URL = strings.TrimSpace(s.comfyURL)
-					a.savePrefs()
+				if ui.TextInput(c.Key("comfy-url-input"), &s.comfyURL).Placeholder("http://127.0.0.1:8188").Width(210).Disabled(s.comfyBusy || rs.resourcesDownloading()).Changed() {
+					rs.host.preferences().ComfyUI.URL = strings.TrimSpace(s.comfyURL)
+					rs.host.savePrefs()
 					s.comfyCaps = nil
 					s.comfyErr = nil
 				}
@@ -826,8 +838,8 @@ func (a *App) settingsResources(c *ui.Context) {
 					settingsSeparator(c)
 				}
 				added = true
-				badge, accent, detail := a.packDetailAndBadge(pack)
-				a.settingsPackRow(c, pack, badge, accent, detail)
+				badge, accent, detail := rs.packDetailAndBadge(pack)
+				rs.settingsPackRow(c, pack, badge, accent, detail)
 			}
 			settingsSeparator(c)
 			ui.Text(c, i18n.T("支持断点下载；暂停或停止后保留进度，完成后校验")).FontSize(12).TextColor(t.TextMuted).Padding(8, 12)

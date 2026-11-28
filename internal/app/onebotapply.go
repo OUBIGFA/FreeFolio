@@ -28,7 +28,7 @@ type oneBotApplyDocument struct {
 
 // applyOneBotAsync keeps disk reads, checkpoints and saves off the UI thread.
 // The main thread alone validates live state and mutates document engines.
-func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
+func (ob *qaState) applyOneBotAsync(task *oneBotTask, index, only int) error {
 	if task == nil || task.Running || task.Applying || task.Stopped || index < 0 || index >= len(task.Candidates) {
 		return errors.New(i18n.T("当前方案不能应用"))
 	}
@@ -61,11 +61,11 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 		// prevents a hidden disk load or an unintended second writer here.
 		d := target.doc
 		if d == nil {
-			if !a.openAnywhere(task.SpaceID, target.Path) {
+			if !ob.host.openAnywhere(task.SpaceID, target.Path) {
 				return model.ErrEditConflict
 			}
 			var err error
-			d, err = a.oneBotTargetDoc(task, target)
+			d, err = ob.oneBotTargetDoc(task, target)
 			if err != nil {
 				return err
 			}
@@ -98,7 +98,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 	if len(jobs)+len(creates) == 0 {
 		return errors.New(i18n.T("没有待应用的修改"))
 	}
-	sp := a.qaSpaceByID(task.SpaceID)
+	sp := ob.qaSpaceByID(task.SpaceID)
 	if sp == nil {
 		return model.ErrEditConflict
 	}
@@ -114,7 +114,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 		if err != nil {
 			task.Error = err.Error()
 		}
-		a.keepOneBotTask(task)
+		ob.keepOneBotTask(task)
 	}
 	preflight := func() error {
 		for _, ch := range creates {
@@ -149,7 +149,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 			if !job.doc.historyOff {
 				_, err = history.SaveMilestone(job.space.Root, job.path, content, "OneBot "+task.Created.Format("2006-01-02 15:04:05"), time.Now())
 			} else {
-				dir := filepath.Join(a.cfg.ConfigDir, "onebot", "recovery", task.ID)
+				dir := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "recovery", task.ID)
 				if err = os.MkdirAll(dir, 0700); err == nil {
 					err = fsutil.WriteFileAtomic(filepath.Join(dir, model.NewID()+path.Ext(job.path)), []byte(content), 0600)
 				}
@@ -174,7 +174,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 			go func() {
 				for _, ch := range creates {
 					if err := ctx.Err(); err != nil {
-						a.win.Update(func() { finish(err) })
+						ob.host.window().Update(func() { finish(err) })
 						return
 					}
 					full, err := vault.Resolve(root, ch.Path)
@@ -185,12 +185,12 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 						err = fsutil.CreateFileAtomic(full, []byte(ch.NewText), 0644)
 					}
 					if err != nil {
-						a.win.Update(func() { ch.Error = err.Error(); finish(err) })
+						ob.host.window().Update(func() { ch.Error = err.Error(); finish(err) })
 						return
 					}
-					a.win.Update(func() { ch.Status = "saved" })
+					ob.host.window().Update(func() { ch.Status = "saved" })
 				}
-				a.win.Update(func() { finish(nil) })
+				ob.host.window().Update(func() { finish(nil) })
 			}()
 			return
 		}
@@ -220,7 +220,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 			ch.Batch = batch
 		}
 		// Keep the inverse transaction durable before the autosave can finish.
-		if err := a.persistOneBotTask(task); err != nil {
+		if err := ob.persistOneBotTask(task); err != nil {
 			finish(err)
 			return
 		}
@@ -235,7 +235,7 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 			}
 		}
 		d.startAsyncAutosave(func(poll func()) {
-			a.win.Update(func() {
+			ob.host.window().Update(func() {
 				poll()
 				if d.saveErr != nil || d.conflict || d.missing {
 					err := d.saveErr
@@ -262,14 +262,14 @@ func (a *App) applyOneBotAsync(task *oneBotTask, index, only int) error {
 						}
 					}
 				}
-				a.keepOneBotTask(task)
+				ob.keepOneBotTask(task)
 				applyNext(at + 1)
 			})
 		})
 	}
 	go func() {
 		err := preflight()
-		a.win.Update(func() {
+		ob.host.window().Update(func() {
 			if err != nil {
 				finish(err)
 				return

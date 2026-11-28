@@ -12,9 +12,26 @@ import (
 	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/egoist/mygo"
 )
 
+// chatGPTHost is what the ChatGPT connection needs from the window.
+type chatGPTHost interface {
+	appConfig() Config
+	cancelModelFetch()
+	fetchModels()
+	notify(format string, args ...any)
+	oneBotSync() bool
+	preferences() *prefs.Prefs
+	resetModelFetch()
+	savePrefs()
+	selectAIConnection(id string)
+	stopOneBotWorkFor(id string)
+	window() *mygo.Window
+}
+
 type chatGPTState struct {
+	host            chatGPTHost
 	client          *chatgpt.Client
 	sessions        map[string]chatgpt.Session
 	loaded, loading map[string]bool
@@ -28,30 +45,30 @@ type chatGPTState struct {
 
 // ensureChatGPT only constructs memory state. Disk, OS credentials and network
 // work are confined to explicit actions or deferred startup, never View.
-func (a *App) ensureChatGPT() {
-	if a.chatgpt.client != nil {
+func (cg *chatGPTState) ensureChatGPT() {
+	if cg.client != nil {
 		return
 	}
-	a.chatgpt.client = chatgpt.New(filepath.Join(a.cfg.ConfigDir, "credentials"))
-	a.chatgpt.sessions = map[string]chatgpt.Session{}
-	a.chatgpt.loaded = map[string]bool{}
-	a.chatgpt.loading = map[string]bool{}
-	a.chatgpt.errors = map[string]error{}
+	cg.client = chatgpt.New(filepath.Join(cg.host.appConfig().ConfigDir, "credentials"))
+	cg.sessions = map[string]chatgpt.Session{}
+	cg.loaded = map[string]bool{}
+	cg.loading = map[string]bool{}
+	cg.errors = map[string]error{}
 }
 
-func (a *App) chatGPTSession() chatgpt.Session {
-	if s, ok := a.chatgpt.sessions[a.prefs.AI.Active]; ok {
+func (cg *chatGPTState) chatGPTSession() chatgpt.Session {
+	if s, ok := cg.sessions[cg.host.preferences().AI.Active]; ok {
 		return s
 	}
 	return chatgpt.Session{Status: chatgpt.Disconnected}
 }
 
-func (a *App) chatGPTSettings() agent.Settings {
-	a.ensureChatGPT()
-	c := a.prefs.AI.Current()
+func (cg *chatGPTState) chatGPTSettings() agent.Settings {
+	cg.ensureChatGPT()
+	c := cg.host.preferences().AI.Current()
 	s := agent.Settings{ConnectionID: c.ID, Protocol: agent.ChatGPT, Vendor: "chatgpt", BaseURL: "https://api.openai.com/v1", Model: c.Model, Parameters: c.Parameters}
-	if session := a.chatGPTSession(); session.Sharing || session.Pending {
-		s.TokenSource = a.chatgpt.client.Source(c.ID)
+	if session := cg.chatGPTSession(); session.Sharing || session.Pending {
+		s.TokenSource = cg.client.Source(c.ID)
 	}
 	if m := c.CurrentModel(); m != nil && m.Enabled {
 		s.Capabilities = m.Capabilities
@@ -61,13 +78,13 @@ func (a *App) chatGPTSettings() agent.Settings {
 	return s
 }
 
-func (a *App) loadChatGPTSession(id string, force bool) {
-	c := a.prefs.AI.Find(id)
+func (cg *chatGPTState) loadChatGPTSession(id string, force bool) {
+	c := cg.host.preferences().AI.Find(id)
 	if c == nil || c.Protocol != agent.ChatGPT {
 		return
 	}
-	a.ensureChatGPT()
-	g := &a.chatgpt
+	cg.ensureChatGPT()
+	g := cg
 	if g.loading[id] || g.busyID == id || g.loaded[id] && !force {
 		return
 	}
@@ -80,11 +97,11 @@ func (a *App) loadChatGPTSession(id string, force bool) {
 	}
 	done := func(s chatgpt.Session, err error) {
 		g.loading[id] = false
-		if a.prefs.AI.Find(id) == nil || g.busyID == id {
+		if cg.host.preferences().AI.Find(id) == nil || g.busyID == id {
 			return
 		}
 		if epoch != g.epoch {
-			a.loadChatGPTSession(id, true)
+			cg.loadChatGPTSession(id, true)
 			return
 		}
 		g.loaded[id] = true
@@ -92,23 +109,23 @@ func (a *App) loadChatGPTSession(id string, force bool) {
 		if err != nil || !force {
 			g.errors[id] = err
 		}
-		if a.prefs.AI.Active == id {
-			a.showChatGPTWelcome()
+		if cg.host.preferences().AI.Active == id {
+			cg.showChatGPTWelcome()
 			if !force && err == nil && s.Sharing {
-				a.fetchModels()
+				cg.host.fetchModels()
 			}
 		}
 	}
-	if a.win == nil || a.qa.sync {
+	if cg.host.window() == nil || cg.host.oneBotSync() {
 		done(work())
 		return
 	}
-	win := a.win
+	win := cg.host.window()
 	go func() { s, err := work(); win.Update(func() { done(s, err) }) }()
 }
 
-func (a *App) cancelChatGPTSignIn() {
-	g := &a.chatgpt
+func (cg *chatGPTState) cancelChatGPTSignIn() {
+	g := cg
 	if g.cancel != nil {
 		g.cancel()
 		g.cancel = nil
@@ -117,13 +134,13 @@ func (a *App) cancelChatGPTSignIn() {
 	g.busyID = ""
 }
 
-func (a *App) startChatGPTSignIn(reconsent bool) {
-	c := a.prefs.AI.Current()
+func (cg *chatGPTState) startChatGPTSignIn(reconsent bool) {
+	c := cg.host.preferences().AI.Current()
 	if c == nil || c.Protocol != agent.ChatGPT {
 		return
 	}
-	a.ensureChatGPT()
-	g := &a.chatgpt
+	cg.ensureChatGPT()
+	g := cg
 	if g.openBrowser == nil {
 		g.errors[c.ID] = &chatgpt.Error{Code: "browser_unavailable"}
 		return
@@ -132,7 +149,7 @@ func (a *App) startChatGPTSignIn(reconsent bool) {
 		return
 	}
 	id := c.ID
-	a.cancelChatGPTSignIn()
+	cg.cancelChatGPTSignIn()
 	epoch := g.epoch
 	ctx, cancel := context.WithCancel(context.Background())
 	g.cancel = cancel
@@ -141,9 +158,9 @@ func (a *App) startChatGPTSignIn(reconsent bool) {
 	client, open := g.client, g.openBrowser
 	done := func(s chatgpt.Session, err error) {
 		defer cancel()
-		if g.epoch != epoch || a.prefs.AI.Find(id) == nil {
+		if g.epoch != epoch || cg.host.preferences().AI.Find(id) == nil {
 			if g.busyID == "" {
-				a.loadChatGPTSession(id, true)
+				cg.loadChatGPTSession(id, true)
 			}
 			return
 		}
@@ -151,56 +168,47 @@ func (a *App) startChatGPTSignIn(reconsent bool) {
 		g.busyID = ""
 		g.errors[id] = err
 		if err != nil {
-			a.loadChatGPTSession(id, true)
+			cg.loadChatGPTSession(id, true)
 			g.errors[id] = err
 			return
 		}
 		g.sessions[id] = s
 		g.loaded[id] = true
-		if a.prefs.AI.Active == id {
-			a.cancelModelFetch()
-			a.qa.modelsFor = ""
-			a.showChatGPTWelcome()
+		if cg.host.preferences().AI.Active == id {
+			cg.host.resetModelFetch()
+			cg.showChatGPTWelcome()
 			if s.Sharing {
-				a.fetchModels()
+				cg.host.fetchModels()
 			}
 		}
 	}
-	if a.win == nil || a.qa.sync {
+	if cg.host.window() == nil || cg.host.oneBotSync() {
 		done(client.SignIn(ctx, id, reconsent, open))
 		return
 	}
-	win := a.win
+	win := cg.host.window()
 	go func() { s, err := client.SignIn(ctx, id, reconsent, open); win.Update(func() { done(s, err) }) }()
 }
 
-func (a *App) showChatGPTWelcome() {
-	if !a.prefs.AI.ChatGPTWelcomeSeen && a.chatGPTSession().Sharing {
-		a.chatgpt.welcome = true
+func (cg *chatGPTState) showChatGPTWelcome() {
+	if !cg.host.preferences().AI.ChatGPTWelcomeSeen && cg.chatGPTSession().Sharing {
+		cg.welcome = true
 	}
 }
 
-func (a *App) disconnectChatGPT(remove bool) {
-	c := a.prefs.AI.Current()
+func (cg *chatGPTState) disconnectChatGPT(remove bool) {
+	c := cg.host.preferences().AI.Current()
 	if c == nil || c.Protocol != agent.ChatGPT {
 		return
 	}
 	id := c.ID
-	a.ensureChatGPT()
-	g := &a.chatgpt
+	cg.ensureChatGPT()
+	g := cg
 	if g.busyID != "" {
-		a.cancelChatGPTSignIn()
+		cg.cancelChatGPTSignIn()
 	}
-	a.cancelModelFetch()
-	// Stop any running turn bound to this account, including another space.
-	for _, s := range a.qa.sessions {
-		if strings.HasPrefix(s.source, id+"|") && s.cancel != nil {
-			s.cancel()
-		}
-	}
-	if task := a.qa.editTask; task != nil && task.Running && task.connectionID == id {
-		a.stopOneBotEdit()
-	}
+	cg.host.cancelModelFetch()
+	cg.host.stopOneBotWorkFor(id)
 	g.busyID = id
 	g.errors[id] = nil
 	g.epoch++
@@ -232,35 +240,35 @@ func (a *App) disconnectChatGPT(remove bool) {
 		g.sessions[id] = s
 		if remove {
 			if err != nil {
-				a.notify("%s", chatGPTErrorText(err))
+				cg.host.notify("%s", chatGPTErrorText(err))
 			}
-			a.prefs.AI.Connections = slices.DeleteFunc(a.prefs.AI.Connections, func(c prefs.AIConnection) bool { return c.ID == id })
+			cg.host.preferences().AI.Connections = slices.DeleteFunc(cg.host.preferences().AI.Connections, func(c prefs.AIConnection) bool { return c.ID == id })
 			delete(g.sessions, id)
 			delete(g.loaded, id)
 			delete(g.errors, id)
-			if a.prefs.AI.Active == id {
-				a.prefs.AI.Active = ""
-				if len(a.prefs.AI.Connections) > 0 {
-					a.selectAIConnection(a.prefs.AI.Connections[0].ID)
+			if cg.host.preferences().AI.Active == id {
+				cg.host.preferences().AI.Active = ""
+				if len(cg.host.preferences().AI.Connections) > 0 {
+					cg.host.selectAIConnection(cg.host.preferences().AI.Connections[0].ID)
 				}
 			}
-			a.savePrefs()
+			cg.host.savePrefs()
 		}
 	}
-	if a.win == nil || a.qa.sync {
+	if cg.host.window() == nil || cg.host.oneBotSync() {
 		done(work())
 		return
 	}
-	win := a.win
+	win := cg.host.window()
 	go func() { err := work(); win.Update(func() { done(err) }) }()
 }
 
-func (a *App) openChatGPTUsage() {
-	if a.chatgpt.openBrowser == nil {
+func (cg *chatGPTState) openChatGPTUsage() {
+	if cg.openBrowser == nil {
 		return
 	}
-	if err := a.chatgpt.openBrowser(chatgpt.UsageURL); err != nil {
-		a.notify("无法打开 ChatGPT 用量页面")
+	if err := cg.openBrowser(chatgpt.UsageURL); err != nil {
+		cg.host.notify("无法打开 ChatGPT 用量页面")
 	}
 }
 

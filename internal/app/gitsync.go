@@ -11,14 +11,38 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/agent"
+	"github.com/OUBIGFA/FreeFolio/internal/chatgpt"
 	"github.com/OUBIGFA/FreeFolio/internal/gitsync"
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
+	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
+// gitSyncHost is what GitHub repository sync needs from the window.
+type gitSyncHost interface {
+	appConfig() Config
+	chatGPTTokenSource(id string) *chatgpt.TokenSource
+	clock() time.Time
+	cloudBusy() bool
+	cloudSyncsSpace(id string) bool
+	flushForTask() bool
+	preferences() *prefs.Prefs
+	readAIKeys() (aiKeyring, error)
+	refreshTree()
+	reload()
+	residentDocument(id, rel string) *document
+	residentDocuments() []*document
+	spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size float32, color ui.Color) ui.Element
+	spaces() *space.State
+	window() *mygo.Window
+	withDocument(d *document, fn func())
+}
+
 type gitUIState struct {
+	host                                      gitSyncHost
 	signingIn                                 bool
 	signIn                                    func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error)
 	applyingSpace                             string
@@ -48,14 +72,14 @@ type gitGuard struct {
 	reply chan error
 }
 
-func (a *App) initGitSync() {
-	s := &a.gitSync
+func (gs *gitUIState) initGitSync() {
+	s := gs
 	if s.client != nil {
 		return
 	}
 	s.config = gitsync.Config{Version: 1, Spaces: map[string]*gitsync.SpaceConfig{}}
 	s.saved = map[string]gitsync.SpaceConfig{}
-	s.client = gitsync.NewGitHub(filepath.Join(a.cfg.ConfigDir, "credentials"))
+	s.client = gitsync.NewGitHub(filepath.Join(gs.host.appConfig().ConfigDir, "credentials"))
 	s.signIn = func(ctx context.Context, progress func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error) {
 		account, e := s.client.Login(ctx, progress)
 		if e != nil {
@@ -69,17 +93,17 @@ func (a *App) initGitSync() {
 	s.checked = map[string]map[string]bool{}
 	s.last = map[string]time.Time{}
 }
-func (a *App) gitSpaceConfig(id string) *gitsync.SpaceConfig {
-	a.initGitSync()
-	if c := a.gitSync.config.Spaces[id]; c != nil {
+func (gs *gitUIState) gitSpaceConfig(id string) *gitsync.SpaceConfig {
+	gs.initGitSync()
+	if c := gs.config.Spaces[id]; c != nil {
 		return c
 	}
 	c := gitsync.DefaultSpace()
-	a.gitSync.config.Spaces[id] = c
+	gs.config.Spaces[id] = c
 	return c
 }
-func (a *App) gitWork(label string, work func(context.Context) func()) {
-	s := &a.gitSync
+func (gs *gitUIState) gitWork(label string, work func(context.Context) func()) {
+	s := gs
 	if s.busy {
 		return
 	}
@@ -92,7 +116,7 @@ func (a *App) gitWork(label string, work func(context.Context) func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	s.cancel = cancel
 	done := s.done
-	win := a.win
+	win := gs.host.window()
 	go func() {
 		defer cancel()
 		apply := work(ctx)
@@ -102,15 +126,15 @@ func (a *App) gitWork(label string, work func(context.Context) func()) {
 		}
 	}()
 }
-func (a *App) loadGitSync() {
-	a.initGitSync()
-	s := &a.gitSync
+func (gs *gitUIState) loadGitSync() {
+	gs.initGitSync()
+	s := gs
 	if s.loading || s.loaded || s.busy {
 		return
 	}
 	s.loading = true
-	dir, client := a.cfg.ConfigDir, s.client
-	a.gitWork("正在读取 Git 同步设置", func(ctx context.Context) func() {
+	dir, client := gs.host.appConfig().ConfigDir, s.client
+	gs.gitWork("正在读取 Git 同步设置", func(ctx context.Context) func() {
 		cfg, e := gitsync.LoadConfig(dir)
 		accounts, accountErr := client.Accounts()
 		return func() {
@@ -118,7 +142,7 @@ func (a *App) loadGitSync() {
 			s.loading = false
 			if e != nil {
 				s.broken = true
-				a.gitError(e)
+				gs.gitError(e)
 				return
 			}
 			s.config = cfg
@@ -126,49 +150,49 @@ func (a *App) loadGitSync() {
 			for id, c := range cfg.Spaces {
 				s.saved[id] = *c
 				schedule := &gitsync.Schedule{}
-				schedule.Configure(c, a.now, true)
+				schedule.Configure(c, gs.host.clock(), true)
 				s.schedules[id] = schedule
 			}
 			s.message = ""
 			if accountErr != nil {
-				a.gitError(accountErr)
+				gs.gitError(accountErr)
 			}
 		}
 	})
 }
-func (a *App) gitError(err error) {
-	a.gitSync.failed = err != nil
+func (gs *gitUIState) gitError(err error) {
+	gs.failed = err != nil
 	if err != nil {
-		a.gitSync.message = err.Error()
+		gs.message = err.Error()
 	}
 }
-func (a *App) saveGitSync() bool {
-	s := &a.gitSync
+func (gs *gitUIState) saveGitSync() bool {
+	s := gs
 	if s.busy || s.broken {
 		return false
 	}
 	for id, c := range s.config.Spaces {
-		if c.Enabled && a.cloud.config.Enabled && a.cloud.config.Spaces[id] != "" {
-			a.gitError(errors.New(i18n.T("同一空间不能同时启用 Git 与云端同步")))
+		if c.Enabled && gs.host.cloudSyncsSpace(id) {
+			gs.gitError(errors.New(i18n.T("同一空间不能同时启用 Git 与云端同步")))
 			return false
 		}
 	}
-	if e := gitsync.SaveConfig(a.cfg.ConfigDir, s.config); e != nil {
-		a.gitError(e)
+	if e := gitsync.SaveConfig(gs.host.appConfig().ConfigDir, s.config); e != nil {
+		gs.gitError(e)
 		return false
 	}
 	for id, c := range s.config.Spaces {
 		s.saved[id] = *c
 		sch := &gitsync.Schedule{}
-		sch.Configure(c, a.now, false)
+		sch.Configure(c, gs.host.clock(), false)
 		s.schedules[id] = sch
 	}
 	s.message = i18n.T("Git 同步设置已保存")
 	s.failed = false
 	return true
 }
-func (a *App) gitTick(c *ui.Context) {
-	s := &a.gitSync
+func (gs *gitUIState) gitTick(c *ui.Context) {
+	s := gs
 	if s.client == nil {
 		return
 	}
@@ -186,7 +210,7 @@ func (a *App) gitTick(c *ui.Context) {
 		case request := <-s.guard:
 			var e error
 			for _, rel := range request.paths {
-				if d := a.residentDocument(request.id, rel); d != nil && (d.saving || d.dirty() || d.ed.Composing() || d.conflict || d.ed.ReadOnly) {
+				if d := gs.host.residentDocument(request.id, rel); d != nil && (d.saving || d.dirty() || d.ed.Composing() || d.conflict || d.ed.ReadOnly) {
 					e = errors.New(i18n.T("文档有未保存修改或处于锁定状态，请处理后重试"))
 					break
 				}
@@ -196,7 +220,7 @@ func (a *App) gitTick(c *ui.Context) {
 				if s.protected == nil {
 					s.protected = map[*document]bool{}
 				}
-				for _, d := range a.residentDocuments() {
+				for _, d := range gs.host.residentDocuments() {
 					if d.space.ID == request.id {
 						s.protected[d] = d.ed.ReadOnly
 						d.ed.SetReadOnly(true)
@@ -231,34 +255,34 @@ func (a *App) gitTick(c *ui.Context) {
 	for _, id := range ids {
 		sch := s.schedules[id]
 		if sch.Ready(c.Now()) {
-			a.runGit(id, "sync", true)
+			gs.runGit(id, "sync", true)
 			break
 		}
 	}
 	c.After(time.Second)
 }
-func (a *App) gitSaved(d *document) {
+func (gs *gitUIState) gitSaved(d *document) {
 	if !d.justSaved {
 		return
 	}
-	if sch := a.gitSync.schedules[d.space.ID]; sch != nil {
-		sch.Saved(a.now)
+	if sch := gs.schedules[d.space.ID]; sch != nil {
+		sch.Saved(gs.host.clock())
 	}
 }
-func (a *App) cancelGit() {
-	if a.gitSync.cancel != nil {
-		a.gitSync.cancel()
+func (gs *gitUIState) cancelGit() {
+	if gs.cancel != nil {
+		gs.cancel()
 	}
 }
 
 // Let cancellation finish its on-disk rollback before the application exits.
 // Worker completion does not require another UI frame after cancellation.
-func (a *App) waitGitShutdown() {
-	s := &a.gitSync
+func (gs *gitUIState) waitGitShutdown() {
+	s := gs
 	if !s.busy || s.done == nil {
 		return
 	}
-	a.cancelGit()
+	gs.cancelGit()
 	select {
 	case <-s.done:
 	case <-time.After(35 * time.Second):
@@ -266,72 +290,72 @@ func (a *App) waitGitShutdown() {
 	}
 }
 
-func (a *App) gitApplyingView(c *ui.Context) {
-	if a.gitSync.applyingSpace == "" {
+func (gs *gitUIState) gitApplyingView(c *ui.Context) {
+	if gs.applyingSpace == "" {
 		return
 	}
 	ui.Overlay(c.Key("git-applying"), func() {
 		ui.Column(c.Key("surface")).Fill().Modal().Center().Background(c.Theme().Background.Alpha(0.94)).Children(func() { ui.Text(c, i18n.T("正在更新空间文件")).FontSize(16) })
 	})
 }
-func (a *App) gitLogin() {
-	a.initGitSync()
-	if a.gitSync.busy {
+func (gs *gitUIState) gitLogin() {
+	gs.initGitSync()
+	if gs.busy {
 		return
 	}
-	a.gitSync.signingIn = true
-	spaceID := a.gitSync.selected
+	gs.signingIn = true
+	spaceID := gs.selected
 	if spaceID == "" {
-		spaceID = a.state.Active
+		spaceID = gs.host.spaces().Active
 	}
-	signIn := a.gitSync.signIn
-	a.gitWork("请在浏览器中登录并授权 GitHub", func(ctx context.Context) func() {
+	signIn := gs.signIn
+	gs.gitWork("请在浏览器中登录并授权 GitHub", func(ctx context.Context) func() {
 		account, accounts, e := signIn(ctx, func(p gitsync.RuntimeProgress) {
 			if p.Total == 0 {
 				select {
-				case <-a.gitSync.progress:
+				case <-gs.progress:
 				default:
 				}
 			}
 			select {
-			case a.gitSync.progress <- p:
+			case gs.progress <- p:
 			default:
 			}
 		})
 		return func() {
-			a.gitSync.signingIn = false
+			gs.signingIn = false
 			if e != nil {
-				a.gitError(e)
+				gs.gitError(e)
 				return
 			}
-			a.gitSync.accounts = accounts
-			if a.state.Get(spaceID) != nil {
-				a.gitSpaceConfig(spaceID).Account = account.ID
+			gs.accounts = accounts
+			if gs.host.spaces().Get(spaceID) != nil {
+				gs.gitSpaceConfig(spaceID).Account = account.ID
 			}
-			a.gitSync.message = i18n.T("GitHub 已连接")
+			gs.message = i18n.T("GitHub 已连接")
 		}
 	})
 }
-func (a *App) gitDisconnect(id string) {
-	client := a.gitSync.client
-	a.gitWork("正在断开 GitHub", func(ctx context.Context) func() {
+func (gs *gitUIState) gitDisconnect(id string) {
+	client := gs.client
+	gs.gitWork("正在断开 GitHub", func(ctx context.Context) func() {
 		e := client.Disconnect(ctx, id)
 		accounts, accountErr := client.Accounts()
 		if e == nil {
 			e = accountErr
 		}
 		return func() {
-			a.gitSync.accounts = accounts
-			a.gitError(e)
+			gs.accounts = accounts
+			gs.gitError(e)
 			if e == nil {
-				a.gitSync.message = i18n.T("GitHub 已断开")
+				gs.message = i18n.T("GitHub 已断开")
 			}
 		}
 	})
 }
-func (a *App) gitEngine(ctx context.Context, id, root string) (*gitsync.Git, error) {
-	resources := filepath.Join(a.cfg.ConfigDir, "resources")
-	progress := a.gitSync.progress
+func (gs *gitUIState) gitEngine(ctx context.Context, id, root string) (*gitsync.Git, error) {
+	resources := filepath.Join(gs.host.appConfig().ConfigDir, "resources")
+	progress := gs.progress
 	path, e := gitsync.EnsureGit(ctx, resources, func(p gitsync.RuntimeProgress) {
 		select {
 		case progress <- p:
@@ -341,9 +365,9 @@ func (a *App) gitEngine(ctx context.Context, id, root string) (*gitsync.Git, err
 	if e != nil {
 		return nil, e
 	}
-	dir := a.cfg.ConfigDir
+	dir := gs.host.appConfig().ConfigDir
 	name := id
-	guard := a.gitSync.guard
+	guard := gs.guard
 	return &gitsync.Git{Path: path, StateDir: filepath.Join(dir, "git-sync-state"), Progress: func(p gitsync.RuntimeProgress) {
 		select {
 		case progress <- p:
@@ -374,25 +398,25 @@ func (a *App) gitEngine(ctx context.Context, id, root string) (*gitsync.Git, err
 		}
 	}}, nil
 }
-func (a *App) refreshGit(id string) {
-	sp := a.state.Get(id)
+func (gs *gitUIState) refreshGit(id string) {
+	sp := gs.host.spaces().Get(id)
 	if sp == nil {
 		return
 	}
 	root := sp.Root
-	a.gitWork("正在检查仓库", func(ctx context.Context) func() {
-		g, e := a.gitEngine(ctx, id, root)
+	gs.gitWork("正在检查仓库", func(ctx context.Context) func() {
+		g, e := gs.gitEngine(ctx, id, root)
 		var repo gitsync.Repository
 		if e == nil {
 			repo, e = g.Inspect(ctx, root)
 		}
 		return func() {
 			if e != nil {
-				a.gitError(e)
+				gs.gitError(e)
 				return
 			}
-			a.applyGitRepo(id, repo)
-			c := a.gitSpaceConfig(id)
+			gs.applyGitRepo(id, repo)
+			c := gs.gitSpaceConfig(id)
 			if c.Binding.Remote == "" {
 				remote := "origin"
 				if repo.Remotes[remote] == "" {
@@ -403,21 +427,21 @@ func (a *App) refreshGit(id string) {
 				}
 				c.Binding = gitsync.Binding{Remote: remote, URL: repo.Remotes[remote], Branch: repo.Branch, Root: repo.Root}
 			}
-			a.gitSync.message = i18n.T("仓库检查完成")
+			gs.message = i18n.T("仓库检查完成")
 		}
 	})
 }
-func (a *App) applyGitRepo(id string, repo gitsync.Repository) {
-	a.gitSync.repos[id] = repo
+func (gs *gitUIState) applyGitRepo(id string, repo gitsync.Repository) {
+	gs.repos[id] = repo
 	selected := map[string]bool{}
 	for _, change := range repo.Changes {
-		on, exists := a.gitSync.checked[id][change.Path]
+		on, exists := gs.checked[id][change.Path]
 		if !exists {
 			on = gitAutoPath(change.Path)
 		}
 		selected[change.Path] = on
 	}
-	a.gitSync.checked[id] = selected
+	gs.checked[id] = selected
 }
 func gitAutoPath(path string) bool {
 	for _, part := range strings.Split(path, "/") {
@@ -428,8 +452,8 @@ func gitAutoPath(path string) bool {
 	return true
 }
 
-func (a *App) gitProvider(c gitsync.SpaceConfig) (agent.Provider, error) {
-	conn := a.prefs.AI.Find(c.Connection)
+func (gs *gitUIState) gitProvider(c gitsync.SpaceConfig) (agent.Provider, error) {
+	conn := gs.host.preferences().AI.Find(c.Connection)
 	if conn == nil || conn.Protocol == agent.Media {
 		return nil, errors.New(i18n.T("请选择可用的 OneBot 文本模型"))
 	}
@@ -445,10 +469,9 @@ func (a *App) gitProvider(c gitsync.SpaceConfig) (agent.Provider, error) {
 		return nil, errors.New(i18n.T("OneBot 模型已停用或移除"))
 	}
 	if conn.Protocol == agent.ChatGPT {
-		a.ensureChatGPT()
-		settings.TokenSource = a.chatgpt.client.Source(conn.ID)
+		settings.TokenSource = gs.host.chatGPTTokenSource(conn.ID)
 	} else {
-		keys, e := a.readAIKeys()
+		keys, e := gs.host.readAIKeys()
 		if e != nil {
 			return nil, e
 		}
@@ -459,16 +482,16 @@ func (a *App) gitProvider(c gitsync.SpaceConfig) (agent.Provider, error) {
 	}
 	return settings.NewProvider(), nil
 }
-func (a *App) runGit(id, action string, automatic bool) {
-	s := &a.gitSync
+func (gs *gitUIState) runGit(id, action string, automatic bool) {
+	s := gs
 	if s.busy || s.broken {
 		return
 	}
-	sp := a.state.Get(id)
+	sp := gs.host.spaces().Get(id)
 	if sp == nil {
 		return
 	}
-	cfg := *a.gitSpaceConfig(id)
+	cfg := *gs.gitSpaceConfig(id)
 	if automatic {
 		var ok bool
 		cfg, ok = s.saved[id]
@@ -477,20 +500,20 @@ func (a *App) runGit(id, action string, automatic bool) {
 		}
 	}
 	root := sp.Root
-	if a.cloud.busy || a.cloud.config.Enabled && a.cloud.config.Spaces[id] != "" {
-		a.gitError(errors.New(i18n.T("请先关闭此空间的云端同步")))
+	if gs.host.cloudBusy() || gs.host.cloudSyncsSpace(id) {
+		gs.gitError(errors.New(i18n.T("请先关闭此空间的云端同步")))
 		if sch := s.schedules[id]; sch != nil {
-			sch.Finished(a.now, false, false)
+			sch.Finished(gs.host.clock(), false, false)
 		}
 		return
 	}
-	if action != "diff" && action != "generate" && !a.flushForTask() {
+	if action != "diff" && action != "generate" && !gs.host.flushForTask() {
 		return
 	}
 	var provider agent.Provider
 	var providerErr error
 	if action == "generate" || cfg.MessageMode == "ai" && (action == "commit" || action == "sync" && cfg.Mode != "pull") {
-		provider, providerErr = a.gitProvider(cfg)
+		provider, providerErr = gs.gitProvider(cfg)
 	}
 	paths := []string{}
 	for path, on := range s.checked[id] {
@@ -509,9 +532,9 @@ func (a *App) runGit(id, action string, automatic bool) {
 		}
 	}
 	client := s.client
-	started := a.now
-	a.gitWork("正在处理 Git 仓库", func(ctx context.Context) func() {
-		g, e := a.gitEngine(ctx, id, root)
+	started := gs.host.clock()
+	gs.gitWork("正在处理 Git 仓库", func(ctx context.Context) func() {
+		g, e := gs.gitEngine(ctx, id, root)
 		var repo gitsync.Repository
 		message, preview := "", ""
 		var versions gitsync.Versions
@@ -626,15 +649,15 @@ func (a *App) runGit(id, action string, automatic bool) {
 		}
 		return func() {
 			if repo.Root != "" {
-				a.applyGitRepo(id, repo)
+				gs.applyGitRepo(id, repo)
 			}
-			s.last[id] = a.now
+			s.last[id] = gs.host.clock()
 			if sch := s.schedules[id]; sch != nil && automatic {
 				retry := gitRetryable(e)
-				sch.Finished(a.now, e == nil, retry)
+				sch.Finished(gs.host.clock(), e == nil, retry)
 			}
 			if e != nil {
-				a.gitError(e)
+				gs.gitError(e)
 			} else {
 				s.message = i18n.T("Git 操作已完成")
 				s.failed = false
@@ -660,10 +683,10 @@ func (a *App) runGit(id, action string, automatic bool) {
 				s.messagePaths = nil
 			}
 			if action == "pull" || action == "sync" || action == "finish" {
-				a.refreshTree()
-				for _, d := range a.residentDocuments() {
+				gs.host.refreshTree()
+				for _, d := range gs.host.residentDocuments() {
 					if d.space.ID == id && !d.dirty() && !d.saving {
-						a.withDocument(d, func() { a.reload() })
+						gs.host.withDocument(d, func() { gs.host.reload() })
 					}
 				}
 			}

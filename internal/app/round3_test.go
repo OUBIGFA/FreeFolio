@@ -170,11 +170,11 @@ func TestQAJumpLatestAndCitationPreview(t *testing.T) {
 	}
 	ans.WriteString("Final conclusion with citation [Design.md#L5-L5].\n")
 
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{question: "What is the latency budget?", answer: ans.String(), running: true}
 	s.turns = []*qaTurn{turn}
 	s.cancel = func() {}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	qaAdvance(tt, 500*time.Millisecond)
 	tt.Frame()

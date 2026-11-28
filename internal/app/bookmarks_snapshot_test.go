@@ -28,7 +28,7 @@ func TestBookmarksSnapshot(t *testing.T) {
 				caretOn(a, ids[i])
 				tt.Key(ui.Cmd, ui.KeyD)
 			}
-			a.labelBookmark(a.doc.space.ID, a.doc.rel, ids[5], "速度表")
+			a.bookmarks.labelBookmark(a.doc.space.ID, a.doc.rel, ids[5], "速度表")
 			bookmarkDoc(t, a, tt, "Other.arcmd", "# 另一篇\n\nSomewhere")
 			focusDocument(a, tt)
 			caretOn(a, a.doc.ed.Doc.Blocks[1].ID)
@@ -81,7 +81,7 @@ func TestFormulaBookmarksSnapshot(t *testing.T) {
 			tt.Frame()
 			ids := bookmarkDoc(t, a, tt, "Math.arcmd", source)
 			for _, id := range ids[2:] {
-				a.toggleBookmark(a.doc, id)
+				a.bookmarks.toggleBookmark(a.doc, id)
 			}
 			caretOn(a, ids[0])
 			tt.Frame()

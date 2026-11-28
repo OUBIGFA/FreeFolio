@@ -14,14 +14,14 @@ import (
 
 // Lobe's chat variant: 14px / 1.72, .02em tracking, 600 strong text,
 // compact heading scale and a 4px quotation rule. Colors use FreeFolio tokens.
-func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn, b *qaBlock) {
+func (ob *qaState) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *qaTurn, b *qaBlock) {
 	t := c.Theme()
 	if b.fade.active(c.Now()) {
 		c.After(time.Second / 60)
 	}
 	index := 0
 	text := func(key string, runs []qaRun, ink ui.Color, fontSize float32) ui.Element {
-		return a.qaMarkdownText(c, key, spaceID, s, turn, runs, b.fade, &index, ink, fontSize)
+		return ob.qaMarkdownText(c, key, spaceID, s, turn, runs, b.fade, &index, ink, fontSize)
 	}
 	switch b.kind {
 	case qaRule:
@@ -30,7 +30,7 @@ func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *q
 		})
 	case qaCodeBlock:
 		ui.Column(c).Opacity(qaFadeAlpha(c.Now(), b.fade.blockBirth)).Children(func() {
-			a.qaMarkdownCode(c, fmt.Sprintf("code-%p-%d", turn, b.start), b)
+			ob.qaMarkdownCode(c, fmt.Sprintf("code-%p-%d", turn, b.start), b)
 		})
 	case qaHeading:
 		text("text", b.runs, t.Text, b.size).FontSize(b.size).FontWeight(600).LineHeight(1.38).Padding(10, 0, 2, 0)
@@ -67,7 +67,7 @@ func (a *App) qaAnswerBlock(c *ui.Context, spaceID string, s *qaSession, turn *q
 	}
 }
 
-func (a *App) qaMarkdownText(c *ui.Context, key, spaceID string, s *qaSession, turn *qaTurn, runs []qaRun, fade *qaFade, index *int, ink ui.Color, fontSize float32) ui.Element {
+func (ob *qaState) qaMarkdownText(c *ui.Context, key, spaceID string, s *qaSession, turn *qaTurn, runs []qaRun, fade *qaFade, index *int, ink ui.Color, fontSize float32) ui.Element {
 	t := c.Theme()
 	cols := qaCitationColors(t)
 	anim := ui.Animation{Duration: 150 * time.Millisecond, Ease: qaCiteEase}
@@ -158,7 +158,7 @@ func (a *App) qaMarkdownText(c *ui.Context, key, spaceID string, s *qaSession, t
 				runePos++
 
 				if chip.Clicked() {
-					a.openCitation(spaceID, first)
+					ob.openCitation(spaceID, first)
 				}
 				continue
 			}
@@ -261,13 +261,13 @@ func qaWebLink(url string) bool {
 	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "mailto:")
 }
 
-func (a *App) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
+func (ob *qaState) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
 	t := c.Theme()
 	lang := strings.TrimSpace(b.language)
 	if lang == "" {
 		lang = "text"
 	}
-	copied := a.isQACopied(c, key)
+	copied := ob.isQACopied(c, key)
 	ui.Column(c).Radius(8).Background(t.Text.Alpha(0.035)).Border(1, t.Border.Alpha(0.45)).Clip().Children(func() {
 		ui.Row(c).Padding(5, 10).AlignItems(ui.Center).Background(t.Text.Alpha(0.03)).Children(func() {
 			ui.Text(c, lang).Font("monospace").FontSize(11).TextColor(t.TextMuted)
@@ -288,7 +288,7 @@ func (a *App) qaMarkdownCode(c *ui.Context, key string, b *qaBlock) {
 				ui.Text(c, label).FontSize(11).TextColor(ink).NoWrap()
 			})
 			if copyBtn.Clicked() {
-				a.copyQAText(c, key, b.text)
+				ob.copyQAText(c, key, b.text)
 			}
 		})
 		ui.Box(c).Height(1).Background(separator(t).Alpha(0.6))

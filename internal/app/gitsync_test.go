@@ -17,12 +17,12 @@ import (
 
 func TestGitSaveSyncSwitchControlsDelay(t *testing.T) {
 	a, _ := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
-	cfg := a.gitSpaceConfig(a.state.Active)
+	cfg := a.gitSync.gitSpaceConfig(a.state.Active)
 	cfg.Automatic = true
 	// Render the real settings page with all rows visible for pointer testing.
-	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.settingsGitSync(c) }) }, 1100, 2400)
+	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.gitSync.settingsGitSync(c) }) }, 1100, 2400)
 	tt.Frame()
 	switcher, ok := tt.AccessByRole(ui.RoleSwitch, "保存后同步")
 	if !ok || cfg.OnSave {
@@ -48,7 +48,7 @@ func TestGitSaveSyncSwitchControlsDelay(t *testing.T) {
 
 func TestGitLoginStartsBrowserFlowWithoutClientID(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	a.openSettings(tabGit)
 	a.gitSync.signIn = func(context.Context, func(gitsync.RuntimeProgress)) (gitsync.Account, []gitsync.Account, error) {
@@ -71,7 +71,7 @@ func TestGitLoginStartsBrowserFlowWithoutClientID(t *testing.T) {
 		}
 	}
 	tt.Frame()
-	if !tt.HasText("octo") || a.gitSync.failed || a.gitSpaceConfig(a.state.Active).Account != "42" {
+	if !tt.HasText("octo") || a.gitSync.failed || a.gitSync.gitSpaceConfig(a.state.Active).Account != "42" {
 		t.Fatal(a.gitSync.message, tt.Texts())
 	}
 }
@@ -93,10 +93,10 @@ func TestGitSyncSnapshot(t *testing.T) {
 	// Default view (1240x760).
 	a, tt := newTestApp(t)
 	tt.SetSize(1240, 760)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	a.openSettings(tabGit)
-	c := a.gitSpaceConfig(a.state.Active)
+	c := a.gitSync.gitSpaceConfig(a.state.Active)
 	c.Automatic = true
 	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/example/notes.git", Branch: "main"}
 	tt.Frame()
@@ -106,7 +106,7 @@ func TestGitSyncSnapshot(t *testing.T) {
 	// Active populated view (connected account, inspected repo, changes, AI mode).
 	a2, tt2 := newTestApp(t)
 	tt2.SetSize(1240, 2100)
-	a2.initGitSync()
+	a2.gitSync.initGitSync()
 	a2.gitSync.loaded = true
 	a2.gitSync.accounts = []gitsync.Account{{ID: "42", Login: "octocat", Email: "octocat@example.com"}}
 	a2.prefs.AI.Connections = []prefs.AIConnection{{
@@ -115,14 +115,14 @@ func TestGitSyncSnapshot(t *testing.T) {
 	}}
 	a2.openSettings(tabGit)
 	id := a2.state.Active
-	c2 := a2.gitSpaceConfig(id)
+	c2 := a2.gitSync.gitSpaceConfig(id)
 	c2.Enabled = true
 	c2.Account = "42"
 	c2.Automatic = true
 	c2.MessageMode = "ai"
 	c2.Connection, c2.Model = "openai", "gpt-4.1-mini"
 	c2.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/example/notes.git", Branch: "main"}
-	a2.applyGitRepo(id, gitsync.Repository{
+	a2.gitSync.applyGitRepo(id, gitsync.Repository{
 		Root:    a2.state.ActiveSpace().Root,
 		Branch:  "main",
 		Ahead:   2,
@@ -152,12 +152,12 @@ func TestGitSyncSnapshot(t *testing.T) {
 
 func TestGitRefreshPreservesFileSelection(t *testing.T) {
 	a, _ := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	id := a.state.Active
 	s := gitsync.Repository{Changes: []gitsync.Change{{Path: "a.md"}, {Path: "b.md"}}}
-	a.applyGitRepo(id, s)
+	a.gitSync.applyGitRepo(id, s)
 	a.gitSync.checked[id]["b.md"] = false
-	a.applyGitRepo(id, s)
+	a.gitSync.applyGitRepo(id, s)
 	if a.gitSync.checked[id]["b.md"] || !a.gitSync.checked[id]["a.md"] {
 		t.Fatal("preview changed selected commit files")
 	}
@@ -165,7 +165,7 @@ func TestGitRefreshPreservesFileSelection(t *testing.T) {
 
 func TestGitGuardRejectsLockedDocument(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	s := &a.gitSync
 	s.busy = true
 	s.guard = make(chan gitGuard, 1)
@@ -187,7 +187,7 @@ func TestGitGuardRejectsLockedDocument(t *testing.T) {
 func TestGitSettingsEnglish(t *testing.T) {
 	a, tt := newTestApp(t)
 	defer i18n.SetLanguage("zh-Hans")
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	a.openSettings(tabGit)
 	i18n.SetLanguage("en")
@@ -199,10 +199,10 @@ func TestGitSettingsEnglish(t *testing.T) {
 
 func TestGitSyncSettingsExposeCompleteControls(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	a.openSettings(tabGit)
-	c := a.gitSpaceConfig(a.state.Active)
+	c := a.gitSync.gitSpaceConfig(a.state.Active)
 	c.Automatic = true
 	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/o/r.git", Branch: "main"}
 	tt.Frame()
@@ -214,12 +214,12 @@ func TestGitSyncSettingsExposeCompleteControls(t *testing.T) {
 }
 func TestGitSyncEnableDoesNotRunAndCloudOverlapRejected(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
-	c := a.gitSpaceConfig(a.state.Active)
+	c := a.gitSync.gitSpaceConfig(a.state.Active)
 	c.Enabled, c.Automatic = true, true
 	c.Binding = gitsync.Binding{Remote: "origin", URL: "https://github.com/o/r.git", Branch: "main"}
-	if !a.saveGitSync() {
+	if !a.gitSync.saveGitSync() {
 		t.Fatal(a.gitSync.message)
 	}
 	tt.Frame()
@@ -229,17 +229,17 @@ func TestGitSyncEnableDoesNotRunAndCloudOverlapRejected(t *testing.T) {
 	}
 	a.cloud.config.Enabled = true
 	a.cloud.config.Spaces[a.state.Active] = "notes"
-	if a.saveGitSync() {
+	if a.gitSync.saveGitSync() {
 		t.Fatal("overlapping sync accepted")
 	}
 }
 
 func TestGitWorkspaceChangesNoDuplicateFilenameAndBatchSelect(t *testing.T) {
 	a, _ := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	id := a.state.Active
-	a.applyGitRepo(id, gitsync.Repository{
+	a.gitSync.applyGitRepo(id, gitsync.Repository{
 		Root:    a.state.ActiveSpace().Root,
 		Branch:  "main",
 		Remotes: map[string]string{"origin": "https://github.com/o/r.git"},
@@ -248,7 +248,7 @@ func TestGitWorkspaceChangesNoDuplicateFilenameAndBatchSelect(t *testing.T) {
 			{Path: "beta.md", Code: "??"},
 		},
 	})
-	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.settingsGitSync(c) }) }, 1100, 2400)
+	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.gitSync.settingsGitSync(c) }) }, 1100, 2400)
 	tt.Frame()
 	cb, ok := tt.AccessByRole(ui.RoleCheckBox, "alpha.md")
 	if !ok {
@@ -275,10 +275,10 @@ func TestGitWorkspaceChangesNoDuplicateFilenameAndBatchSelect(t *testing.T) {
 
 func TestGitDirtyBadgeClearsOnSave(t *testing.T) {
 	a, _ := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
-	cfg := a.gitSpaceConfig(a.state.Active)
-	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.settingsGitSync(c) }) }, 1100, 2400)
+	cfg := a.gitSync.gitSpaceConfig(a.state.Active)
+	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.gitSync.settingsGitSync(c) }) }, 1100, 2400)
 	tt.Frame()
 	if tt.HasText("有未保存更改") {
 		t.Fatal("dirty badge shown before modification")
@@ -299,12 +299,12 @@ func TestGitDirtyBadgeClearsOnSave(t *testing.T) {
 
 func TestGitConflictsRenderBeforeSettings(t *testing.T) {
 	a, _ := newTestApp(t)
-	a.initGitSync()
+	a.gitSync.initGitSync()
 	a.gitSync.loaded = true
 	a.gitSync.message = "存在合并冲突，请先处理冲突"
 	a.gitSync.failed = true
 	id := a.state.Active
-	a.applyGitRepo(id, gitsync.Repository{
+	a.gitSync.applyGitRepo(id, gitsync.Repository{
 		Root:    a.state.ActiveSpace().Root,
 		Branch:  "main",
 		Remotes: map[string]string{"origin": "https://github.com/o/r.git"},
@@ -315,7 +315,7 @@ func TestGitConflictsRenderBeforeSettings(t *testing.T) {
 			},
 		},
 	})
-	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.settingsGitSync(c) }) }, 1100, 2400)
+	tt := ui.NewTester(func(c *ui.Context) { ui.Column(c).Fill().Children(func() { a.gitSync.settingsGitSync(c) }) }, 1100, 2400)
 	tt.Frame()
 	texts := tt.Texts()
 	if !tt.HasText("合并冲突（1/2 已解决）") || !tt.HasText("待解决") || !tt.HasText("已解决") {

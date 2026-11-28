@@ -127,10 +127,6 @@ type App struct {
 	attachmentRelinks map[string]*attachmentRelink
 	movingDoc         *document
 
-	// bookmarkGen counts changes to the bookmarks, which documents resolve
-	// again (bookmarks.go).
-	bookmarkGen uint64
-
 	cfg Config
 	win *mygo.Window
 	// testCaptionWindow stands in for the main window's client controls in
@@ -227,6 +223,9 @@ type App struct {
 	// qa is the panel of questions about the space (qa.go).
 	qa        qaState
 	resources resourceState
+	bookmarks bookmarkFeature
+	boardAI   whiteboardAIFeature
+	mdzFiles  mdzFeature // MDZip reading, export and unpacking
 	chatgpt   chatGPTState
 	// pager is the strip of spaces the sidebar pages along (spaceswitch.go),
 	// and pageTrees the folders of the spaces it shows beside the active
@@ -409,7 +408,7 @@ func New(cfg Config) (*App, error) {
 		// The spaces fade in on coming back from the library, not at start.
 		library: library{frames: 1},
 	}
-	a.versions.host = a
+	a.wirePanels()
 	var (
 		loadedPrefs  *prefs.Prefs
 		prefsErr     error
@@ -441,7 +440,7 @@ func New(cfg Config) (*App, error) {
 	}
 	a.systemLanguage = "zh-Hans"
 	a.applyLanguage()
-	a.applyLoadedCloudSync(loadedCloud, cloudErr)
+	a.cloud.applyLoadedCloudSync(loadedCloud, cloudErr)
 	if spacesErr != nil {
 		return nil, spacesErr
 	}
@@ -461,7 +460,7 @@ func New(cfg Config) (*App, error) {
 			return nil, err
 		}
 	}
-	a.startUpdates()
+	a.updates.startUpdates()
 	if cfg.DeferStartup {
 		a.launch.migrateSpaces = true
 		a.launch.loadPlugins = true
@@ -715,11 +714,11 @@ func (a *App) Run() error {
 			a.refreshSearch()
 		}
 		a.updates.svc, a.updates.async = newUpdateService(a.cfg.ConfigDir), true
-		a.ensureChatGPT()
+		a.chatgpt.ensureChatGPT()
 		a.chatgpt.openBrowser = mygo.Shell.OpenExternal
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 			a.quitting = true
-			a.stopComfyUI()
+			a.resources.stopComfyUI()
 		})
 		mygo.App.OnQuitCanceled(func() { a.quitting = false })
 		if err := a.startAgentIPC(); err != nil {
@@ -753,16 +752,16 @@ func (a *App) Run() error {
 				return
 			}
 			a.cancelPDF()
-			a.cancelCloudSync()
-			a.cancelGit()
-			a.cancelResourceDownloads()
-			a.cancelChatGPTSignIn()
-			a.stopComfyUI()
+			a.cloud.cancelCloudSync()
+			a.gitSync.cancelGit()
+			a.resources.cancelResourceDownloads()
+			a.chatgpt.cancelChatGPTSignIn()
+			a.resources.stopComfyUI()
 		})
 	})
-	defer a.stopComfyUI()
+	defer a.resources.stopComfyUI()
 	defer a.waitNavigationSave()
-	defer a.waitGitShutdown()
+	defer a.gitSync.waitGitShutdown()
 	defer a.stopAgentIPC()
 	return mygo.App.Run()
 }
@@ -821,7 +820,7 @@ func (a *App) appMenu() *mygo.MenuItem {
 	return &mygo.MenuItem{Label: "FreeFolio", Submenu: []*mygo.MenuItem{
 		{Role: mygo.RoleAbout},
 		{Label: i18n.T("检查更新"), Click: func(*mygo.MenuItem, *mygo.Window) {
-			a.win.Update(a.checkForUpdates)
+			a.win.Update(a.updates.checkForUpdates)
 		}},
 		mygo.Separator(),
 		{Label: i18n.T("设置"), Click: func(*mygo.MenuItem, *mygo.Window) {

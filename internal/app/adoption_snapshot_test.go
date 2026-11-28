@@ -22,12 +22,12 @@ func TestQuietAdoptionSnapshot(t *testing.T) {
 				a.openSettings(tabAppearance)
 				a.fonts.loaded = true
 				a.fonts.families = []ui.FontFamily{{Name: "Arial"}, {Name: "Georgia"}, {Name: "Microsoft YaHei"}, {Name: "SimSun"}, {Name: "KaiTi"}, {Name: "Consolas", Monospaced: true}}
-				a.openFontPicker(false)
+				a.fonts.openFontPicker(false)
 			case "fonts-ui":
 				a.openSettings(tabAppearance)
 				a.fonts.loaded = true
 				a.fonts.families = []ui.FontFamily{{Name: "Arial"}, {Name: "Georgia"}, {Name: "Microsoft YaHei"}, {Name: "SimSun"}, {Name: "KaiTi"}, {Name: "Consolas", Monospaced: true}}
-				a.openFontPicker(true)
+				a.fonts.openFontPicker(true)
 			case "history":
 				if e := vault.Write(root(a), "Preview.md", "# 当前稿\n\n当前内容\n"); e != nil {
 					t.Fatal(e)

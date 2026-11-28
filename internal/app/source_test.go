@@ -353,7 +353,7 @@ func TestSourceModeFocusWindowSearchQAAndArcmd(t *testing.T) {
 	if hits := a.liveIndex().Search("LiveSourceToken99", nil, 5); len(hits) == 0 {
 		t.Fatal("liveIndex did not find unsaved source edit")
 	}
-	fs := a.qaSpace(a.state.ActiveSpace().ID)
+	fs := a.qa.qaSpace(a.state.ActiveSpace().ID)
 	page, err := fs.Page(a.doc.rel)
 	if err != nil || !strings.Contains(strings.Join(page.Lines, "\n"), "LiveSourceToken99") {
 		t.Fatalf("qaSpace live page missed unsaved source edit: err=%v page=%+v", err, page)

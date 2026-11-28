@@ -415,7 +415,7 @@ func TestBottomBlockHandleMenuAndIndentSubmenu(t *testing.T) {
 		return r
 	}
 
-	bookmarkKey := a.shortKey("bookmark")
+	bookmarkKey := a.bookmarks.shortKey("bookmark")
 	for _, label := range []string{"正文", "一级标题", "五级标题", "缩进和对齐", "剪切", "复制", "创建副本", "删除", "上移", "下移", bookmarkKey, "在下方添加"} {
 		minH := float32(32)
 		switch label {

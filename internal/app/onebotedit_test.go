@@ -22,7 +22,7 @@ func TestOneBotFilePatchAllowsPartialReviewAndKeepsUnrelatedEdits(t *testing.T) 
 	if err := a.doc.save(); err != nil {
 		t.Fatal(err)
 	}
-	task, err := a.captureOneBotTask("document")
+	task, err := a.qa.captureOneBotTask("document")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestOneBotFilePatchAllowsPartialReviewAndKeepsUnrelatedEdits(t *testing.T) 
 	// the two actual patch targets.
 	keep := a.doc.ed.LeafAtIndex(1)
 	a.doc.ed.ReplaceLiteral(keep.Start, keep.End, "manual")
-	candidate, err := a.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: w.Changes()})
+	candidate, err := a.qa.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: w.Changes()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,19 +43,19 @@ func TestOneBotFilePatchAllowsPartialReviewAndKeepsUnrelatedEdits(t *testing.T) 
 		t.Fatalf("review groups: %d", len(candidate.Changes))
 	}
 	task.Candidates = []*oneBotCandidate{candidate}
-	if err = a.applyOneBotCandidate(task, 0, 0); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, 0); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.ed.Doc.PlainText() != "FIRST\nmanual\nlast" {
 		t.Fatal(a.doc.ed.Doc.PlainText())
 	}
-	if err = a.applyOneBotCandidate(task, 0, 1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, 1); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.ed.Doc.PlainText() != "FIRST\nmanual\nLAST" {
 		t.Fatal(a.doc.ed.Doc.PlainText())
 	}
-	a.revertOneBotCandidate(task, candidate)
+	a.qa.revertOneBotCandidate(task, candidate)
 	if a.doc.ed.Doc.PlainText() != "first\nmanual\nlast" {
 		t.Fatal("task recovery lost unrelated edit", a.doc.ed.Doc.PlainText())
 	}
@@ -65,20 +65,20 @@ func TestOneBotFollowUpKeepsEarlierDraftAndUsesNewWholeDocument(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "key")
 	editTestTask(t, a)
-	task, err := a.captureOneBotTask("document")
+	task, err := a.qa.captureOneBotTask("document")
 	if err != nil {
 		t.Fatal(err)
 	}
 	draft := selectionFileDraft(task, strings.Replace(task.Targets[0].Markdown, "hello", "hi", 1))
-	candidate, err := a.prepareOneBotFileCandidate(task, draft)
+	candidate, err := a.qa.prepareOneBotFileCandidate(task, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{candidate}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
-	next, err := a.continueOneBotTask(task)
+	next, err := a.qa.continueOneBotTask(task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,20 +103,20 @@ func TestOneBotFileToolAndCitationUseSameMarkdownLines(t *testing.T) {
 func TestOneBotContinueAfterNewFileEditsCreatedDocument(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "key")
-	task, err := a.captureOneBotTask("new")
+	task, err := a.qa.captureOneBotTask("new")
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.NewPath = "Created.md"
-	c, err := a.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: task.NewPath, After: "created\n", Created: true}}})
+	c, err := a.qa.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: task.NewPath, After: "created\n", Created: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
-	next, err := a.continueOneBotTask(task)
+	next, err := a.qa.continueOneBotTask(task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,19 +131,19 @@ func TestOneBotContinueAfterSectionEditKeepsSectionScope(t *testing.T) {
 	editTestTask(t, a)
 	a.doc.ed.Engine.ReplaceDocument(editor.ImportMarkdown("# One\n\nold\n\n# Two\n\nkeep\n"))
 	a.doc.ed.SetSelection(5, 5)
-	task, err := a.captureOneBotTask("section")
+	task, err := a.qa.captureOneBotTask("section")
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, strings.Replace(task.Targets[0].Markdown, "old", "new", 1)))
+	c, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, strings.Replace(task.Targets[0].Markdown, "old", "new", 1)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
-	next, err := a.continueOneBotTask(task)
+	next, err := a.qa.continueOneBotTask(task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,9 +158,9 @@ func TestOneBotClearedChatCannotApplyLateFileTools(t *testing.T) {
 	editTestTask(t, a)
 	a.prefs.AI.Direct = true
 	args, _ := json.Marshal(map[string]string{"path": a.doc.rel, "oldString": "hello", "newString": "late"})
-	fake.steps = []func(agent.Request) agent.Message{call("edit", string(args)), func(agent.Request) agent.Message { a.clearQA(); return agent.Message{Text: "done"} }}
-	a.ask(a.state.ActiveSpace().ID, "请修改", nil)
-	if a.doc.ed.Doc.PlainText() != "hello world\nkeep this" || len(a.qaSession(a.state.ActiveSpace().ID).turns) != 0 {
+	fake.steps = []func(agent.Request) agent.Message{call("edit", string(args)), func(agent.Request) agent.Message { a.qa.clearQA(); return agent.Message{Text: "done"} }}
+	a.qa.ask(a.state.ActiveSpace().ID, "请修改", nil)
+	if a.doc.ed.Doc.PlainText() != "hello world\nkeep this" || len(a.qa.qaSession(a.state.ActiveSpace().ID).turns) != 0 {
 		t.Fatal("cleared chat applied late result")
 	}
 }
@@ -174,7 +174,7 @@ func editTestTask(t *testing.T, a *App) *oneBotTask {
 		t.Fatal(err)
 	}
 	d.ed.SetSelection(0, 5)
-	task, err := a.captureOneBotTask("selection")
+	task, err := a.qa.captureOneBotTask("selection")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestOneBotGenerationDirectAndCandidates(t *testing.T) {
 					return agent.Response{Message: agent.Message{Text: "已准备修改"}, FinishReason: "stop"}, nil
 				})
 			}
-			a.runOneBotEdit(task, "shorten", count, false)
+			a.qa.runOneBotEdit(task, "shorten", count, false)
 			if task.Running || len(task.Candidates) != count || !task.Candidates[0].Complete {
 				t.Fatalf("generation %+v", task)
 			}
@@ -228,7 +228,7 @@ func TestOneBotReopenedDraftDoesNotGuessDuplicateBlock(t *testing.T) {
 	var loaded oneBotTask
 	json.Unmarshal(data, &loaded)
 	a.doc.ed.Engine.ReplaceDocument(&model.Document{Format: "arcmd", Version: model.CurrentVersion, Blocks: []*model.Block{model.NewBlock("paragraph", "hello world"), model.NewBlock("paragraph", "hello world")}})
-	if _, err := a.oneBotTargetDoc(&loaded, &loaded.Targets[0]); !errors.Is(err, model.ErrEditConflict) {
+	if _, err := a.qa.oneBotTargetDoc(&loaded, &loaded.Targets[0]); !errors.Is(err, model.ErrEditConflict) {
 		t.Fatalf("ambiguous original matched: %v", err)
 	}
 }
@@ -239,12 +239,12 @@ func TestOneBotNewFileFailureDoesNotApplyOtherDocument(t *testing.T) {
 	task := editTestTask(t, a)
 	task.NewPath = "taken.md"
 	os.WriteFile(filepath.Join(root(a), "taken.md"), []byte("keep"), 0600)
-	c, err := a.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: task.Targets[0].Path, Before: task.Targets[0].Markdown, After: "hi"}, {Path: "taken.md", After: "new", Created: true}}})
+	c, err := a.qa.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: task.Targets[0].Path, Before: task.Targets[0].Markdown, After: "hi"}, {Path: "taken.md", After: "new", Created: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
-	if err = a.applyOneBotCandidate(task, 0, -1); err == nil || a.doc.ed.Doc.PlainText() != "hello world\nkeep this" {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err == nil || a.doc.ed.Doc.PlainText() != "hello world\nkeep this" {
 		t.Fatal("known creation conflict applied another edit")
 	}
 }
@@ -253,15 +253,15 @@ func TestOneBotContinueUsesAppliedSelection(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "key")
 	task := editTestTask(t, a)
-	candidate, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hello again"))
+	candidate, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hello again"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{candidate}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
-	next, err := a.continueOneBotTask(task)
+	next, err := a.qa.continueOneBotTask(task)
 	if err != nil || len(next.Targets) != 1 || next.Targets[0].Target.Text != "hello again" || next.ID == task.ID {
 		t.Fatalf("continuation: %+v %v", next, err)
 	}
@@ -275,12 +275,12 @@ func TestOneBotChatPreparesDraftWithoutWriting(t *testing.T) {
 	editArgs, _ := json.Marshal(map[string]string{"path": a.doc.rel, "oldString": "hello", "newString": "changed"})
 	fake.steps = []func(agent.Request) agent.Message{call("read", string(readArgs)), call("edit", string(editArgs)), reply("已准备修改，请审阅。")}
 	before := a.doc.text()
-	a.ask(a.state.ActiveSpace().ID, "请修改第一段", nil)
-	turn := a.qaSession(a.state.ActiveSpace().ID).turns[0]
+	a.qa.ask(a.state.ActiveSpace().ID, "请修改第一段", nil)
+	turn := a.qa.qaSession(a.state.ActiveSpace().ID).turns[0]
 	if turn.edit == nil || a.doc.text() != before {
 		t.Fatalf("chat did not prepare a safe draft: %+v", turn)
 	}
-	if err := a.applyOneBotCandidate(turn.edit, 0, -1); err != nil {
+	if err := a.qa.applyOneBotCandidate(turn.edit, 0, -1); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.ed.Doc.PlainText() != "changed world\nkeep this" {
@@ -293,7 +293,7 @@ func TestOneBotReviewAppliesOnlyOnAcceptAndPersistsRecovery(t *testing.T) {
 	setupOneBot(a, "key")
 	task := editTestTask(t, a)
 	proposal := selectionFileDraft(task, "hi")
-	candidate, err := a.prepareOneBotFileCandidate(task, proposal)
+	candidate, err := a.qa.prepareOneBotFileCandidate(task, proposal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestOneBotReviewAppliesOnlyOnAcceptAndPersistsRecovery(t *testing.T) {
 	if a.doc.ed.Doc.PlainText() != "hello world\nkeep this" {
 		t.Fatal("preview modified document")
 	}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.ed.Doc.PlainText() != "hi world\nkeep this" || candidate.Changes[0].Status != "saved" {
@@ -320,13 +320,13 @@ func TestOneBotStaleSelectionAndDuplicateApplyDoNotOverwrite(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "key")
 	task := editTestTask(t, a)
-	c, err := a.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hi"))
+	c, err := a.qa.prepareOneBotFileCandidate(task, selectionFileDraft(task, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
 	a.doc.ed.ReplaceText(nil, "mine")
-	if err = a.applyOneBotCandidate(task, 0, -1); !errors.Is(err, model.ErrEditConflict) {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); !errors.Is(err, model.ErrEditConflict) {
 		t.Fatalf("stale target accepted: %v", err)
 	}
 }
@@ -336,15 +336,15 @@ func TestOneBotNewDocumentUsesExclusiveCreation(t *testing.T) {
 	setupOneBot(a, "key")
 	task := editTestTask(t, a)
 	task.NewPath = "Created.md"
-	c, err := a.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: "Created.md", After: "# Created\n\ntext", Created: true}}})
+	c, err := a.qa.prepareOneBotFileCandidate(task, agent.FileDraft{Changes: []agent.FileChange{{Path: "Created.md", After: "# Created\n\ntext", Created: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	task.Candidates = []*oneBotCandidate{c}
-	if err = a.applyOneBotCandidate(task, 0, -1); err != nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err != nil {
 		t.Fatal(err)
 	}
-	if err = a.applyOneBotCandidate(task, 0, -1); err == nil {
+	if err = a.qa.applyOneBotCandidate(task, 0, -1); err == nil {
 		t.Fatal("repeated application accepted")
 	}
 	raw, err := os.ReadFile(filepath.Join(root(a), "Created.md"))

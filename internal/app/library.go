@@ -8,6 +8,7 @@ import (
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
 	"github.com/OUBIGFA/FreeFolio/internal/pinyin"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/space"
 	"github.com/OUBIGFA/FreeFolio/internal/trashbin"
 	"github.com/OUBIGFA/FreeFolio/internal/vault"
@@ -68,7 +69,37 @@ const (
 )
 
 // library is the state of the library: shown or not, and its pages'.
+// libraryHost is what the library needs from the window.
+type libraryHost interface {
+	activeDocument() *document
+	activeTreeOf(id string) ([]*vault.Node, bool, error)
+	cardGrip(c *ui.Context, s *space.Space, index int)
+	cardOrder() ([]*space.Space, int)
+	dismissForLibrary()
+	documentTheme() *ui.Theme
+	editSpace(s *space.Space)
+	finishSpaceEdit()
+	movedCardX(now time.Time) (float32, bool)
+	newDoc(dir string)
+	newSpaceForm()
+	open(rel string)
+	overlayOpen() bool
+	preferences() *prefs.Prefs
+	reloadPlugins()
+	removeSpace(id string)
+	restoreDeleted(it trashbin.Item)
+	saveState()
+	spaceGlyph(c *ui.Context, emoji, symbol, image, name string, size float32, color ui.Color) ui.Element
+	spaces() *space.State
+	switchSpace(id string)
+	switchSpaceOnly(id string) bool
+	titleBar(c *ui.Context) ui.TitleBar
+	trashBin() *trashbin.Bin
+	withKey(tip, id string) string
+}
+
 type library struct {
+	host libraryHost
 	open bool
 	page libraryPage // the page shown, kept while it is closed
 	// frames counts the frames since it opened or closed, for the slide.
@@ -86,81 +117,79 @@ type library struct {
 }
 
 // openLibrary shows the library on page.
-func (a *App) openLibrary(page libraryPage) {
-	a.finishSpaceEdit()
-	l := &a.library
+func (lb *library) openLibrary(page libraryPage) {
+	lb.host.finishSpaceEdit()
+	l := lb
 	if !l.open {
 		l.frames = 0
 	}
 	l.open, l.page = true, page
-	a.spaceForm = spaceForm{}
-	a.renaming = ""
-	a.palette.open = false
-	a.loadLibrary()
+	lb.host.dismissForLibrary()
+	lb.loadLibrary()
 }
 
 // loadLibrary reads what the page shows.
-func (a *App) loadLibrary() {
-	l := &a.library
+func (lb *library) loadLibrary() {
+	l := lb
 	switch l.page {
 	case libSpaces:
-		l.trees = make(map[string][]*vault.Node, len(a.state.Spaces))
+		l.trees = make(map[string][]*vault.Node, len(lb.host.spaces().Spaces))
 		l.errs = make(map[string]error)
-		for _, s := range a.state.Spaces {
-			if s.ID == a.treeFor {
-				l.trees[s.ID], l.errs[s.ID] = a.tree, a.treeErr
+		for _, s := range lb.host.spaces().Spaces {
+			if nodes, ok, err := lb.host.activeTreeOf(s.ID); ok {
+				l.trees[s.ID], l.errs[s.ID] = nodes, err
 				continue
 			}
 			l.trees[s.ID], l.errs[s.ID] = readTree(s)
 		}
 	case libTrash:
-		l.items, l.err = a.bin.List(time.Now())
+		l.items, l.err = lb.host.trashBin().List(time.Now())
 	case libPlugins:
-		a.reloadPlugins()
+		lb.host.reloadPlugins()
 	}
 }
 
 // closeLibrary gives the sidebar back its spaces.
-func (a *App) closeLibrary() {
-	if a.library.open {
-		a.library.open, a.library.frames, a.library.move = false, 0, nil
+func (lb *library) closeLibrary() {
+	if lb.open {
+		lb.open, lb.frames, lb.move = false, 0, nil
 	}
 }
 
 // toggleLibrary opens the library on the page last shown, or closes it.
-func (a *App) toggleLibrary() {
-	if a.library.open {
-		a.closeLibrary()
+func (lb *library) toggleLibrary() {
+	if lb.open {
+		lb.closeLibrary()
 		return
 	}
-	a.openLibrary(a.library.page)
+	lb.openLibrary(lb.page)
 }
 
 // toggleOverview opens the library on its spaces, or closes it there.
-func (a *App) toggleOverview() {
-	if a.library.open && a.library.page == libSpaces {
-		a.closeLibrary()
+func (lb *library) toggleOverview() {
+	if lb.open && lb.page == libSpaces {
+		lb.closeLibrary()
 		return
 	}
-	a.openLibrary(libSpaces)
+	lb.openLibrary(libSpaces)
 }
 
 // openTrash shows what was deleted recently.
-func (a *App) openTrash() { a.openLibrary(libTrash) }
+func (lb *library) openTrash() { lb.openLibrary(libTrash) }
 
 // openPlugins shows the plugins.
-func (a *App) openPlugins() { a.openLibrary(libPlugins) }
+func (lb *library) openPlugins() { lb.openLibrary(libPlugins) }
 
 // libraryWidth is the sidebar's width with the library in it, the window
 // width wide: the rail and the list, or on the Spaces page as wide as
 // every card needs, leaving the document some room (the cards scroll
 // sideways when they do not fit).
-func (a *App) libraryWidth(window float32) float32 {
+func (lb *library) libraryWidth(window float32) float32 {
 	base := float32(libraryRail + libraryList)
-	if a.library.page != libSpaces {
+	if lb.page != libSpaces {
 		return base
 	}
-	n := float32(len(a.state.Spaces))
+	n := float32(len(lb.host.spaces().Spaces))
 	want := libraryRail + libraryCardLead + n*libraryCardW + max(n-1, 0)*libraryCardGap + libraryPlusGap + libraryPlus + libraryTrail
 	return max(base, min(want, window-libraryPageRoom))
 }
@@ -170,13 +199,13 @@ func (a *App) libraryWidth(window float32) float32 {
 func libraryInk(t *ui.Theme) ui.Color { return pick(t, black, white) }
 
 // libraryView is the sidebar while the library is open, width wide.
-func (a *App) libraryView(c *ui.Context, width float32) {
-	l := &a.library
-	if c.Shortcut(0, ui.KeyEscape) && !a.palette.open && !a.settingsOpen {
+func (lb *library) libraryView(c *ui.Context, width float32) {
+	l := lb
+	if c.Shortcut(0, ui.KeyEscape) && !lb.host.overlayOpen() {
 		if m := l.move; m != nil && !m.settling {
 			m.canceled = true // Escape gives up a card's drag first
 		} else {
-			a.closeLibrary()
+			lb.closeLibrary()
 		}
 	}
 	row := ui.Row(c.Key("library")).Width(width).Grow(1).AlignItems(ui.Stretch)
@@ -184,7 +213,7 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 	pose := ui.Pose{}
 	if l.frames == 0 {
 		pose = ui.Pose{X: librarySlide, Fade: 1}
-		if a.prefs.SidebarLeft {
+		if lb.host.preferences().SidebarLeft {
 			pose.X = -librarySlide
 		}
 	}
@@ -193,15 +222,15 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 		c.AnimationFrame()
 	}
 	row.Children(func() {
-		a.libraryRail(c)
+		lb.libraryRail(c)
 		ui.Column(c.Key("library-page")).Grow(1).MinWidth(0).Children(func() {
 			switch l.page {
 			case libSpaces:
-				a.librarySpaces(c)
+				lb.librarySpaces(c)
 			case libPlugins:
-				a.libraryPlugins(c)
+				lb.libraryPlugins(c)
 			case libTrash:
-				a.libraryTrash(c)
+				lb.libraryTrash(c)
 			}
 		})
 	})
@@ -209,10 +238,10 @@ func (a *App) libraryView(c *ui.Context, width float32) {
 
 // libraryRail is the column of pages: a subtle wash ending in a hairline,
 // compact page tabs, and a clear back action at the foot.
-func (a *App) libraryRail(c *ui.Context) {
+func (lb *library) libraryRail(c *ui.Context) {
 	t := c.Theme()
 	ink := libraryInk(t)
-	bar := a.titleBar(c)
+	bar := lb.host.titleBar(c)
 	rail := ui.Column(c.Key("library-rail")).Width(libraryRail).Shrink(0).AlignItems(ui.Center).DragWindow()
 	rail.Draw(func(p *ui.Painter, r ui.Rect) {
 		wash := ui.Rect{X: r.X, Y: r.Y, W: r.W - 1, H: r.H}
@@ -224,7 +253,7 @@ func (a *App) libraryRail(c *ui.Context) {
 		ui.Spacer(c)
 		ui.Column(c).Gap(8).Children(func() {
 			for _, pg := range libraryPages {
-				a.libraryButton(c, pg.page, i18n.T(pg.title), pg.icon)
+				lb.libraryButton(c, pg.page, i18n.T(pg.title), pg.icon)
 			}
 		})
 		ui.Spacer(c)
@@ -239,7 +268,7 @@ func (a *App) libraryRail(c *ui.Context) {
 				ui.Text(c, i18n.T("返回")).FontSize(12).FontWeight(500).TextColor(t.TextMuted).NoWrap()
 			})
 			if b.Clicked() {
-				a.closeLibrary()
+				lb.closeLibrary()
 			}
 		})
 	})
@@ -247,12 +276,12 @@ func (a *App) libraryRail(c *ui.Context) {
 
 // libraryButton is a page's button on the rail: its glyph and name, the
 // page shown on an accent-tinted fill with its glyph in the space's accent.
-func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon *ui.SVG) {
+func (lb *library) libraryButton(c *ui.Context, page libraryPage, title string, icon *ui.SVG) {
 	t := c.Theme()
-	chosen := a.library.page == page
+	chosen := lb.page == page
 	b := ui.Column(c.Key("page:"+title)).Size(libraryButtonW, libraryButtonH).Radius(controlRadius).Gap(5).Center().
 		Cursor(ui.CursorPointer).Focusable().Role(ui.RoleTab).Label(title).Selected(chosen)
-	if chosen && a.library.page != libTrash {
+	if chosen && lb.page != libTrash {
 		// The keys leave the document, which would take Escape, for the
 		// page shown; the trash page's search takes them there.
 		b.AutoFocus()
@@ -276,15 +305,15 @@ func (a *App) libraryButton(c *ui.Context, page libraryPage, title string, icon 
 		ui.Text(c, title).FontSize(12).FontWeight(weight).TextColor(textCol).NoWrap()
 	})
 	if b.Clicked() && !chosen {
-		a.openLibrary(page)
+		lb.openLibrary(page)
 	}
 }
 
 // librarySpaces is the Spaces page: a card for every space in its own
 // theme, and + making another.
-func (a *App) librarySpaces(c *ui.Context) {
+func (lb *library) librarySpaces(c *ui.Context) {
 	t := c.Theme()
-	row := ui.ScrollHorizontal(c.Key("library-cards")).Grow(1).MinHeight(0).TrackScroll(&a.library.cards).
+	row := ui.ScrollHorizontal(c.Key("library-cards")).Grow(1).MinHeight(0).TrackScroll(&lb.cards).
 		FocusGroup(ui.Horizontal)
 	// The cards are as tall as the row, which a scroll does not give its
 	// content by itself.
@@ -294,31 +323,31 @@ func (a *App) librarySpaces(c *ui.Context) {
 			PaddingY(libraryInset).Gap(libraryCardGap).AlignItems(ui.Stretch).Children(func() {
 			// A drag the grip starts while the row builds shows from the
 			// next frame: this one built the card in its place already.
-			moved := a.library.move
-			shown, slot := a.cardOrder()
+			moved := lb.move
+			shown, slot := lb.host.cardOrder()
 			for i, s := range shown {
 				if i == slot {
 					cardSlot(c)
 				}
-				a.spaceCard(c, s, false)
+				lb.spaceCard(c, s, false)
 			}
 			if slot == len(shown) {
 				cardSlot(c)
 			}
-			if m := a.library.move; m != moved {
+			if m := lb.move; m != moved {
 				c.AnimationFrame()
 			} else if m != nil {
 				// The card dragged, or gliding into its slot, above the rest.
-				x, moving := a.movedCardX(c.Now())
-				if s := a.state.Get(m.id); s != nil && moving {
-					a.spaceCard(c, s, true).Absolute().Left(x).Top(libraryInset).
+				x, moving := lb.host.movedCardX(c.Now())
+				if s := lb.host.spaces().Get(m.id); s != nil && moving {
+					lb.spaceCard(c, s, true).Absolute().Left(x).Top(libraryInset).
 						Height(max(height, 160) - 2*libraryInset)
 					if m.settling {
 						c.AnimationFrame()
 					}
 				} else {
 					// Home: it takes its slot in the row from the next frame.
-					a.library.move = nil
+					lb.move = nil
 					c.AnimationFrame()
 				}
 			}
@@ -333,8 +362,8 @@ func (a *App) librarySpaces(c *ui.Context) {
 			}
 			plus.Children(func() { ui.Icon(c, iconPlus).FontSize(16).TextColor(plusInk) })
 			if plus.Clicked() {
-				a.closeLibrary()
-				a.newSpaceForm()
+				lb.closeLibrary()
+				lb.host.newSpaceForm()
 			}
 		})
 	})
@@ -344,16 +373,16 @@ func (a *App) librarySpaces(c *ui.Context) {
 // documents, and a foot to make a document or open the space's menu.
 // moved is the card the grip drags or one gliding into its slot, which the
 // caller places; the others slide as the slots change.
-func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
-	base := a.docTheme
+func (lb *library) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
+	base := lb.host.documentTheme()
 	look := lookOf(space.ThemeOf(s), base.Dark)
 	t := spaceTheme(base, look)
-	active := s == a.state.ActiveSpace()
+	active := s == lb.host.spaces().ActiveSpace()
 	card := ui.Themed(c.Key("card-"+s.ID), t).Width(libraryCardW).Shrink(0).Radius(12).Padding(8).Gap(4).
 		Background(t.Surface).Role(ui.RoleGroup).Label(s.Name).Clip()
 	if moved {
 		// Lifted while the pointer holds it, settling flat into its slot.
-		lift := a.library.move != nil && !a.library.move.settling
+		lift := lb.move != nil && !lb.move.settling
 		pose := ui.Pose{}
 		if lift {
 			pose.Scale, pose.Y = 1.02, -4
@@ -370,7 +399,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 	} else {
 		card.Border(1, t.Border)
 	}
-	if !moved || a.library.move.settling {
+	if !moved || lb.move.settling {
 		if active {
 			card.Shadow(0, 2, 10, 0, black.Alpha(0.08))
 		} else {
@@ -385,7 +414,7 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 			h.Background(hoverFill(t))
 		}
 		h.Children(func() {
-			a.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, t.Accent)
+			lb.host.spaceGlyph(c, s.Icon, s.Symbol, s.Image, s.Name, 15, t.Accent)
 			ui.Text(c, s.Name).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 			if active && !hovered {
 				ui.Text(c, i18n.T("当前")).FontSize(11).FontWeight(500).TextColor(t.Accent).
@@ -394,51 +423,51 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 			edit := iconButton(c, "edit", iconPalette, i18n.T("编辑空间"), i18n.T("编辑空间"), false).Size(26, 26)
 			edit.Opacity(map[bool]float32{true: 1, false: 0}[hovered || edit.Hovered()])
 			if edit.Clicked() {
-				a.closeLibrary()
-				a.editSpace(s)
+				lb.closeLibrary()
+				lb.host.editSpace(s)
 			}
 		})
 		if h.Clicked() {
-			a.switchSpace(s.ID)
-			if a.state.ActiveSpace() == s {
-				a.closeLibrary()
+			lb.host.switchSpace(s.ID)
+			if lb.host.spaces().ActiveSpace() == s {
+				lb.closeLibrary()
 			}
 		}
 		ui.Box(c).Height(1).Margin(0, 4).Background(t.Border.Alpha(0.6)).Shrink(0)
 		body := ui.Scroll(c.Key("body")).Grow(1).MinHeight(0).Gap(1)
 		body.Children(func() {
-			if err := a.library.errs[s.ID]; err != nil {
+			if err := lb.errs[s.ID]; err != nil {
 				ui.Text(c, i18n.T("读取文件夹失败")+" "+err.Error()).TextColor(t.Danger).FontSize(12).Padding(4, 8)
 				return
 			}
-			nodes := a.library.trees[s.ID]
+			nodes := lb.trees[s.ID]
 			if len(nodes) == 0 {
 				ui.Text(c, i18n.T("暂无文档")).FontSize(12).TextColor(t.TextMuted).Padding(6, 10)
 			}
-			a.cardNodes(c, s, nodes, 0)
+			lb.cardNodes(c, s, nodes, 0)
 		})
 		ui.Row(c.Key("foot")).Height(30).Gap(2).AlignItems(ui.Center).Children(func() {
-			a.cardGrip(c, s, slices.Index(a.state.Spaces, s))
+			lb.host.cardGrip(c, s, slices.Index(lb.host.spaces().Spaces, s))
 			ui.Spacer(c)
 			iconButton(c, "menu", iconEllipsis, s.Name+i18n.T(" 的菜单"), i18n.T("更多"), false).Size(28, 28).Menu(func(m *ui.Menu) {
 				if m.Item(i18n.T("编辑空间")).Chosen() {
-					a.closeLibrary()
-					a.editSpace(s)
+					lb.closeLibrary()
+					lb.host.editSpace(s)
 				}
 				if m.Item(i18n.T("新建文档")).Disabled(s.IsExternal()).Chosen() {
-					a.switchSpace(s.ID)
-					if a.state.ActiveSpace() == s {
-						a.closeLibrary()
-						a.newDoc("")
+					lb.host.switchSpace(s.ID)
+					if lb.host.spaces().ActiveSpace() == s {
+						lb.closeLibrary()
+						lb.host.newDoc("")
 					}
 				}
 				if m.Item(i18n.T("在文件管理器中显示")).Disabled(s.IsExternal()).Chosen() {
 					revealDir(s.Root)
 				}
 				m.Separator()
-				if m.Item(i18n.T("从 FreeFolio 移除")).Disabled(s.IsExternal() || len(a.state.Spaces) < 2).Chosen() {
-					a.removeSpace(s.ID)
-					a.loadLibrary()
+				if m.Item(i18n.T("从 FreeFolio 移除")).Disabled(s.IsExternal() || len(lb.host.spaces().Spaces) < 2).Chosen() {
+					lb.host.removeSpace(s.ID)
+					lb.loadLibrary()
 				}
 			})
 		})
@@ -447,15 +476,15 @@ func (a *App) spaceCard(c *ui.Context, s *space.Space, moved bool) ui.Element {
 }
 
 // cardNodes builds a card's folders and documents.
-func (a *App) cardNodes(c *ui.Context, s *space.Space, nodes []*vault.Node, depth int) {
+func (lb *library) cardNodes(c *ui.Context, s *space.Space, nodes []*vault.Node, depth int) {
 	for _, n := range nodes {
 		if !n.Dir {
-			a.cardDoc(c, s, n.Path, n.Title(), depth)
+			lb.cardDoc(c, s, n.Path, n.Title(), depth)
 			continue
 		}
 		t := c.Theme()
 		open := s.IsExpanded(n.Path)
-		row := a.cardRow(c, "dir:"+n.Path, n.Title(), depth).Role(ui.RoleTreeItem).Expanded(open)
+		row := lb.cardRow(c, "dir:"+n.Path, n.Title(), depth).Role(ui.RoleTreeItem).Expanded(open)
 		row.Children(func() {
 			icon := iconFolder
 			if open {
@@ -466,20 +495,20 @@ func (a *App) cardNodes(c *ui.Context, s *space.Space, nodes []*vault.Node, dept
 		})
 		if row.Clicked() {
 			s.SetExpanded(n.Path, !open)
-			a.saveState()
+			lb.host.saveState()
 		}
 		if open {
-			a.cardNodes(c, s, n.Children, depth+1)
+			lb.cardNodes(c, s, n.Children, depth+1)
 		}
 	}
 }
 
 // cardDoc is a document's row in a card; the open document takes the
 // space's accent tint. A click opens it in its space and closes the library.
-func (a *App) cardDoc(c *ui.Context, s *space.Space, rel, title string, depth int) {
+func (lb *library) cardDoc(c *ui.Context, s *space.Space, rel, title string, depth int) {
 	t := c.Theme()
-	chosen := a.doc != nil && a.doc.space == s && a.doc.rel == rel
-	row := a.cardRow(c, "doc:"+rel, title, depth).Role(ui.RoleTreeItem).Selected(chosen)
+	chosen := lb.host.activeDocument() != nil && lb.host.activeDocument().space == s && lb.host.activeDocument().rel == rel
+	row := lb.cardRow(c, "doc:"+rel, title, depth).Role(ui.RoleTreeItem).Selected(chosen)
 	if chosen {
 		row.Background(t.Accent.Alpha(0.11))
 	}
@@ -495,17 +524,17 @@ func (a *App) cardDoc(c *ui.Context, s *space.Space, rel, title string, depth in
 		}
 	})
 	if row.Clicked() {
-		a.switchSpaceOnly(s.ID)
-		if a.state.ActiveSpace() != s {
+		lb.host.switchSpaceOnly(s.ID)
+		if lb.host.spaces().ActiveSpace() != s {
 			return // the open document could not be saved
 		}
-		a.open(rel)
-		a.closeLibrary()
+		lb.host.open(rel)
+		lb.closeLibrary()
 	}
 }
 
 // cardRow is the frame shared by a card's rows.
-func (a *App) cardRow(c *ui.Context, key, label string, depth int) ui.Element {
+func (lb *library) cardRow(c *ui.Context, key, label string, depth int) ui.Element {
 	t := c.Theme()
 	row := ui.Row(c.Key(key)).Height(libraryCardRow).Shrink(0).PaddingStart(float32(8 + depth*16)).PaddingEnd(8).Gap(8).
 		Radius(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Focusable().Label(label).Tooltip(label)
@@ -516,7 +545,7 @@ func (a *App) cardRow(c *ui.Context, key, label string, depth int) ui.Element {
 }
 
 // libraryPlugins is the Plugins page, empty until the market opens.
-func (a *App) libraryPlugins(c *ui.Context) {
+func (lb *library) libraryPlugins(c *ui.Context) {
 	ui.Box(c).Height(46).Shrink(0)
 	libraryEmpty(c, iconPlugins, i18n.T("插件市场即将开放"), i18n.T("扩展能力将以插件提供，敬请期待"))
 }
@@ -539,12 +568,12 @@ func libraryEmpty(c *ui.Context, icon *ui.SVG, title, detail string) {
 
 // libraryTrash is the Recently Deleted page, as Arc's archive: a search
 // field, then what was deleted under the day it was, newest first.
-func (a *App) libraryTrash(c *ui.Context) {
-	l := &a.library
+func (lb *library) libraryTrash(c *ui.Context) {
+	l := lb
 	t := c.Theme()
 	ink := libraryInk(t)
 	top := float32(12)
-	if bar := a.titleBar(c); !a.prefs.SidebarLeft && bar.Right > 0 {
+	if bar := lb.host.titleBar(c); !lb.host.preferences().SidebarLeft && bar.Right > 0 {
 		top += bar.Height
 	}
 	ui.Row(c.Key("trash-search")).Height(34).Shrink(0).Margin(top, 12, 4, 12).Radius(controlRadius).PaddingX(10).Gap(8).
@@ -592,7 +621,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 					ui.Text(c, d).FontSize(13).FontWeight(600).TextColor(ink.Alpha(0.6))
 				})
 			}
-			a.trashRow(c, it, now)
+			lb.trashRow(c, it, now)
 		}
 	})
 }
@@ -601,7 +630,7 @@ func (a *App) libraryTrash(c *ui.Context) {
 // over where it was and when it went, and, under the pointer, the bin
 // (forget FreeFolio's copy) and the arrow putting it back. A click puts it
 // back too, as a click on an archived tab restores it in Arc.
-func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
+func (lb *library) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 	t := c.Theme()
 	ink := libraryInk(t)
 	name := it.Name()
@@ -634,27 +663,27 @@ func (a *App) trashRow(c *ui.Context, it trashbin.Item, now time.Time) {
 				ui.Text(c, where+" · "+strings.TrimSpace(ago(it.Deleted, now))+i18n.T("删除")).FontSize(12).
 					TextColor(ink.Alpha(0.55)).SingleLine()
 			})
-			forget := a.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 FreeFolio 保留的副本，系统废纸篓中的原件不受影响"), hovered)
+			forget := lb.trashButton(c, "forget", iconTrash, i18n.T("从列表移除 ")+name, i18n.T("只移除 FreeFolio 保留的副本，系统废纸篓中的原件不受影响"), hovered)
 			if forget.Clicked() {
 				acted = true
-				a.bin.Forget(it)
-				a.library.items, a.library.err = a.bin.List(time.Now())
+				lb.host.trashBin().Forget(it)
+				lb.items, lb.err = lb.host.trashBin().List(time.Now())
 			}
-			restore := a.trashButton(c, "restore", iconUndo, i18n.T("恢复 ")+name, i18n.T("放回原处"), hovered).Margin(0, 0, 0, 10)
+			restore := lb.trashButton(c, "restore", iconUndo, i18n.T("恢复 ")+name, i18n.T("放回原处"), hovered).Margin(0, 0, 0, 10)
 			if restore.Clicked() {
 				acted = true
-				a.restoreDeleted(it)
+				lb.host.restoreDeleted(it)
 			}
 		})
 		if card.Clicked() && !acted {
-			a.restoreDeleted(it)
+			lb.host.restoreDeleted(it)
 		}
 	})
 }
 
 // trashButton is a row's hover button: shown while the row is under the
 // pointer or the button has the keys.
-func (a *App) trashButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, rowHovered bool) ui.Element {
+func (lb *library) trashButton(c *ui.Context, key string, icon *ui.SVG, label, tip string, rowHovered bool) ui.Element {
 	t := c.Theme()
 	b := ui.Box(c.Key(key)).Size(24, 24).Shrink(0).Radius(6).Center().Cursor(ui.CursorPointer).
 		Focusable().Role(ui.RoleButton).Label(label).Tooltip(tip)
@@ -686,7 +715,7 @@ func dayLabel(t, now time.Time) string {
 }
 
 // libraryFootButton shares the workspace toolbar's hit target and icon style.
-func (a *App) libraryFootButton(c *ui.Context) ui.Element {
+func (lb *library) libraryFootButton(c *ui.Context) ui.Element {
 	label := i18n.T("资料库")
-	return iconButton(c, "library", symbolIcon("archive"), label, a.withKey(label, "library"), false).Shrink(0).Checked(a.library.open)
+	return iconButton(c, "library", symbolIcon("archive"), label, lb.host.withKey(label, "library"), false).Shrink(0).Checked(lb.open)
 }

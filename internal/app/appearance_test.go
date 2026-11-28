@@ -175,7 +175,7 @@ func TestAppearanceFontAndPageWidth(t *testing.T) {
 	}
 	a.fonts.loaded = true
 	a.fonts.families = []ui.FontFamily{{Name: "Georgia"}}
-	a.openFontPicker(false)
+	a.fonts.openFontPicker(false)
 	tt.Frame()
 	if err := tt.Click("Georgia"); err != nil {
 		t.Fatal(err)

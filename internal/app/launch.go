@@ -98,7 +98,7 @@ func (a *App) runDeferredStartup() {
 		}
 	}
 	if a.win != nil {
-		a.loadGitSync()
+		a.gitSync.loadGitSync()
 	}
 	if a.imports.offer && !a.imports.discovering && a.win != nil {
 		if sp := a.state.ActiveSpace(); sp != nil {
@@ -107,7 +107,7 @@ func (a *App) runDeferredStartup() {
 		a.discoverLibraries()
 	}
 	if a.prefs.BodyFont != "" || a.prefs.InterfaceFont != "" {
-		a.loadFonts()
+		a.fonts.loadFonts()
 	}
 	if a.launch.savePrefs {
 		a.launch.savePrefs = false
@@ -118,7 +118,7 @@ func (a *App) runDeferredStartup() {
 	if a.quitting {
 		return
 	}
-	a.loadChatGPTSession(a.prefs.AI.Active, false)
+	a.chatgpt.loadChatGPTSession(a.prefs.AI.Active, false)
 	a.syncWatches()
 	if a.launch.deferSearch {
 		a.launch.deferSearch = false

@@ -143,10 +143,10 @@ func TestBookmarkLostAndUndo(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyD)
 	a.doc.ed.Engine.DeleteBlock(ids[2])
 	tt.Frame()
-	if len(a.marksOf(a.doc)) != 0 || len(a.state.Bookmarks) != 1 {
+	if len(a.bookmarks.marksOf(a.doc)) != 0 || len(a.state.Bookmarks) != 1 {
 		t.Fatal("a deleted block's bookmark must wait, not resolve or go")
 	}
-	a.openBookmarks()
+	a.bookmarks.openBookmarks()
 	tt.Frame()
 	if !tt.HasText("位置已失效") {
 		t.Fatal("the lost bookmark is not marked")
@@ -154,14 +154,14 @@ func TestBookmarkLostAndUndo(t *testing.T) {
 	a.palette.open = false
 	a.doc.ed.Undo()
 	tt.Frame()
-	if _, ok := a.marksOf(a.doc)[ids[2]]; !ok {
+	if _, ok := a.bookmarks.marksOf(a.doc)[ids[2]]; !ok {
 		t.Fatal("undo did not bring the bookmark back")
 	}
 	// A copy of the block, with the same text, is not the bookmarked one.
 	a.doc.ed.Engine.Duplicate(ids[2])
 	a.doc.ed.Engine.DeleteBlock(ids[2])
 	tt.Frame()
-	if len(a.marksOf(a.doc)) != 0 {
+	if len(a.bookmarks.marksOf(a.doc)) != 0 {
 		t.Fatal("the bookmark moved to a copy of its block")
 	}
 }
@@ -188,7 +188,7 @@ func TestBookmarkMarkdownFindsBlockByExcerpt(t *testing.T) {
 	old := a.state.Bookmarks[0].Block
 	a.open("Welcome.md")
 	tt.Frame()
-	if a.residentDoc(a.doc.space.ID, "Plain.md") != nil {
+	if a.bookmarks.residentDoc(a.doc.space.ID, "Plain.md") != nil {
 		t.Fatal("the Markdown document stayed in memory")
 	}
 	a.open("Plain.md")
@@ -197,7 +197,7 @@ func TestBookmarkMarkdownFindsBlockByExcerpt(t *testing.T) {
 	if beta.ID == old {
 		t.Fatal("the Markdown file kept its block IDs; the test proves nothing")
 	}
-	if _, ok := a.marksOf(a.doc)[beta.ID]; !ok {
+	if _, ok := a.bookmarks.marksOf(a.doc)[beta.ID]; !ok {
 		t.Fatalf("the bookmark did not find Beta again: %+v", a.state.Bookmarks)
 	}
 }

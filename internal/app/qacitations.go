@@ -517,7 +517,7 @@ func qaMonogram(c *ui.Context, title string, size, radius float32, cols qaCitati
 
 // qaCitationPreview renders Kokonut UI's warm-gliding floating preview card
 // above (or below) the active inline source chip.
-func (a *App) qaCitationPreview(c *ui.Context, s *qaSession) {
+func (ob *qaState) qaCitationPreview(c *ui.Context, s *qaSession) {
 	p := &s.preview
 	if !p.open || p.turn == nil || len(p.nums) == 0 {
 		return
@@ -635,7 +635,7 @@ func qaSourceShortFolder(folder string) string {
 
 // qaSources renders Kokonut UI's stacked-monogram toggle pill and collapsible
 // numbered sources list at the bottom of a finished answer.
-func (a *App) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
+func (ob *qaState) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 	refs := turn.view.refs
 	if len(refs) == 0 {
 		return
@@ -735,7 +735,7 @@ func (a *App) qaSources(c *ui.Context, spaceID string, turn *qaTurn) {
 					ui.Icon(c, iconArrowUpRight).FontSize(13.5).TextColor(arrowCol).Shrink(0)
 				})
 				if row.Clicked() {
-					a.openCitation(spaceID, ref.cite)
+					ob.openCitation(spaceID, ref.cite)
 				}
 			}
 		})

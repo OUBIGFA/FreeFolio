@@ -135,7 +135,7 @@ var (
 // is at rest: docked, with nothing else open.
 func (a *App) startTour() {
 	a.finishSpaceEdit()
-	a.closeLibrary()
+	a.library.closeLibrary()
 	a.palette = palette{}
 	a.settingsOpen = false
 	a.revealSidebar()

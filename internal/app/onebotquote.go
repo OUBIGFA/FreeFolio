@@ -26,14 +26,14 @@ type oneBotQuote struct {
 }
 
 // addSelectionToOneBot adds d's selection to OneBot's input and opens it.
-func (a *App) addSelectionToOneBot(d *document) {
+func (ob *qaState) addSelectionToOneBot(d *document) {
 	if d == nil {
 		return
 	}
 	r := d.ed.Selection().Range
 	text := d.ed.SelectedMarkdown()
 	if r.Start == r.End || strings.TrimSpace(text) == "" {
-		a.notify("%s", i18n.T("请先选择需要引用的内容"))
+		ob.host.notify("%s", i18n.T("请先选择需要引用的内容"))
 		return
 	}
 	q := oneBotQuote{SpaceID: d.space.ID, Path: d.rel, Block: d.ed.LeafAt(r.Start).Owner, Text: text}
@@ -50,14 +50,14 @@ func (a *App) addSelectionToOneBot(d *document) {
 	if q.From == 0 || q.To < q.From {
 		q.From, q.To = 0, 0
 	}
-	for _, old := range a.qa.quotes {
+	for _, old := range ob.quotes {
 		if old == q {
-			a.qa.open, a.qa.historyOpen, a.qa.focusInput = true, false, true
+			ob.open, ob.historyOpen, ob.focusInput = true, false, true
 			return
 		}
 	}
-	a.qa.quotes = append(a.qa.quotes, q)
-	a.qa.open, a.qa.historyOpen, a.qa.focusInput = true, false, true
+	ob.quotes = append(ob.quotes, q)
+	ob.open, ob.historyOpen, ob.focusInput = true, false, true
 }
 
 // oneBotQuotePrompt renders the quotes before the question, in
@@ -94,20 +94,20 @@ func (q oneBotQuote) count() int {
 }
 
 // revealOneBotQuote opens the quoted document at its first block.
-func (a *App) revealOneBotQuote(q oneBotQuote) {
-	if !a.openAnywhere(q.SpaceID, q.Path) || a.doc == nil || a.doc.loadErr != nil {
-		a.notify("找不到引用的文档：%s", q.Path)
+func (ob *qaState) revealOneBotQuote(q oneBotQuote) {
+	if !ob.host.openAnywhere(q.SpaceID, q.Path) || ob.host.activeDocument() == nil || ob.host.activeDocument().loadErr != nil {
+		ob.host.notify("找不到引用的文档：%s", q.Path)
 		return
 	}
-	if a.doc.source {
-		a.doc.toggleMode()
+	if ob.host.activeDocument().source {
+		ob.host.activeDocument().toggleMode()
 	}
-	a.doc.ed.RevealBlock(q.Block)
+	ob.host.activeDocument().ed.RevealBlock(q.Block)
 }
 
 // oneBotQuoteBadges shows quotes as badges: file icon, name and length. A
 // click opens the source; removable ones carry a × that drops them.
-func (a *App) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQuote, removable bool) {
+func (ob *qaState) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQuote, removable bool) {
 	if len(quotes) == 0 {
 		return
 	}
@@ -132,7 +132,7 @@ func (a *App) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQuote,
 					ui.Text(c, fmt.Sprintf(i18n.T("(%d 字)"), q.count())).FontSize(11.5).TextColor(t.TextMuted).NoWrap()
 				})
 				if body.Clicked() {
-					a.revealOneBotQuote(q)
+					ob.revealOneBotQuote(q)
 				}
 				if removable {
 					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(6).Center().Cursor(ui.CursorPointer).
@@ -142,7 +142,7 @@ func (a *App) oneBotQuoteBadges(c *ui.Context, key string, quotes []oneBotQuote,
 					}
 					x.Children(func() { ui.Icon(c, iconX).FontSize(11).TextColor(t.TextMuted) })
 					if x.Clicked() {
-						a.qa.quotes = append(a.qa.quotes[:i:i], a.qa.quotes[i+1:]...)
+						ob.quotes = append(ob.quotes[:i:i], ob.quotes[i+1:]...)
 					}
 				}
 			})

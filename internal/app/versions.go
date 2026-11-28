@@ -77,12 +77,6 @@ type versionsPanel struct {
 	renameFocused  bool
 }
 
-// App hosts the history window; these accessors complete versionsHost.
-func (a *App) activeDocument() *document { return a.doc }
-func (a *App) paperIsDark() bool         { return a.paperDark }
-func (a *App) preferences() *prefs.Prefs { return a.prefs }
-func (a *App) window() *mygo.Window      { return a.win }
-
 // recordVersion takes a version of the document as just written; before
 // its first write this session, the version it had on disk is kept.
 func (d *document) recordVersion(before string) {

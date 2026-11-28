@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/FreeFolio/internal/i18n"
+	"github.com/OUBIGFA/FreeFolio/internal/prefs"
 	"github.com/OUBIGFA/FreeFolio/internal/update"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -57,8 +58,28 @@ const (
 )
 
 // updateState is the updater's state.
+// updateHost is what self-update needs from the window.
+type updateHost interface {
+	appConfig() Config
+	clock() time.Time
+	currentLook() spaceLook
+	focusMode() bool
+	folded() bool
+	leaveDocs(docs []*document, proceed func()) bool
+	libraryOpen() bool
+	motionReduced() bool
+	openSettings(tab string)
+	preferences() *prefs.Prefs
+	residentDocuments() []*document
+	savePrefs()
+	savePrefsAfterLaunch()
+	titleBar(c *ui.Context) ui.TitleBar
+	window() *mygo.Window
+}
+
 type updateState struct {
-	svc updateService
+	host updateHost
+	svc  updateService
 	// async runs checks and downloads on goroutines, as the running app
 	// does; tests run them at once.
 	async bool
@@ -108,25 +129,19 @@ type updateState struct {
 
 // startUpdates notes, at launch, whether the restart before installed the
 // version this FreeFolio is.
-func (a *App) startUpdates() {
-	if v := a.prefs.PendingUpdate; v != "" {
+func (up *updateState) startUpdates() {
+	if v := up.host.preferences().PendingUpdate; v != "" {
 		if v == Version {
-			a.updates.updatedTo = Version
+			up.updatedTo = Version
 		}
-		a.prefs.PendingUpdate = ""
-		if !a.prefsBroken {
-			if a.cfg.DeferStartup {
-				a.launch.savePrefs = true
-			} else {
-				a.savePrefs()
-			}
-		}
+		up.host.preferences().PendingUpdate = ""
+		up.host.savePrefsAfterLaunch()
 	}
 }
 
 // updatesEnabled reports whether this build can update itself.
-func (a *App) updatesEnabled() bool {
-	u := &a.updates
+func (up *updateState) updatesEnabled() bool {
+	u := up
 	if u.svc == nil {
 		return false
 	}
@@ -137,9 +152,9 @@ func (a *App) updatesEnabled() bool {
 }
 
 // updateTick runs the background checks.
-func (a *App) updateTick(c *ui.Context) {
-	u := &a.updates
-	if !a.updatesEnabled() {
+func (up *updateState) updateTick(c *ui.Context) {
+	u := up
+	if !up.updatesEnabled() {
 		return
 	}
 	now := c.Now()
@@ -149,7 +164,7 @@ func (a *App) updateTick(c *ui.Context) {
 	if update.Due(u.next, now) {
 		u.next = now.Add(update.Interval)
 		if !u.checking && !u.downloading && u.ready == "" {
-			a.checkUpdates(false)
+			up.checkUpdates(false)
 		}
 	}
 	c.After(u.next.Sub(now))
@@ -157,58 +172,58 @@ func (a *App) updateTick(c *ui.Context) {
 
 // run does work off the main thread in the running app, and done back on
 // it; tests do both at once.
-func (a *App) runUpdate(work func() func()) {
-	if !a.updates.async || a.win == nil {
+func (up *updateState) runUpdate(work func() func()) {
+	if !up.async || up.host.window() == nil {
 		work()()
 		return
 	}
 	go func() {
 		done := work()
-		a.win.Update(done)
+		up.host.window().Update(done)
 	}()
 }
 
 // checkForUpdates opens the updates settings page and checks at once.
-func (a *App) checkForUpdates() {
-	u := &a.updates
-	a.openSettings(tabUpdates)
+func (up *updateState) checkForUpdates() {
+	u := up
+	up.host.openSettings(tabUpdates)
 	switch {
 	case u.installing:
 		u.phase = phaseInstalling
 	case u.ready != "":
 		u.phase = phaseReady
-	case !a.updatesEnabled():
+	case !up.updatesEnabled():
 		u.phase = phaseDisabled
 	case u.downloading:
 		u.phase = phaseDownloading
 	case u.checking:
 		u.manual = true
 	default:
-		a.checkUpdates(true)
+		up.checkUpdates(true)
 	}
 }
 
 // checkUpdates asks for a newer release; a manual check offers the download
 // in settings without starting it automatically.
-func (a *App) checkUpdates(manual bool) {
-	u := &a.updates
+func (up *updateState) checkUpdates(manual bool) {
+	u := up
 	u.checking, u.manual = true, manual
 	u.phase, u.failure = phaseChecking, ""
 	u.release, u.found = nil, ""
 	svc := u.svc
-	a.runUpdate(func() func() {
+	up.runUpdate(func() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		rel, err := svc.Check(ctx)
-		return func() { a.checked(rel, err) }
+		return func() { up.checked(rel, err) }
 	})
 }
 
 // checked takes a check's answer.
-func (a *App) checked(rel updateRelease, err error) {
-	u := &a.updates
+func (up *updateState) checked(rel updateRelease, err error) {
+	u := up
 	u.checking = false
-	u.lastCheck = a.now
+	u.lastCheck = up.host.clock()
 	manual := u.manual
 	u.manual = false
 	switch {
@@ -222,15 +237,15 @@ func (a *App) checked(rel updateRelease, err error) {
 	default:
 		u.release, u.found = rel, rel.Version()
 		u.phase = phaseFound
-		if !manual && !a.prefs.NoAutoUpdate {
-			a.downloadUpdate()
+		if !manual && !up.host.preferences().NoAutoUpdate {
+			up.downloadUpdate()
 		}
 	}
 }
 
 // downloadUpdate downloads the release found, which a restart installs.
-func (a *App) downloadUpdate() {
-	u := &a.updates
+func (up *updateState) downloadUpdate() {
+	u := up
 	if u.release == nil || u.downloading {
 		return
 	}
@@ -245,20 +260,20 @@ func (a *App) downloadUpdate() {
 	u.cancel = cancel
 	var shown atomic.Int64
 	shown.Store(-1)
-	a.runUpdate(func() func() {
+	up.runUpdate(func() func() {
 		err := rel.Download(ctx, func(done, total int64) {
 			// Update the progress as the percentage changes, not every block.
 			pct := int64(0)
 			if total > 0 {
 				pct = done * 100 / total
 			}
-			if !a.updates.async || a.win == nil || shown.Swap(pct) == pct {
-				if !a.updates.async || a.win == nil {
+			if !up.async || up.host.window() == nil || shown.Swap(pct) == pct {
+				if !up.async || up.host.window() == nil {
 					u.received, u.total = done, total
 				}
 				return
 			}
-			a.win.Update(func() {
+			up.host.window().Update(func() {
 				if generation == u.generation {
 					u.received, u.total = done, total
 				}
@@ -266,15 +281,15 @@ func (a *App) downloadUpdate() {
 		})
 		return func() {
 			if generation == u.generation {
-				a.downloaded(rel, err)
+				up.downloaded(rel, err)
 			}
 		}
 	})
 }
 
 // downloaded takes the end of a download.
-func (a *App) downloaded(rel updateRelease, err error) {
-	u := &a.updates
+func (up *updateState) downloaded(rel updateRelease, err error) {
+	u := up
 	u.downloading = false
 	if u.cancel != nil {
 		u.cancel()
@@ -293,47 +308,47 @@ func (a *App) downloaded(rel updateRelease, err error) {
 	u.phase = phaseReady
 	if u.installAfterDownload {
 		u.installAfterDownload = false
-		a.installUpdate()
+		up.installUpdate()
 	}
 }
 
 // installUpdate restarts into the downloaded version, or downloads the one
 // found first. Documents are saved as on quitting: a document that cannot
 // be saved keeps FreeFolio open.
-func (a *App) installUpdate() {
-	u := &a.updates
+func (up *updateState) installUpdate() {
+	u := up
 	if u.installing {
 		return
 	}
 	if u.release == nil {
 		u.ready = ""
-		a.checkForUpdates()
+		up.checkForUpdates()
 		return
 	}
 	if u.ready == "" {
 		u.installAfterDownload = true
-		a.downloadUpdate()
+		up.downloadUpdate()
 		return
 	}
-	if !a.leaveDocs(a.residentDocuments(), a.installUpdate) {
+	if !up.host.leaveDocs(up.host.residentDocuments(), up.installUpdate) {
 		return
 	}
-	a.prefs.PendingUpdate = u.ready
-	a.savePrefs()
+	up.host.preferences().PendingUpdate = u.ready
+	up.host.savePrefs()
 	// Keep the settings page in front while the installer is being launched,
 	// so edits cannot resume after the document-save gate has completed.
-	a.openSettings(tabUpdates)
+	up.host.openSettings(tabUpdates)
 	u.installing, u.phase, u.failure = true, phaseInstalling, ""
 	release := u.release
-	a.runUpdate(func() func() {
+	up.runUpdate(func() func() {
 		err := release.Apply()
 		return func() {
 			if err != nil {
 				u.installing = false
 				u.phase, u.failure = phaseFailed, i18n.T("安装更新失败：")+err.Error()
-				a.prefs.PendingUpdate = ""
-				a.savePrefs()
-				a.openSettings(tabUpdates)
+				up.host.preferences().PendingUpdate = ""
+				up.host.savePrefs()
+				up.host.openSettings(tabUpdates)
 				return
 			}
 			if u.relaunch != nil {
@@ -347,8 +362,8 @@ func (a *App) installUpdate() {
 
 // cancelUpdateDownload stops only the download. Leaving settings does not
 // cancel work, and a canceled download remains available for an explicit retry.
-func (a *App) cancelUpdateDownload() {
-	u := &a.updates
+func (up *updateState) cancelUpdateDownload() {
+	u := up
 	if u.installing {
 		return
 	}
@@ -365,26 +380,26 @@ func (a *App) cancelUpdateDownload() {
 }
 
 // updateNotice is what the update banner says now.
-func (a *App) updateNotice() *update.Notice {
-	u := &a.updates
+func (up *updateState) updateNotice() *update.Notice {
+	u := up
 	return update.Current(u.ready, u.found, u.dismissed)
 }
 
 // actOnNotice is a click on the banner or the toast's button.
-func (a *App) actOnNotice(n update.Notice) {
-	u := &a.updates
+func (up *updateState) actOnNotice(n update.Notice) {
+	u := up
 	u.toast = nil
 	if n.Kind == update.Ready {
-		a.installUpdate()
+		up.installUpdate()
 		return
 	}
-	a.openSettings(tabUpdates)
+	up.host.openSettings(tabUpdates)
 }
 
 // dismissBanner is a banner's ✕: the ready card hides until the next
 // launch, a found update is put off, the updated card goes.
-func (a *App) dismissBanner() {
-	u := &a.updates
+func (up *updateState) dismissBanner() {
+	u := up
 	switch {
 	case u.ready != "":
 		u.dismissed = true
@@ -397,23 +412,23 @@ func (a *App) dismissBanner() {
 }
 
 // openUpdatePage opens a page about FreeFolio's releases in the browser.
-func (a *App) openUpdatePage(url string) {
-	if a.updates.openURL != nil {
-		a.updates.openURL(url)
+func (up *updateState) openUpdatePage(url string) {
+	if up.openURL != nil {
+		up.openURL(url)
 		return
 	}
 	mygo.Shell.OpenExternal(url)
 }
 
 // updateToastTick toasts the banner's news while the sidebar is hidden.
-func (a *App) updateToastTick() {
-	u := &a.updates
-	n := a.updateNotice()
+func (up *updateState) updateToastTick() {
+	u := up
+	n := up.updateNotice()
 	if n == nil {
 		u.toast = nil
 		return
 	}
-	visible := !a.focus && (!a.folded() || a.library.open)
+	visible := !up.host.focusMode() && (!up.host.folded() || up.host.libraryOpen())
 	if t := update.Toast(n, u.told, visible); t != nil {
 		u.toast, u.told, u.toastFrames = t, t, 0
 	}
@@ -423,22 +438,22 @@ func (a *App) updateToastTick() {
 }
 
 // toggleAutoUpdate turns the automatic download of new versions on or off.
-func (a *App) toggleAutoUpdate() {
-	a.prefs.NoAutoUpdate = !a.prefs.NoAutoUpdate
-	a.savePrefs()
-	u := &a.updates
-	if !a.prefs.NoAutoUpdate && u.found != "" && u.release != nil {
+func (up *updateState) toggleAutoUpdate() {
+	up.host.preferences().NoAutoUpdate = !up.host.preferences().NoAutoUpdate
+	up.host.savePrefs()
+	u := up
+	if !up.host.preferences().NoAutoUpdate && u.found != "" && u.release != nil {
 		// Turned on with an update found: download it now.
 		u.found = ""
-		a.downloadUpdate()
+		up.downloadUpdate()
 	}
 }
 
 // updateSummary says where the updates stand, for the settings.
-func (a *App) updateSummary() string {
-	u := &a.updates
+func (up *updateState) updateSummary() string {
+	u := up
 	switch {
-	case !a.updatesEnabled():
+	case !up.updatesEnabled():
 		return i18n.T("此平台暂不支持应用内更新，请从下载页获取新版本")
 	case u.installing:
 		return i18n.T("正在启动更新安装器")

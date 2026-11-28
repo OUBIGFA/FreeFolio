@@ -16,7 +16,7 @@ func TestQAActivityPrecedesToolHistory(t *testing.T) {
 	a, tt := qaApp(t, &scripted{})
 	tt.Key(ui.Cmd, ui.KeyJ)
 	tt.Advance(slide)
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{question: "阅读这份说明", running: true, steps: []*qaStep{
 		{call: agent.ToolCall{ID: "read", Name: agent.ToolRead, Args: `{"path":"Fastfetch 使用说明.md","start_line":1,"end_line":80}`}, done: true},
 	}}
@@ -37,7 +37,7 @@ func TestQAActivityPrecedesToolHistory(t *testing.T) {
 	if tt.HasText("思考中") || tt.HasText("正在查找") || !tt.HasText("这份说明介绍了 Fastfetch。") {
 		t.Fatal("streamed answer did not replace activity")
 	}
-	a.finishQA(s, turn, nil, context.Canceled)
+	a.qa.finishQA(s, turn, nil, context.Canceled)
 	tt.Frame()
 	answer, _ := tt.Find("这份说明介绍了 Fastfetch。")
 	stopped, ok := tt.Find("已停止")
@@ -53,9 +53,9 @@ func TestQALongAnswerScrollAndStreaming(t *testing.T) {
 		fmt.Fprintf(&text, "Paragraph %03d: a separate block of the answer.\n\n", i)
 	}
 	turn := &qaTurn{question: "A long answer", answer: text.String(), running: true}
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	first, last := s.list.Visible()
@@ -84,10 +84,10 @@ func TestQALongAnswerScrollAndStreaming(t *testing.T) {
 		t.Fatalf("streaming moved the reading anchor: %+v -> %+v, found=%v", before, after, ok)
 	}
 	// Closing and reopening retains the same conversation's reading anchor.
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	if got, ok := tt.Find(label); !ok || got.Y != before.Y {
@@ -108,7 +108,7 @@ func TestQALongAnswerScrollAndStreaming(t *testing.T) {
 	if !tt.HasText("The newest paragraph continues.") {
 		t.Fatal("growing the final paragraph stopped following")
 	}
-	a.clearQA()
+	a.qa.clearQA()
 	tt.Frame()
 	if !tt.HasText("向「Personal」提问") {
 		t.Fatal("new conversation kept the old rows or scroll position")
@@ -156,7 +156,7 @@ func TestQAAnimationUsesResizeLayoutUntilSettled(t *testing.T) {
 			tt.SetPreferences(ui.Preferences{ReduceMotion: reduced})
 			tt.Frame()
 			for _, open := range []bool{true, false} {
-				a.toggleQA()
+				a.qa.toggleQA()
 				tt.Frame()
 				tt.Advance(40 * time.Millisecond)
 				if !reduced && (!a.qa.resizing || a.qa.shown <= 0 || a.qa.shown >= qaWidth) {

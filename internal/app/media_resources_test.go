@@ -36,10 +36,10 @@ func TestMediaResourcesTabsAndPresets(t *testing.T) {
 			t.Fatalf("wrong media tab: %s", tc.label)
 		}
 	}
-	if len(a.boardAIModels(whiteboard.AIAudio)) != 3 {
+	if len(a.boardAI.boardAIModels(whiteboard.AIAudio)) != 3 {
 		t.Fatal("music, sound and speech models missing")
 	}
-	for _, m := range a.boardAIModels(whiteboard.AIAudio) {
+	for _, m := range a.boardAI.boardAIModels(whiteboard.AIAudio) {
 		if m.Connection != "comfyui-media" || !m.NeedsDownload {
 			t.Fatal("media source or download state incorrect")
 		}
@@ -100,7 +100,7 @@ func TestLocalAudioRunnerSavesAttachment(t *testing.T) {
 	}))
 	defer srv.Close()
 	a.prefs.ComfyUI.URL = srv.URL
-	runner, err := a.boardAIRunner(a.doc)
+	runner, err := a.boardAI.boardAIRunner(a.doc)
 	if err != nil {
 		t.Fatal(err)
 	}

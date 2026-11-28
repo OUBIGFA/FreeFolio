@@ -22,16 +22,16 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	a, tt := qaApp(t, model)
 	os.WriteFile(filepath.Join(root(a), "计划.md"), []byte("# 计划\n\n决定延期发布，原因是支付联调。\n"), 0o644)
 
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 
 	// Ask first conversation.
 	a.qa.input = "为什么发布延期？"
-	a.askQA()
+	a.qa.askQA()
 	spID := a.state.ActiveSpace().ID
-	qaSettle(t, tt, a.qaSession(spID).turns[0])
-	firstID := a.qaSession(spID).id
+	qaSettle(t, tt, a.qa.qaSession(spID).turns[0])
+	firstID := a.qa.qaSession(spID).id
 	if firstID == "" {
 		t.Fatal("first conversation was not assigned an ID")
 	}
@@ -46,9 +46,9 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	}
 	tt.Frame()
 	a.qa.input = "总结一下架构设计"
-	a.askQA()
-	qaSettle(t, tt, a.qaSession(spID).turns[0])
-	secondID := a.qaSession(spID).id
+	a.qa.askQA()
+	qaSettle(t, tt, a.qa.qaSession(spID).turns[0])
+	secondID := a.qa.qaSession(spID).id
 	if secondID == "" || secondID == firstID {
 		t.Fatalf("expected distinct second conversation ID, got %q vs %q", secondID, firstID)
 	}
@@ -89,8 +89,8 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	if a.qa.historyOpen {
 		t.Fatal("opening a conversation did not close history panel")
 	}
-	if a.qaSession(spID).id != firstID {
-		t.Fatalf("active session = %q, want %q", a.qaSession(spID).id, firstID)
+	if a.qa.qaSession(spID).id != firstID {
+		t.Fatalf("active session = %q, want %q", a.qa.qaSession(spID).id, firstID)
 	}
 	if !tt.HasText("发布延期是因为支付联调") || !tt.HasText("1 个来源") {
 		t.Fatalf("restored conversation content missing: %q", tt.Texts())
@@ -98,8 +98,8 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 
 	// Follow-up in the restored conversation includes prior messages.
 	a.qa.input = "那什么时候能完成？"
-	a.askQA()
-	qaSettle(t, tt, a.qaSession(spID).turns[1])
+	a.qa.askQA()
+	qaSettle(t, tt, a.qa.qaSession(spID).turns[1])
 	lastReq := model.reqs[len(model.reqs)-1]
 	if len(lastReq.Messages) < 3 || lastReq.Messages[0].Text != "为什么发布延期？" || lastReq.Messages[len(lastReq.Messages)-1].Text != "那什么时候能完成？" {
 		t.Fatalf("follow-up lost prior conversation history: %+v", lastReq.Messages)
@@ -122,12 +122,12 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	if tt.HasText("总结一下架构设计") {
 		t.Fatalf("deleted conversation still visible: %q", tt.Texts())
 	}
-	if _, err := os.Stat(filepath.Join(a.oneBotConversationDir(), secondID+".json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(a.qa.oneBotConversationDir(), secondID+".json")); !os.IsNotExist(err) {
 		t.Fatalf("deleted conversation file still exists: %v", err)
 	}
 	// Active conversation remains intact.
-	if a.qaSession(spID).id != firstID {
-		t.Fatalf("deleting other conversation affected active session: %q", a.qaSession(spID).id)
+	if a.qa.qaSession(spID).id != firstID {
+		t.Fatalf("deleting other conversation affected active session: %q", a.qa.qaSession(spID).id)
 	}
 
 	// Delete the currently active first conversation.
@@ -138,10 +138,10 @@ func TestOneBotHistoryPersistsOpensFollowsUpAndDeletes(t *testing.T) {
 	if !tt.HasText("还没有历史对话") {
 		t.Fatalf("expected empty history state after deleting last item: %q", tt.Texts())
 	}
-	if len(a.qaSession(spID).turns) != 0 || a.qaSession(spID).id != "" {
-		t.Fatalf("deleting active conversation did not reset active session: %+v", a.qaSession(spID))
+	if len(a.qa.qaSession(spID).turns) != 0 || a.qa.qaSession(spID).id != "" {
+		t.Fatalf("deleting active conversation did not reset active session: %+v", a.qa.qaSession(spID))
 	}
-	if _, err := os.Stat(filepath.Join(a.oneBotConversationDir(), firstID+".json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(a.qa.oneBotConversationDir(), firstID+".json")); !os.IsNotExist(err) {
 		t.Fatalf("active conversation file still exists after delete: %v", err)
 	}
 }
@@ -180,18 +180,18 @@ func TestOneBotHistorySurvivesRestartAndIsolatesSpaces(t *testing.T) {
 		reply("来自空间 B 的回答 [NoteB.md#L3]"),
 	}}
 	a1, tt1, idA, idB := makeApp(m1)
-	a1.toggleQA()
+	a1.qa.toggleQA()
 	tt1.Frame()
 	tt1.Advance(slide)
 	a1.qa.input = "空间 A 的问题"
-	a1.askQA()
-	qaSettle(t, tt1, a1.qaSession(idA).turns[0])
+	a1.qa.askQA()
+	qaSettle(t, tt1, a1.qa.qaSession(idA).turns[0])
 
 	a1.switchSpace(idB)
 	tt1.Frame()
 	a1.qa.input = "空间 B 的问题"
-	a1.askQA()
-	qaSettle(t, tt1, a1.qaSession(idB).turns[0])
+	a1.qa.askQA()
+	qaSettle(t, tt1, a1.qa.qaSession(idB).turns[0])
 
 	// Simulated restart: fresh App reading same ConfigDir.
 	a2, tt2, idA2, idB2 := makeApp(&scripted{})
@@ -199,7 +199,7 @@ func TestOneBotHistorySurvivesRestartAndIsolatesSpaces(t *testing.T) {
 		t.Fatalf("space IDs drifted across restart")
 	}
 	a2.switchSpace(idA2)
-	a2.toggleQA()
+	a2.qa.toggleQA()
 	tt2.Frame()
 	tt2.Advance(slide)
 
@@ -259,7 +259,7 @@ func TestOneBotHistorySurvivesRestartAndIsolatesSpaces(t *testing.T) {
 
 func TestOneBotHistoryEscapeAndSafeIDsAndEditTaskDelete(t *testing.T) {
 	a, tt := qaApp(t, &scripted{steps: []func(agent.Request) agent.Message{reply("ok")}})
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 
@@ -287,10 +287,10 @@ func TestOneBotHistoryEscapeAndSafeIDsAndEditTaskDelete(t *testing.T) {
 	// Edit history drawer supports deleting a persisted edit task.
 	task := editTestTask(t, a)
 	task.Instruction = "优化这段文字"
-	if err := a.persistOneBotTask(task); err != nil {
+	if err := a.qa.persistOneBotTask(task); err != nil {
 		t.Fatal(err)
 	}
-	a.loadOneBotHistory()
+	a.qa.loadOneBotHistory()
 	a.qa.editHistoryOpen = true
 	tt.Frame()
 	if !tt.HasText("优化这段文字") {
@@ -341,7 +341,7 @@ func TestOneBotHistorySnapshot(t *testing.T) {
 			if mode == "narrow" {
 				tt.SetSize(720, 560)
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			tt.Advance(slide)
 			if mode != "empty" {
@@ -350,12 +350,12 @@ func TestOneBotHistorySnapshot(t *testing.T) {
 					if i > 0 {
 						tt.Advance(25 * time.Minute)
 						tt.Frame()
-						a.clearQA()
+						a.qa.clearQA()
 					}
 					a.qa.input = q
-					a.askQA()
+					a.qa.askQA()
 					tt.Frame()
-					qaSettle(t, tt, a.qaSession(spID).turns[0])
+					qaSettle(t, tt, a.qa.qaSession(spID).turns[0])
 				}
 			}
 			if err := tt.Click("历史记录"); err != nil {

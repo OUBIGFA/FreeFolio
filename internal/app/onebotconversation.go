@@ -14,40 +14,40 @@ import (
 // composer and session-review: one message timeline, one input, a quiet model
 // selector, and expandable changes attached to assistant messages. See the
 // pinned source record in third_party/opencode/README.md.
-func (a *App) oneBotHeaderMenu(c *ui.Context) {
-	sp := a.qaActiveSpace()
+func (ob *qaState) oneBotHeaderMenu(c *ui.Context) {
+	sp := ob.qaActiveSpace()
 	var sess *qaSession
 	if sp != nil {
-		sess = a.qaSession(sp.ID)
+		sess = ob.qaSession(sp.ID)
 	}
 	hasTurns := sess != nil && len(sess.turns) > 0
 	busy := sess != nil && sess.running()
 	alreadyCleared := !hasTurns || sess.turns[len(sess.turns)-1].contextBreakAfter
 	iconButton(c, "onebot-menu", iconEllipsis, i18n.T("OneBot 菜单"), i18n.T("更多"), false).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 		if m.Item(i18n.T("OneBot 设置")).Chosen() {
-			a.openSettings(tabAI)
+			ob.host.openSettings(tabAI)
 		}
 		if m.Item(i18n.T("编辑记录")).Chosen() {
-			a.loadOneBotHistory()
-			a.qa.historyOpen = false
-			a.qa.editHistoryOpen = true
+			ob.loadOneBotHistory()
+			ob.historyOpen = false
+			ob.editHistoryOpen = true
 		}
 		m.Separator()
 		if m.Item(i18n.T("清除上下文")).Disabled(busy || alreadyCleared).Chosen() && sp != nil {
-			a.clearOneBotContext(sp.ID)
+			ob.clearOneBotContext(sp.ID)
 		}
 		if m.Item(i18n.T("复制完整对话")).Disabled(!hasTurns).Chosen() {
-			a.copyQAText(c, "conv-copy", exportOneBotConversationMarkdown(sess))
+			ob.copyQAText(c, "conv-copy", exportOneBotConversationMarkdown(sess))
 		}
 		m.Separator()
-		if m.Item(i18n.T("直接修改")).Checked(a.prefs.AI.Direct).Chosen() {
-			a.prefs.AI.Direct = !a.prefs.AI.Direct
-			a.savePrefs()
+		if m.Item(i18n.T("直接修改")).Checked(ob.host.preferences().AI.Direct).Chosen() {
+			ob.host.preferences().AI.Direct = !ob.host.preferences().AI.Direct
+			ob.host.savePrefs()
 		}
 		if m.Item(i18n.T("清除编辑上下文")).Chosen() {
-			a.qa.editMode = false
-			a.qa.editTask = nil
-			a.qa.editFollow = false
+			ob.editMode = false
+			ob.editTask = nil
+			ob.editFollow = false
 		}
 	})
 }
@@ -76,48 +76,48 @@ func oneBotApplyButton(c *ui.Context, key, label string) ui.Element {
 	return e
 }
 
-func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
+func (ob *qaState) oneBotComposer(c *ui.Context, s *qaSession) {
 	t := c.Theme()
-	if a.qa.editHistoryOpen {
+	if ob.editHistoryOpen {
 		ui.Box(c).Height(1).Background(separator(t))
 		ui.Column(c.Key("history-drawer")).Background(t.Text.Alpha(0.024)).Children(func() {
 			ui.Row(c.Key("history-head")).Padding(8, 12, 4, 12).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, i18n.T("编辑记录与恢复")).FontSize(12.5).FontWeight(600).Grow(1)
 				if quietOneBotAction(c, "close-history", i18n.T("关闭记录")).Clicked() {
-					a.qa.editHistoryOpen = false
+					ob.editHistoryOpen = false
 				}
 			})
-			ui.Scroll(c.Key("history-popover")).Height(200).Padding(4, 12, 10, 12).Children(func() { a.oneBotHistoryView(c) })
+			ui.Scroll(c.Key("history-popover")).Height(200).Padding(4, 12, 10, 12).Children(func() { ob.oneBotHistoryView(c) })
 		})
 	}
-	if a.qa.editOptionsOpen {
+	if ob.editOptionsOpen {
 		ui.Box(c).Height(1).Background(separator(t))
 		ui.Column(c.Key("edit-options")).Background(t.Text.Alpha(0.024)).Padding(10, 12).Gap(8).Children(func() {
-			a.oneBotScopeView(c)
+			ob.oneBotScopeView(c)
 			ui.Row(c).Justify(ui.End).Children(func() {
 				if quietOneBotAction(c, "close-options", i18n.T("完成")).Clicked() {
-					a.qa.editOptionsOpen = false
+					ob.editOptionsOpen = false
 				}
 			})
 		})
 	}
 	ui.Column(c.Key("composer-margin")).Padding(8, 12, 12, 12).Shrink(0).Children(func() {
-		a.chatGPTUsageView(c)
+		ob.host.chatGPT().chatGPTUsageView(c)
 		composer := ui.Column(c.Key("composer")).Radius(panelRadius).Border(1, t.Border).Background(field(t)).Padding(8, 10, 6, 10).Gap(4)
-		if a.qa.dropHover {
+		if ob.dropHover {
 			composer.Border(1.5, t.Accent).Background(t.Accent.Alpha(0.06))
 		} else if composer.FocusWithin() {
 			composer.Border(1, t.Accent.Alpha(0.45))
 		}
 		composer.Children(func() {
-			if a.qa.dropHover {
+			if ob.dropHover {
 				ui.Row(c.Key("drop-hint")).Gap(6).Padding(4, 8).Radius(7).AlignItems(ui.Center).
 					Background(t.Accent.Alpha(0.10)).Children(func() {
 					ui.Icon(c, iconPlus).FontSize(13).TextColor(t.Accent)
 					ui.Text(c, i18n.T("松开以引用到 OneBot（支持多文件、图片）")).FontSize(12).FontWeight(500).TextColor(t.Accent)
 				})
 			}
-			if task := a.qa.editTask; a.qa.editMode && task != nil && len(task.Targets) > 0 {
+			if task := ob.editTask; ob.editMode && task != nil && len(task.Targets) > 0 {
 				label := task.Targets[0].Path
 				if len(task.Targets) > 1 {
 					label += fmt.Sprintf(" · %s", oneBotScopeLabel(task.Scope))
@@ -133,94 +133,94 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 					ui.Box(c).Width(2.5).Height(18).Radius(1.5).Background(t.Accent.Alpha(0.75)).Shrink(0)
 					ui.Text(c, label).FontSize(12).TextColor(t.Text.Alpha(0.82)).SingleLine().Grow(1).MinWidth(0)
 					if quietOneBotAction(c, "clear-context", "×").Height(22).Tooltip(i18n.T("清除编辑上下文")).Clicked() {
-						a.qa.editMode = false
-						a.qa.editTask = nil
-						a.qa.editFollow = false
+						ob.editMode = false
+						ob.editTask = nil
+						ob.editFollow = false
 					}
 				})
 			}
-			if len(a.qa.quotes) > 0 || len(a.qa.attachments) > 0 {
+			if len(ob.quotes) > 0 || len(ob.attachments) > 0 {
 				_, height := c.Size()
 				ui.Scroll(c.Key("draft-references")).MinHeight(0).MaxHeight(min(108, height/5)).Gap(4).Children(func() {
-					a.oneBotQuoteBadges(c, "quotes", a.qa.quotes, true)
-					badges := make([]oneBotAttachmentBadge, len(a.qa.attachments))
-					for i, item := range a.qa.attachments {
+					ob.oneBotQuoteBadges(c, "quotes", ob.quotes, true)
+					badges := make([]oneBotAttachmentBadge, len(ob.attachments))
+					for i, item := range ob.attachments {
 						badges[i] = item.badge()
 					}
-					a.oneBotAttachmentBadges(c, "attachments", badges, func(i int) {
-						a.qa.attachments = append(a.qa.attachments[:i:i], a.qa.attachments[i+1:]...)
+					ob.oneBotAttachmentBadges(c, "attachments", badges, func(i int) {
+						ob.attachments = append(ob.attachments[:i:i], ob.attachments[i+1:]...)
 					})
 				})
 			}
 			svc := c.Services()
-			in := ui.TextAreaBase(c.Key("qa-question"), &a.qa.input).Lines(1, 6).MinHeight(24).FontSize(14).Padding(2, 0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或拖入附件")).OnTextKey(func(key ui.TextKey) bool {
+			in := ui.TextAreaBase(c.Key("qa-question"), &ob.input).Lines(1, 6).MinHeight(24).FontSize(14).Padding(2, 0).Label(i18n.T("问题")).Placeholder(i18n.T("发送消息，或拖入附件")).OnTextKey(func(key ui.TextKey) bool {
 				if key.Key != ui.KeyEnter || key.Mods != 0 {
 					return false
 				}
-				a.qa.input = key.Text()
-				a.askQA()
-				if a.qa.input != key.Text() {
-					key.SetText(a.qa.input)
+				ob.input = key.Text()
+				ob.askQA()
+				if ob.input != key.Text() {
+					key.SetText(ob.input)
 				}
 				return true
 			}).OnPaste(func(text string) bool {
 				data := svc.ReadClipboardData(transfer.FileList, transfer.PNG)
 				if files, err := data.Files(); err == nil && len(files) > 0 {
-					a.addOneBotFiles(files)
+					ob.addOneBotFiles(files)
 					return true
 				}
 				if text == "" {
 					if raw, err := data.Read(transfer.PNG); err == nil && len(raw) > 0 {
-						a.addOneBotClipboardImage(raw)
+						ob.addOneBotClipboardImage(raw)
 						return true
 					}
 				}
 				return false
 			})
-			if a.qa.focusInput {
-				a.qa.focusInput = false
+			if ob.focusInput {
+				ob.focusInput = false
 				in.Focus()
 			}
 			ui.Row(c.Key("composer-toolbar")).Gap(5).AlignItems(ui.Center).Children(func() {
 				iconButton(c, "context-add", iconPlus, i18n.T("添加上下文"), i18n.T("添加附件或编辑范围"), false).Size(28, 28).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 					if m.Item(i18n.T("添加附件")).Chosen() {
-						a.pickOneBotAttachments()
+						ob.pickOneBotAttachments()
 					}
 					m.Separator()
 					for _, scope := range []string{"selection", "section", "document"} {
 						if m.Item(oneBotScopeLabel(scope)).Chosen() {
-							a.beginOneBotEdit(scope)
+							ob.beginOneBotEdit(scope)
 						}
 					}
 					if m.Item(i18n.T("选定多篇文档")).Chosen() {
-						a.qa.editScope = "documents"
-						a.qa.editOptionsOpen = true
-						a.qa.editDocumentsOpen = true
+						ob.editScope = "documents"
+						ob.editOptionsOpen = true
+						ob.editDocumentsOpen = true
 					}
 					if m.Item(i18n.T("创建新文档")).Chosen() {
-						a.beginOneBotEdit("new")
-						a.qa.editOptionsOpen = true
+						ob.beginOneBotEdit("new")
+						ob.editOptionsOpen = true
 					}
 					m.Separator()
-					if m.Item(i18n.T("提供三个方案")).Checked(a.qa.editCount == 3).Chosen() {
-						a.qa.editCount = 3
-						if !a.qa.editMode {
-							a.beginOneBotEdit("document")
+					if m.Item(i18n.T("提供三个方案")).Checked(ob.editCount == 3).Chosen() {
+						ob.editCount = 3
+						if !ob.editMode {
+							ob.beginOneBotEdit("document")
 						}
 					}
 					if m.Item(i18n.T("更多编辑选项")).Chosen() {
-						a.qa.editOptionsOpen = true
+						ob.editOptionsOpen = true
 					}
 				})
 				busy := s.running()
-				if task := a.qa.editTask; task != nil && (task.Running || task.Applying) {
+				if task := ob.editTask; task != nil && (task.Running || task.Applying) {
 					busy = true
 				}
 				ctxCleared := len(s.turns) == 0 || s.turns[len(s.turns)-1].contextBreakAfter
 				if iconButton(c, "qa-clear-context", iconEraser, i18n.T("清除上下文"), i18n.T("清除上下文（保留上方记录，重新开始对话）"), busy || ctxCleared).Size(28, 28).Clicked() {
-					a.clearOneBotContext(s.spaceID)
+					ob.clearOneBotContext(s.spaceID)
 				}
-				a.oneBotCompactModel(c)
+				ob.oneBotCompactModel(c)
 				ui.Spacer(c)
 				if len(s.turns) > 0 {
 					ctxLabel := i18n.T("新上下文")
@@ -229,17 +229,17 @@ func (a *App) oneBotComposer(c *ui.Context, s *qaSession) {
 					}
 					ui.Text(c, ctxLabel).FontSize(11).TextColor(t.TextMuted.Alpha(0.68)).NoWrap().Padding(0, 4, 0, 0)
 				}
-				sendDisabled := strings.TrimSpace(a.qa.input) == "" && (a.qa.editMode || len(a.qa.attachments) == 0)
+				sendDisabled := strings.TrimSpace(ob.input) == "" && (ob.editMode || len(ob.attachments) == 0)
 				if busy {
 					if qaRoundButton(c, "qa-stop", iconStop, i18n.T("停止"), false).Clicked() {
-						if task := a.qa.editTask; task != nil && (task.Running || task.Applying) {
-							a.stopOneBotEdit()
+						if task := ob.editTask; task != nil && (task.Running || task.Applying) {
+							ob.stopOneBotEdit()
 						} else {
-							a.stopQA()
+							ob.stopQA()
 						}
 					}
 				} else if qaRoundButton(c, "qa-send", iconArrowUp, i18n.T("发送 (Enter)"), sendDisabled).Clicked() {
-					a.askQA()
+					ob.askQA()
 				}
 			})
 		})
@@ -253,7 +253,7 @@ func oneBotAttachmentIcon(kind string) *ui.SVG {
 	return iconFile
 }
 
-func (a *App) oneBotAttachmentBadges(c *ui.Context, key string, badges []oneBotAttachmentBadge, onRemove func(int)) {
+func (ob *qaState) oneBotAttachmentBadges(c *ui.Context, key string, badges []oneBotAttachmentBadge, onRemove func(int)) {
 	if len(badges) == 0 {
 		return
 	}
@@ -286,7 +286,7 @@ func (a *App) oneBotAttachmentBadges(c *ui.Context, key string, badges []oneBotA
 					ui.Text(c, b.Name).FontSize(11.5).TextColor(t.Text.Alpha(0.82)).SingleLine().MaxWidth(160)
 				})
 				if clickable && body.Clicked() {
-					a.openAnywhere(b.SpaceID, b.RelPath)
+					ob.host.openAnywhere(b.SpaceID, b.RelPath)
 				}
 				if onRemove != nil {
 					x := ui.Row(c.Key("remove")).Size(20, 24).Radius(6).Center().Cursor(ui.CursorPointer).
@@ -308,10 +308,10 @@ func (a *App) oneBotAttachmentBadges(c *ui.Context, key string, badges []oneBotA
 	})
 }
 
-func (a *App) oneBotCompactModel(c *ui.Context) {
+func (ob *qaState) oneBotCompactModel(c *ui.Context) {
 	t := c.Theme()
 	label := i18n.T("选择模型")
-	if conn := a.prefs.AI.Current(); conn != nil && conn.Model != "" {
+	if conn := ob.host.preferences().AI.Current(); conn != nil && conn.Model != "" {
 		label = oneBotModelName(conn.Name, conn.Model)
 		if conn.Protocol == agent.ChatGPT {
 			if model := conn.CurrentModel(); model != nil && model.Name != "" {
@@ -321,7 +321,7 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 	}
 	b := ui.MenuButton(c.Key("onebot-model"), label, func(m *ui.Menu) {
 		first := true
-		for _, conn := range a.prefs.AI.Connections {
+		for _, conn := range ob.host.preferences().AI.Connections {
 			// Image and video services cannot hold a conversation.
 			if conn.Protocol == agent.Media {
 				continue
@@ -338,18 +338,18 @@ func (a *App) oneBotCompactModel(c *ui.Context) {
 				if conn.Protocol == agent.ChatGPT && model.Name != "" {
 					name = model.Name
 				}
-				if m.Item(oneBotModelName(conn.Name, name)).Checked(conn.ID == a.prefs.AI.Active && conn.Model == model.ID).Chosen() {
-					if a.prefs.AI.Active != conn.ID {
-						a.selectAIConnection(conn.ID)
+				if m.Item(oneBotModelName(conn.Name, name)).Checked(conn.ID == ob.host.preferences().AI.Active && conn.Model == model.ID).Chosen() {
+					if ob.host.preferences().AI.Active != conn.ID {
+						ob.selectAIConnection(conn.ID)
 					}
-					a.prefs.AI.Current().Model = model.ID
-					a.savePrefs()
+					ob.host.preferences().AI.Current().Model = model.ID
+					ob.host.savePrefs()
 				}
 			}
 		}
 		m.Separator()
 		if m.Item(i18n.T("管理供应商")).Chosen() {
-			a.openSettings(tabAI)
+			ob.host.openSettings(tabAI)
 		}
 	}).Height(26).Padding(2, 8).Radius(6).Border(0, t.Border).Background(ui.Color{}).TextColor(t.TextMuted).FontSize(12).MinWidth(0).Shrink(1).Label(i18n.T("选择模型")).Tooltip(label)
 	if b.Hovered() {
@@ -366,19 +366,19 @@ func oneBotModelName(provider, model string) string {
 	return provider + " / " + model
 }
 
-func (a *App) attachOneBotTask(task *oneBotTask) {
-	s := a.qaSession(task.SpaceID)
+func (ob *qaState) attachOneBotTask(task *oneBotTask) {
+	s := ob.qaSession(task.SpaceID)
 	for _, turn := range s.turns {
 		if turn.edit == task {
 			return
 		}
 	}
-	s.turns = append(s.turns, &qaTurn{model: a.qaSettings().Model, start: len(s.history), question: task.Instruction, edit: task})
+	s.turns = append(s.turns, &qaTurn{model: ob.qaSettings().Model, start: len(s.history), question: task.Instruction, edit: task})
 	s.list.ScrollToEnd()
-	a.saveOneBotConversation(task.SpaceID, s)
+	ob.saveOneBotConversation(task.SpaceID, s)
 }
 
-func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
+func (ob *qaState) oneBotReply(c *ui.Context, task *oneBotTask) {
 	if task == nil {
 		return
 	}
@@ -398,7 +398,7 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 			ui.Text(c, label).FontSize(13).TextColor(t.TextMuted).Role(ui.RoleStatus)
 			if task.Running && task.Selected >= 0 && task.Selected < len(task.Candidates) {
 				candidate := task.Candidates[task.Selected]
-				a.oneBotReplyText(c, task, candidate, candidate.Text)
+				ob.oneBotReplyText(c, task, candidate, candidate.Text)
 			}
 			return
 		}
@@ -442,10 +442,10 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 		if candidate.Error != "" {
 			ui.Text(c, candidate.Error).FontSize(13).TextColor(t.Danger)
 			if quietOneBotAction(c, "retry", i18n.T("重试")).Clicked() {
-				a.qa.editTask = task
-				a.qa.editMode = true
-				a.qa.input = task.Instruction
-				a.qa.focusInput = true
+				ob.editTask = task
+				ob.editMode = true
+				ob.input = task.Instruction
+				ob.focusInput = true
 			}
 			return
 		}
@@ -457,7 +457,7 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 			if strings.TrimSpace(text) == "" {
 				text = i18n.T("没有产生修改")
 			}
-			a.oneBotReplyText(c, task, candidate, text)
+			ob.oneBotReplyText(c, task, candidate, text)
 			return
 		}
 		// The assistant answer previews its wording. JSON protocol text never
@@ -485,7 +485,7 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 		if len([]rune(preview)) > 2400 {
 			preview = string([]rune(preview)[:2400]) + "…"
 		}
-		a.oneBotReplyText(c, task, candidate, preview)
+		ob.oneBotReplyText(c, task, candidate, preview)
 		label := fmt.Sprintf(i18n.T("%d 个文件 · %d 处修改"), len(paths), len(candidate.Changes))
 		if saved == len(candidate.Changes) {
 			label = i18n.T("已保存") + " · " + label
@@ -499,20 +499,20 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 			ui.Spacer(c)
 			if pending > 0 {
 				if oneBotApplyButton(c, "apply", i18n.T("应用修改")).Clicked() {
-					if err := a.applyOneBotCandidate(task, task.Selected, -1); err != nil {
+					if err := ob.applyOneBotCandidate(task, task.Selected, -1); err != nil {
 						task.Error = err.Error()
 					}
 				}
 			}
 			iconButton(c, "more", iconEllipsis, i18n.T("修改操作"), i18n.T("更多"), false).Size(26, 26).Role(ui.RoleMenuButton).Menu(func(m *ui.Menu) {
 				if m.Item(i18n.T("继续调整方案")).Chosen() {
-					a.qa.editTask = task
-					a.qa.editMode = true
-					a.qa.editFollow = true
-					a.qa.focusInput = true
+					ob.editTask = task
+					ob.editMode = true
+					ob.editFollow = true
+					ob.focusInput = true
 				}
 				if m.Item(i18n.T("基于最新原文重试")).Chosen() {
-					a.restartOneBotTask(task)
+					ob.restartOneBotTask(task)
 				}
 				if m.Item(i18n.T("拒绝全部")).Chosen() {
 					for _, ch := range candidate.Changes {
@@ -520,29 +520,29 @@ func (a *App) oneBotReply(c *ui.Context, task *oneBotTask) {
 							ch.Status = "rejected"
 						}
 					}
-					a.keepOneBotTask(task)
+					ob.keepOneBotTask(task)
 				}
 				if m.Item(i18n.T("回退本方案")).Chosen() {
-					a.revertOneBotCandidate(task, candidate)
+					ob.revertOneBotCandidate(task, candidate)
 				}
 			})
 		})
 		if task.ShowDiff {
 			for i, ch := range candidate.Changes {
-				a.oneBotChangeView(c.Key(i), task, task.Selected, i, ch)
+				ob.oneBotChangeView(c.Key(i), task, task.Selected, i, ch)
 			}
 		}
 	})
 }
 
-func (a *App) oneBotReplyText(c *ui.Context, task *oneBotTask, candidate *oneBotCandidate, text string) {
+func (ob *qaState) oneBotReplyText(c *ui.Context, task *oneBotTask, candidate *oneBotCandidate, text string) {
 	if text == "" {
 		return
 	}
 	candidate.preview.answer = text
 	candidate.preview.view.parse(text, task.Running)
-	session := a.qaSession(task.SpaceID)
+	session := ob.qaSession(task.SpaceID)
 	for i := range candidate.preview.view.blocks {
-		a.qaAnswerBlock(c.Key(i), task.SpaceID, session, &candidate.preview, &candidate.preview.view.blocks[i])
+		ob.qaAnswerBlock(c.Key(i), task.SpaceID, session, &candidate.preview, &candidate.preview.view.blocks[i])
 	}
 }

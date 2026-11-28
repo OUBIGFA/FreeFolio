@@ -139,7 +139,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	f := &fakeUpdates{}
 	withUpdates(a, f)
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if !tt.HasText("FreeFolio 已是最新版本") {
 		t.Fatalf("up to date: %q", tt.Texts())
@@ -151,7 +151,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	}
 
 	f.err = errors.New("offline")
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if !tt.HasText("无法检查更新：offline") || !tt.HasText("手动下载") {
 		t.Fatalf("failed check: %q", tt.Texts())
@@ -163,7 +163,7 @@ func TestUpdateManualCheck(t *testing.T) {
 	}
 
 	f.err, f.release = nil, &fakeRelease{version: "0.2.0"}
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if !tt.HasText("FreeFolio 0.2.0 可以更新") || !tt.HasText("当前版本 "+Version) || !tt.HasText("下载并安装") {
 		t.Fatalf("found: %q", tt.Texts())
@@ -174,7 +174,7 @@ func TestUpdateManualCheck(t *testing.T) {
 		t.Fatal("leaving settings keeps the available update")
 	}
 	f.release = nil
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if f.checks != 4 || !tt.HasText("FreeFolio 已是最新版本") || tt.HasText("下载并安装") {
 		t.Fatal("checking again must refresh the result instead of reopening an old offer")
@@ -218,7 +218,7 @@ func TestUpdateManualCheckDoesNotAutoDownloadAfterLeavingSettings(t *testing.T) 
 	service := &fakeUpdates{release: release, onCheck: func() { a.settingsOpen = false }}
 	withUpdates(a, service)
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if a.settingsOpen || release.installs != 0 || a.updates.found != "0.2.0" {
 		t.Fatal("a manual check stays manual when the user leaves settings before it completes")
@@ -262,7 +262,7 @@ func TestUpdateInstallFailureKeepsAppOpen(t *testing.T) {
 	release := &fakeRelease{version: "0.2.0", applyErr: errors.New("installer blocked")}
 	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if err := tt.Click("下载并安装"); err != nil {
 		t.Fatal(err)
@@ -279,7 +279,7 @@ func TestUpdateInstallFailureKeepsAppOpen(t *testing.T) {
 	if *relaunched != 1 || release.applies != 2 {
 		t.Fatalf("retry must apply once more: restarts=%d applies=%d", *relaunched, release.applies)
 	}
-	a.installUpdate()
+	a.updates.installUpdate()
 	if release.applies != 2 {
 		t.Fatal("repeated install clicks must not launch another installer")
 	}
@@ -287,10 +287,10 @@ func TestUpdateInstallFailureKeepsAppOpen(t *testing.T) {
 
 func TestUpdateCanceledDownloadNeedsAnotherInstallClick(t *testing.T) {
 	a, tt := newTestApp(t)
-	release := &fakeRelease{version: "0.2.0", onDownload: a.cancelUpdateDownload}
+	release := &fakeRelease{version: "0.2.0", onDownload: a.updates.cancelUpdateDownload}
 	relaunched, _ := withUpdates(a, &fakeUpdates{release: release})
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if err := tt.Click("下载并安装"); err != nil {
 		t.Fatal(err)
@@ -300,7 +300,7 @@ func TestUpdateCanceledDownloadNeedsAnotherInstallClick(t *testing.T) {
 		t.Fatal("canceling a download must also cancel its installation")
 	}
 	release.onDownload = nil
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if err := tt.Click("下载并安装"); err != nil {
 		t.Fatal(err)
@@ -320,7 +320,7 @@ func TestUpdateInstallWaitsForUnsavedDocuments(t *testing.T) {
 	caretAtEnd(a, tt)
 	tt.Type(" Keep this before updating.")
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if err := tt.Click("下载并安装"); err != nil {
 		t.Fatal(err)
@@ -336,7 +336,7 @@ func TestUpdateInstallWaitsForUnsavedDocuments(t *testing.T) {
 	if release.applies != 0 || a.prefs.PendingUpdate != "" {
 		t.Fatal("canceling the save must cancel installation")
 	}
-	a.installUpdate()
+	a.updates.installUpdate()
 	tt.Frame()
 	if err := tt.Click("保存"); err != nil {
 		t.Fatal(err)
@@ -352,7 +352,7 @@ func TestUpdateNoInstallerDoesNotReportUpToDate(t *testing.T) {
 	a, tt := newTestApp(t)
 	withUpdates(a, &fakeUpdates{err: update.ErrNoInstaller})
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if !tt.HasText("暂未发布适用于此平台的安装包") || tt.HasText("FreeFolio 已是最新版本") {
 		t.Fatalf("empty release feed must stay distinct: %q", tt.Texts())
@@ -369,7 +369,7 @@ func TestUpdateDisabledBuild(t *testing.T) {
 	if f.checks != 0 {
 		t.Fatal("a build that cannot update never checks")
 	}
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if !tt.HasText("前往下载页面") {
 		t.Fatalf("disabled: %q", tt.Texts())
@@ -508,7 +508,7 @@ func TestUpdateReleasePageButtonOpensTagURL(t *testing.T) {
 	a, tt := newTestApp(t)
 	_, opened := withUpdates(a, &fakeUpdates{release: &fakeRelease{version: "0.3.0", notes: "## 新功能\n\n- 更清晰的更新界面"}})
 	tt.Frame()
-	a.checkForUpdates()
+	a.updates.checkForUpdates()
 	tt.Frame()
 	if err := tt.Click("查看发布页"); err != nil {
 		t.Fatal(err)

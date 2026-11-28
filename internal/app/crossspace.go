@@ -170,7 +170,7 @@ func (a *App) moveAcross(fromID, rel, toID, dir string) string {
 		a.followTo(dst)
 	}
 	if a.library.open && a.library.page == libSpaces {
-		a.loadLibrary()
+		a.library.loadLibrary()
 	}
 	if !src.IsExternal() {
 		a.offerUndo(i18n.T("已移到空间「")+dst.Name+"」", path.Base(to), func() { a.moveAcross(toID, to, fromID, parentDir(rel)) })

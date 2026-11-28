@@ -87,18 +87,18 @@ func isSafeOneBotID(id string) bool {
 	return true
 }
 
-func (a *App) clockNow() time.Time {
-	if !a.now.IsZero() {
-		return a.now
+func (ob *qaState) clockNow() time.Time {
+	if !ob.host.clock().IsZero() {
+		return ob.host.clock()
 	}
 	return time.Now()
 }
 
-func (a *App) oneBotConversationDir() string {
-	if a.cfg.ConfigDir == "" {
+func (ob *qaState) oneBotConversationDir() string {
+	if ob.host.appConfig().ConfigDir == "" {
 		return ""
 	}
-	return filepath.Join(a.cfg.ConfigDir, "onebot", "conversations")
+	return filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "conversations")
 }
 
 func collapseSingleLine(s string, maxRunes int) string {
@@ -191,27 +191,27 @@ func sortOneBotSummaries(list []oneBotConversationSummary) {
 	})
 }
 
-func (a *App) upsertOneBotHistorySummary(sum oneBotConversationSummary) {
-	for i := range a.qa.history {
-		if a.qa.history[i].ID == sum.ID {
-			a.qa.history[i] = sum
-			sortOneBotSummaries(a.qa.history)
+func (ob *qaState) upsertOneBotHistorySummary(sum oneBotConversationSummary) {
+	for i := range ob.history {
+		if ob.history[i].ID == sum.ID {
+			ob.history[i] = sum
+			sortOneBotSummaries(ob.history)
 			return
 		}
 	}
-	a.qa.history = append(a.qa.history, sum)
-	sortOneBotSummaries(a.qa.history)
+	ob.history = append(ob.history, sum)
+	sortOneBotSummaries(ob.history)
 }
 
-func (a *App) saveOneBotConversation(spaceID string, s *qaSession) {
+func (ob *qaState) saveOneBotConversation(spaceID string, s *qaSession) {
 	if s == nil || s.deleted || len(s.turns) == 0 || spaceID == "" {
 		return
 	}
-	dir := a.oneBotConversationDir()
+	dir := ob.oneBotConversationDir()
 	if dir == "" {
 		return
 	}
-	now := a.clockNow()
+	now := ob.clockNow()
 	if s.id == "" {
 		s.id = model.NewID()
 		s.created = now
@@ -278,7 +278,7 @@ func (a *App) saveOneBotConversation(spaceID string, s *qaSession) {
 	if err := fsutil.WriteFileAtomic(filepath.Join(dir, s.id+".json"), data, 0600); err != nil {
 		return
 	}
-	a.upsertOneBotHistorySummary(oneBotConversationSummary{
+	ob.upsertOneBotHistorySummary(oneBotConversationSummary{
 		ID:        conv.ID,
 		SpaceID:   conv.SpaceID,
 		Title:     conv.Title,
@@ -335,60 +335,60 @@ func readOneBotConversationSummaries(dir string) ([]oneBotConversationSummary, e
 	return out, nil
 }
 
-func (a *App) toggleOneBotHistory() {
-	a.qa.historyOpen = !a.qa.historyOpen
-	a.qa.historyConfirmClear = false
-	if a.qa.historyOpen {
-		a.qa.editHistoryOpen = false
-		a.qa.editOptionsOpen = false
-		a.loadOneBotConversations()
+func (ob *qaState) toggleOneBotHistory() {
+	ob.historyOpen = !ob.historyOpen
+	ob.historyConfirmClear = false
+	if ob.historyOpen {
+		ob.editHistoryOpen = false
+		ob.editOptionsOpen = false
+		ob.loadOneBotConversations()
 	}
 }
 
-func (a *App) loadOneBotConversations() {
-	dir := a.oneBotConversationDir()
-	a.qa.historyEpoch++
-	epoch := a.qa.historyEpoch
-	a.qa.historyErr = nil
+func (ob *qaState) loadOneBotConversations() {
+	dir := ob.oneBotConversationDir()
+	ob.historyEpoch++
+	epoch := ob.historyEpoch
+	ob.historyErr = nil
 	if dir == "" {
-		a.qa.history = nil
-		a.qa.historyLoaded = true
-		a.qa.historyLoading = false
+		ob.history = nil
+		ob.historyLoaded = true
+		ob.historyLoading = false
 		return
 	}
-	if a.win != nil && !a.qa.sync {
-		a.qa.historyLoading = true
-		win := a.win
+	if ob.host.window() != nil && !ob.sync {
+		ob.historyLoading = true
+		win := ob.host.window()
 		go func() {
 			list, err := readOneBotConversationSummaries(dir)
 			win.Update(func() {
-				if a.qa.historyEpoch != epoch {
+				if ob.historyEpoch != epoch {
 					return
 				}
-				a.qa.historyLoading = false
-				a.qa.historyLoaded = true
-				a.qa.historyErr = err
+				ob.historyLoading = false
+				ob.historyLoaded = true
+				ob.historyErr = err
 				if err == nil {
-					a.qa.history = list
+					ob.history = list
 				}
 			})
 		}()
 		return
 	}
 	list, err := readOneBotConversationSummaries(dir)
-	a.qa.historyLoading = false
-	a.qa.historyLoaded = true
-	a.qa.historyErr = err
+	ob.historyLoading = false
+	ob.historyLoaded = true
+	ob.historyErr = err
 	if err == nil {
-		a.qa.history = list
+		ob.history = list
 	}
 }
 
-func (a *App) loadOneBotTaskByID(id string) *oneBotTask {
-	if !isSafeOneBotID(id) || a.cfg.ConfigDir == "" {
+func (ob *qaState) loadOneBotTaskByID(id string) *oneBotTask {
+	if !isSafeOneBotID(id) || ob.host.appConfig().ConfigDir == "" {
 		return nil
 	}
-	p := filepath.Join(a.cfg.ConfigDir, "onebot", "tasks", id+".json")
+	p := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "tasks", id+".json")
 	info, err := os.Stat(p)
 	if err != nil || info.IsDir() || info.Size() > oneBotMaxConversationBytes {
 		return nil
@@ -409,31 +409,31 @@ func (a *App) loadOneBotTaskByID(id string) *oneBotTask {
 	return &task
 }
 
-func (a *App) openOneBotConversation(spaceID, id string) {
+func (ob *qaState) openOneBotConversation(spaceID, id string) {
 	if !isSafeOneBotID(id) || spaceID == "" {
 		return
 	}
-	cur := a.qaSession(spaceID)
+	cur := ob.qaSession(spaceID)
 	if cur.id == id && len(cur.turns) > 0 {
-		a.qa.historyOpen = false
-		a.qa.historyConfirmClear = false
+		ob.historyOpen = false
+		ob.historyConfirmClear = false
 		return
 	}
-	dir := a.oneBotConversationDir()
+	dir := ob.oneBotConversationDir()
 	if dir == "" {
 		return
 	}
 	data, err := os.ReadFile(filepath.Join(dir, id+".json"))
 	if err != nil {
-		a.notify("%s", i18n.T("无法打开历史对话：")+err.Error())
+		ob.host.notify("%s", i18n.T("无法打开历史对话：")+err.Error())
 		if errors.Is(err, os.ErrNotExist) {
-			a.qa.history = slices.DeleteFunc(a.qa.history, func(s oneBotConversationSummary) bool { return s.ID == id })
+			ob.history = slices.DeleteFunc(ob.history, func(s oneBotConversationSummary) bool { return s.ID == id })
 		}
 		return
 	}
 	var conv oneBotConversation
 	if err := json.Unmarshal(data, &conv); err != nil || conv.Version != oneBotConversationVersion || len(conv.Turns) == 0 {
-		a.notify("%s", i18n.T("无法打开历史对话：记录格式无效"))
+		ob.host.notify("%s", i18n.T("无法打开历史对话：记录格式无效"))
 		return
 	}
 
@@ -446,10 +446,10 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 		}
 	}
 	if len(cur.turns) > 0 {
-		a.saveOneBotConversation(spaceID, cur)
+		ob.saveOneBotConversation(spaceID, cur)
 	}
-	if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
-		a.stopOneBotEdit()
+	if ob.editTask != nil && (ob.editTask.Running || ob.editTask.Applying) {
+		ob.stopOneBotEdit()
 	}
 
 	turns := make([]*qaTurn, len(conv.Turns))
@@ -480,9 +480,9 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 			}
 		}
 		if st.EditTaskID != "" {
-			turn.edit = a.loadOneBotTaskByID(st.EditTaskID)
+			turn.edit = ob.loadOneBotTaskByID(st.EditTaskID)
 		}
-		turn.stream.sync(turn.answer, a.clockNow())
+		turn.stream.sync(turn.answer, ob.clockNow())
 		turns[i] = turn
 	}
 
@@ -500,61 +500,61 @@ func (a *App) openOneBotConversation(spaceID, id string) {
 	if loaded.contextStart == 0 {
 		recomputeContextStart(loaded)
 	}
-	a.qa.sessions[spaceID] = loaded
-	a.qa.editTask = nil
-	a.qa.editMode = false
-	a.qa.editFollow = false
-	a.qa.attachments = nil
-	a.qa.quotes = nil
-	a.qa.historyOpen = false
-	a.qa.historyConfirmClear = false
-	a.qa.focusInput = true
+	ob.sessions[spaceID] = loaded
+	ob.editTask = nil
+	ob.editMode = false
+	ob.editFollow = false
+	ob.attachments = nil
+	ob.quotes = nil
+	ob.historyOpen = false
+	ob.historyConfirmClear = false
+	ob.focusInput = true
 }
 
-func (a *App) deleteOneBotConversation(spaceID, id string) {
+func (ob *qaState) deleteOneBotConversation(spaceID, id string) {
 	if !isSafeOneBotID(id) {
 		return
 	}
-	if dir := a.oneBotConversationDir(); dir != "" {
+	if dir := ob.oneBotConversationDir(); dir != "" {
 		if err := os.Remove(filepath.Join(dir, id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
-			a.notify("%s", i18n.T("无法删除历史记录：")+err.Error())
+			ob.host.notify("%s", i18n.T("无法删除历史记录：")+err.Error())
 			return
 		}
 	}
-	if cur := a.qa.sessions[spaceID]; cur != nil && cur.id == id {
+	if cur := ob.sessions[spaceID]; cur != nil && cur.id == id {
 		if cur.cancel != nil {
 			cur.cancel()
 		}
 		cur.deleted = true
-		a.qa.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-		if sp := a.qaActiveSpace(); sp != nil && sp.ID == spaceID {
-			if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
-				a.stopOneBotEdit()
+		ob.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+		if sp := ob.qaActiveSpace(); sp != nil && sp.ID == spaceID {
+			if ob.editTask != nil && (ob.editTask.Running || ob.editTask.Applying) {
+				ob.stopOneBotEdit()
 			}
-			a.qa.editTask = nil
-			a.qa.editMode = false
-			a.qa.editFollow = false
-			a.qa.attachments = nil
-			a.qa.quotes = nil
+			ob.editTask = nil
+			ob.editMode = false
+			ob.editFollow = false
+			ob.attachments = nil
+			ob.quotes = nil
 		}
 	}
-	a.qa.history = slices.DeleteFunc(a.qa.history, func(s oneBotConversationSummary) bool { return s.ID == id })
+	ob.history = slices.DeleteFunc(ob.history, func(s oneBotConversationSummary) bool { return s.ID == id })
 }
 
-func (a *App) clearOneBotConversations(spaceID string) {
+func (ob *qaState) clearOneBotConversations(spaceID string) {
 	if spaceID == "" {
 		return
 	}
-	dir := a.oneBotConversationDir()
+	dir := ob.oneBotConversationDir()
 	seen := map[string]bool{}
 	var ids []string
-	for _, item := range a.qa.history {
+	for _, item := range ob.history {
 		if item.SpaceID == spaceID && isSafeOneBotID(item.ID) && !seen[item.ID] {
 			seen[item.ID] = true
 			ids = append(ids, item.ID)
 		}
 	}
-	if cur := a.qa.sessions[spaceID]; cur != nil && isSafeOneBotID(cur.id) && !seen[cur.id] {
+	if cur := ob.sessions[spaceID]; cur != nil && isSafeOneBotID(cur.id) && !seen[cur.id] {
 		seen[cur.id] = true
 		ids = append(ids, cur.id)
 	}
@@ -571,48 +571,48 @@ func (a *App) clearOneBotConversations(spaceID string) {
 		}
 		deleted[id] = true
 	}
-	if cur := a.qa.sessions[spaceID]; cur != nil && (cur.id == "" || deleted[cur.id]) {
+	if cur := ob.sessions[spaceID]; cur != nil && (cur.id == "" || deleted[cur.id]) {
 		if cur.cancel != nil {
 			cur.cancel()
 		}
 		cur.deleted = true
-		a.qa.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
-		if sp := a.qaActiveSpace(); sp != nil && sp.ID == spaceID {
-			if a.qa.editTask != nil && (a.qa.editTask.Running || a.qa.editTask.Applying) {
-				a.stopOneBotEdit()
+		ob.sessions[spaceID] = &qaSession{spaceID: spaceID, list: ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}}
+		if sp := ob.qaActiveSpace(); sp != nil && sp.ID == spaceID {
+			if ob.editTask != nil && (ob.editTask.Running || ob.editTask.Applying) {
+				ob.stopOneBotEdit()
 			}
-			a.qa.editTask = nil
-			a.qa.editMode = false
-			a.qa.editFollow = false
-			a.qa.attachments = nil
-			a.qa.quotes = nil
+			ob.editTask = nil
+			ob.editMode = false
+			ob.editFollow = false
+			ob.attachments = nil
+			ob.quotes = nil
 		}
 	}
-	a.qa.history = slices.DeleteFunc(a.qa.history, func(s oneBotConversationSummary) bool { return deleted[s.ID] })
-	a.qa.historyConfirmClear = false
-	a.qa.historyQuery = ""
+	ob.history = slices.DeleteFunc(ob.history, func(s oneBotConversationSummary) bool { return deleted[s.ID] })
+	ob.historyConfirmClear = false
+	ob.historyQuery = ""
 	if firstErr != nil {
-		a.notify("%s", i18n.T("无法删除历史记录：")+firstErr.Error())
+		ob.host.notify("%s", i18n.T("无法删除历史记录：")+firstErr.Error())
 	}
 }
 
-func (a *App) deleteOneBotEditTask(id string) {
+func (ob *qaState) deleteOneBotEditTask(id string) {
 	if !isSafeOneBotID(id) {
 		return
 	}
-	if a.cfg.ConfigDir != "" {
-		p := filepath.Join(a.cfg.ConfigDir, "onebot", "tasks", id+".json")
+	if ob.host.appConfig().ConfigDir != "" {
+		p := filepath.Join(ob.host.appConfig().ConfigDir, "onebot", "tasks", id+".json")
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
-			a.notify("%s", i18n.T("无法删除历史记录：")+err.Error())
+			ob.host.notify("%s", i18n.T("无法删除历史记录：")+err.Error())
 			return
 		}
 	}
-	a.qa.editHistory = slices.DeleteFunc(a.qa.editHistory, func(t *oneBotTask) bool { return t.ID == id })
+	ob.editHistory = slices.DeleteFunc(ob.editHistory, func(t *oneBotTask) bool { return t.ID == id })
 }
 
-func (a *App) oneBotHistoryItems(spaceID, query string) (allCount int, filtered []oneBotConversationSummary) {
+func (ob *qaState) oneBotHistoryItems(spaceID, query string) (allCount int, filtered []oneBotConversationSummary) {
 	q := strings.ToLower(strings.TrimSpace(query))
-	for _, item := range a.qa.history {
+	for _, item := range ob.history {
 		if item.SpaceID != spaceID {
 			continue
 		}
@@ -632,27 +632,27 @@ func (a *App) oneBotHistoryItems(spaceID, query string) (allCount int, filtered 
 	return allCount, filtered
 }
 
-func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
+func (ob *qaState) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 	t := c.Theme()
 	if c.Shortcut(0, ui.KeyEscape) {
 		switch {
-		case a.qa.historyConfirmClear:
-			a.qa.historyConfirmClear = false
-		case a.qa.historyQuery != "":
-			a.qa.historyQuery = ""
+		case ob.historyConfirmClear:
+			ob.historyConfirmClear = false
+		case ob.historyQuery != "":
+			ob.historyQuery = ""
 		default:
-			a.qa.historyOpen = false
+			ob.historyOpen = false
 			return
 		}
 	}
 
-	total, items := a.oneBotHistoryItems(spaceID, a.qa.historyQuery)
+	total, items := ob.oneBotHistoryItems(spaceID, ob.historyQuery)
 
 	ui.Column(c.Key("qa-history-panel")).Grow(1).MinHeight(0).Children(func() {
 		ui.Row(c.Key("qa-history-head")).Padding(8, 10, 8, 8).Gap(6).AlignItems(ui.Center).Children(func() {
 			if iconButton(c, "qa-history-back", iconBack, i18n.T("返回对话"), i18n.T("返回对话"), false).Size(26, 26).Clicked() {
-				a.qa.historyOpen = false
-				a.qa.historyConfirmClear = false
+				ob.historyOpen = false
+				ob.historyConfirmClear = false
 			}
 			ui.Text(c, i18n.T("历史记录")).FontSize(13).FontWeight(600).NoWrap()
 			if total > 0 {
@@ -661,10 +661,10 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 				})
 			}
 			ui.Spacer(c)
-			if total > 0 && !a.qa.historyLoading {
-				if a.qa.historyConfirmClear {
+			if total > 0 && !ob.historyLoading {
+				if ob.historyConfirmClear {
 					if quietOneBotAction(c, "qa-history-clear-cancel", i18n.T("取消")).Clicked() {
-						a.qa.historyConfirmClear = false
+						ob.historyConfirmClear = false
 					}
 					confirm := ui.Row(c.Key("qa-history-clear-confirm")).Height(26).Padding(2, 9).Radius(5).AlignItems(ui.Center).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("确认清空"))
@@ -676,7 +676,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 						ui.Text(c, i18n.T("确认清空")).FontSize(12).FontWeight(600).TextColor(t.Danger).NoWrap()
 					})
 					if confirm.Clicked() {
-						a.clearOneBotConversations(spaceID)
+						ob.clearOneBotConversations(spaceID)
 					}
 				} else {
 					clr := ui.Row(c.Key("qa-history-clear")).Height(26).Padding(2, 6).Radius(5).AlignItems(ui.Center).
@@ -690,14 +690,14 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 						ui.Text(c, i18n.T("清空")).FontSize(12).TextColor(ink).NoWrap()
 					})
 					if clr.Clicked() {
-						a.qa.historyConfirmClear = true
+						ob.historyConfirmClear = true
 					}
 				}
 			}
 		})
 		ui.Box(c).Height(1).Background(separator(t))
 
-		if a.qa.historyLoading {
+		if ob.historyLoading {
 			ui.Column(c.Key("qa-history-loading")).Grow(1).Center().Gap(10).Padding(20).Children(func() {
 				ui.Spinner(c).Size(18, 18)
 				ui.Text(c, i18n.T("正在加载历史记录")).FontSize(12.5).TextColor(t.TextMuted)
@@ -705,14 +705,14 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 			return
 		}
 
-		if a.qa.historyErr != nil {
+		if ob.historyErr != nil {
 			ui.Column(c.Key("qa-history-error")).Grow(1).Center().Gap(10).Padding(20).Children(func() {
 				ui.Column(c).Gap(8).Padding(12, 14).Radius(10).AlignItems(ui.Center).MaxWidth(280).
 					Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.22)).Children(func() {
 					ui.Icon(c, iconAlert).FontSize(16).TextColor(t.Danger)
-					ui.Text(c, i18n.T("无法读取历史记录：")+a.qa.historyErr.Error()).FontSize(12).LineHeight(1.45).TextColor(t.Danger).TextAlign(ui.Center)
+					ui.Text(c, i18n.T("无法读取历史记录：")+ob.historyErr.Error()).FontSize(12).LineHeight(1.45).TextColor(t.Danger).TextAlign(ui.Center)
 					if ui.Button(c.Key("qa-history-retry"), i18n.T("重试")).Clicked() {
-						a.loadOneBotConversations()
+						ob.loadOneBotConversations()
 					}
 				})
 			})
@@ -740,10 +740,10 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 			}
 			box.Children(func() {
 				ui.Icon(c, iconSearch).FontSize(13).TextColor(t.TextMuted).Shrink(0)
-				ui.TextInput(c.Key("qa-history-search"), &a.qa.historyQuery).Grow(1).MinWidth(0).
+				ui.TextInput(c.Key("qa-history-search"), &ob.historyQuery).Grow(1).MinWidth(0).
 					Border(0, t.Border).Background(ui.Color{}).Padding(0).
 					Label(i18n.T("搜索历史对话")).Placeholder(i18n.T("搜索历史对话"))
-				if a.qa.historyQuery != "" {
+				if ob.historyQuery != "" {
 					clr := ui.Box(c.Key("qa-history-search-clear")).Size(20, 20).Radius(5).Center().Shrink(0).
 						Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Label(i18n.T("清除搜索"))
 					if clr.Hovered() {
@@ -751,7 +751,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 					}
 					clr.Children(func() { ui.Icon(c, iconX).FontSize(11).TextColor(t.TextMuted) })
 					if clr.Clicked() {
-						a.qa.historyQuery = ""
+						ob.historyQuery = ""
 					}
 				}
 			})
@@ -761,13 +761,13 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 			ui.Column(c.Key("qa-history-nomatch")).Grow(1).Center().Gap(8).Padding(20).Children(func() {
 				ui.Text(c, i18n.T("没有匹配的历史对话")).FontSize(13).TextColor(t.TextMuted)
 				if quietOneBotAction(c, "qa-history-reset-search", i18n.T("清除搜索")).Clicked() {
-					a.qa.historyQuery = ""
+					ob.historyQuery = ""
 				}
 			})
 			return
 		}
 
-		list := ui.List(c.Key("qa-history-list-"+spaceID), &a.qa.historyList, len(items)).
+		list := ui.List(c.Key("qa-history-list-"+spaceID), &ob.historyList, len(items)).
 			Grow(1).MinHeight(0).Padding(6, 12, 12, 12).Label(i18n.T("历史记录")).
 			ItemKey(func(i int) any { return items[i].ID })
 		list.Rows(func(row ui.ListRow) {
@@ -806,7 +806,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 						ui.Text(c, meta).FontSize(11).TextColor(t.TextMuted.Alpha(0.8)).SingleLine()
 					})
 					if body.Clicked() {
-						a.openOneBotConversation(spaceID, item.ID)
+						ob.openOneBotConversation(spaceID, item.ID)
 					}
 
 					del := ui.Box(c.Key("delete")).Size(28, 28).Radius(7).Center().Shrink(0).
@@ -821,7 +821,7 @@ func (a *App) oneBotHistoryPanel(c *ui.Context, spaceID string, s *qaSession) {
 						ui.Icon(c, iconTrash).FontSize(14).TextColor(delInk)
 					})
 					if del.Clicked() {
-						a.deleteOneBotConversation(spaceID, item.ID)
+						ob.deleteOneBotConversation(spaceID, item.ID)
 					}
 				})
 			})

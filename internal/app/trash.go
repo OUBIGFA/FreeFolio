@@ -46,7 +46,7 @@ func (a *App) restoreDeleted(it trashbin.Item) {
 			sp.SetExpanded(dir, true)
 		}
 		if vault.IsDocument(rel) {
-			a.closeLibrary()
+			a.library.closeLibrary()
 			a.open(rel)
 		}
 	}

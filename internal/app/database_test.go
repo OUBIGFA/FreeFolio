@@ -1395,7 +1395,7 @@ func TestDatabasePhase6SearchAndQACitation(t *testing.T) {
 	a.open("Tasks.db.md")
 	tt.Frame()
 
-	fs := a.qaSpace(sp.ID)
+	fs := a.qa.qaSpace(sp.ID)
 	dbPage, err := fs.Page("Tasks.db.md")
 	if err != nil {
 		t.Fatalf("fs.Page(Tasks.db.md): %v", err)
@@ -1422,7 +1422,7 @@ func TestDatabasePhase6SearchAndQACitation(t *testing.T) {
 	// Citing the database record row opens Side Peek directly on that record.
 	a.open("Welcome.md")
 	tt.Frame()
-	a.openCitation(sp.ID, agent.Citation{Path: "Tasks.db.md", From: recLine, To: recLine})
+	a.qa.openCitation(sp.ID, agent.Citation{Path: "Tasks.db.md", From: recLine, To: recLine})
 	tt.Frame()
 	if !a.dbPeek.open || a.doc == nil || a.doc.rel != "Tasks.db.md" {
 		t.Fatalf("expected Side Peek opened on cited DB record, dbPeek=%+v doc=%+v", a.dbPeek, a.doc)

@@ -58,7 +58,7 @@ func TestCloudRemoteFailureOffersRecheckAction(t *testing.T) {
 	case out := <-a.cloud.done:
 		a.cloud.done <- out
 	case <-time.After(3 * time.Second):
-		a.cancelCloudSync()
+		a.cloud.cancelCloudSync()
 		t.Fatal("recheck did not finish")
 	}
 	tt.Frame()
@@ -173,7 +173,7 @@ func TestCloudOverwriteRunsOnlyFailedSpaceAndConsumesDirection(t *testing.T) {
 			s.done <- out
 			tt.Frame()
 		case <-deadline.C:
-			a.cancelCloudSync()
+			a.cloud.cancelCloudSync()
 			t.Fatal("recovery worker timed out")
 		}
 	}
@@ -190,7 +190,7 @@ func TestCloudOverwriteRunsOnlyFailedSpaceAndConsumesDirection(t *testing.T) {
 		t.Fatal("recovery touched another selected space")
 	}
 	s.reconcile = "local"
-	a.startCloudSync(false, false)
+	a.cloud.startCloudSync(false, false)
 	if s.busy || s.reconcile != "" {
 		t.Fatal("automatic run accepted or retained overwrite")
 	}
@@ -215,7 +215,7 @@ func newCloudScheduleTestApp(t *testing.T, configure func(*cloudsync.Config)) (*
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		a.cancelCloudSync()
+		a.cloud.cancelCloudSync()
 		if a.cloud.busy {
 			select {
 			case <-a.cloud.done:
@@ -267,7 +267,7 @@ func TestCloudDisablingDiscardsPendingSync(t *testing.T) {
 				switch pending {
 				case "save":
 					a.doc.justSaved = true
-					a.cloudSaved(a.doc)
+					a.documentSaved(a.doc)
 				case "retry":
 					a.cloud.busy = true
 					a.cloud.done = make(chan cloudOutcome, 1)
@@ -335,7 +335,7 @@ func TestCloudProgressAndManualCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := a.cloud.done
-	defer a.cancelCloudSync()
+	defer a.cloud.cancelCloudSync()
 	select {
 	case <-requested:
 	case <-time.After(3 * time.Second):
@@ -459,7 +459,7 @@ func TestCloudSaveDebouncesAndHistoryCloses(t *testing.T) {
 	a.cloud.config.Enabled, a.cloud.config.Automatic = true, true
 	a.cloud.config.Spaces[a.doc.space.ID] = "Notes"
 	a.doc.justSaved = true
-	a.cloudSaved(a.doc)
+	a.documentSaved(a.doc)
 	if got := a.cloud.due.Sub(a.now); got != 15*time.Second {
 		t.Fatalf("save delay=%v", got)
 	}

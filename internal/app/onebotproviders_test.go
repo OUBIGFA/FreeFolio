@@ -16,7 +16,7 @@ func setupOneBot(a *App, key string) {
 	a.qa.keyRead = false
 	a.qa.keyInput = key
 	if key != "" {
-		_ = a.saveAIKey()
+		_ = a.qa.saveAIKey()
 	}
 }
 
@@ -24,20 +24,20 @@ func TestOneBotProvidersKeepKeysAndModelChoicesSeparate(t *testing.T) {
 	a, _ := newTestApp(t)
 	setupOneBot(a, "first-key")
 	first := a.prefs.AI.Active
-	a.addAIConnection("anthropic")
+	a.qa.addAIConnection("anthropic")
 	second := a.prefs.AI.Active
 	a.qa.keyInput = "second-key"
-	if err := a.saveAIKey(); err != nil {
+	if err := a.qa.saveAIKey(); err != nil {
 		t.Fatal(err)
 	}
 	a.prefs.AI.Current().Models = []agent.ModelInfo{{ID: "claude", Enabled: true}, {ID: "unused"}}
 	a.prefs.AI.Current().Model = "claude"
-	a.selectAIConnection(first)
-	if s := a.qaSettings(); s.APIKey != "first-key" || s.Model != "test-model" {
+	a.qa.selectAIConnection(first)
+	if s := a.qa.qaSettings(); s.APIKey != "first-key" || s.Model != "test-model" {
 		t.Fatalf("first: %+v", s)
 	}
-	a.selectAIConnection(second)
-	if s := a.qaSettings(); s.APIKey != "second-key" || s.Protocol != agent.Anthropic {
+	a.qa.selectAIConnection(second)
+	if s := a.qa.qaSettings(); s.APIKey != "second-key" || s.Protocol != agent.Anthropic {
 		t.Fatalf("second: %+v", s)
 	}
 	a.savePrefs()
@@ -45,12 +45,12 @@ func TestOneBotProvidersKeepKeysAndModelChoicesSeparate(t *testing.T) {
 	if err != nil || strings.Contains(string(raw), "-key") {
 		t.Fatal("credentials escaped into preferences")
 	}
-	a.removeAIKey("second-key")
-	if s := a.qaSettings(); s.APIKey != "" {
+	a.qa.removeAIKey("second-key")
+	if s := a.qa.qaSettings(); s.APIKey != "" {
 		t.Fatal("removed key is still in use")
 	}
-	a.selectAIConnection(first)
-	if a.qaSettings().APIKey != "first-key" {
+	a.qa.selectAIConnection(first)
+	if a.qa.qaSettings().APIKey != "first-key" {
 		t.Fatal("removing another key changed first provider")
 	}
 }
@@ -59,7 +59,7 @@ func TestOneBotDiscoveryPreservesSelectionOnFailureAndDropsStaleResult(t *testin
 	a, _ := newTestApp(t)
 	setupOneBot(a, "key")
 	a.qa.listModels = func(agent.Settings) ([]agent.ModelInfo, error) { return nil, errors.New("offline") }
-	a.fetchModels()
+	a.qa.fetchModels()
 	if a.prefs.AI.Current().Model != "test-model" || !a.prefs.AI.Current().Models[0].Enabled || a.qa.modelsErr == nil {
 		t.Fatal("failed discovery discarded selected models")
 	}
@@ -67,7 +67,7 @@ func TestOneBotDiscoveryPreservesSelectionOnFailureAndDropsStaleResult(t *testin
 		a.prefs.AI.Current().BaseURL = "https://changed.example"
 		return []agent.ModelInfo{{ID: "stale"}}, nil
 	}
-	a.fetchModels()
+	a.qa.fetchModels()
 	if len(a.prefs.AI.Current().Models) != 1 || a.prefs.AI.Current().Models[0].ID != "test-model" {
 		t.Fatal("stale service list accepted")
 	}
@@ -80,7 +80,7 @@ func TestOneBotModelListSelectionAndManualAdd(t *testing.T) {
 		return []agent.ModelInfo{{ID: "alpha"}, {ID: "beta"}}, nil
 	}
 	a.openSettings(tabAI)
-	a.fetchModels()
+	a.qa.fetchModels()
 	tt.Frame()
 	tt.Scroll(680, 550, 0, 400)
 	tt.Frame()
@@ -99,7 +99,7 @@ func TestOneBotModelListSelectionAndManualAdd(t *testing.T) {
 		t.Fatal("checkbox did not enable model")
 	}
 	a.qa.manualName = "private-model"
-	a.addManualAIModel()
+	a.qa.addManualAIModel()
 	if c.CurrentModel() == nil || c.Model != "private-model" || !c.CurrentModel().Enabled {
 		t.Fatal("manual model missing")
 	}
@@ -132,7 +132,7 @@ func TestOneBotClearProviderModelsIgnoresSearchAndPreservesKeys(t *testing.T) {
 	}
 	tt.Frame()
 	saved, err := a.prefStore.Load()
-	if err != nil || len(saved.AI.Current().Models) != 0 || saved.AI.Current().Model != "" || len(saved.AI.Find("other").Models) != 1 || a.qaSettings().APIKey != "saved-key" {
+	if err != nil || len(saved.AI.Current().Models) != 0 || saved.AI.Current().Model != "" || len(saved.AI.Find("other").Models) != 1 || a.qa.qaSettings().APIKey != "saved-key" {
 		t.Fatalf("cleared wrong provider data: %+v %v", saved.AI, err)
 	}
 }
@@ -142,11 +142,11 @@ func TestOneBotSecretFailureDoesNotDiscardInputOrSavedKey(t *testing.T) {
 	setupOneBot(a, "saved")
 	a.qa.secrets = failingSecrets{}
 	a.qa.keyInput = "new"
-	if err := a.saveAIKey(); err == nil || a.qa.keyInput != "new" || a.qaSettings().APIKey != "saved" {
+	if err := a.qa.saveAIKey(); err == nil || a.qa.keyInput != "new" || a.qa.qaSettings().APIKey != "saved" {
 		t.Fatal("failed save lost credential state")
 	}
-	a.removeAIKey("saved")
-	if a.qaSettings().APIKey != "saved" {
+	a.qa.removeAIKey("saved")
+	if a.qa.qaSettings().APIKey != "saved" {
 		t.Fatal("failed removal lost saved key")
 	}
 }
@@ -160,23 +160,23 @@ func TestOneBotMultipleKeysAndVersion1Keyring(t *testing.T) {
 	secrets.Set(apiKeySecret, []byte(`{"version":1,"keys":{"test":"old-key","other":"kept"}}`))
 	a.qa.secrets = secrets
 	a.qa.keyRead = false
-	if s := a.qaSettings(); s.APIKey != "old-key" || len(s.APIKeys) != 1 {
+	if s := a.qa.qaSettings(); s.APIKey != "old-key" || len(s.APIKeys) != 1 {
 		t.Fatalf("version 1 key: %+v", s)
 	}
 	a.qa.keyInput = "k-two, k-three\nold-key"
-	if err := a.saveAIKey(); err != nil {
+	if err := a.qa.saveAIKey(); err != nil {
 		t.Fatal(err)
 	}
-	s := a.qaSettings()
+	s := a.qa.qaSettings()
 	if strings.Join(s.APIKeys, " ") != "old-key k-two k-three" || s.APIKey != "old-key" {
 		t.Fatalf("keys: %v", s.APIKeys)
 	}
-	a.removeAIKey("k-two")
+	a.qa.removeAIKey("k-two")
 	a.qa.keyRead = false
-	if got := strings.Join(a.qaSettings().APIKeys, " "); got != "old-key k-three" {
+	if got := strings.Join(a.qa.qaSettings().APIKeys, " "); got != "old-key k-three" {
 		t.Fatalf("after removal: %s", got)
 	}
-	keys, err := a.readAIKeys()
+	keys, err := a.qa.readAIKeys()
 	if err != nil || keys.Version != 2 || strings.Join(keys.Keys["other"], "") != "kept" {
 		t.Fatalf("keyring: %+v %v", keys, err)
 	}
@@ -207,7 +207,7 @@ func TestOneBotSettingsRevealKeyAndChooseStrategy(t *testing.T) {
 		t.Fatal("key not shown again")
 	}
 	a.qa.keyInput = "sk-second-secret-5678"
-	a.saveAIKey()
+	a.qa.saveAIKey()
 	tt.Frame()
 	if !tt.HasText("多 Key 策略") || !tt.HasText(maskAPIKey("sk-second-secret-5678")) {
 		t.Fatal("second key or strategy missing", tt.Texts())

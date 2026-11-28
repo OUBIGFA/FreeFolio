@@ -36,7 +36,7 @@ func TestMDZipIncludesWhiteboardMediaAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.open("Bundle.md")
-	a.exportMDZ()
+	a.mdzFiles.exportMDZ()
 	archive, err := mdz.Open(filepath.Join(sp.Root, "Bundle.mdz"))
 	if err != nil {
 		t.Fatal(err)

@@ -28,9 +28,9 @@ func TestFileModeOpensOneBotOnOpenFiles(t *testing.T) {
 	args, _ := json.Marshal(map[string]any{"path": a.doc.rel, "offset": 1, "limit": 2000})
 	fake.steps = []func(agent.Request) agent.Message{call("read", string(args)), reply("读到了。")}
 	a.qa.input = "这个文件写了什么？"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	s := a.qaSession(a.files.locations.ID)
+	s := a.qa.qaSession(a.files.locations.ID)
 	if len(s.turns) != 1 {
 		t.Fatalf("turns %d", len(s.turns))
 	}
@@ -44,7 +44,7 @@ func TestFileModeOpensOneBotOnOpenFiles(t *testing.T) {
 	}
 	a.leaveFileMode()
 	tt.Frame()
-	if a.qaActiveSpace() != a.state.ActiveSpace() {
+	if a.qa.qaActiveSpace() != a.state.ActiveSpace() {
 		t.Fatal("OneBot kept the file browser's space after leaving")
 	}
 }
@@ -57,13 +57,13 @@ func TestSnapshotFileModeOneBot(t *testing.T) {
 		t.Fatal("open")
 	}
 	tt.Frame()
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
 	a.qa.input = "这个文件写了什么？"
-	a.askQA()
+	a.qa.askQA()
 	tt.Frame()
-	qaSettle(t, tt, a.qaSession(a.files.locations.ID).turns[0])
+	qaSettle(t, tt, a.qa.qaSession(a.files.locations.ID).turns[0])
 	savePNG(t, filepath.Join(dir, "file-mode-onebot.png"), tt)
 }

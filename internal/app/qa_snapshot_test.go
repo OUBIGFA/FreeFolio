@@ -28,10 +28,10 @@ func TestQAStreamingSnapshot(t *testing.T) {
 			if mode == "narrow" {
 				tt.SetSize(640, 500)
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			qaAdvance(tt, 500*time.Millisecond)
-			s := a.qaSession(a.state.ActiveSpace().ID)
+			s := a.qa.qaSession(a.state.ActiveSpace().ID)
 			turn := &qaTurn{question: "介绍一下这种流式阅读效果", running: true}
 			s.turns = []*qaTurn{turn}
 			s.cancel = func() {}
@@ -71,11 +71,11 @@ func TestQABatchedCompletionSnapshot(t *testing.T) {
 			if mode == "narrow" {
 				tt.SetSize(640, 500)
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			qaAdvance(tt, 500*time.Millisecond)
 			a.qa.input = "快速返回的回答也要有动画"
-			a.askQA()
+			a.qa.askQA()
 			tt.Frame()
 			elapsed := time.Duration(0)
 			for _, ms := range []int{0, 160, 320, 640, 960} {
@@ -84,7 +84,7 @@ func TestQABatchedCompletionSnapshot(t *testing.T) {
 				elapsed = next
 				savePNG(t, filepath.Join(dir, fmt.Sprintf("qa-batched-%s-%04d.png", mode, ms)), tt)
 			}
-			qaSettle(t, tt, a.qaSession(a.state.ActiveSpace().ID).turns[0])
+			qaSettle(t, tt, a.qa.qaSession(a.state.ActiveSpace().ID).turns[0])
 			savePNG(t, filepath.Join(dir, "qa-batched-"+mode+"-complete.png"), tt)
 		})
 	}
@@ -94,9 +94,9 @@ func TestQAWindowResizeSnapshot(t *testing.T) {
 	dir := snapshotDir(t, "set FREEFOLIO_SNAPSHOT to render native window resizing")
 	a, tt := newTestApp(t)
 	a.doc.ed = editor.New(qaResizeDocument())
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{{question: "这篇长文章主要讲什么？", answer: "这篇文章介绍**生成式人工智能**的基本原理与实践。\n\n- 阅读时可以调整窗口大小。\n- 正文应实时换行，问答保持独立滚动。"}}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	a.doc.ed.Scroll.Y = 100000
@@ -142,19 +142,19 @@ func TestQASnapshot(t *testing.T) {
 			if name == "unset" {
 				a.prefs.AI.Current().Model = ""
 			}
-			a.toggleQA()
+			a.qa.toggleQA()
 			tt.Frame()
 			tt.Advance(slide)
 			sp := a.state.ActiveSpace().ID
 			switch name {
 			case "answer", "answer-dark", "answer-narrow", "answer-right", "citations-hover", "citations-open", "citations-open-dark", "steps", "steps-dark", "steps-hits":
 				a.qa.input = "为什么发布延期了？现在还卡在哪？"
-				a.askQA()
+				a.qa.askQA()
 				if strings.HasPrefix(name, "steps") {
-					a.qaSession(sp).turns[0].expanded = true
+					a.qa.qaSession(sp).turns[0].expanded = true
 				}
 			case "polished", "polished-dark", "polished-narrow":
-				s := a.qaSession(sp)
+				s := a.qa.qaSession(sp)
 				t1 := &qaTurn{
 					model:             "test-model",
 					question:          "请简要总结之前的背景问题",
@@ -171,10 +171,10 @@ func TestQASnapshot(t *testing.T) {
 				s.turns = []*qaTurn{t1, t2}
 				s.contextStart = 2
 			case "error":
-				s := a.qaSession(sp)
+				s := a.qa.qaSession(sp)
 				s.turns = append(s.turns, &qaTurn{question: "总结一下本周的笔记", err: &agent.APIError{Status: 401, Message: "Incorrect API key provided"}})
 			case "running", "running-dark", "running-narrow":
-				s := a.qaSession(sp)
+				s := a.qa.qaSession(sp)
 				s.cancel = func() {}
 				s.turns = append(s.turns, &qaTurn{question: "有哪些未完成的任务？", running: true, steps: []*qaStep{
 					{call: agent.ToolCall{Name: agent.ToolSearch, Args: `{"query":"未完成 任务 待办"}`}, done: true, result: "4 relevant passages in 3 documents."},
@@ -182,7 +182,7 @@ func TestQASnapshot(t *testing.T) {
 					{call: agent.ToolCall{Name: agent.ToolRead, Args: `{"path":"项目/周报.md","start_line":20,"end_line":60}`}},
 				}})
 			case "loader", "loader-dark", "loader-narrow", "thinking":
-				s := a.qaSession(sp)
+				s := a.qa.qaSession(sp)
 				s.cancel = func() {}
 				s.turns = append(s.turns, &qaTurn{question: "这个空间里有哪些还没完成的任务", running: true, thinking: name == "thinking"})
 			case "settings":
@@ -208,9 +208,9 @@ func TestQASnapshot(t *testing.T) {
 			tt.Advance(slide)
 			tt.Frame()
 			if strings.HasPrefix(name, "answer") || strings.HasPrefix(name, "steps") || strings.HasPrefix(name, "citations-") {
-				qaSettle(t, tt, a.qaSession(sp).turns[0])
+				qaSettle(t, tt, a.qa.qaSession(sp).turns[0])
 				if strings.HasPrefix(name, "steps") {
-					turn := a.qaSession(sp).turns[0]
+					turn := a.qa.qaSession(sp).turns[0]
 					turn.expanded = true
 					if name == "steps-hits" && len(turn.steps) > 0 {
 						turn.steps[0].open = true

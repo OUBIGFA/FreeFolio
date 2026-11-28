@@ -86,7 +86,7 @@ func TestQACitationNoOverlapGeometry(t *testing.T) {
 	os.WriteFile(filepath.Join(root(a), "Beta.md"), []byte("# Beta\n\nBeta line.\n"), 0o644)
 	os.WriteFile(filepath.Join(root(a), "Gamma.md"), []byte("# Gamma\n\nGamma line.\n"), 0o644)
 
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{
 		question:    "Check non-overlapping geometry",
 		expanded:    true,
@@ -101,7 +101,7 @@ func TestQACitationNoOverlapGeometry(t *testing.T) {
 		answer: "结论一 [Alpha.md#L3]，结论二继续说明并且自动换行到下一行 [Alpha.md#L3], [Beta.md#L3]，以及结论三 [Gamma.md#L3]。",
 	}
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -141,13 +141,13 @@ func TestQACitationPreviewTimingGlideAndDismiss(t *testing.T) {
 	os.WriteFile(filepath.Join(root(a), "Alpha.md"), []byte("# Alpha\n\n## First Section\n\nFirst line content.\n"), 0o644)
 	os.WriteFile(filepath.Join(root(a), "Beta.md"), []byte("# Beta\n\n## Second Section\n\nSecond line content.\n"), 0o644)
 
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{
 		question: "Preview test",
 		answer:   "First claim [Alpha.md#L5].\n\nSecond claim [Beta.md#L5].",
 	}
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -236,13 +236,13 @@ func TestQASourcesCollapsibleAndRowHighlight(t *testing.T) {
 	os.WriteFile(filepath.Join(root(a), "One.md"), []byte("# One\n\n## Alpha\n\nContent one.\n"), 0o644)
 	os.WriteFile(filepath.Join(root(a), "Two.md"), []byte("# Two\n\n## Beta\n\nContent two.\n"), 0o644)
 
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	turn := &qaTurn{
 		question: "Sources list test",
 		answer:   "Claim one [One.md#L5] and claim two [Two.md#L5].",
 	}
 	s.turns = []*qaTurn{turn}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
@@ -301,12 +301,12 @@ func TestQACitationPreviewDoesNotOccludeAnswerText(t *testing.T) {
 	a, tt := newTestApp(t)
 	os.WriteFile(filepath.Join(root(a), "Welcome.md"), []byte("# Welcome to FreeFolio\n\nFreeFolio is a calm place for writing, in the spirit of Arc and Zen.\n"), 0o644)
 
-	s := a.qaSession(a.state.ActiveSpace().ID)
+	s := a.qa.qaSession(a.state.ActiveSpace().ID)
 	s.turns = []*qaTurn{{
 		question: "介绍一下 FreeFolio",
 		answer:   "你的空间里有两条关于 FreeFolio 的描述。\n\n- 一个安静、克制的开源桌面文档编辑器，交互借鉴 Arc 与 Zen，文档以结构化的 `.arcmd` 文件保存，支持 Markdown 导入导出 [Welcome.md#L3]。\n\n- 起因：作者用纯 Go 原生把审美与手感移植成文档编辑器。",
 	}}
-	a.toggleQA()
+	a.qa.toggleQA()
 	tt.Frame()
 	tt.Advance(slide)
 	tt.Frame()
